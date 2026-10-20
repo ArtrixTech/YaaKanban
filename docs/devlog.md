@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(ui): tap to jump, resizable panel, live replies, usage stats
+## fix(ui): single review button, darker vertical logo gradient
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - Review cards and the detail banner have one "去查看" button. Jumping already marks the turn reviewed, so the separate "验收" button was the same action. The context menu keeps "标记已验收" for marking without jumping.
+  - Logo background: vertical gradient, dark at top to lighter at bottom (#08090B to #262A31). The dot is #10B981 to #4ADE80, top to bottom.
+- **Reason**: Round 5 feedback.
+- **User feedback**: "App logo，深色渐变从上到下（上深下浅）。颜色再深一点。绿点也要渐变，上深下浅。" "验收的时候，应该只有一个"去查看"按钮" "绿色渐变顶上太深。"
+- **Result**: `make test` 54/54.
+
+## feat(ui): tap to jump, resizable panel, live replies, usage stats
+
+`f4f8cf9` | 2026-10-20
 
 - **Changes**:
   - Card tap jumps to the agent; a chevron (or the context menu) expands it. Same in the menu popover.

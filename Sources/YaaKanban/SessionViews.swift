@@ -182,14 +182,11 @@ struct SessionCard: View {
         .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
+    /// One way out: looking at the result in the terminal is what marks it reviewed.
     private func actions(_ st: DisplayStatus) -> some View {
         HStack(spacing: 6) {
-            if st == .review {
-                Button { withAnimation(.snappy) { model.markRead(session.id) } } label: { Label("验收", systemImage: "checkmark") }
-                    .buttonStyle(PillButtonStyle(tint: .green, prominent: true))
-            }
-            Button { model.jump(session.id) } label: { Label("去终端查看", systemImage: "arrow.up.forward.app") }
-                .buttonStyle(PillButtonStyle(tint: st == .review ? .green : .accentColor))
+            Button { model.jump(session.id) } label: { Label("去查看", systemImage: "arrow.up.forward.app") }
+                .buttonStyle(PillButtonStyle(tint: st == .review ? .green : .accentColor, prominent: st == .review))
             Spacer()
         }
     }

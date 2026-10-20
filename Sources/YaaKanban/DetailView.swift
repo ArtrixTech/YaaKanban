@@ -104,10 +104,8 @@ struct SessionDetail: View {
                 Text(last).font(.system(size: 12.5)).textSelection(.enabled)
             }
             HStack(spacing: 6) {
-                Button { withAnimation(.snappy) { model.markRead(session.id) } } label: { Label("验收完成", systemImage: "checkmark") }
+                Button { model.jump(session.id) } label: { Label("去查看", systemImage: "arrow.up.forward.app") }
                     .buttonStyle(PillButtonStyle(tint: .green, prominent: true))
-                Button { model.jump(session.id) } label: { Label("去终端看看", systemImage: "arrow.up.forward.app") }
-                    .buttonStyle(PillButtonStyle(tint: .green))
             }
         }
         .padding(14)
