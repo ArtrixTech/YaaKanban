@@ -1,8 +1,17 @@
 # Devlog
 
-## fix(claude): end failed tool calls; flag outdated hook installs
+## docs: open-source under GPL-3.0 with a README
 
 `pending` | 2026-10-20
+
+- **Changes**: Added `LICENSE` (GPL-3.0) and `README.md`, covering features, build and install, hook locations, and the attribution for the agent icons.
+- **Reason**: "帮我放到gihub，开源。检查是否有敏感信息。" The license (GPL-3.0) and keeping the devlog as is were the user's choices.
+- **Process**: Scanned every commit's diff for keys, tokens, JWTs, private keys, private IPs, home paths and emails. None found. The only `secret` is a test fixture string. Personal mentions left by choice: one other project name and quotes of the user's requests in the devlog.
+- **Result**: `make test` 58/58.
+
+## fix(claude): end failed tool calls; flag outdated hook installs
+
+`b9315ee` | 2026-10-20
 
 - **Changes**:
   - Claude's hooks now include `PostToolUseFailure`. The normalizer already handled it, but it was never installed.
