@@ -8,7 +8,7 @@ private final class BoardPanel: NSPanel {
 }
 
 /// Always-on-top rounded panel on every Space: no title bar, sized to its content, draggable,
-/// snapping to screen edges.
+/// snapping to screen edges. Snapped to the left or right edge it can fold into a sidebar rail.
 @MainActor
 final class FloatingPanelController: NSObject, NSWindowDelegate {
     private let panel: NSPanel
@@ -46,9 +46,9 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         // top-aligned in the window, so a resize in flight never moves its top edge.
         let host = NSHostingView(rootView: FloatingPanelView(
             onHide: { [weak self] in self?.setVisible(false) },
-            onHeight: { [weak self] h in
+            onSize: { [weak self] size in
                 // Outside the layout pass that reported it; top alignment hides the one-frame lag.
-                DispatchQueue.main.async { self?.fit(height: h) }
+                DispatchQueue.main.async { self?.fit(size) }
             },
             room: room)
             .environment(model))
@@ -70,6 +70,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         }
         panel.setFrameAutosaveName("YaaFloatingPanel")
         updateRoom()
+        updateDock()
         // Dock, resolution or display arrangement changed.
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { [weak self] _ in
@@ -96,18 +97,31 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
 
     func toggle() { setVisible(!(panel.isVisible && panel.alphaValue > 0)) }
 
-    /// Resizes to the content, keeping the edge it is snapped to (top unless at the bottom) in
-    /// place, and always inside the screen's usable area.
-    private func fit(height: CGFloat) {
-        let h = ceil(height)
-        guard h > 0, abs(panel.frame.height - h) >= 1 else { return }
+    /// Resizes to the content, keeping the edges it is snapped to (top unless at the bottom, and
+    /// the side it is docked to) in place, and always inside the screen's usable area.
+    private func fit(_ size: CGSize) {
+        let w = ceil(size.width), h = ceil(size.height)
+        guard w > 0, h > 0, abs(panel.frame.height - h) >= 1 || abs(panel.frame.width - w) >= 1 else { return }
         var f = panel.frame
         let pinBottom = panel.screen.map { f.minY - $0.visibleFrame.minY < Self.snapDistance } ?? false
         if !pinBottom { f.origin.y = f.maxY - h }
-        f.size = NSSize(width: Self.width, height: h)
-        if let v = usable { f.origin.y = min(max(f.minY, v.minY), max(v.minY, v.maxY - f.height)) }
+        if room.dock == .right { f.origin.x = f.maxX - w }
+        f.size = NSSize(width: w, height: h)
+        if let v = usable {
+            f.origin.y = min(max(f.minY, v.minY), max(v.minY, v.maxY - f.height))
+            f.origin.x = min(max(f.minX, v.minX), max(v.minX, v.maxX - f.width))
+        }
         panel.setFrame(f, display: true)
         panel.invalidateShadow()
+    }
+
+    /// Which side the panel sits against, if any. Only changes when a move settles, so the panel
+    /// does not fold or unfold under the pointer mid-drag.
+    private func updateDock() {
+        guard let v = usable else { return }
+        let f = panel.frame, d = Self.snapDistance
+        let dock: DockEdge? = abs(f.maxX - v.maxX) < d ? .right : abs(f.minX - v.minX) < d ? .left : nil
+        if room.dock != dock { withAnimation(.snappy) { room.dock = dock } }
     }
 
     /// The screen's usable area less the snapping margin.
@@ -129,7 +143,15 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         perform(#selector(snapLater), with: nil, afterDelay: 0.15)
     }
 
-    @objc private func snapLater() { snap() }
+    @objc private func snapLater() {
+        // Still dragging (paused): wait for the drop.
+        if NSEvent.pressedMouseButtons & 1 != 0 {
+            perform(#selector(snapLater), with: nil, afterDelay: 0.15)
+            return
+        }
+        snap()
+        updateDock()
+    }
 
     private func snap() {
         guard let v = usable else { return }
@@ -139,8 +161,9 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         if abs(f.maxX - v.maxX) < d { f.origin.x = v.maxX - f.width }
         if abs(f.minY - v.minY) < d { f.origin.y = v.minY }
         if abs(f.maxY - v.maxY) < d { f.origin.y = v.maxY - f.height }
-        // Dropped partly off the bottom or top: pull it back in.
+        // Dropped partly off an edge: pull it back in (against that edge, so a side docks).
         f.origin.y = min(max(f.minY, v.minY), max(v.minY, v.maxY - f.height))
+        f.origin.x = min(max(f.minX, v.minX), max(v.minX, v.maxX - f.width))
         if f != panel.frame { panel.setFrame(f, display: true, animate: true) }
     }
 

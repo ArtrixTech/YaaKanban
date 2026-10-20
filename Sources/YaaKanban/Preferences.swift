@@ -13,6 +13,8 @@ final class Preferences {
     var panelOpacity: Double { didSet { d.set(panelOpacity, forKey: "panelOpacity") } }
     var showPanel: Bool { didSet { d.set(showPanel, forKey: "showPanel") } }
     var panelCollapsed: Bool { didSet { d.set(panelCollapsed, forKey: "panelCollapsed") } }
+    /// Snapped to a side, the panel folds into a rail unless the user unfolded it.
+    var sidebarExpanded: Bool { didSet { d.set(sidebarExpanded, forKey: "sidebarExpanded") } }
     /// Height of the floating panel's list, set with its resize grip; the list is shorter when its content is.
     var panelListHeight: CGFloat { didSet { d.set(Double(panelListHeight), forKey: "panelListHeight") } }
     /// Session ids in the order the user arranged them (see `Board`).
@@ -31,6 +33,7 @@ final class Preferences {
         panelOpacity = d.double(forKey: "panelOpacity")
         showPanel = d.bool(forKey: "showPanel")
         panelCollapsed = d.bool(forKey: "panelCollapsed")
+        sidebarExpanded = d.bool(forKey: "sidebarExpanded")
         panelListHeight = d.object(forKey: "panelListHeight") == nil ? 560 : CGFloat(d.double(forKey: "panelListHeight"))
         manualOrder = d.stringArray(forKey: "manualOrder") ?? []
         suppressWhenWaveFrontmost = d.bool(forKey: "suppressWhenWaveFrontmost")

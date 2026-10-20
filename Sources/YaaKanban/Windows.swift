@@ -125,12 +125,13 @@ struct EmptyBoard: View {
     }
 }
 
-/// Floating panel content, at its natural height; the borderless window resizes to fit it.
+/// Floating panel content, at its natural size; the borderless window resizes to fit it. Snapped to
+/// a side it folds into a `SidebarRail` unless the user unfolded it.
 struct FloatingPanelView: View {
     @Environment(AppModel.self) private var model
     var onHide: () -> Void = {}
-    /// Natural content height, reported on every layout change so the window can follow it.
-    var onHeight: (CGFloat) -> Void = { _ in }
+    /// Natural content size, reported on every layout change so the window can follow it.
+    var onSize: (CGSize) -> Void = { _ in }
     /// Room the window has on its screen; the list gives way so the panel never runs off it.
     var room: PanelRoom?
     @State private var expanded: String?
@@ -144,9 +145,30 @@ struct FloatingPanelView: View {
     static let maxList: CGFloat = 1400
 
     var body: some View {
+        Group {
+            if let edge = room?.dock, !model.settings.sidebarExpanded {
+                SidebarRail(edge: edge, onHide: onHide, listRoom: (room?.height ?? .infinity) - 72)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { onSize($0) }
+                    .transition(.opacity)
+            } else {
+                panel.transition(.opacity)
+            }
+        }
+        // Top-aligned however tall the window is at the moment: while it catches up with the
+        // content, the default (centering) would shift the top edge up and down.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var panel: some View {
         @Bindable var settings = model.settings
-        VStack(alignment: .leading, spacing: 10) {
+        return VStack(alignment: .leading, spacing: 10) {
             BoardHeader {
+                if let edge = room?.dock {
+                    IconButton(symbol: edge == .right ? "chevron.right.2" : "chevron.left.2", help: "收进侧边栏") {
+                        withAnimation(.snappy) { settings.sidebarExpanded = false }
+                    }
+                }
                 IconButton(symbol: "macwindow", help: "主界面") { AppWindows.open(.main) }
                 IconButton(symbol: "gearshape", help: "设置") { AppWindows.open(.settings) }
                 IconButton(symbol: settings.panelCollapsed ? "chevron.down" : "chevron.up",
@@ -181,13 +203,10 @@ struct FloatingPanelView: View {
         .padding(.bottom, settings.panelCollapsed || model.activeSessions.isEmpty ? 10 : 0)
         .frame(width: 340, alignment: .top)
         .fixedSize(horizontal: false, vertical: true)
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
-            chrome = h - (listShown ? shownList : 0)
-            onHeight(h)
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+            chrome = size.height - (listShown ? shownList : 0)
+            onSize(size)
         }
-        // Top-aligned however tall the window is at the moment: while it catches up with the
-        // content, the default (centering) would shift the top edge up and down.
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var listShown: Bool { !model.settings.panelCollapsed && !model.activeSessions.isEmpty }
@@ -202,6 +221,8 @@ struct FloatingPanelView: View {
 @MainActor @Observable
 final class PanelRoom {
     var height: CGFloat = .infinity
+    /// Screen edge the panel is snapped to, if a side.
+    var dock: DockEdge?
 }
 
 /// Bottom handle that sets the list height. AppKit-backed so the drag does not move the
