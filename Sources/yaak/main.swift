@@ -138,6 +138,10 @@ case "hook":
 case "install": runInstall(true)
 case "uninstall": runInstall(false)
 case "status": runStatus()
+case "snapshot":
+    // Debug: ask the running app to render its windows to PNGs.
+    let dir = args.count > 1 ? args[1] : "/tmp/yaak-snapshot"
+    exit(UnixSocket.send(Wire.encode(["snapshot": URL(fileURLWithPath: dir).path]), to: paths.socket.path).sent ? 0 : 1)
 default:
     print(usage)
     exit(args.isEmpty ? 0 : 2)

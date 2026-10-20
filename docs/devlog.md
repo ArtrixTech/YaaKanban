@@ -1,8 +1,18 @@
 # Devlog
 
-## feat(integrations): add agent installers and yaak CLI
+## feat(app): add menu bar app, floating panel, notifications, Wave jump
 
 `pending` | 2026-10-20
+
+- **Changes**: YaaKanban app: `AppModel` (socket server, spool drain, 10 s stuck tick, 5 s Claude session scan, SQLite history), MenuBarExtra with tinted icon + count, floating NSPanel (⌥⌘K, edge snap, opacity), main window with active/history + search/filter + session detail, Settings (installers, thresholds, Wave tab switching, login item). Notifications with Allow/Deny actions, suppressed while Wave is frontmost. Wave jump via `wsh badge` + activate; opt-in Cmd+N tab switch. Stuck silence rule now only applies to hooked sessions. Debug `yaak snapshot <dir>` renders all windows offscreen.
+- **Reason**: Spec §4–§5 UI and alerts.
+- **Process**: No screen-recording permission, so UI was verified through the snapshot command: panel, menu, settings and main-window detail render with live data (blocking PermissionRequest showed Allow/Deny buttons; real Claude sessions found by the scanner).
+- **Result**: `make test` 27/27. Permission hook falls back after 20 s with exit 0 and no output.
+- **Notes**: `cacheDisplay` skips the window background and vibrancy, so snapshots paint `windowBackgroundColor` explicitly and the NavigationSplitView sidebar still renders blank there. Naming a type `Settings` shadows the SwiftUI scene; renamed to `Preferences`.
+
+## feat(integrations): add agent installers and yaak CLI
+
+`7d725a7` | 2026-10-20
 
 - **Changes**: YaaIntegrations: Claude/Codex (Claude-shaped hooks.json), Cursor hooks.json, OpenCode + pi plugin files; idempotent plan/apply with `.yaak.bak` backups and `--dry-run`. CLI `yaak hook|install|uninstall|status`; permission hook blocks up to 25 s for an app decision (Claude, OpenCode), spools when the app is down. Snapshot events no longer count as activity for hooked sessions.
 - **Reason**: Spec §3 transport and installer safety.
@@ -12,7 +22,7 @@
 
 ## feat(core): add event model, reducer, stuck detection, wire, store
 
-`pending``5c7406b` | 2026-10-20
+`5c7406b` | 2026-10-20
 
 - **Changes**: Scaffold SwiftPM package (YaaCore, YaaIntegrations, yaak, YaaKanban), AGENTS.md from artrix-skills `9f9d782`, spec, Makefile. YaaCore: JSONValue, models, normalizers (Claude/Codex schema, Cursor, yaak plugin schema), SessionReducer + Alerts, StuckDetector, Unix socket client/server + spool, SQLite Store.
 - **Reason**: Foundation for the cross-agent monitor agreed in the grilling session (see `docs/spec.md`).

@@ -148,6 +148,7 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
     func running(tool: String? = nil, input: String = "{}", at: TimeInterval = 0, pid: Int32? = nil) -> SessionState {
         var s = SessionState(agent: .claudeCode, sessionId: "s", at: t0)
         s.status = .running
+        s.hooked = true
         s.agentPid = pid
         s.lastEventAt = t0.addingTimeInterval(at)
         if let tool {
@@ -187,6 +188,12 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         var idle = running(pid: 7)
         idle.status = .idle
         #expect(StuckDetector.evaluate(idle, now: t0, config: cfg, isAlive: { _ in false })?.status == .ended)
+    }
+
+    @Test func unhookedSessionsSkipSilence() {
+        var s = running()
+        s.hooked = false
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(4000), config: cfg, isAlive: { _ in true }) == nil)
     }
 
     @Test func recovers() {
