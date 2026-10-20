@@ -1,8 +1,20 @@
 # Devlog
 
-## fix(ui): single review button, darker vertical logo gradient
+## fix(jump): find the host app by process ancestry; raise Cursor's window
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - The jump walks up from the agent pid to the first regular app, and falls back to TERM_PROGRAM.
+  - For an editor (Cursor, VS Code, Windsurf, Zed), it activates the app and raises a window through Accessibility. Cursor's own agent gets the "Cursor Agents" window first; other agents get the window whose title has the project.
+- **Reason**: "cursor无法打开。" A Cursor agent runs in Cursor's extension host and has no TERM_PROGRAM, so the jump only copied the cwd.
+- **Process**: The pid ancestry of the live Cursor session resolves to Cursor.app. A first try opened the project folder with Cursor; that made a new editor window ("artrix-reach — Cursor") instead of focusing the Agents window, so it was replaced by the window raise, verified with an AX probe.
+- **Result**: `make test` 54/54.
+- **Notes**: An editor's built-in terminal reports TERM_PROGRAM=vscode even under Cursor; ancestry fixes that too.
+
+## fix(ui): single review button, darker vertical logo gradient
+
+`6038a33` | 2026-10-20
 
 - **Changes**:
   - Review cards and the detail banner have one "去查看" button. Jumping already marks the turn reviewed, so the separate "验收" button was the same action. The context menu keeps "标记已验收" for marking without jumping.

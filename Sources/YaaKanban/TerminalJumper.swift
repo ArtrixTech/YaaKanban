@@ -16,14 +16,41 @@ struct TerminalJumper {
             WaveAdapter(terminal: t, switchTabs: settings.waveTabSwitching).jump(app: wave)
             return .activated("Wave")
         }
-        if let name = s.terminal?.termProgram, let app = Self.app(forTermProgram: name) {
-            app.activate()
-            copyContext(s)
-            return .activated(app.localizedName ?? name)
+        // The app the agent runs under: Cursor's own agent has no terminal at all, and an editor's
+        // built-in terminal says TERM_PROGRAM=vscode whether it is VS Code or Cursor.
+        if let app = s.agentPid.flatMap(Self.hostApp(of:)) ?? s.terminal?.termProgram.flatMap(Self.app(forTermProgram:)) {
+            if Self.isEditor(app) {
+                // Raise the window that has the project (opening the folder would make a new editor
+                // window when the session lives in Cursor's separate Agents window).
+                app.activate()
+                EditorWindows.raise(pid: app.processIdentifier, project: s.projectName, agentsFirst: s.agent == .cursor)
+            } else {
+                app.activate()
+                copyContext(s)
+            }
+            return .activated(app.localizedName ?? "")
         }
         copyContext(s)
         return .copied
     }
+
+    /// First ancestor of the agent that is a regular app (a terminal or an editor).
+    static func hostApp(of pid: Int32) -> NSRunningApplication? {
+        var cur = pid
+        for _ in 0..<12 {
+            if let app = NSRunningApplication(processIdentifier: cur), app.activationPolicy == .regular,
+               app.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+                return app
+            }
+            guard let up = ProcessUtil.parent(of: cur), up > 1 else { return nil }
+            cur = up
+        }
+        return nil
+    }
+
+    static let editors: Set<String> = ["com.todesktop.230313mzl4w4u92", "com.microsoft.VSCode", "com.microsoft.VSCodeInsiders",
+                                       "com.exafunction.windsurf", "dev.zed.Zed"]
+    static func isEditor(_ app: NSRunningApplication) -> Bool { app.bundleIdentifier.map(editors.contains) ?? false }
 
     /// Marks the session's Wave block so it is easy to spot (used when it needs attention).
     func badge(_ s: SessionState, on: Bool) {
@@ -41,11 +68,34 @@ struct TerminalJumper {
     static func app(forTermProgram p: String) -> NSRunningApplication? {
         let ids: [String: String] = [
             "iTerm.app": "com.googlecode.iterm2", "Apple_Terminal": "com.apple.Terminal",
-            "ghostty": "com.mitchellh.ghostty", "WezTerm": "com.github.wez.wezterm", "vscode": "com.microsoft.VSCode",
+            "ghostty": "com.mitchellh.ghostty", "WezTerm": "com.github.wez.wezterm", "vscode": "com.microsoft.VSCode", "cursor": "com.todesktop.230313mzl4w4u92",
             "waveterm": waveBundleId,
         ]
         guard let id = ids[p] else { return nil }
         return NSRunningApplication.runningApplications(withBundleIdentifier: id).first
+    }
+}
+
+/// Editor windows through Accessibility: the one titled with the project, or Cursor's Agents window
+/// (first for Cursor's own agent, which usually lives there). Without Accessibility the app is
+/// only activated.
+enum EditorWindows {
+    static func raise(pid: pid_t, project: String?, agentsFirst: Bool) {
+        guard AXIsProcessTrusted() else { return }
+        let app = AXUIElementCreateApplication(pid)
+        var v: AnyObject?
+        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &v) == .success,
+              let windows = v as? [AXUIElement] else { return }
+        func title(_ w: AXUIElement) -> String {
+            var t: AnyObject?
+            return AXUIElementCopyAttributeValue(w, kAXTitleAttribute as CFString, &t) == .success ? (t as? String ?? "") : ""
+        }
+        // Editor titles read "file — project — Cursor"; match the project as a whole segment.
+        let byProject = project.flatMap { p in windows.first { title($0).components(separatedBy: " — ").contains(p) } }
+        let agents = windows.first { title($0).hasSuffix("Agents") }
+        guard let w = agentsFirst ? agents ?? byProject : byProject ?? agents else { return }
+        AXUIElementPerformAction(w, kAXRaiseAction as CFString)
+        AXUIElementSetAttributeValue(w, kAXMainAttribute as CFString, kCFBooleanTrue)
     }
 }
 
