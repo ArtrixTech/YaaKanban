@@ -37,6 +37,23 @@ final class ClaudeSessionScanner {
         return TranscriptPeek.read(url)
     }
 
+    /// Codex thread names (`~/.codex/session_index.jsonl`), reloaded when the file changes.
+    private var codexTitles: [String: String] = [:]
+    private var codexIndexMtime: Date?
+
+    func codexTitle(_ sessionId: String) -> String? {
+        let url = Paths.home().appendingPathComponent(".codex/session_index.jsonl")
+        if let m = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate, m != codexIndexMtime,
+           let data = try? Data(contentsOf: url) {
+            codexIndexMtime = m
+            for line in data.split(separator: UInt8(ascii: "\n")) {
+                guard let j = JSONValue.parse(Data(line)), let id = j["id"]?.string, let name = j["thread_name"]?.string else { continue }
+                codexTitles[id] = name
+            }
+        }
+        return codexTitles[sessionId]
+    }
+
     private func transcriptURL(_ s: SessionState) -> URL? {
         if let p = s.transcriptPath { return URL(fileURLWithPath: p) }
         if let known = transcripts[s.sessionId]?.url { return known }

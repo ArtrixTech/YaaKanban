@@ -51,13 +51,7 @@ struct MenuContent: View {
                 EmptyBoard()
             } else {
                 ScrollView {
-                    VStack(spacing: 6) {
-                        ForEach(model.activeSessions) { s in
-                            SessionCard(session: s) { open(s) }
-                                .transition(.asymmetric(insertion: .scale(scale: 0.96).combined(with: .opacity), removal: .opacity))
-                        }
-                    }
-                    .animation(.snappy, value: model.activeSessions.map(\.id))
+                    BoardList { open($0) }
                 }
                 .frame(maxHeight: 460)
                 .scrollIndicators(.never)
@@ -96,11 +90,10 @@ struct EmptyBoard: View {
     }
 }
 
-/// Floating panel content. Reports its height so the borderless window can fit it.
+/// Floating panel content, at its natural height; the borderless window resizes to fit it.
 struct FloatingPanelView: View {
     @Environment(AppModel.self) private var model
     var onHide: () -> Void = {}
-    var onHeight: (CGFloat) -> Void = { _ in }
     @State private var expanded: String?
     @State private var listHeight: CGFloat = 0
 
@@ -119,17 +112,9 @@ struct FloatingPanelView: View {
                     EmptyBoard().transition(.opacity)
                 } else {
                     ScrollView {
-                        VStack(spacing: 6) {
-                            ForEach(model.activeSessions) { s in
-                                SessionCard(session: s, expanded: expanded == s.id) {
-                                    withAnimation(.spring(duration: 0.3, bounce: 0.15)) {
-                                        expanded = expanded == s.id ? nil : s.id
-                                    }
-                                }
-                                .transition(.asymmetric(insertion: .scale(scale: 0.96).combined(with: .opacity), removal: .opacity))
-                            }
+                        BoardList(expanded: expanded) { s in
+                            withAnimation(.spring(duration: 0.3, bounce: 0.15)) { expanded = expanded == s.id ? nil : s.id }
                         }
-                        .animation(.snappy, value: model.activeSessions.map(\.id))
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
                     }
                     .scrollIndicators(.never)
@@ -139,9 +124,8 @@ struct FloatingPanelView: View {
             }
         }
         .padding(10)
-        .frame(width: 340)
+        .frame(width: 340, alignment: .top)
         .fixedSize(horizontal: false, vertical: true)
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { onHeight($0) }
     }
 }
 
@@ -154,7 +138,7 @@ struct MainWindow: View {
         @Bindable var model = model
         NavigationSplitView {
             List(selection: $model.selection) {
-                section("活跃", model.activeSessions)
+                section("活跃", model.board.flatMap(\.sessions))
                 section("历史", model.allSessions.filter { s in !model.activeSessions.contains { $0.id == s.id } })
             }
             .searchable(text: $query, placement: .sidebar, prompt: "项目 / prompt")
@@ -188,12 +172,15 @@ struct MainWindow: View {
                         StatusGlyph(status: s.display, size: 22)
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 6) {
-                                Text(s.projectName ?? s.agent.displayName).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+                                Text(s.title).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
                                 Spacer(minLength: 2)
                                 Text(s.lastEventAt, format: .dateTime.month().day().hour().minute())
                                     .font(.system(size: 10)).foregroundStyle(.tertiary)
                             }
-                            Text(s.title).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                            HStack(spacing: 4) {
+                                AgentLogo(agent: s.agent, size: 11)
+                                Text(s.projectName ?? s.agent.displayName).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                            }
                         }
                     }
                     .padding(.vertical, 3)
@@ -255,7 +242,9 @@ struct SettingsView: View {
                 Text("⌥⌘K 显示 / 隐藏").font(.caption).foregroundStyle(.secondary)
             }
             Section("Wave Terminal") {
-                Toggle("实验：跳转时切换到对应标签页（需要辅助功能权限，仅前 9 个标签）", isOn: $settings.waveTabSwitching)
+                Toggle("跳转时切换到对应标签页", isOn: $settings.waveTabSwitching)
+                Text("需要在 系统设置 › 隐私与安全性 › 辅助功能 里允许 YaaKanban。第一次跳转时会弹出请求。")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section {
                 Toggle("登录时启动", isOn: $launchAtLogin)

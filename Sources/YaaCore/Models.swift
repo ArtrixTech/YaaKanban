@@ -177,6 +177,8 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var agent: AgentKind
     public var sessionId: String
     public var cwd: String?
+    /// The cwd the session was first seen in; sessions are grouped by it (`cwd` follows `cd`).
+    public var projectDir: String?
     public var transcriptPath: String?
     public var agentPid: Int32?
     public var terminal: TerminalContext?
@@ -211,14 +213,20 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
         self.hooked = false
     }
 
+    /// Short name: the agent's own title, else the first prompt's first line, else the project.
     public var title: String {
-        if let p = turns.first?.prompt, !p.isEmpty { return String(p.prefix(80)) }
-        if let p = peek?.lastPrompt, !p.isEmpty { return String(p.prefix(80)) }
-        if let cwd { return (cwd as NSString).lastPathComponent }
-        return sessionId
+        if let t = peek?.title, !t.isEmpty { return t }
+        let first = turns.first { !$0.prompt.isEmpty }?.prompt ?? peek?.lastPrompt
+        if let p = first.flatMap(Self.firstLine), !p.isEmpty { return p.count > 40 ? String(p.prefix(40)) + "…" : p }
+        return projectName ?? sessionId
     }
 
-    public var projectName: String? { cwd.map { ($0 as NSString).lastPathComponent } }
+    static func firstLine(_ s: String) -> String? {
+        s.split(whereSeparator: \.isNewline).first.map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    public var groupDir: String? { projectDir ?? cwd }
+    public var projectName: String? { groupDir.map { ($0 as NSString).lastPathComponent } }
     public var currentTurn: Turn? { turns.last }
     public var latestTool: ToolCall? { tools.last }
     public var runningTools: [ToolCall] { tools.filter(\.isRunning) }

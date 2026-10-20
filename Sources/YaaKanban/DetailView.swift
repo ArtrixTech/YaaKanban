@@ -53,15 +53,18 @@ struct SessionDetail: View {
             StatusGlyph(status: st, size: 40)
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    Text(session.projectName ?? session.agent.displayName).font(.system(size: 20, weight: .bold))
+                    Text(session.title).font(.system(size: 20, weight: .bold)).lineLimit(2)
                     StatusPill(status: st)
                 }
                 if let p = session.currentPrompt {
                     Text(p).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(3).textSelection(.enabled)
                 }
                 HStack(spacing: 6) {
-                    meta(session.agent.symbol, session.agent.displayName)
-                    if let cwd = session.cwd { meta("folder", (cwd as NSString).abbreviatingWithTildeInPath) }
+                    HStack(spacing: 4) { AgentLogo(agent: session.agent, size: 11); Text(session.agent.displayName) }
+                        .font(.system(size: 11)).padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(.primary.opacity(0.06), in: Capsule()).foregroundStyle(.secondary)
+                    if let p = session.projectName { meta("folder.fill", p) }
+                    if let cwd = session.cwd { meta("arrow.turn.down.right", (cwd as NSString).abbreviatingWithTildeInPath) }
                     if let pid = session.agentPid { meta("number", "pid \(pid)") }
                     if session.terminal?.isWave == true { meta("terminal", "Wave") }
                     if !session.hooked { meta("exclamationmark.circle", "未挂 hook").foregroundStyle(.orange) }

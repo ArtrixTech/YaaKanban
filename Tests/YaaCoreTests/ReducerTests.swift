@@ -411,3 +411,50 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(s.needsInputMessage == "Claude needs your permission")
     }
 }
+
+@Suite struct BoardLayout {
+    private func s(_ id: String, _ dir: String, _ start: TimeInterval) -> SessionState {
+        var x = SessionState(agent: .claudeCode, sessionId: id, at: t0.addingTimeInterval(start))
+        x.projectDir = dir
+        x.cwd = dir + "/sub"
+        return x
+    }
+
+    @Test func startOrderAndGrouping() {
+        let list = [s("c", "/p/B", 3), s("a", "/p/A", 1), s("b", "/p/B", 2), s("d", "/p/A", 4)]
+        let g = Board.groups(list, manualOrder: [])
+        #expect(g.map(\.name) == ["A", "B"])
+        #expect(g[0].sessions.map(\.sessionId) == ["a", "d"])
+        #expect(g[1].sessions.map(\.sessionId) == ["b", "c"])
+    }
+
+    @Test func manualOrderWinsAndNewcomersAppend() {
+        let list = [s("a", "/A", 1), s("b", "/B", 2), s("c", "/C", 3)]
+        let flat = Board.groups(list, manualOrder: []).flatMap { $0.sessions.map(\.id) }
+        let order = Board.move(["claude-code:c"], before: "claude-code:a", board: flat, manualOrder: ["claude-code:gone"])
+        #expect(order == ["claude-code:c", "claude-code:a", "claude-code:b", "claude-code:gone"])
+        let g = Board.groups(list + [s("n", "/N", 0)], manualOrder: order)
+        #expect(g.map(\.name) == ["C", "A", "B", "N"])
+        #expect(Board.move(["claude-code:c"], before: nil, board: flat, manualOrder: []).last == "claude-code:c")
+    }
+
+    @Test func groupFollowsStartDirNotCd() {
+        let e = AgentEvent(agent: .claudeCode, sessionId: "x", at: t0, kind: .sessionStart, cwd: "/p/A")
+        var st = SessionReducer.apply(e, to: nil)
+        st = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "x", at: t0, kind: .sessionStart, cwd: "/p/A/deep"), to: st)
+        #expect(st.projectName == "A")
+    }
+}
+
+@Suite struct Titles {
+    @Test func agentTitleThenFirstPromptLine() {
+        let lines = [#"{"type":"ai-title","aiTitle":"跨 harness 监控托盘"}"#, #"{"type":"custom-title","customTitle":"我的名字"}"#,
+                     #"{"type":"ai-title","aiTitle":"newer ai"}"#].joined(separator: "\n")
+        #expect(TranscriptPeek.titles(Data(lines.utf8)) == "我的名字")
+        var x = SessionState(agent: .claudeCode, sessionId: "t", at: t0)
+        x.turns = [Turn(id: 1, prompt: "修一下登录页的样式问题\n第二行细节", startedAt: t0, toolCount: 0)]
+        #expect(x.title == "修一下登录页的样式问题")
+        x.peek = TranscriptPeek(title: "登录页样式")
+        #expect(x.title == "登录页样式")
+    }
+}

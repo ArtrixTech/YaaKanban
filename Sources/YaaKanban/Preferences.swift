@@ -13,13 +13,15 @@ final class Preferences {
     var panelOpacity: Double { didSet { d.set(panelOpacity, forKey: "panelOpacity") } }
     var showPanel: Bool { didSet { d.set(showPanel, forKey: "showPanel") } }
     var panelCollapsed: Bool { didSet { d.set(panelCollapsed, forKey: "panelCollapsed") } }
+    /// Session ids in the order the user arranged them (see `Board`).
+    var manualOrder: [String] { didSet { d.set(Array(manualOrder.prefix(500)), forKey: "manualOrder") } }
     var suppressWhenWaveFrontmost: Bool { didSet { d.set(suppressWhenWaveFrontmost, forKey: "suppressWhenWaveFrontmost") } }
-    var waveTabSwitching: Bool { didSet { d.set(waveTabSwitching, forKey: "waveTabSwitching") } }
+    var waveTabSwitching: Bool { didSet { d.set(waveTabSwitching, forKey: "waveTabJump") } }
 
     init() {
         d.register(defaults: [
             "stuckMinutes": 5.0, "approvalTimeout": 20.0, "idleVisibleMinutes": 30.0, "panelOpacity": 0.95,
-            "showPanel": true, "suppressWhenWaveFrontmost": true, "waveTabSwitching": false,
+            "showPanel": true, "suppressWhenWaveFrontmost": true, "waveTabJump": true,
         ])
         stuckMinutes = d.double(forKey: "stuckMinutes")
         approvalTimeout = d.double(forKey: "approvalTimeout")
@@ -27,8 +29,9 @@ final class Preferences {
         panelOpacity = d.double(forKey: "panelOpacity")
         showPanel = d.bool(forKey: "showPanel")
         panelCollapsed = d.bool(forKey: "panelCollapsed")
+        manualOrder = d.stringArray(forKey: "manualOrder") ?? []
         suppressWhenWaveFrontmost = d.bool(forKey: "suppressWhenWaveFrontmost")
-        waveTabSwitching = d.bool(forKey: "waveTabSwitching")
+        waveTabSwitching = d.bool(forKey: "waveTabJump")
     }
 
     var stuckConfig: StuckConfig { StuckConfig(silence: stuckMinutes * 60, toolDuration: stuckMinutes * 60) }

@@ -6,6 +6,7 @@ public enum SessionReducer {
 
     public static func apply(_ e: AgentEvent, to existing: SessionState?) -> SessionState {
         var s = existing ?? SessionState(agent: e.agent, sessionId: e.sessionId, at: e.at)
+        if s.projectDir == nil { s.projectDir = e.cwd }
         if case .statusSnapshot(let status) = e.kind {
             // Session files only drive sessions without hooks; for hooked ones they must not
             // count as activity, or silence-based stuck detection would never fire. The exception:

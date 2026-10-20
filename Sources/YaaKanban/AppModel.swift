@@ -46,6 +46,37 @@ final class AppModel {
     }
 
     var allSessions: [SessionState] { sorted(Array(sessions.values)) }
+
+    /// Active sessions as the boards show them: start order or the user's, grouped by project.
+    var board: [BoardGroup] { Board.groups(activeSessions, manualOrder: settings.manualOrder) }
+
+    /// Moves sessions (a card, or a whole group) before `target`, or to the end.
+    func move(_ ids: [String], before target: String?) {
+        let flat = board.flatMap { $0.sessions.map(\.id) }
+        settings.manualOrder = Board.move(ids, before: target, board: flat, manualOrder: settings.manualOrder)
+    }
+
+    /// Context-menu moves: -1 up, +1 down, nil to the top. A whole group moves among groups;
+    /// a card inside a group moves among its siblings (grouping would undo anything else).
+    func step(_ ids: [String], by delta: Int?) {
+        let groups = board
+        guard let gi = groups.firstIndex(where: { $0.sessions.contains { ids.contains($0.id) } }) else { return }
+        let members = groups[gi].sessions.map(\.id)
+        let wholeGroup = Set(members) == Set(ids)
+        let units: [[String]] = wholeGroup ? groups.map { $0.sessions.map(\.id) } : members.map { [$0] }
+        guard let i = units.firstIndex(where: { $0.contains(ids[0]) }) else { return }
+        let j = delta.map { i + $0 } ?? 0
+        guard j != i, units.indices.contains(j) else { return }
+        // Moving down: land before the unit after the one we pass.
+        let target: String? = j < i ? units[j].first : (units.indices.contains(j + 1) ? units[j + 1].first : nil)
+        if !wholeGroup, target == nil {
+            // Last within its group: before whatever follows the group, if anything.
+            move(ids, before: groups.indices.contains(gi + 1) ? groups[gi + 1].sessions.first?.id : nil)
+        } else {
+            move(ids, before: target)
+        }
+    }
+
     var attentionCount: Int { sessions.values.filter { $0.status.needsAttention }.count }
     /// Sessions waiting on the user: blocked, stuck, or finished and not yet reviewed.
     var pendingCount: Int { sessions.values.filter(Self.wantsUser).count }
@@ -55,8 +86,9 @@ final class AppModel {
     var reviewCount: Int { sessions.values.filter { $0.display == .review }.count }
     var runningCount: Int { sessions.values.filter { $0.status == .running }.count }
 
+    /// History order: most recent first.
     private func sorted(_ list: [SessionState]) -> [SessionState] {
-        list.sorted { ($0.display.rank, $1.lastEventAt) < ($1.display.rank, $0.lastEventAt) }
+        list.sorted { $0.lastEventAt > $1.lastEventAt }
     }
 
     // MARK: Lifecycle
@@ -215,14 +247,22 @@ final class AppModel {
             // Alert on unhooked sessions we already know (hooks alert for the rest); the first
             // sighting is just discovery.
             let k = SessionState.key(ev.agent, ev.sessionId)
-            let key = update(k, alert: sessions[k].map { !$0.hooked } ?? false) { SessionReducer.apply(ev, to: $0) }
-            // Without hooks the transcript is the only source of what the session is doing.
-            if let s = sessions[key], !s.hooked, let peek = scanner.peek(s), peek != s.peek {
-                update(key, alert: false) { s in
-                    guard var s else { return nil }
-                    s.peek = peek
-                    return s
-                }
+            update(k, alert: sessions[k].map { !$0.hooked } ?? false) { SessionReducer.apply(ev, to: $0) }
+        }
+        // Titles for every live session; for unhooked ones also the latest prompt and reply.
+        for s in activeSessions {
+            var peek: TranscriptPeek?
+            switch s.agent {
+            case .claudeCode: peek = scanner.peek(s)
+            case .codex:
+                if let t = scanner.codexTitle(s.sessionId), t != s.peek?.title { peek = s.peek ?? TranscriptPeek(); peek?.title = t }
+            default: break
+            }
+            guard let peek, peek != s.peek else { continue }
+            update(s.id, alert: false) { s in
+                guard var s else { return nil }
+                s.peek = peek
+                return s
             }
         }
     }

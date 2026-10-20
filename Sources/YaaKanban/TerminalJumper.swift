@@ -49,8 +49,9 @@ struct TerminalJumper {
     }
 }
 
-/// Wave Terminal: `wsh` with the JWT captured by the hook. Wave has no external tab switching yet
-/// (wavetermdev/waveterm#2738, PR #3333), so tab switching is an opt-in Cmd+N keystroke hack.
+/// Wave Terminal: `wsh` with the JWT captured by the hook for badges and block focus. Wave has no
+/// external tab switching yet (wavetermdev/waveterm#3333), so the tab is pressed through the
+/// Accessibility API: Wave's tab bar is a web view whose tabs answer AXPress.
 struct WaveAdapter {
     let terminal: TerminalContext
     let switchTabs: Bool
@@ -62,11 +63,15 @@ struct WaveAdapter {
     func jump(app: NSRunningApplication) {
         app.activate()
         badge(on: true)
-        guard switchTabs, let tab = terminal.waveTabId, let index = tabIndex(tab), index < 9 else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            sendCommandDigit(index + 1)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                if let block = terminal.waveBlockId { run(["focusblock", "-b", block]) }
+        guard switchTabs, let tab = terminal.waveTabId else { return }
+        guard AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary) else { return }
+        let pid = app.processIdentifier
+        let block = terminal.waveBlockId
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let place = WaveDB.place(ofTab: tab) else { return }
+            if WaveTabBar(pid: pid).press(tabIndex: place.index, among: place.names) {
+                usleep(150_000)
+                if let block { run(["focusblock", "-b", block]) }
             }
         }
     }
@@ -89,35 +94,86 @@ struct WaveAdapter {
         p.standardError = FileHandle.nullDevice
         try? p.run()
     }
+}
 
-    /// Position of the tab within its workspace, read from Wave's database (read-only).
-    private func tabIndex(_ tab: String) -> Int? {
-        let db = Paths.home().appendingPathComponent("Library/Application Support/waveterm/db/waveterm.db").path
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
-        p.arguments = ["-readonly", "file:\(db)?mode=ro", "SELECT data FROM db_workspace"]
-        let out = Pipe()
-        p.standardOutput = out
-        p.standardError = FileHandle.nullDevice
-        guard (try? p.run()) != nil else { return nil }
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        p.waitUntilExit()
-        for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
-            guard let ids = JSONValue.parse(Data(line.utf8))?["tabids"]?.array?.compactMap(\.string) else { continue }
-            if let i = ids.firstIndex(of: tab) { return i }
+/// Read-only view of Wave's object database.
+enum WaveDB {
+    static var path: String {
+        Paths.home().appendingPathComponent("Library/Application Support/waveterm/db/waveterm.db").path
+    }
+
+    /// The tab's position in its workspace and the names of all tabs there, in order.
+    static func place(ofTab tab: String) -> (index: Int, names: [String])? {
+        var names: [String: String] = [:]
+        for row in query("SELECT data FROM db_tab") {
+            if let id = row["oid"]?.string { names[id] = row["name"]?.string ?? "" }
+        }
+        for ws in query("SELECT data FROM db_workspace") {
+            guard let ids = ws["tabids"]?.array?.compactMap(\.string), let i = ids.firstIndex(of: tab) else { continue }
+            return (i, ids.map { names[$0] ?? "" })
         }
         return nil
     }
 
-    /// Requires Accessibility permission; silently does nothing without it.
-    private func sendCommandDigit(_ n: Int) {
-        let keyCodes: [Int: CGKeyCode] = [1: 18, 2: 19, 3: 20, 4: 21, 5: 23, 6: 22, 7: 26, 8: 28, 9: 25]
-        guard let code = keyCodes[n] else { return }
-        let src = CGEventSource(stateID: .hidSystemState)
-        for down in [true, false] {
-            let e = CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: down)
-            e?.flags = .maskCommand
-            e?.post(tap: .cghidEventTap)
+    private static func query(_ sql: String) -> [JSONValue] {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+        p.arguments = ["-readonly", "file:\(path)?mode=ro", sql]
+        let out = Pipe()
+        p.standardOutput = out
+        p.standardError = FileHandle.nullDevice
+        guard (try? p.run()) != nil else { return [] }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        return String(decoding: data, as: UTF8.self).split(separator: "\n").compactMap { JSONValue.parse(Data($0.utf8)) }
+    }
+}
+
+/// Wave's tab bar seen through Accessibility. Electron exposes its DOM only after
+/// `AXManualAccessibility` is set, which takes a moment the first time.
+struct WaveTabBar {
+    let pid: pid_t
+
+    /// Finds the window whose tab names match the workspace and presses the tab at `index`.
+    func press(tabIndex index: Int, among names: [String]) -> Bool {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        for attempt in 0..<8 {
+            if attempt > 0 { usleep(250_000) }
+            let windows = (attr(app, kAXWindowsAttribute) as? [AXUIElement]) ?? []
+            let bars = windows.compactMap { w in tabs(in: w).map { (w, $0) } }
+            guard !bars.isEmpty else { continue }
+            let match = bars.first { $0.1.map(label) == names }
+                ?? bars.first { $0.1.count == names.count && $0.1.indices.contains(index) && label($0.1[index]) == names[index] }
+            guard let (window, tabs) = match, tabs.indices.contains(index) else { return false }
+            AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+            return AXUIElementPerformAction(tabs[index], kAXPressAction as CFString) == .success
         }
+        return false
+    }
+
+    private func tabs(in e: AXUIElement, depth: Int = 0) -> [AXUIElement]? {
+        if depth > 16 { return nil }
+        if classes(e).contains("tabs-wrapper") { return children(e) }
+        for c in children(e) { if let t = tabs(in: c, depth: depth + 1) { return t } }
+        return nil
+    }
+
+    /// Visible tab name, without the icon-font glyphs (private use area) Wave appends.
+    private func label(_ e: AXUIElement) -> String {
+        let scalars = text(e).unicodeScalars.filter { !(0xE000...0xF8FF).contains($0.value) }
+        return String(String.UnicodeScalarView(scalars)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func text(_ e: AXUIElement) -> String {
+        ((attr(e, kAXValueAttribute) as? String) ?? "") + children(e).map(text).joined()
+    }
+
+    private func children(_ e: AXUIElement) -> [AXUIElement] { (attr(e, kAXChildrenAttribute) as? [AXUIElement]) ?? [] }
+    private func classes(_ e: AXUIElement) -> [String] { (attr(e, "AXDOMClassList") as? [String]) ?? [] }
+
+    private func attr(_ e: AXUIElement, _ name: String) -> AnyObject? {
+        var v: AnyObject?
+        return AXUIElementCopyAttributeValue(e, name as CFString, &v) == .success ? v : nil
     }
 }

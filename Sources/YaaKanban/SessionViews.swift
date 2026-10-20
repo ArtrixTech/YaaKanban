@@ -73,6 +73,8 @@ struct SessionCard: View {
     @Environment(AppModel.self) private var model
     let session: SessionState
     var expanded = false
+    /// Inside a project group, whose header already names the project.
+    var grouped = false
     var onTap: () -> Void = {}
     @State private var hover = false
 
@@ -83,16 +85,21 @@ struct SessionCard: View {
                 StatusGlyph(status: st, size: 26)
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
-                        Text(session.projectName ?? session.agent.displayName)
-                            .font(.system(size: 13, weight: .semibold)).lineLimit(1)
-                        StatusPill(status: st)
+                        Text(session.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
                         Spacer(minLength: 4)
                         TimelineView(.periodic(from: .now, by: 1)) { ctx in
                             Text(session.clock(now: ctx.date))
                                 .font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.secondary)
                         }
                     }
-                    if let p = session.currentPrompt {
+                    HStack(spacing: 5) {
+                        AgentLogo(agent: session.agent, size: 12)
+                        if !grouped, let p = session.projectName {
+                            Text(p).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        StatusPill(status: st)
+                    }
+                    if let p = session.currentPrompt, Self.differs(p, from: session.title) {
                         Text(p).font(.system(size: 11.5, weight: .medium)).foregroundStyle(.primary.opacity(0.85))
                             .lineLimit(expanded ? 4 : 1)
                     }
@@ -114,8 +121,16 @@ struct SessionCard: View {
             if st == .review { Button("标记已验收") { model.markRead(session.id) } }
             Button("复制 cwd / session") { model.jumper.copyContext(session) }
             Divider()
+            MoveMenu(ids: [session.id])
+            Divider()
             Button("从列表删除", role: .destructive) { model.remove(session.id) }
         }
+    }
+
+    /// The prompt adds something beyond the title (not just its first line).
+    static func differs(_ prompt: String, from title: String) -> Bool {
+        let t = title.hasSuffix("…") ? String(title.dropLast()) : title
+        return !prompt.hasPrefix(t)
     }
 
     /// Second line: what needs the user, what is running, or the last reply.
@@ -155,7 +170,6 @@ struct SessionCard: View {
                 .background(.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             HStack(spacing: 4) {
-                Image(systemName: session.agent.symbol)
                 Text(session.agent.displayName)
                 if !session.subagents.isEmpty { Text("· \(session.subagents.count) 个子 agent") }
                 if session.terminal?.isWave == true { Text("· Wave") }
@@ -212,5 +226,105 @@ struct CodeBlock: View {
                 .padding(8).frame(maxWidth: .infinity, alignment: .leading)
                 .background(.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
+    }
+}
+
+/// Up / down / top for a card or a whole group.
+struct MoveMenu: View {
+    @Environment(AppModel.self) private var model
+    let ids: [String]
+    var body: some View {
+        Button("上移") { withAnimation(.snappy) { model.step(ids, by: -1) } }
+        Button("下移") { withAnimation(.snappy) { model.step(ids, by: 1) } }
+        Button("置顶") { withAnimation(.snappy) { model.step(ids, by: nil) } }
+    }
+}
+
+/// Session ids being dragged, as one line of text.
+enum DragIds {
+    static func encode(_ ids: [String]) -> String { "yaak:" + ids.joined(separator: "\n") }
+    static func decode(_ s: String) -> [String]? {
+        s.hasPrefix("yaak:") ? s.dropFirst(5).split(separator: "\n").map(String.init) : nil
+    }
+}
+
+/// The board: project groups of session cards, reorderable by drag or context menu.
+struct BoardList: View {
+    @Environment(AppModel.self) private var model
+    var expanded: String?
+    var onTap: (SessionState) -> Void
+    @State private var dropTarget: String?
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ForEach(model.board) { g in
+                if g.sessions.count == 1, let s = g.sessions.first {
+                    card(s, grouped: false)
+                } else {
+                    VStack(spacing: 5) {
+                        GroupHeader(group: g)
+                            .draggable(DragIds.encode(g.sessions.map(\.id)))
+                            .dropDestination(for: String.self) { items, _ in drop(items, before: g.sessions.first?.id) }
+                                isTargeted: { dropTarget = $0 ? g.id : (dropTarget == g.id ? nil : dropTarget) }
+                            .overlay(alignment: .top) { dropLine(g.id) }
+                        ForEach(g.sessions) { card($0, grouped: true) }
+                    }
+                    .padding(5)
+                    .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.primary.opacity(0.03)))
+                    .transition(.opacity)
+                }
+            }
+        }
+        .animation(.snappy, value: model.board.map { $0.sessions.map(\.id) })
+    }
+
+    private func card(_ s: SessionState, grouped: Bool) -> some View {
+        SessionCard(session: s, expanded: expanded == s.id, grouped: grouped) { onTap(s) }
+            .draggable(DragIds.encode([s.id])) {
+                Text(s.title).font(.system(size: 12, weight: .semibold)).padding(8)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+            }
+            .dropDestination(for: String.self) { items, _ in drop(items, before: s.id) }
+                isTargeted: { dropTarget = $0 ? s.id : (dropTarget == s.id ? nil : dropTarget) }
+            .overlay(alignment: .top) { dropLine(s.id) }
+            .transition(.asymmetric(insertion: .scale(scale: 0.96).combined(with: .opacity), removal: .opacity))
+    }
+
+    private func drop(_ items: [String], before target: String?) -> Bool {
+        guard let ids = items.first.flatMap(DragIds.decode), !ids.isEmpty else { return false }
+        withAnimation(.snappy) { model.move(ids, before: target) }
+        return true
+    }
+
+    /// Insertion marker above the hovered drop target.
+    @ViewBuilder private func dropLine(_ id: String) -> some View {
+        if dropTarget == id {
+            Capsule().fill(Color.accentColor).frame(height: 3).offset(y: -5).padding(.horizontal, 6)
+                .transition(.opacity)
+        }
+    }
+}
+
+struct GroupHeader: View {
+    let group: BoardGroup
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "folder.fill").font(.system(size: 10)).foregroundStyle(.secondary)
+            Text(group.name).font(.system(size: 11.5, weight: .bold)).lineLimit(1)
+            Text("\(group.sessions.count)").font(.system(size: 10, weight: .semibold).monospacedDigit())
+                .padding(.horizontal, 5).padding(.vertical, 1)
+                .background(.primary.opacity(0.08), in: Capsule()).foregroundStyle(.secondary)
+            Spacer()
+            HStack(spacing: -4) {
+                ForEach(Array(Set(group.sessions.map(\.agent))).sorted { $0.rawValue < $1.rawValue }, id: \.self) {
+                    AgentLogo(agent: $0, size: 11)
+                }
+            }
+            Image(systemName: "line.3.horizontal").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 6).padding(.top, 3)
+        .contentShape(Rectangle())
+        .contextMenu { MoveMenu(ids: group.sessions.map(\.id)) }
+        .help("拖动整组排序")
     }
 }

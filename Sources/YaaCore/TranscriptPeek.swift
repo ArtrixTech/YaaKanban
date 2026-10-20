@@ -7,11 +7,14 @@ public struct TranscriptPeek: Codable, Equatable, Sendable {
     public var lastReply: String?
     /// Claude's own "away summary" recap of the session goal and next step.
     public var recap: String?
+    /// The session's short title: one set with /rename, else the agent's generated one.
+    public var title: String?
 
-    public init(lastPrompt: String? = nil, lastReply: String? = nil, recap: String? = nil) {
+    public init(lastPrompt: String? = nil, lastReply: String? = nil, recap: String? = nil, title: String? = nil) {
         self.lastPrompt = lastPrompt
         self.lastReply = lastReply
         self.recap = recap
+        self.title = title
     }
 
     public static let tailBytes = 256 * 1024
@@ -24,7 +27,30 @@ public struct TranscriptPeek: Codable, Equatable, Sendable {
         let size = (try? h.seekToEnd()) ?? 0
         try? h.seek(toOffset: size > UInt64(tailBytes) ? size - UInt64(tailBytes) : 0)
         guard let data = try? h.readToEnd() else { return nil }
-        return parse(data)
+        var peek = parse(data)
+        // Titles are written early and not always repeated; look at the head of long files too.
+        if peek?.title == nil, size > UInt64(tailBytes) {
+            try? h.seek(toOffset: 0)
+            if let head = try? h.read(upToCount: tailBytes), let t = titles(head) {
+                peek = peek ?? TranscriptPeek()
+                peek?.title = t
+            }
+        }
+        return peek
+    }
+
+    /// Latest title in the data; a user-set title beats a generated one.
+    static func titles(_ data: Data) -> String? {
+        var custom: String?, ai: String?
+        for line in data.split(separator: UInt8(ascii: "\n")) where line.contains("-title\"".utf8) {
+            guard let j = JSONValue.parse(Data(line)) else { continue }
+            switch j["type"]?.string {
+            case "custom-title": custom = j["customTitle"]?.string ?? custom
+            case "ai-title": ai = j["aiTitle"]?.string ?? ai
+            default: break
+            }
+        }
+        return clip(custom ?? ai)
     }
 
     /// Scans JSONL lines newest first. The reply only counts if it came after the last prompt.
@@ -49,6 +75,7 @@ public struct TranscriptPeek: Codable, Equatable, Sendable {
             }
             if peek.lastPrompt != nil && peek.recap != nil { break }
         }
+        peek.title = titles(data)
         return peek == TranscriptPeek() ? nil : peek
     }
 
