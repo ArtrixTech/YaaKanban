@@ -152,6 +152,11 @@ struct FloatingPanelView: View {
     /// List height when a resize drag began.
     @State private var dragStart: CGFloat?
     @State private var widthStart: CGFloat?
+    /// Where the list's bottom is in the scroll view, to fade the bottom edge while more is below.
+    @State private var listBottom: CGFloat = 0
+    /// Until when the list may grow past the height set by hand: a new card (or sub-agent) just
+    /// arrived, and it should be seen whole rather than land under the bottom edge.
+    @State private var growUntil: Date?
 
     static let minList: CGFloat = 120
     static let maxList: CGFloat = 1400
@@ -258,10 +263,23 @@ struct FloatingPanelView: View {
                         BoardList(expanded: expanded) { s in
                             withAnimation(.spring(duration: 0.3, bounce: 0.15)) { expanded = expanded == s.id ? nil : s.id }
                         }
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { grow(to: $0) }
+                        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .scrollView).maxY } action: { listBottom = $0 }
                     }
                     .scrollIndicators(.never)
                     .frame(height: shownList)
+                    // More below the bottom edge: it fades out instead of being cut.
+                    .mask {
+                        VStack(spacing: 0) {
+                            Color.black
+                            LinearGradient(colors: [.black, .black.opacity(moreBelow ? 0 : 1)], startPoint: .top, endPoint: .bottom)
+                                .frame(height: 28)
+                        }
+                        .animation(.easeOut(duration: 0.15), value: moreBelow)
+                    }
+                    .onChange(of: cardKeys) { old, new in
+                        if !new.isSubset(of: old) { growUntil = .now.addingTimeInterval(2) }
+                    }
                     .transition(.opacity)
                     // Folded, the bottom is an edge like the sides; the height is set unfolded.
                     if !folded {
@@ -274,6 +292,29 @@ struct FloatingPanelView: View {
                     }
                 }
             }
+    }
+
+    private var moreBelow: Bool { listBottom > shownList + 1 }
+
+    /// Cards and sub-agents on the board; one appearing lets the list grow to show it.
+    private var cardKeys: Set<String> {
+        var keys = Set<String>()
+        for s in model.activeSessions {
+            keys.insert(s.id)
+            for c in model.subagents(of: s.id) { keys.insert(c.id) }
+            for a in s.subagents { keys.insert(s.id + "/" + a.id) }
+        }
+        return keys
+    }
+
+    /// The list's natural height changed. The panel follows it, up to the height set by hand,
+    /// except just after something new arrived: then that height grows so the new card is seen.
+    private func grow(to h: CGFloat) {
+        let settings = model.settings
+        if let until = growUntil, until > .now, h > settings.panelListHeight {
+            settings.panelListHeight = min(Self.maxList, h)
+        }
+        listHeight = h
     }
 
     private var listShown: Bool { !model.settings.panelCollapsed && !model.activeSessions.isEmpty }

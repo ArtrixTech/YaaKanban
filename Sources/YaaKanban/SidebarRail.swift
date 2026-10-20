@@ -41,7 +41,7 @@ struct RailHeader: View {
 enum BoardHeaderHeight { static let value: CGFloat = 22 }
 
 /// A card folded into the rail: status, agent, clock, the title, and below it what is going on
-/// now (the tool running, what it needs, its last reply) on one line, and its numbers at the bottom. Its height is the full
+/// now (the tool running, its sub-agents, what it needs, its last reply), and its numbers at the bottom. Its height is the full
 /// card's: known from when the panel was unfolded, and re-measured off a hidden copy laid out at
 /// the full width.
 struct NarrowSessionCard: View {
@@ -69,6 +69,7 @@ struct NarrowSessionCard: View {
             Text(session.title).font(.system(size: 11, weight: .semibold)).lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
             live(st)
+            NarrowSubagents(session: session)
             // The full card is taller (agent row, reply, tool): its reply takes the room left, in
             // as many lines as fit.
             reply(st)
@@ -173,6 +174,36 @@ struct NarrowSessionCard: View {
         if let d = SubagentSlots.detail(session) { lines.append(d) }
         lines.append("点击跳转到 \(session.agent.displayName)")
         return lines.joined(separator: "\n")
+    }
+}
+
+/// Sub-agents in a folded card: status and name, one line each, the first few of them.
+struct NarrowSubagents: View {
+    @Environment(AppModel.self) private var model
+    let session: SessionState
+    static let shown = 5
+
+    var body: some View {
+        let rows = model.subagents(of: session.id).map { (id: $0.id, status: $0.display, name: $0.title) }
+            + session.subagents.map { (id: $0.id, status: DisplayStatus.running, name: $0.type ?? "子 agent") }
+        if rows.isEmpty {
+            Color.clear.frame(height: 0)
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(rows.prefix(Self.shown), id: \.id) { r in
+                    HStack(spacing: 4) {
+                        StatusGlyph(status: r.status, size: 11)
+                        Text(r.name).font(.system(size: 10, weight: .medium)).lineLimit(1)
+                    }
+                }
+                if rows.count > Self.shown {
+                    Text("+\(rows.count - Self.shown) 个子 agent").font(.system(size: 9.5)).foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.horizontal, 5).padding(.vertical, 3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
     }
 }
 
