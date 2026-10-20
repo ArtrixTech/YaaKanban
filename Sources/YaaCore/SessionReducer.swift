@@ -6,12 +6,22 @@ public enum SessionReducer {
 
     public static func apply(_ e: AgentEvent, to existing: SessionState?) -> SessionState {
         var s = existing ?? SessionState(agent: e.agent, sessionId: e.sessionId, at: e.at)
+        if case .statusSnapshot(let status) = e.kind {
+            // Session files only drive sessions without hooks; for hooked ones they must not
+            // count as activity, or silence-based stuck detection would never fire.
+            if s.hooked { return s }
+            if s.status != status { s.lastEventAt = max(s.lastEventAt, e.at) }
+            s.cwd = s.cwd ?? e.cwd
+            s.agentPid = s.agentPid ?? e.agentPid
+            s.status = status
+            return s
+        }
         s.lastEventAt = max(s.lastEventAt, e.at)
         if let v = e.cwd { s.cwd = v }
         if let v = e.transcriptPath { s.transcriptPath = v }
         if let v = e.agentPid { s.agentPid = v }
         if let v = e.terminal { s.terminal = v }
-        if case .statusSnapshot = e.kind {} else { s.hooked = true }
+        s.hooked = true
 
         switch e.kind {
         case .sessionStart:
@@ -84,9 +94,8 @@ public enum SessionReducer {
                 s.tools[i].endedAt = e.at
             }
 
-        case .statusSnapshot(let status):
-            // Session files only drive sessions that have no hooks; hooks are more precise.
-            if !s.hooked { s.status = status }
+        case .statusSnapshot:
+            break
         }
         return s
     }

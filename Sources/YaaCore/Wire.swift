@@ -9,9 +9,13 @@ public struct Paths: Sendable {
         if let h = env["YAAK_HOME"] {
             base = URL(fileURLWithPath: h)
         } else {
-            base = FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent("Library/Application Support/YaaKanban")
+            base = Paths.home(env).appendingPathComponent("Library/Application Support/YaaKanban")
         }
+    }
+
+    /// `$HOME`, honoured so tests and `HOME=… yaak` never touch the real home directory.
+    public static func home(_ env: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        URL(fileURLWithPath: env["HOME"] ?? NSHomeDirectory())
     }
 
     public var socket: URL { base.appendingPathComponent("yaak.sock") }

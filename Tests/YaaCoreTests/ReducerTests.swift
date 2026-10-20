@@ -206,3 +206,17 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(ToolSummary.summarize(tool: "mcp__x__y", input: .object(["zeta": .string("z")])) == "z")
     }
 }
+
+@Suite struct Snapshots {
+    @Test func snapshotDrivesUnhookedOnly() {
+        let snap = AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0, kind: .statusSnapshot(.running), agentPid: 9)
+        let s = SessionReducer.apply(snap, to: nil)
+        #expect(s.status == .running && !s.hooked && s.agentPid == 9)
+
+        var hooked = fold([claude("UserPromptSubmit", ["prompt": .string("x")])])
+        let later = AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(500), kind: .statusSnapshot(.idle))
+        hooked = SessionReducer.apply(later, to: hooked)
+        #expect(hooked.status == .running)
+        #expect(hooked.lastEventAt == t0)
+    }
+}

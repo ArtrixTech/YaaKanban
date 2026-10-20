@@ -1,8 +1,18 @@
 # Devlog
 
-## feat(core): add event model, reducer, stuck detection, wire, store
+## feat(integrations): add agent installers and yaak CLI
 
 `pending` | 2026-10-20
+
+- **Changes**: YaaIntegrations: Claude/Codex (Claude-shaped hooks.json), Cursor hooks.json, OpenCode + pi plugin files; idempotent plan/apply with `.yaak.bak` backups and `--dry-run`. CLI `yaak hook|install|uninstall|status`; permission hook blocks up to 25 s for an app decision (Claude, OpenCode), spools when the app is down. Snapshot events no longer count as activity for hooked sessions.
+- **Reason**: Spec §3 transport and installer safety.
+- **Process**: Temp-HOME tests for every installer. Plugins checked by stripping TS types (node 22) + `node --check`, then driven with a fake pi object end to end into the spool.
+- **Result**: `make test` 26/26. pi event order verified (prompt → tool_start → tool_end → turn_end).
+- **Notes**: `FileManager.homeDirectoryForCurrentUser` ignores `$HOME`; a dry-run under a fake HOME read the real settings.json (no write). All home lookups now go through `Paths.home`. Concurrent `spawn` in plugins reordered events; plugins now chain sends and stamp `ts`. `unref()` on the child let node exit before the chain drained, so it was removed.
+
+## feat(core): add event model, reducer, stuck detection, wire, store
+
+`pending``5c7406b` | 2026-10-20
 
 - **Changes**: Scaffold SwiftPM package (YaaCore, YaaIntegrations, yaak, YaaKanban), AGENTS.md from artrix-skills `9f9d782`, spec, Makefile. YaaCore: JSONValue, models, normalizers (Claude/Codex schema, Cursor, yaak plugin schema), SessionReducer + Alerts, StuckDetector, Unix socket client/server + spool, SQLite Store.
 - **Reason**: Foundation for the cross-agent monitor agreed in the grilling session (see `docs/spec.md`).
