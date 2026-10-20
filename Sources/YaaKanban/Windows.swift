@@ -46,49 +46,72 @@ struct BrandMark: View {
     }
 }
 
-/// Menu-bar popover: active sessions plus shortcuts.
+/// Menu-bar popover: a few controls. The sessions live in the floating panel and the main window.
 struct MenuContent: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.openWindow) private var openWindow
     let panel: FloatingPanelController
-    @State private var expanded: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            BoardHeader { EmptyView() }
-            if let err = model.serverError { Text(err).font(.caption).foregroundStyle(.red) }
-            if model.activeSessions.isEmpty {
-                EmptyBoard()
-            } else {
-                ScrollView {
-                    BoardList(expanded: expanded) { s in
-                        withAnimation(.spring(duration: 0.3, bounce: 0.15)) { expanded = expanded == s.id ? nil : s.id }
-                    }
-                }
-                .frame(maxHeight: 460)
-                .scrollIndicators(.never)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 7) {
+                BrandMark(size: 18)
+                Text("YaaKanban").font(.system(size: 12.5, weight: .bold))
+                Spacer(minLength: 0)
             }
-            HStack(spacing: 6) {
-                Button { open(nil) } label: { Label("主界面", systemImage: "macwindow") }
-                    .buttonStyle(PillButtonStyle())
-                Button { panel.toggle() } label: {
-                    Label(panel.isVisible ? "隐藏悬浮窗" : "显示悬浮窗", systemImage: "rectangle.on.rectangle")
-                }
-                .buttonStyle(PillButtonStyle()).help("⌥⌘K")
-                Spacer()
-                SettingsLink { Image(systemName: "gearshape").frame(width: 22, height: 22) }
-                    .buttonStyle(.plain).foregroundStyle(.secondary).help("设置")
-                IconButton(symbol: "power", help: "退出") { NSApp.terminate(nil) }
+            .padding(.horizontal, 8).padding(.top, 2).padding(.bottom, 4)
+            Text(summary).font(.system(size: 11)).foregroundStyle(.secondary)
+                .padding(.horizontal, 8).padding(.bottom, 4)
+            if let err = model.serverError {
+                Text(err).font(.caption).foregroundStyle(.red).padding(.horizontal, 8)
             }
+            Divider().padding(.vertical, 3)
+            MenuRow(symbol: "rectangle.on.rectangle", title: model.settings.showPanel ? "隐藏悬浮窗" : "显示悬浮窗",
+                    shortcut: "⌥⌘K") { panel.toggle() }
+            MenuRow(symbol: "macwindow", title: "主界面") { done { AppWindows.open(.main) } }
+            MenuRow(symbol: "gearshape", title: "设置…") { done { AppWindows.open(.settings) } }
+            Divider().padding(.vertical, 3)
+            MenuRow(symbol: "power", title: "退出 YaaKanban") { NSApp.terminate(nil) }
         }
-        .padding(12)
-        .frame(width: 380)
+        .padding(6)
+        .frame(width: 230)
     }
 
-    private func open(_ s: SessionState?) {
-        if let s { model.selection = s.id }
-        openWindow(id: "main")
-        NSApp.activate()
+    private var summary: String {
+        let parts = [("运行中", model.runningCount), ("待验收", model.reviewCount),
+                     ("需要你", model.attentionCount)].filter { $0.1 > 0 }.map { "\($0.0) \($0.1)" }
+        return parts.isEmpty ? "没有进行中的会话" : parts.joined(separator: " · ")
+    }
+
+    /// Closes the popover, then acts (a window opened behind it would be hidden by it).
+    private func done(_ action: @escaping () -> Void) {
+        NSApp.keyWindow?.close()
+        DispatchQueue.main.async(execute: action)
+    }
+}
+
+/// A menu-like row: icon, title, optional shortcut; highlighted on hover.
+struct MenuRow: View {
+    let symbol: String
+    let title: String
+    var shortcut: String?
+    var action: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: symbol).font(.system(size: 12)).frame(width: 16)
+                Text(title).font(.system(size: 12.5))
+                Spacer(minLength: 8)
+                if let shortcut { Text(shortcut).font(.system(size: 11)).foregroundStyle(hover ? .white.opacity(0.8) : .secondary) }
+            }
+            .foregroundStyle(hover ? .white : .primary)
+            .padding(.horizontal, 8).frame(height: 24)
+            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(hover ? Color.accentColor : .clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hover = $0 }
     }
 }
 
@@ -355,7 +378,9 @@ struct SettingsView: View {
                 Toggle("Wave 在前台时不发系统通知", isOn: $settings.suppressWhenWaveFrontmost)
             }
             Section("悬浮窗") {
-                LabeledContent("已完成会话显示") { Stepper("\(Int(settings.idleVisibleMinutes)) 分钟", value: $settings.idleVisibleMinutes, in: 0...240, step: 5) }
+                LabeledContent("已完成会话显示") {
+                    Stepper(Self.duration(settings.idleVisibleMinutes), value: $settings.idleVisibleMinutes, in: 0...1440, step: 30)
+                }
                 Slider(value: $settings.panelOpacity, in: 0.4...1) { Text("透明度") }
                     .onChange(of: settings.panelOpacity) { panel.applyOpacity() }
                 Text("⌥⌘K 显示 / 隐藏").font(.caption).foregroundStyle(.secondary)
@@ -379,6 +404,12 @@ struct SettingsView: View {
 
     private func statusLabel(_ s: IntegrationStatus) -> String {
         switch s { case .installed: "已安装"; case .outdated: "需更新"; case .notInstalled: "未安装"; case .notDetected: "未检测到" }
+    }
+
+    static func duration(_ minutes: Double) -> String {
+        let m = Int(minutes)
+        if m < 60 { return "\(m) 分钟" }
+        return m % 60 == 0 ? "\(m / 60) 小时" : "\(m / 60) 小时 \(m % 60) 分"
     }
 
     static var yaak: String { Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/yaak").path }

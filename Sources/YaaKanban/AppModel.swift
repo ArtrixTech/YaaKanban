@@ -33,7 +33,7 @@ final class AppModel {
 
     // MARK: Derived views
 
-    /// Active sessions for the floating panel: not ended, and idle ones only for 30 min.
+    /// Active sessions for the floating panel: not ended, and idle ones only for a while (8 h by default).
     /// Sub-agents of a session on the board show inside its card instead.
     var activeSessions: [SessionState] {
         let now = Date()

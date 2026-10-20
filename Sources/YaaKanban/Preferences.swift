@@ -22,7 +22,7 @@ final class Preferences {
 
     init() {
         d.register(defaults: [
-            "stuckMinutes": 5.0, "approvalTimeout": 20.0, "idleVisibleMinutes": 30.0, "panelOpacity": 0.95,
+            "stuckMinutes": 5.0, "approvalTimeout": 20.0, "idleVisibleMinutes": 480.0, "panelOpacity": 0.95,
             "showPanel": true, "suppressWhenWaveFrontmost": true, "waveTabJump": true,
         ])
         stuckMinutes = d.double(forKey: "stuckMinutes")
