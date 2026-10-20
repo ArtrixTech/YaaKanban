@@ -43,10 +43,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         if model.selection == nil { model.selection = model.activeSessions.first?.id }
         let views: [(String, AnyView, NSSize)] = [
-            ("panel", AnyView(FloatingPanelView().environment(model)), NSSize(width: 340, height: 300)),
+            ("panel", AnyView(FloatingPanelView().environment(model)), NSSize(width: model.settings.panelWidth, height: 300)),
             ("rail", AnyView(FloatingPanelView(room: PanelRoom(dock: .right)).environment(model)), NSSize(width: Rail.width, height: 600)),
             ("rail-wide", AnyView(FloatingPanelView(room: PanelRoom(dock: .right, peek: true)).environment(model)),
-             NSSize(width: FloatingPanelController.width, height: 600)),
+             NSSize(width: model.settings.panelWidth, height: 600)),
             ("menu", AnyView(MenuContent(panel: panel).environment(model)), NSSize(width: 230, height: 200)),
             ("main", AnyView(MainWindow().environment(model)), NSSize(width: 1000, height: 640)),
             ("settings", AnyView(SettingsView(panel: panel).environment(model)), SettingsView.size),

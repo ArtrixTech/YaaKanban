@@ -152,7 +152,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
             f.origin.y = min(max(f.minY, v.minY), max(v.minY, v.maxY - f.height))
             f.origin.x = min(max(f.minX, v.minX), max(v.minX, v.maxX - f.width))
         }
-        if slide == nil && abs(current.width - w) < 1 {
+        if slide == nil && (abs(current.width - w) < 1 || room.resizing) {
             panel.setFrame(f, display: true)
             panel.invalidateShadow()
             return

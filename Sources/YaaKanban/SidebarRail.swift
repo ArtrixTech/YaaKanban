@@ -9,8 +9,6 @@ enum DockEdge { case left, right }
 /// widens it. Width of the folded panel:
 enum Rail {
     static let width: CGFloat = 120
-    /// How much wider every row is in the full panel.
-    static let extra: CGFloat = 340 - width  // FloatingPanelController.width
 }
 
 private struct RailExtraKey: EnvironmentKey { static let defaultValue: CGFloat? = nil }
@@ -41,7 +39,7 @@ struct RailHeader: View {
 enum BoardHeaderHeight { static let value: CGFloat = 22 }
 
 /// A card folded into the rail: status, agent, clock, the title, and below it what is going on
-/// now (the tool running, what it needs, its last reply) on one line. Its height is the full
+/// now (the tool running, what it needs, its last reply) on one line, and its numbers at the bottom. Its height is the full
 /// card's: known from when the panel was unfolded, and re-measured off a hidden copy laid out at
 /// the full width.
 struct NarrowSessionCard: View {
@@ -70,6 +68,9 @@ struct NarrowSessionCard: View {
             Text(session.title).font(.system(size: 11, weight: .semibold)).lineLimit(2)
                 .layoutPriority(1)
             live(st)
+            // The full card is taller (agent row, reply, tool): the room left goes to its numbers.
+            Spacer(minLength: 0)
+            footer
         }
         .padding(8)
         // Until measured, at most this tall, so the first frame is never taller than the card.
@@ -107,14 +108,36 @@ struct NarrowSessionCard: View {
         if st == .running, let t = session.latestTool {
             HStack(spacing: 3) {
                 ToolGlyph(tool: t)
-                Text("\(t.name) \(t.summary)").font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.secondary).lineLimit(1)
+                Text(t.name).font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(t.isRunning ? Color.blue : Color.secondary).lineLimit(1)
             }
         } else if let d = SubagentSlots.detail(session) {
             Text(d).font(.system(size: 10)).lineLimit(1).foregroundStyle(st.isLoud ? AnyShapeStyle(st.tint) : AnyShapeStyle(.secondary))
         } else {
             Text(st.label).font(.system(size: 10, weight: .medium)).lineLimit(1).foregroundStyle(st.tint)
         }
+    }
+
+    /// Project (unless the group header names it) and, if they fit beside it, tool calls and tokens.
+    @ViewBuilder private var footer: some View {
+        let project = grouped ? nil : session.projectName
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 4) {
+                if let project { projectLabel(project) }
+                Spacer(minLength: 0)
+                UsageBadge(session: session)
+            }
+            if let project {
+                HStack(spacing: 0) { projectLabel(project); Spacer(minLength: 0) }
+            } else {
+                HStack(spacing: 0) { Spacer(minLength: 0); UsageBadge(session: session) }
+            }
+        }
+        .frame(height: 13)
+    }
+
+    private func projectLabel(_ p: String) -> some View {
+        Text(p).font(.system(size: 9.5, weight: .medium)).foregroundStyle(.tertiary).lineLimit(1)
     }
 
     private var clock: some View {

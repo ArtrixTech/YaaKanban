@@ -143,9 +143,12 @@ struct FloatingPanelView: View {
     @State private var chrome: CGFloat = 0
     /// List height when a resize drag began.
     @State private var dragStart: CGFloat?
+    @State private var widthStart: CGFloat?
 
     static let minList: CGFloat = 120
     static let maxList: CGFloat = 1400
+    static let minWidth: CGFloat = 300
+    static let maxWidth: CGFloat = 720
 
     var body: some View {
         panel
@@ -182,13 +185,31 @@ struct FloatingPanelView: View {
         }
         .padding(.horizontal, 10).padding(.top, 10)
         .padding(.bottom, settings.panelCollapsed || model.activeSessions.isEmpty ? 10 : 0)
-        .environment(\.railExtra, folded ? Rail.extra : nil)
-        .frame(width: folded ? Rail.width : FloatingPanelController.width, alignment: .top)
+        .environment(\.railExtra, folded ? settings.panelWidth - Rail.width : nil)
+        .frame(width: folded ? Rail.width : settings.panelWidth, alignment: .top)
         .fixedSize(horizontal: false, vertical: true)
+        .overlay(alignment: widthGripSide) { if !folded { widthGrip } }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
             chrome = size.height - (listShown ? shownList : 0)
             onSize(size)
         }
+    }
+
+    /// The side edge that sets the width: the one away from the docked side.
+    private var widthGripSide: Alignment { room?.dock == .right ? .leading : .trailing }
+
+    private var widthGrip: some View {
+        @Bindable var settings = model.settings
+        let sign: CGFloat = room?.dock == .right ? -1 : 1
+        return EdgeGrip(axis: .horizontal) { delta in
+            room?.resizing = delta != nil
+            guard let delta else { widthStart = nil; return }
+            let start = widthStart ?? settings.panelWidth
+            widthStart = start
+            settings.panelWidth = min(Self.maxWidth, max(Self.minWidth, (start + sign * delta).rounded()))
+        }
+        .frame(width: 6)
+        .frame(maxHeight: .infinity)
     }
 
     private var header: some View {
@@ -257,6 +278,8 @@ final class PanelRoom {
     var dock: DockEdge?
     /// The folded rail is shown unfolded while the pointer is over it.
     var peek = false
+    /// The width grip is being dragged: resize at once instead of sliding.
+    var resizing = false
 
     init(dock: DockEdge? = nil, peek: Bool = false) { self.dock = dock; self.peek = peek }
 }
@@ -271,32 +294,49 @@ struct ResizeGrip: View {
     var body: some View {
         Capsule().fill(.primary.opacity(hover ? 0.35 : 0.15)).frame(width: 36, height: 4)
             .frame(maxWidth: .infinity).frame(height: 14)
-            .overlay(GripTracker(onDrag: onDrag))
+            .overlay(GripTracker(axis: .vertical, onDrag: onDrag))
             .onHover { hover = $0 }
             .animation(.easeOut(duration: 0.12), value: hover)
             .help("拖动调整高度")
     }
 }
 
+/// Invisible strip along the panel's side edge that sets its width.
+struct EdgeGrip: View {
+    let axis: Axis
+    /// Drag distance (right is positive); nil when the drag ends.
+    var onDrag: (CGFloat?) -> Void
+
+    var body: some View {
+        GripTracker(axis: axis, onDrag: onDrag).help("拖动调整宽度")
+    }
+}
+
 private struct GripTracker: NSViewRepresentable {
+    let axis: Axis
     var onDrag: (CGFloat?) -> Void
 
     func makeNSView(context: Context) -> TrackerView { TrackerView() }
-    func updateNSView(_ v: TrackerView, context: Context) { v.onDrag = onDrag }
+    func updateNSView(_ v: TrackerView, context: Context) { v.axis = axis; v.onDrag = onDrag }
 
     final class TrackerView: NSView {
+        var axis = Axis.vertical
         var onDrag: (CGFloat?) -> Void = { _ in }
-        private var startY: CGFloat?
+        private var start: NSPoint?
 
         override var mouseDownCanMoveWindow: Bool { false }
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-        override func resetCursorRects() { addCursorRect(bounds, cursor: .resizeUpDown) }
-        override func mouseDown(with e: NSEvent) { startY = NSEvent.mouseLocation.y }
-        override func mouseDragged(with e: NSEvent) {
-            guard let startY else { return }
-            onDrag(startY - NSEvent.mouseLocation.y)
+        override func resetCursorRects() {
+            addCursorRect(bounds, cursor: axis == .vertical ? .resizeUpDown : .resizeLeftRight)
         }
-        override func mouseUp(with e: NSEvent) { startY = nil; onDrag(nil) }
+        override func mouseDown(with e: NSEvent) { start = NSEvent.mouseLocation }
+        override func mouseDragged(with e: NSEvent) {
+            guard let start else { return }
+            let p = NSEvent.mouseLocation
+            // Down is positive for the vertical grip, right for the horizontal one.
+            onDrag(axis == .vertical ? start.y - p.y : p.x - start.x)
+        }
+        override func mouseUp(with e: NSEvent) { start = nil; onDrag(nil) }
     }
 }
 

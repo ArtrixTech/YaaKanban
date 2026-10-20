@@ -17,6 +17,8 @@ final class Preferences {
     var sidebarExpanded: Bool { didSet { d.set(sidebarExpanded, forKey: "sidebarExpanded") } }
     /// Height of the floating panel's list, set with its resize grip; the list is shorter when its content is.
     var panelListHeight: CGFloat { didSet { d.set(Double(panelListHeight), forKey: "panelListHeight") } }
+    /// Width of the unfolded floating panel, set by dragging its side edge.
+    var panelWidth: CGFloat { didSet { d.set(Double(panelWidth), forKey: "panelWidth") } }
     /// Session ids in the order the user arranged them (see `Board`).
     var manualOrder: [String] { didSet { d.set(Array(manualOrder.prefix(500)), forKey: "manualOrder") } }
     var suppressWhenWaveFrontmost: Bool { didSet { d.set(suppressWhenWaveFrontmost, forKey: "suppressWhenWaveFrontmost") } }
@@ -35,6 +37,7 @@ final class Preferences {
         panelCollapsed = d.bool(forKey: "panelCollapsed")
         sidebarExpanded = d.bool(forKey: "sidebarExpanded")
         panelListHeight = d.object(forKey: "panelListHeight") == nil ? 560 : CGFloat(d.double(forKey: "panelListHeight"))
+        panelWidth = d.object(forKey: "panelWidth") == nil ? 340 : CGFloat(d.double(forKey: "panelWidth"))
         manualOrder = d.stringArray(forKey: "manualOrder") ?? []
         suppressWhenWaveFrontmost = d.bool(forKey: "suppressWhenWaveFrontmost")
         waveTabSwitching = d.bool(forKey: "waveTabJump")

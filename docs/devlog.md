@@ -1,8 +1,22 @@
 # Devlog
 
-## style(card): status glyph in the title row
+## feat(panel): adjustable width; folded cards show tool name and numbers
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - Drag the floating panel's side edge to set its unfolded width, from 300 to 720 pt (default 340, saved as `panelWidth`). The edge is the one away from the docked side: the left edge when docked right, otherwise the right edge. While dragging, the window follows at once instead of sliding. The folded rail stays 120 pt, and its cards measure their height at the current full width.
+  - A folded card's tool line shows only the tool's name (blue while it runs), without its arguments.
+  - The space at the bottom of a folded card, there because the full card is taller, now holds the project (unless the group header names it), plus the tool-call and token counts when they fit beside it.
+- **Reason**: "展开宽度允许调节。" "另外现在折叠之后每个block底下都空一行，这里可以放点啥" "工具调用行，只显示工具名称，不要显示细节（折叠状态）"
+- **Process**:
+  - Dragged the left edge of a panel docked right with CGEvent: 340 to 420 to 500 and back to 340. The right edge stayed put, and the panel folded back to 120 pt each time.
+  - Offscreen snapshots of both states.
+- **Result**: `make test` 60/60.
+
+## style(card): status glyph in the title row
+
+`b0d8850` | 2026-10-20
 
 - **Changes**: The session card's status glyph (now 20 pt) sits in the title row instead of a 26 pt column of its own. The rows under the title (agent, status, reply, tool) and the sub-agent box use the card's full width, so there is no empty strip down the left side.
 - **Reason**: "这块导致block左边有空白。怎么调整一下让视觉更紧凑？", about the glyph column.
