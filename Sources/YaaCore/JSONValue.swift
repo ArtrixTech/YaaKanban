@@ -39,7 +39,8 @@ public enum JSONValue: Codable, Equatable, Sendable {
     public var string: String? {
         switch self {
         case .string(let s): return s
-        case .number(let n): return n == n.rounded() ? String(Int(n)) : String(n)
+        // Int(n) traps outside its range; 2^53 keeps integral output exact.
+        case .number(let n): return n == n.rounded() && abs(n) < 9.0e15 ? String(Int(n)) : String(n)
         case .bool(let b): return String(b)
         default: return nil
         }

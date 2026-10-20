@@ -33,3 +33,6 @@ public enum ProcessUtil {
         return nil
     }
 }
+
+/// Single-quotes a string for POSIX sh.
+public func shellQuote(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }

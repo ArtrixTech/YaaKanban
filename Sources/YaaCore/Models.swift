@@ -79,13 +79,19 @@ public struct PermissionRequest: Codable, Equatable, Sendable {
     public var summary: String
     /// True when the hook is blocked waiting for a decision from the app.
     public var awaitingDecision: Bool
+    /// Full input text, set only when `summary` does not show all of it (multi-line or long).
+    public var detail: String?
 
-    public init(id: String, tool: String, summary: String, awaitingDecision: Bool) {
+    public init(id: String, tool: String, summary: String, awaitingDecision: Bool, detail: String? = nil) {
         self.id = id
         self.tool = tool
         self.summary = summary
         self.awaitingDecision = awaitingDecision
+        self.detail = detail
     }
+
+    /// The summary hides part of what would be approved.
+    public var isTruncated: Bool { detail != nil }
 }
 
 /// Agent-neutral event produced by a normalizer from a `HookEnvelope`.
@@ -96,6 +102,8 @@ public struct AgentEvent: Equatable, Sendable {
         case toolStart(id: String, name: String, input: JSONValue)
         case toolEnd(id: String, name: String, output: String?, isError: Bool)
         case needsInput(String)
+        /// A generic "waiting for you" notice; never replaces a specific question already shown.
+        case attentionNotice(String)
         /// The user answered a prompt that was blocking the agent.
         case inputAnswered
         case permission(PermissionRequest)
@@ -103,7 +111,8 @@ public struct AgentEvent: Equatable, Sendable {
         case sessionEnd
         case subagentStart(id: String, type: String?)
         case subagentStop(id: String)
-        /// Status reported by a session file, used for sessions without hooks.
+        /// Status reported by a session file. Drives sessions without hooks; for hooked ones only an
+        /// `.idle` newer than the last hook event counts (an interrupt fires no Stop hook).
         case statusSnapshot(SessionStatus)
     }
 
@@ -168,6 +177,8 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var agent: AgentKind
     public var sessionId: String
     public var cwd: String?
+    /// The cwd the session was first seen in; sessions are grouped by it (`cwd` follows `cd`).
+    public var projectDir: String?
     public var transcriptPath: String?
     public var agentPid: Int32?
     public var terminal: TerminalContext?
@@ -183,6 +194,14 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var subagents: [Subagent]
     /// True once a real hook event was seen; false for sessions discovered by scanning only.
     public var hooked: Bool
+    /// Set when a turn finishes; cleared once the user looks at the session or sends a new prompt.
+    public var unreadSince: Date?
+    /// What the transcript says, for sessions whose turns we did not see through hooks.
+    public var peek: TranscriptPeek?
+    /// Token and tool totals from the transcript, when it can be read.
+    public var usage: Usage?
+    /// Set when the user ends the session in the panel; it stays in history but leaves the boards.
+    public var dismissedAt: Date?
 
     public static let toolHistoryLimit = 200
 
@@ -198,14 +217,44 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
         self.hooked = false
     }
 
+    /// Short name: the agent's own title, else the first prompt's first line, else the project.
     public var title: String {
-        if let p = turns.first?.prompt, !p.isEmpty { return String(p.prefix(80)) }
-        if let cwd { return (cwd as NSString).lastPathComponent }
-        return sessionId
+        if let t = peek?.title, !t.isEmpty { return t }
+        let first = turns.first { !$0.prompt.isEmpty }?.prompt ?? peek?.lastPrompt
+        if let p = first.flatMap(Self.firstLine), !p.isEmpty { return p.count > 40 ? String(p.prefix(40)) + "…" : p }
+        return projectName ?? sessionId
     }
 
-    public var projectName: String? { cwd.map { ($0 as NSString).lastPathComponent } }
+    static func firstLine(_ s: String) -> String? {
+        s.split(whereSeparator: \.isNewline).first.map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    public var groupDir: String? { projectDir ?? cwd }
+    public var projectName: String? { groupDir.map { ($0 as NSString).lastPathComponent } }
     public var currentTurn: Turn? { turns.last }
     public var latestTool: ToolCall? { tools.last }
     public var runningTools: [ToolCall] { tools.filter(\.isRunning) }
+
+    /// What the UI shows: `.idle` splits into "to review" and "done".
+    public var display: DisplayStatus {
+        switch status {
+        case .running: .running
+        case .needsInput: .needsInput
+        case .stuck: .stuck
+        case .idle: unreadSince == nil ? .done : .review
+        case .ended: .ended
+        }
+    }
+
+    /// The agent's latest reply, from hooks or the transcript.
+    public var lastReply: String? { currentTurn?.lastMessage ?? peek?.lastReply }
+}
+
+public enum DisplayStatus: Sendable {
+    case needsInput, stuck, review, running, done, ended
+
+    /// Sort order: most urgent first.
+    public var rank: Int {
+        switch self { case .needsInput: 0; case .stuck: 1; case .review: 2; case .running: 3; case .done: 4; case .ended: 5 }
+    }
 }

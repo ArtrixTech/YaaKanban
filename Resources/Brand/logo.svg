@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#08090B"/><stop offset="1" stop-color="#262A31"/></linearGradient>
+<linearGradient id="dot" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#10B981"/><stop offset="1" stop-color="#4ADE80"/></linearGradient></defs>
+<rect width="64" height="64" rx="15" fill="url(#bg)"/>
+<rect x="13" y="14" width="10" height="36" rx="4" fill="#FFFFFF" fill-opacity=".95"/>
+<rect x="27" y="14" width="10" height="24" rx="4" fill="#FFFFFF" fill-opacity=".75"/>
+<rect x="41" y="14" width="10" height="14" rx="4" fill="#FFFFFF" fill-opacity=".55"/>
+<!-- As wide as column 3 and under it; its bottom flush with column 1's (y = 50). -->
+<circle cx="46" cy="45" r="5" fill="url(#dot)"/>
+</svg>
