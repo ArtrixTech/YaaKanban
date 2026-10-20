@@ -1,8 +1,21 @@
 # Devlog
 
-## feat(panel): grow for new cards; fade the overflow; sub-agents in folded cards
+## fix(panel): fold the peek at once on leaving; folded sub-agents fill their card
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - Peek: the panel folds as soon as the pointer leaves, with no 0.15 s dwell and no 4 pt margin.
+    - `HoverView` now reports exits, and the exit runs the check directly. The 50 ms poll still catches exits that the event misses.
+    - The check waits while a slide is running or a mouse button is held.
+  - Folded sub-agents now use the full card's `SubagentSlots` metrics: 16 pt rows, 4 pt gaps, 6 pt padding. Every sub-agent is listed, with no "+N" cap.
+- **Reason**: "展开状态，鼠标离开悬浮窗收起的时候不要有延迟，直接收起。" "现在在折叠状态有subagent的时候，还是有一行空行。"
+- **Process**: The folded block was shorter than the full card's block, and the full card's block sets the card height. A card with no reply had nothing to take up the difference, so a blank line showed under the project. Checked with a temporary snapshot of cards with 1 and 3 sub-agents and no reply, then removed it.
+- **Result**: `make test` 63/63. Snapshot: no gap under the project row. The instant fold was not checked with real pointer moves.
+
+## feat(panel): grow for new cards; fade the overflow; sub-agents in folded cards
+
+`53bfeeb` | 2026-10-20
 
 - **Changes**:
   - When a new card or sub-agent appears, the list grows past the height set by hand for 2 s, so the new card shows whole. The cap is still the screen's room and 1400 pt. Growth comes from the list's measured height, so it happens after the card is laid out.

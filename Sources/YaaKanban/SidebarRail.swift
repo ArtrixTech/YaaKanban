@@ -177,11 +177,11 @@ struct NarrowSessionCard: View {
     }
 }
 
-/// Sub-agents in a folded card: status and name, one line each, the first few of them.
+/// Sub-agents in a folded card: status and name, one line each. Rows, gaps and padding match the
+/// full card's `SubagentSlots`, so the block is as tall as the one the card's height comes from.
 struct NarrowSubagents: View {
     @Environment(AppModel.self) private var model
     let session: SessionState
-    static let shown = 5
 
     var body: some View {
         let rows = model.subagents(of: session.id).map { (id: $0.id, status: $0.display, name: $0.title) }
@@ -189,20 +189,18 @@ struct NarrowSubagents: View {
         if rows.isEmpty {
             Color.clear.frame(height: 0)
         } else {
-            VStack(alignment: .leading, spacing: 2) {
-                ForEach(rows.prefix(Self.shown), id: \.id) { r in
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(rows, id: \.id) { r in
                     HStack(spacing: 4) {
-                        StatusGlyph(status: r.status, size: 11)
-                        Text(r.name).font(.system(size: 10, weight: .medium)).lineLimit(1)
+                        StatusGlyph(status: r.status, size: 12)
+                        Text(r.name).font(.system(size: 10.5, weight: .medium)).lineLimit(1)
                     }
-                }
-                if rows.count > Self.shown {
-                    Text("+\(rows.count - Self.shown) 个子 agent").font(.system(size: 9.5)).foregroundStyle(.tertiary)
+                    .frame(height: 16)
                 }
             }
-            .padding(.horizontal, 5).padding(.vertical, 3)
+            .padding(.horizontal, 6).padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .background(.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
     }
 }

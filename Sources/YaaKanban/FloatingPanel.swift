@@ -7,10 +7,11 @@ private final class BoardPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-/// Reports the pointer entering the panel whether or not the app is active (SwiftUI's hover
+/// Reports the pointer entering and leaving the panel whether or not the app is active (SwiftUI's hover
 /// only tracks while it is).
 private final class HoverView: NSVisualEffectView {
     var onEnter: () -> Void = {}
+    var onExit: () -> Void = {}
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -21,6 +22,7 @@ private final class HoverView: NSVisualEffectView {
     }
 
     override func mouseEntered(with event: NSEvent) { onEnter() }
+    override func mouseExited(with event: NSEvent) { onExit() }
 }
 
 /// Always-on-top rounded panel on every Space: no title bar, sized to its content, draggable,
@@ -79,6 +81,8 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         blur.addSubview(host)
         self.host = host
         blur.onEnter = { [weak self] in self?.pointerEntered() }
+        // Leaving folds it back at once; the poll in `checkPeek` catches what the event misses.
+        blur.onExit = { [weak self] in self?.checkPeek() }
         // Hairline edge so the panel reads against any wallpaper.
         blur.wantsLayer = true
         blur.layer?.cornerRadius = Self.radius
@@ -213,9 +217,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
 
     private var peekPending: DispatchWorkItem?
     private var peekTimer: Timer?
-    private var outsideSince: Date?
     static let peekDelay: TimeInterval = 0.03
-    static let unpeekDelay: TimeInterval = 0.15
 
     private var folded: Bool { room.dock != nil && !model.settings.sidebarExpanded }
 
@@ -234,7 +236,6 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
     private func startPeek() {
         guard folded, !room.peek else { return }
         room.peek = true
-        outsideSince = nil
         // Polled rather than hover-tracked: the window changes size under the pointer, and a
         // default-mode timer pauses while a context menu is open.
         peekTimer?.invalidate()
@@ -245,11 +246,9 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
 
     private func checkPeek() {
         guard room.peek, folded else { return endPeek() }
-        let inside = shown.insetBy(dx: -4, dy: -4).contains(NSEvent.mouseLocation)
-        if inside || NSEvent.pressedMouseButtons != 0 { outsideSince = nil; return }
-        let since = outsideSince ?? Date()
-        outsideSince = since
-        if Date().timeIntervalSince(since) >= Self.unpeekDelay { endPeek() }
+        // Mid-slide the panel is still unfolding under the pointer; a held button is a drag.
+        guard slide == nil, !shown.contains(NSEvent.mouseLocation), NSEvent.pressedMouseButtons == 0 else { return }
+        endPeek()
     }
 
     private func endPeek() {
