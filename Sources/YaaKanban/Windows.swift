@@ -146,18 +146,28 @@ struct FloatingPanelView: View {
 
     var body: some View {
         Group {
-            if let edge = room?.dock, !model.settings.sidebarExpanded {
-                SidebarRail(edge: edge, onHide: onHide, listRoom: (room?.height ?? .infinity) - 72)
+            if let edge = room?.dock, !model.settings.sidebarExpanded, room?.peek != true {
+                SidebarRail(edge: edge, onHide: onHide, listRoom: (room?.height ?? .infinity) - 50)
                     .fixedSize(horizontal: false, vertical: true)
                     .onGeometryChange(for: CGSize.self) { $0.size } action: { onSize($0) }
-                    .transition(.opacity)
             } else {
-                panel.transition(.opacity)
+                panel
             }
         }
-        // Top-aligned however tall the window is at the moment: while it catches up with the
-        // content, the default (centering) would shift the top edge up and down.
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // Pinned to the top and to the docked side however big the window is at the moment. The
+        // content switches at once and the window edge slides open or shut over it, so it is
+        // clickable from the first frame.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: anchor)
+    }
+
+    /// Unfolding from the right reveals the panel's left part last, so the panel hangs from its
+    /// left edge while the window grows; folding keeps the rail against the screen edge.
+    private var anchor: Alignment {
+        switch room?.dock {
+        case .left: .topLeading
+        case .right: room?.peek == true || model.settings.sidebarExpanded ? .topLeading : .topTrailing
+        case nil: .top
+        }
     }
 
     private var panel: some View {
@@ -165,8 +175,15 @@ struct FloatingPanelView: View {
         return VStack(alignment: .leading, spacing: 10) {
             BoardHeader {
                 if let edge = room?.dock {
-                    IconButton(symbol: edge == .right ? "chevron.right.2" : "chevron.left.2", help: "收进侧边栏") {
-                        withAnimation(.snappy) { settings.sidebarExpanded = false }
+                    if room?.peek == true {
+                        IconButton(symbol: "pin", help: "固定展开") {
+                            settings.sidebarExpanded = true
+                            room?.peek = false
+                        }
+                    } else {
+                        IconButton(symbol: edge == .right ? "chevron.right.2" : "chevron.left.2", help: "收进侧边栏") {
+                            settings.sidebarExpanded = false
+                        }
                     }
                 }
                 IconButton(symbol: "macwindow", help: "主界面") { AppWindows.open(.main) }
@@ -223,6 +240,8 @@ final class PanelRoom {
     var height: CGFloat = .infinity
     /// Screen edge the panel is snapped to, if a side.
     var dock: DockEdge?
+    /// The folded rail is shown unfolded while the pointer is over it.
+    var peek = false
 }
 
 /// Bottom handle that sets the list height. AppKit-backed so the drag does not move the

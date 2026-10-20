@@ -7,6 +7,21 @@ private final class BoardPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+/// Reports the pointer entering the panel whether or not the app is active (SwiftUI's hover
+/// only tracks while it is).
+private final class HoverView: NSVisualEffectView {
+    var onEnter: () -> Void = {}
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                       owner: self, userInfo: nil))
+    }
+
+    override func mouseEntered(with event: NSEvent) { onEnter() }
+}
+
 /// Always-on-top rounded panel on every Space: no title bar, sized to its content, draggable,
 /// snapping to screen edges. Snapped to the left or right edge it can fold into a sidebar rail.
 @MainActor
@@ -37,7 +52,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         panel.becomesKeyOnlyIfNeeded = true
         panel.delegate = self
 
-        let blur = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: Self.width, height: 120))
+        let blur = HoverView(frame: NSRect(x: 0, y: 0, width: Self.width, height: 120))
         blur.material = .popover
         blur.blendingMode = .behindWindow
         blur.state = .active
@@ -56,6 +71,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         host.autoresizingMask = [.width, .height]
         host.frame = blur.bounds
         blur.addSubview(host)
+        blur.onEnter = { [weak self] in self?.pointerEntered() }
         // Hairline edge so the panel reads against any wallpaper.
         blur.wantsLayer = true
         blur.layer?.cornerRadius = Self.radius
@@ -97,12 +113,18 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
 
     func toggle() { setVisible(!(panel.isVisible && panel.alphaValue > 0)) }
 
+    /// Frame a width animation (fold / unfold) is heading for; the window's own frame is mid-way.
+    private var animatingTo: NSRect?
+
     /// Resizes to the content, keeping the edges it is snapped to (top unless at the bottom, and
-    /// the side it is docked to) in place, and always inside the screen's usable area.
+    /// the side it is docked to) in place, and always inside the screen's usable area. A change of
+    /// width (folding or unfolding) slides the window edge; height alone follows at once.
     private func fit(_ size: CGSize) {
         let w = ceil(size.width), h = ceil(size.height)
-        guard w > 0, h > 0, abs(panel.frame.height - h) >= 1 || abs(panel.frame.width - w) >= 1 else { return }
-        var f = panel.frame
+        let current = animatingTo ?? panel.frame
+        guard w > 0, h > 0, abs(current.height - h) >= 1 || abs(current.width - w) >= 1 else { return }
+        var f = current
+        let slide = abs(f.width - w) >= 1
         let pinBottom = panel.screen.map { f.minY - $0.visibleFrame.minY < Self.snapDistance } ?? false
         if !pinBottom { f.origin.y = f.maxY - h }
         if room.dock == .right { f.origin.x = f.maxX - w }
@@ -111,8 +133,72 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
             f.origin.y = min(max(f.minY, v.minY), max(v.minY, v.maxY - f.height))
             f.origin.x = min(max(f.minX, v.minX), max(v.minX, v.maxX - f.width))
         }
-        panel.setFrame(f, display: true)
-        panel.invalidateShadow()
+        guard slide || animatingTo != nil else {
+            panel.setFrame(f, display: true)
+            panel.invalidateShadow()
+            return
+        }
+        animatingTo = f
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.2
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().setFrame(f, display: true)
+        }, completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.animatingTo == f else { return }
+                self.animatingTo = nil
+                self.panel.invalidateShadow()
+            }
+        })
+    }
+
+    // MARK: Peek: the rail unfolds while the pointer is over it.
+
+    private var peekPending: DispatchWorkItem?
+    private var peekTimer: Timer?
+    private var outsideSince: Date?
+    static let peekDelay: TimeInterval = 0.08
+    static let unpeekDelay: TimeInterval = 0.3
+
+    private var folded: Bool { room.dock != nil && !model.settings.sidebarExpanded }
+
+    /// Entering the rail unfolds it after a short dwell, so passing over it does nothing.
+    private func pointerEntered() {
+        peekPending?.cancel()
+        guard folded, !room.peek else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.panel.frame.contains(NSEvent.mouseLocation) else { return }
+            self.startPeek()
+        }
+        peekPending = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.peekDelay, execute: work)
+    }
+
+    private func startPeek() {
+        guard folded, !room.peek else { return }
+        room.peek = true
+        outsideSince = nil
+        // Polled rather than hover-tracked: the window changes size under the pointer, and a
+        // default-mode timer pauses while a context menu is open.
+        peekTimer?.invalidate()
+        peekTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkPeek() }
+        }
+    }
+
+    private func checkPeek() {
+        guard room.peek, folded else { return endPeek() }
+        let inside = panel.frame.insetBy(dx: -4, dy: -4).contains(NSEvent.mouseLocation)
+        if inside || NSEvent.pressedMouseButtons != 0 { outsideSince = nil; return }
+        let since = outsideSince ?? Date()
+        outsideSince = since
+        if Date().timeIntervalSince(since) >= Self.unpeekDelay { endPeek() }
+    }
+
+    private func endPeek() {
+        peekTimer?.invalidate()
+        peekTimer = nil
+        if room.peek { room.peek = false }
     }
 
     /// Which side the panel sits against, if any. Only changes when a move settles, so the panel
@@ -121,7 +207,8 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         guard let v = usable else { return }
         let f = panel.frame, d = Self.snapDistance
         let dock: DockEdge? = abs(f.maxX - v.maxX) < d ? .right : abs(f.minX - v.minX) < d ? .left : nil
-        if room.dock != dock { withAnimation(.snappy) { room.dock = dock } }
+        if room.dock != dock { room.dock = dock }
+        if dock == nil { endPeek() }
     }
 
     /// The screen's usable area less the snapping margin.
@@ -138,6 +225,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
 
     func windowDidMove(_ notification: Notification) {
         updateRoom()
+        guard animatingTo == nil else { return }  // our own slide, not a drag
         // Snap once the drag settles.
         NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(snapLater), object: nil)
         perform(#selector(snapLater), with: nil, afterDelay: 0.15)

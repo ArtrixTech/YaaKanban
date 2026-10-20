@@ -8,7 +8,7 @@ needs your input.
   by status (needs you → to review → running → done). Shows the agent's latest reply, the tool
   in flight, and token / tool-call usage.
 - Snap the panel to the left or right edge and it folds into a narrow sidebar of one block per
-  session; unfold it with the chevron to keep the full panel there.
+  session. Hover it to slide the full panel out, or pin it open.
 - Tap a card to jump to the agent: Wave Terminal tab, Cursor / VS Code window, or the
   terminal app it runs in.
 - Approve or deny permission requests from the panel or a notification.

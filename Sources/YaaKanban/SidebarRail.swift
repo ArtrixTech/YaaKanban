@@ -5,7 +5,7 @@ import YaaCore
 enum DockEdge { case left, right }
 
 /// The floating panel folded against a screen edge: one block per session, newest state first,
-/// like the board. A button unfolds it into the full panel.
+/// like the board. Hovering it peeks the full panel; a button unfolds it for good.
 struct SidebarRail: View {
     @Environment(AppModel.self) private var model
     let edge: DockEdge
@@ -18,10 +18,11 @@ struct SidebarRail: View {
     var body: some View {
         let sessions = model.board.flatMap(\.sessions)
         VStack(spacing: 8) {
-            VStack(spacing: 6) {
-                BrandMark(size: 22)
+            HStack(spacing: 0) {
+                BrandMark(size: 20)
+                Spacer(minLength: 4)
                 IconButton(symbol: edge == .right ? "chevron.left.2" : "chevron.right.2", help: "展开为悬浮窗") {
-                    withAnimation(.snappy) { model.settings.sidebarExpanded = true }
+                    model.settings.sidebarExpanded = true
                 }
             }
             if sessions.isEmpty {
