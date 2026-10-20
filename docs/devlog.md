@@ -1,8 +1,20 @@
 # Devlog
 
-## feat(menu): logo menu-bar icon, small control popover, 8 h finished-session window
+## feat(settings): logo header, styled rows, about section
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - The settings window opens with the logo, name, version and a one-line pitch.
+  - Each agent row shows its logo and a colored status capsule (已安装 / 需更新 / 未安装 / 未检测到) with small buttons. The other rows have System Settings style icon tiles. The opacity slider shows a percentage, and the hotkey is shown as a keycap. Notes moved to section footers.
+  - New 关于 section: version, license, source link, issue link, copyright. Login item moved to 通用. The window is 500×640.
+- **Reason**: "设置页面太丑，需要优化。顶上要加入logo。需要关于信息。"
+- **Process**: Checked an offscreen snapshot of the window.
+- **Result**: `make test` 60/60.
+
+## feat(menu): logo menu-bar icon, small control popover, 8 h finished-session window
+
+`51f3e43` | 2026-10-20
 
 - **Changes**:
   - The menu-bar icon is the logo's three bars, drawn as a template. A dot under the short bar appears while something runs; it is red, orange or green for needs-input, stuck or to-review, next to the count.

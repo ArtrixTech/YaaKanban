@@ -349,61 +349,102 @@ struct SettingsView: View {
     @State private var refresh = 0
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
+    static let size = NSSize(width: 500, height: 640)
+
     var body: some View {
         @Bindable var settings = model.settings
         Form {
-            Section("Agent 接入") {
+            Section { AboutHeader() }
+            Section {
                 ForEach(Integrations.all, id: \.agent) { i in
                     let status = i.status(home: Paths.home(), yaak: Self.yaak)
-                    HStack {
-                        Text(i.agent.displayName)
-                        Spacer()
-                        Text(statusLabel(status)).foregroundStyle(status == .installed ? .green : .secondary).font(.caption)
-                        if status == .outdated {
-                            Button("更新") { apply(i, install: true) }
+                    LabeledContent {
+                        HStack(spacing: 8) {
+                            StatusBadge(status: status)
+                            if status == .outdated {
+                                Button("更新") { apply(i, install: true) }.buttonStyle(.borderedProminent)
+                            }
+                            if status == .installed || status == .outdated {
+                                Button("卸载") { apply(i, install: false) }
+                            } else if status == .notInstalled {
+                                Button("安装") { apply(i, install: true) }.buttonStyle(.borderedProminent)
+                            }
                         }
-                        if status == .installed || status == .outdated {
-                            Button("卸载") { apply(i, install: false) }
-                        } else if status == .notInstalled {
-                            Button("安装") { apply(i, install: true) }
+                        .controlSize(.small)
+                    } label: {
+                        HStack(spacing: 8) {
+                            AgentLogo(agent: i.agent, size: 16)
+                                .frame(width: 22, height: 22)
+                                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.06)))
+                            Text(i.agent.displayName)
                         }
                     }
                 }
                 .id(refresh)
-                if let m = integrationMessage { Text(m).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
+            } header: {
+                Text("Agent 接入")
+            } footer: {
+                Text(integrationMessage ?? "安装后，agent 通过 hook 把会话状态和审批请求发给 YaaKanban。")
+                    .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             Section("提醒") {
-                LabeledContent("卡住阈值") { Stepper("\(Int(settings.stuckMinutes)) 分钟", value: $settings.stuckMinutes, in: 1...60) }
-                LabeledContent("审批等待") { Stepper("\(Int(settings.approvalTimeout)) 秒", value: $settings.approvalTimeout, in: 5...25) }
-                Toggle("Wave 在前台时不发系统通知", isOn: $settings.suppressWhenWaveFrontmost)
+                LabeledContent {
+                    Stepper("\(Int(settings.stuckMinutes)) 分钟", value: $settings.stuckMinutes, in: 1...60)
+                } label: { SettingLabel("卡住阈值", symbol: "hourglass", tint: .orange) }
+                LabeledContent {
+                    Stepper("\(Int(settings.approvalTimeout)) 秒", value: $settings.approvalTimeout, in: 5...25)
+                } label: { SettingLabel("审批等待", symbol: "hand.raised.fill", tint: .red) }
+                Toggle(isOn: $settings.suppressWhenWaveFrontmost) {
+                    SettingLabel("Wave 在前台时不发系统通知", symbol: "bell.slash.fill", tint: .gray)
+                }
             }
             Section("悬浮窗") {
-                LabeledContent("已完成会话显示") {
+                LabeledContent {
                     Stepper(Self.duration(settings.idleVisibleMinutes), value: $settings.idleVisibleMinutes, in: 0...1440, step: 30)
-                }
-                Slider(value: $settings.panelOpacity, in: 0.4...1) { Text("透明度") }
-                    .onChange(of: settings.panelOpacity) { panel.applyOpacity() }
-                Text("⌥⌘K 显示 / 隐藏").font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Wave Terminal") {
-                Toggle("跳转时切换到对应标签页", isOn: $settings.waveTabSwitching)
-                Text("需要在 系统设置 › 隐私与安全性 › 辅助功能 里允许 YaaKanban。第一次跳转时会弹出请求。")
-                    .font(.caption).foregroundStyle(.secondary)
+                } label: { SettingLabel("已完成会话显示", symbol: "checkmark.circle.fill", tint: .green) }
+                LabeledContent {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.panelOpacity, in: 0.4...1).frame(width: 150)
+                            .onChange(of: settings.panelOpacity) { panel.applyOpacity() }
+                        Text("\(Int(settings.panelOpacity * 100))%").monospacedDigit().foregroundStyle(.secondary)
+                            .frame(width: 36, alignment: .trailing)
+                    }
+                } label: { SettingLabel("透明度", symbol: "circle.lefthalf.filled", tint: .indigo) }
+                LabeledContent {
+                    Text("⌥⌘K").font(.system(size: 12, weight: .medium)).padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.primary.opacity(0.08)))
+                } label: { SettingLabel("显示 / 隐藏", symbol: "command", tint: .blue) }
             }
             Section {
-                Toggle("登录时启动", isOn: $launchAtLogin)
+                Toggle(isOn: $settings.waveTabSwitching) {
+                    SettingLabel("跳转时切换到对应标签页", symbol: "rectangle.stack.fill", tint: .teal)
+                }
+            } header: {
+                Text("Wave Terminal")
+            } footer: {
+                Text("需要在 系统设置 › 隐私与安全性 › 辅助功能 里允许 YaaKanban。第一次跳转时会弹出请求。")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Section("通用") {
+                Toggle(isOn: $launchAtLogin) { SettingLabel("登录时启动", symbol: "power", tint: .gray) }
                     .onChange(of: launchAtLogin) { _, on in
                         do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } }
                         catch { integrationMessage = "登录项设置失败：\(error.localizedDescription)" }
                     }
             }
+            Section("关于") {
+                LabeledContent("版本", value: AboutHeader.version)
+                LabeledContent("许可证", value: "GPL-3.0")
+                LabeledContent("源代码") { Link("github.com/ArtrixTech/YaaKanban", destination: AboutHeader.repo) }
+                LabeledContent("问题反馈") { Link("提交 Issue", destination: AboutHeader.repo.appendingPathComponent("issues")) }
+                Text("© 2026 Artrix · 以 GPL-3.0 开源发布").font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
         }
         .formStyle(.grouped)
-        .frame(width: 480, height: 560)
-    }
-
-    private func statusLabel(_ s: IntegrationStatus) -> String {
-        switch s { case .installed: "已安装"; case .outdated: "需更新"; case .notInstalled: "未安装"; case .notDetected: "未检测到" }
+        .frame(width: Self.size.width, height: Self.size.height)
     }
 
     static func duration(_ minutes: Double) -> String {
@@ -422,5 +463,61 @@ struct SettingsView: View {
             integrationMessage = "\(i.agent.displayName)：\(error)"
         }
         refresh += 1
+    }
+}
+
+/// Top of the settings window: logo, name, version, one-line pitch.
+struct AboutHeader: View {
+    static let repo = URL(string: "https://github.com/ArtrixTech/YaaKanban")!
+    static var version: String {
+        let info = Bundle.main.infoDictionary
+        guard let v = info?["CFBundleShortVersionString"] as? String else { return "开发版" }
+        return "\(v) (\(info?["CFBundleVersion"] as? String ?? "?"))"
+    }
+
+    var body: some View {
+        VStack(spacing: 6) {
+            BrandMark(size: 64).shadow(color: .black.opacity(0.15), radius: 6, y: 2)
+            Text("YaaKanban").font(.system(size: 20, weight: .bold))
+            Text("版本 \(Self.version)").font(.caption).foregroundStyle(.secondary)
+            Text("盯着你的 coding agent：完成、卡住、需要你时第一时间知道。")
+                .font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+}
+
+/// Settings row label in the System Settings style: white symbol on a tinted rounded square.
+struct SettingLabel: View {
+    let title: String
+    let symbol: String
+    let tint: Color
+    init(_ title: String, symbol: String, tint: Color) { self.title = title; self.symbol = symbol; self.tint = tint }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
+                .frame(width: 22, height: 22)
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(tint.gradient))
+            Text(title)
+        }
+    }
+}
+
+/// Integration status as a small colored capsule.
+struct StatusBadge: View {
+    let status: IntegrationStatus
+
+    var body: some View {
+        let (text, color): (String, Color) = switch status {
+        case .installed: ("已安装", .green)
+        case .outdated: ("需更新", .orange)
+        case .notInstalled: ("未安装", .secondary)
+        case .notDetected: ("未检测到", .secondary)
+        }
+        Text(text).font(.system(size: 11, weight: .medium)).foregroundStyle(color)
+            .padding(.horizontal, 7).padding(.vertical, 2)
+            .background(Capsule().fill(color.opacity(0.12)))
     }
 }

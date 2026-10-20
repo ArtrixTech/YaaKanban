@@ -46,7 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("panel", AnyView(FloatingPanelView().environment(model)), NSSize(width: 340, height: 300)),
             ("menu", AnyView(MenuContent(panel: panel).environment(model)), NSSize(width: 230, height: 200)),
             ("main", AnyView(MainWindow().environment(model)), NSSize(width: 1000, height: 640)),
-            ("settings", AnyView(SettingsView(panel: panel).environment(model)), NSSize(width: 480, height: 560)),
+            ("settings", AnyView(SettingsView(panel: panel).environment(model)), SettingsView.size),
         ]
         for (name, view, size) in views {
             let window = NSWindow(contentRect: NSRect(origin: NSPoint(x: -10000, y: -10000), size: size),
