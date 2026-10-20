@@ -38,7 +38,8 @@ final class AppModel {
         return sorted(sessions.values.filter { s in
             switch s.status {
             case .ended: return false
-            case .idle: return now.timeIntervalSince(s.lastEventAt) < settings.idleVisibleSeconds
+            // Unreviewed results stay until looked at; reviewed ones fade out after a while.
+            case .idle: return s.unreadSince != nil || now.timeIntervalSince(s.lastEventAt) < settings.idleVisibleSeconds
             default: return true
             }
         })
@@ -46,14 +47,16 @@ final class AppModel {
 
     var allSessions: [SessionState] { sorted(Array(sessions.values)) }
     var attentionCount: Int { sessions.values.filter { $0.status.needsAttention }.count }
+    /// Sessions waiting on the user: blocked, stuck, or finished and not yet reviewed.
+    var pendingCount: Int { sessions.values.filter(Self.wantsUser).count }
+    static func wantsUser(_ s: SessionState) -> Bool { s.status.needsAttention || s.display == .review }
     var hasStuck: Bool { sessions.values.contains { $0.status == .stuck } }
     var hasNeedsInput: Bool { sessions.values.contains { $0.status == .needsInput } }
+    var reviewCount: Int { sessions.values.filter { $0.display == .review }.count }
+    var runningCount: Int { sessions.values.filter { $0.status == .running }.count }
 
     private func sorted(_ list: [SessionState]) -> [SessionState] {
-        func rank(_ s: SessionStatus) -> Int {
-            switch s { case .needsInput: 0; case .stuck: 1; case .running: 2; case .idle: 3; case .ended: 4 }
-        }
-        return list.sorted { (rank($0.status), $1.lastEventAt) < (rank($1.status), $0.lastEventAt) }
+        list.sorted { ($0.display.rank, $1.lastEventAt) < ($1.display.rank, $0.lastEventAt) }
     }
 
     // MARK: Lifecycle
@@ -147,7 +150,8 @@ final class AppModel {
             notifier.withdraw(key: key)
         }
         if alert, let a = Alerts.between(old, new) { notifier.post(a, for: new, settings: settings) }
-        if (old?.status.needsAttention ?? false) != new.status.needsAttention { jumper.badge(new, on: new.status.needsAttention) }
+        // The Wave badge stays on until the user has dealt with it, including reviewing a finished turn.
+        if (old.map(Self.wantsUser) ?? false) != Self.wantsUser(new) { jumper.badge(new, on: Self.wantsUser(new)) }
         return key
     }
 
@@ -189,7 +193,7 @@ final class AppModel {
         switch action {
         case .allow: decide(key, .allow, requestId: requestId ?? "")
         case .deny: decide(key, .deny, requestId: requestId ?? "")
-        case .open: if let s = sessions[key] { jumper.jump(to: s) }
+        case .open: jump(key)
         }
     }
 
@@ -208,11 +212,37 @@ final class AppModel {
 
     private func scan() {
         for ev in scanner.scan() {
-            update(SessionState.key(ev.agent, ev.sessionId), alert: false) { SessionReducer.apply(ev, to: $0) }
+            // Alert on unhooked sessions we already know (hooks alert for the rest); the first
+            // sighting is just discovery.
+            let k = SessionState.key(ev.agent, ev.sessionId)
+            let key = update(k, alert: sessions[k].map { !$0.hooked } ?? false) { SessionReducer.apply(ev, to: $0) }
+            // Without hooks the transcript is the only source of what the session is doing.
+            if let s = sessions[key], !s.hooked, let peek = scanner.peek(s), peek != s.peek {
+                update(key, alert: false) { s in
+                    guard var s else { return nil }
+                    s.peek = peek
+                    return s
+                }
+            }
         }
     }
 
     // MARK: User actions
+
+    /// The user looked at the result of a finished turn.
+    func markRead(_ key: String) {
+        guard sessions[key]?.unreadSince != nil else { return }
+        update(key, alert: false) { s in
+            guard var s else { return nil }
+            s.unreadSince = nil
+            return s
+        }
+    }
+
+    func jump(_ key: String) {
+        markRead(key)
+        if let s = sessions[key] { jumper.jump(to: s) }
+    }
 
     func remove(_ key: String) {
         sessions[key] = nil

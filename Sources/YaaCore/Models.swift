@@ -102,6 +102,8 @@ public struct AgentEvent: Equatable, Sendable {
         case toolStart(id: String, name: String, input: JSONValue)
         case toolEnd(id: String, name: String, output: String?, isError: Bool)
         case needsInput(String)
+        /// A generic "waiting for you" notice; never replaces a specific question already shown.
+        case attentionNotice(String)
         /// The user answered a prompt that was blocking the agent.
         case inputAnswered
         case permission(PermissionRequest)
@@ -190,6 +192,10 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var subagents: [Subagent]
     /// True once a real hook event was seen; false for sessions discovered by scanning only.
     public var hooked: Bool
+    /// Set when a turn finishes; cleared once the user looks at the session or sends a new prompt.
+    public var unreadSince: Date?
+    /// What the transcript says, for sessions whose turns we did not see through hooks.
+    public var peek: TranscriptPeek?
 
     public static let toolHistoryLimit = 200
 
@@ -207,6 +213,7 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
 
     public var title: String {
         if let p = turns.first?.prompt, !p.isEmpty { return String(p.prefix(80)) }
+        if let p = peek?.lastPrompt, !p.isEmpty { return String(p.prefix(80)) }
         if let cwd { return (cwd as NSString).lastPathComponent }
         return sessionId
     }
@@ -215,4 +222,27 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var currentTurn: Turn? { turns.last }
     public var latestTool: ToolCall? { tools.last }
     public var runningTools: [ToolCall] { tools.filter(\.isRunning) }
+
+    /// What the UI shows: `.idle` splits into "to review" and "done".
+    public var display: DisplayStatus {
+        switch status {
+        case .running: .running
+        case .needsInput: .needsInput
+        case .stuck: .stuck
+        case .idle: unreadSince == nil ? .done : .review
+        case .ended: .ended
+        }
+    }
+
+    /// The agent's latest reply, from hooks or the transcript.
+    public var lastReply: String? { currentTurn?.lastMessage ?? peek?.lastReply }
+}
+
+public enum DisplayStatus: Sendable {
+    case needsInput, stuck, review, running, done, ended
+
+    /// Sort order: most urgent first.
+    public var rank: Int {
+        switch self { case .needsInput: 0; case .stuck: 1; case .review: 2; case .running: 3; case .done: 4; case .ended: 5 }
+    }
 }

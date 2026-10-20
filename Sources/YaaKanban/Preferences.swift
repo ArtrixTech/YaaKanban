@@ -12,6 +12,7 @@ final class Preferences {
     var idleVisibleMinutes: Double { didSet { d.set(idleVisibleMinutes, forKey: "idleVisibleMinutes") } }
     var panelOpacity: Double { didSet { d.set(panelOpacity, forKey: "panelOpacity") } }
     var showPanel: Bool { didSet { d.set(showPanel, forKey: "showPanel") } }
+    var panelCollapsed: Bool { didSet { d.set(panelCollapsed, forKey: "panelCollapsed") } }
     var suppressWhenWaveFrontmost: Bool { didSet { d.set(suppressWhenWaveFrontmost, forKey: "suppressWhenWaveFrontmost") } }
     var waveTabSwitching: Bool { didSet { d.set(waveTabSwitching, forKey: "waveTabSwitching") } }
 
@@ -25,6 +26,7 @@ final class Preferences {
         idleVisibleMinutes = d.double(forKey: "idleVisibleMinutes")
         panelOpacity = d.double(forKey: "panelOpacity")
         showPanel = d.bool(forKey: "showPanel")
+        panelCollapsed = d.bool(forKey: "panelCollapsed")
         suppressWhenWaveFrontmost = d.bool(forKey: "suppressWhenWaveFrontmost")
         waveTabSwitching = d.bool(forKey: "waveTabSwitching")
     }

@@ -47,8 +47,9 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
                 if p.isTruncated { c.body = String((p.detail ?? msg).prefix(400)) } else { c.categoryIdentifier = "permission" }
             }
         case .done(let last):
-            c.title = "完成 — \(where_)"
+            c.title = "待验收 — \(where_)"
             c.body = last.map { String($0.prefix(200)) } ?? s.title
+            c.sound = .default
         case .stuck(let reason):
             c.title = "可能卡住 — \(where_)"
             c.body = reason

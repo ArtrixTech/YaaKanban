@@ -309,3 +309,105 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(Store.persistable(s).terminal?.waveBlockId == "b")
     }
 }
+
+@Suite struct ReviewState {
+    @Test func finishedTurnIsUnreadUntilNextPrompt() {
+        let done = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), claude("Stop", [:], at: 1)])
+        #expect(done.display == .review)
+        #expect(done.unreadSince == t0.addingTimeInterval(1))
+        let next = fold([claude("UserPromptSubmit", ["prompt": .string("y")], at: 2)], into: done)
+        #expect(next.unreadSince == nil)
+        #expect(next.display == .running)
+        let ended = fold([claude("Stop", [:], at: 3), claude("SessionEnd", [:], at: 4)], into: next)
+        #expect(ended.unreadSince == nil)
+    }
+
+    @Test func unhookedBusyToIdleIsUnread() {
+        func snap(_ st: SessionStatus, _ at: TimeInterval) -> AgentEvent {
+            AgentEvent(agent: .claudeCode, sessionId: "u", at: t0.addingTimeInterval(at), kind: .statusSnapshot(st))
+        }
+        var s = SessionReducer.apply(snap(.idle, 0), to: nil)
+        #expect(s.display == .done)
+        s = SessionReducer.apply(snap(.running, 1), to: s)
+        s = SessionReducer.apply(snap(.idle, 2), to: s)
+        #expect(s.display == .review)
+        s = SessionReducer.apply(snap(.running, 3), to: s)
+        #expect(s.unreadSince == nil)
+    }
+
+    @Test func oldStoredStateDecodes() throws {
+        var s = SessionState(agent: .codex, sessionId: "o", at: t0)
+        s.status = .idle
+        var obj = try #require(JSONValue.parse(JSONEncoder().encode(s))?.object)
+        obj["unreadSince"] = nil
+        obj["peek"] = nil
+        let back = try JSONDecoder().decode(SessionState.self, from: JSONEncoder().encode(JSONValue.object(obj)))
+        #expect(back.display == .done)
+    }
+}
+
+@Suite struct Transcript {
+    private func lines(_ objs: [String]) -> Data { objs.joined(separator: "\n").data(using: .utf8)! }
+
+    @Test func readsPromptReplyAndRecap() {
+        let peek = TranscriptPeek.parse(lines([
+            #"{"type":"user","message":{"role":"user","content":"old prompt"}}"#,
+            #"{"type":"assistant","message":{"content":[{"type":"text","text":"old reply"}]}}"#,
+            #"{"type":"system","subtype":"away_summary","content":"Goal: train v5."}"#,
+            #"{"type":"user","message":{"role":"user","content":"why so slow?"}}"#,
+            #"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash"}]}}"#,
+            #"{"type":"user","message":{"content":[{"type":"tool_result","content":"ok"}]}}"#,
+            #"{"type":"assistant","isSidechain":true,"message":{"content":[{"type":"text","text":"sub"}]}}"#,
+            #"{"type":"assistant","message":{"content":[{"type":"text","text":"Use AMP."}]}}"#,
+        ]))
+        #expect(peek?.lastPrompt == "why so slow?")
+        #expect(peek?.lastReply == "Use AMP.")
+        #expect(peek?.recap == "Goal: train v5.")
+    }
+
+    @Test func replyBeforeLatestPromptIsDropped() {
+        let peek = TranscriptPeek.parse(lines([
+            #"{"type":"assistant","message":{"content":[{"type":"text","text":"old"}]}}"#,
+            #"{"type":"user","message":{"role":"user","content":"new question"}}"#,
+            "not json",
+        ]))
+        #expect(peek?.lastPrompt == "new question")
+        #expect(peek?.lastReply == nil)
+        #expect(TranscriptPeek.parse(Data()) == nil)
+    }
+
+    @Test func titleFallsBackToPeek() {
+        var s = SessionState(agent: .claudeCode, sessionId: "p", at: t0)
+        s.cwd = "/x/LY-Analysis"
+        #expect(s.title == "LY-Analysis")
+        s.peek = TranscriptPeek(lastPrompt: "训练感觉很慢", lastReply: "加 AMP")
+        #expect(s.title == "训练感觉很慢")
+        #expect(s.lastReply == "加 AMP")
+    }
+}
+
+@Suite struct AskUserQuestionFlow {
+    /// Claude sends PreToolUse, then PermissionRequest, then a generic Notification for a question.
+    @Test func questionIsNotShownAsPermission() {
+        let input: JSONValue = .object(["questions": .array([.object(["question": .string("TEC 驱动选哪种？")]),
+                                                             .object(["question": .string("MCU？")])])])
+        let s = fold([
+            claude("UserPromptSubmit", ["prompt": .string("x")]),
+            claude("PreToolUse", ["tool_name": .string("AskUserQuestion"), "tool_use_id": .string("q1"), "tool_input": input], at: 1),
+            claude("PermissionRequest", ["tool_name": .string("AskUserQuestion"), "tool_input": input,
+                                         Normalizer.awaitingKey: .bool(true)], at: 1),
+            claude("Notification", ["notification_type": .string("permission_prompt"),
+                                    "message": .string("Claude needs your permission")], at: 2),
+        ])
+        #expect(s.status == .needsInput)
+        #expect(s.pendingPermission == nil)
+        #expect(s.needsInputMessage == "TEC 驱动选哪种？（共 2 个问题）")
+    }
+
+    @Test func genericNoticeStillFlagsOtherwise() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]),
+                      claude("Notification", ["message": .string("Claude needs your permission")], at: 1)])
+        #expect(s.status == .needsInput)
+        #expect(s.needsInputMessage == "Claude needs your permission")
+    }
+}

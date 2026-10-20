@@ -1,28 +1,6 @@
 import SwiftUI
 import YaaCore
 
-extension SessionStatus {
-    var label: String {
-        switch self {
-        case .running: "运行中"
-        case .needsInput: "需要输入"
-        case .stuck: "可能卡住"
-        case .idle: "已完成"
-        case .ended: "已结束"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .running: .blue
-        case .needsInput: .red
-        case .stuck: .orange
-        case .idle: .gray
-        case .ended: .secondary
-        }
-    }
-}
-
 extension AgentKind {
     var symbol: String {
         switch self {
@@ -43,81 +21,161 @@ func relative(_ d: Date, now: Date = Date()) -> String {
     return "\(s / 86400)天"
 }
 
-struct StatusBadge: View {
-    let status: SessionStatus
-    var body: some View {
-        HStack(spacing: 4) {
-            Circle().fill(status.color).frame(width: 7, height: 7)
-            Text(status.label).font(.caption2).foregroundStyle(status.color)
+extension SessionState {
+    /// The prompt of the turn in progress or just finished.
+    var currentPrompt: String? {
+        if let p = currentTurn?.prompt, !p.isEmpty { return p }
+        return peek?.lastPrompt
+    }
+
+    /// Running: how long the turn has run. Otherwise: how long ago it last changed.
+    func clock(now: Date) -> String {
+        if status == .running {
+            let start = currentTurn.flatMap { $0.endedAt == nil ? $0.startedAt : nil } ?? lastEventAt
+            return relative(start, now: now)
         }
+        return relative(lastEventAt, now: now) + "前"
     }
 }
 
-/// Allow / Deny buttons, only while the hook is waiting for the app.
+/// Allow / Deny, only while the hook is waiting for the app.
 struct PermissionButtons: View {
     @Environment(AppModel.self) private var model
     let session: SessionState
 
     var body: some View {
         if let p = session.pendingPermission, p.awaitingDecision, model.canDecide(session.id) {
-            if let detail = p.detail {
-                Text(detail).font(.caption.monospaced()).lineLimit(8).textSelection(.enabled)
-                    .padding(4).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+            VStack(alignment: .leading, spacing: 6) {
+                if let detail = p.detail {
+                    ScrollView {
+                        Text(detail).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxHeight: 120)
+                    .padding(8)
+                    .background(.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                HStack(spacing: 6) {
+                    Button { model.decide(session.id, .allow) } label: { Label("允许一次", systemImage: "checkmark") }
+                        .buttonStyle(PillButtonStyle(tint: .green, prominent: true))
+                    Button { model.decide(session.id, .deny) } label: { Label("拒绝", systemImage: "xmark") }
+                        .buttonStyle(PillButtonStyle(tint: .red))
+                    Spacer()
+                }
             }
-            HStack(spacing: 6) {
-                Button("允许一次") { model.decide(session.id, .allow) }
-                    .buttonStyle(.borderedProminent).tint(.green)
-                Button("拒绝") { model.decide(session.id, .deny) }
-                    .buttonStyle(.bordered)
-            }
-            .controlSize(.small)
+            .transition(.opacity.combined(with: .move(edge: .top)))
         }
     }
 }
 
-/// Compact row used by the menu popover and the floating panel.
-struct SessionRow: View {
+/// One session in the floating panel and the menu popover.
+struct SessionCard: View {
     @Environment(AppModel.self) private var model
     let session: SessionState
     var expanded = false
+    var onTap: () -> Void = {}
+    @State private var hover = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Image(systemName: session.agent.symbol).frame(width: 14).foregroundStyle(.secondary)
-                Text(session.projectName ?? session.agent.displayName).font(.callout.weight(.semibold)).lineLimit(1)
-                StatusBadge(status: session.status)
-                Spacer(minLength: 4)
-                if !session.subagents.isEmpty {
-                    Text("\(session.subagents.count) 子 agent").font(.caption2).foregroundStyle(.secondary)
+        let st = session.display
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                StatusGlyph(status: st, size: 26)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(session.projectName ?? session.agent.displayName)
+                            .font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                        StatusPill(status: st)
+                        Spacer(minLength: 4)
+                        TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                            Text(session.clock(now: ctx.date))
+                                .font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.secondary)
+                        }
+                    }
+                    if let p = session.currentPrompt {
+                        Text(p).font(.system(size: 11.5, weight: .medium)).foregroundStyle(.primary.opacity(0.85))
+                            .lineLimit(expanded ? 4 : 1)
+                    }
+                    detailLine(st)
                 }
-                TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                    Text(relative(session.lastEventAt, now: ctx.date)).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
-                }
-                Button { model.jumper.jump(to: session) } label: { Image(systemName: "arrow.up.forward.app") }
-                    .buttonStyle(.borderless).help("跳转到终端")
-            }
-            if let msg = attentionText {
-                Text(msg).font(.caption).foregroundStyle(session.status.color).lineLimit(expanded ? 6 : 2)
-            } else if let t = session.latestTool {
-                ToolLine(tool: t)
             }
             PermissionButtons(session: session)
-            if expanded {
-                Divider()
-                ForEach(session.tools.suffix(8).reversed()) { ToolLine(tool: $0) }
-            }
+            if expanded { expandedBody(st) }
+            if st == .review && !expanded { actions(st) }
         }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
+        .padding(10)
+        .card(st, hover: hover)
+        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .onHover { hover = $0 }
+        .animation(.easeOut(duration: 0.12), value: hover)
+        .onTapGesture(perform: onTap)
+        .contextMenu {
+            Button("跳转到终端") { model.jump(session.id) }
+            if st == .review { Button("标记已验收") { model.markRead(session.id) } }
+            Button("复制 cwd / session") { model.jumper.copyContext(session) }
+            Divider()
+            Button("从列表删除", role: .destructive) { model.remove(session.id) }
+        }
     }
 
-    private var attentionText: String? {
-        switch session.status {
-        case .needsInput: session.needsInputMessage ?? "需要你的输入"
-        case .stuck: session.stuckReason
-        default: nil
+    /// Second line: what needs the user, what is running, or the last reply.
+    @ViewBuilder private func detailLine(_ st: DisplayStatus) -> some View {
+        switch st {
+        case .needsInput, .stuck:
+            Text(session.needsInputMessage ?? session.stuckReason ?? "需要你处理")
+                .font(.system(size: 11.5)).foregroundStyle(st.tint).lineLimit(expanded ? 6 : 2)
+        case .running:
+            if let t = session.latestTool, t.isRunning {
+                ToolLine(tool: t)
+            } else if let r = session.peek?.recap {
+                Text(r).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(expanded ? 6 : 2)
+            } else if !session.hooked {
+                Text("此会话在安装 hook 前启动，只能看到粗略状态").font(.system(size: 11)).foregroundStyle(.tertiary)
+            }
+        case .review, .done, .ended:
+            if let r = session.lastReply {
+                Text(r).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(expanded ? 12 : 2)
+            }
+        }
+    }
+
+    @ViewBuilder private func expandedBody(_ st: DisplayStatus) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let r = session.peek?.recap, st != .running {
+                Label { Text(r) } icon: { Image(systemName: "text.quote") }
+                    .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(6)
+            }
+            let recent = session.tools.suffix(6).reversed()
+            if !recent.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(recent)) { ToolLine(tool: $0) }
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            HStack(spacing: 4) {
+                Image(systemName: session.agent.symbol)
+                Text(session.agent.displayName)
+                if !session.subagents.isEmpty { Text("· \(session.subagents.count) 个子 agent") }
+                if session.terminal?.isWave == true { Text("· Wave") }
+                if !session.hooked { Text("· 未挂 hook").foregroundStyle(.orange) }
+            }
+            .font(.system(size: 10.5)).foregroundStyle(.tertiary)
+            actions(st)
+        }
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    private func actions(_ st: DisplayStatus) -> some View {
+        HStack(spacing: 6) {
+            if st == .review {
+                Button { withAnimation(.snappy) { model.markRead(session.id) } } label: { Label("验收", systemImage: "checkmark") }
+                    .buttonStyle(PillButtonStyle(tint: .green, prominent: true))
+            }
+            Button { model.jump(session.id) } label: { Label("去终端查看", systemImage: "arrow.up.forward.app") }
+                .buttonStyle(PillButtonStyle(tint: st == .review ? .green : .accentColor))
+            Spacer()
         }
     }
 }
@@ -125,109 +183,21 @@ struct SessionRow: View {
 struct ToolLine: View {
     let tool: ToolCall
     var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: tool.isRunning ? "circle.dotted" : (tool.isError ? "xmark.circle" : "checkmark.circle"))
-                .foregroundStyle(tool.isRunning ? Color.blue : (tool.isError ? Color.red : Color.secondary))
-                .font(.caption2)
-            Text(tool.name).font(.caption.weight(.medium))
-            Text(tool.summary).font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-        }
-    }
-}
-
-/// Full detail: header, attention, turns, and the tool timeline.
-struct SessionDetail: View {
-    @Environment(AppModel.self) private var model
-    let session: SessionState
-    @State private var openTool: String?
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                header
-                if session.status.needsAttention {
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(session.needsInputMessage ?? session.stuckReason ?? "").textSelection(.enabled)
-                            PermissionButtons(session: session)
-                        }.frame(maxWidth: .infinity, alignment: .leading)
-                    } label: { Label(session.status.label, systemImage: "exclamationmark.bubble").foregroundStyle(session.status.color) }
-                }
-                if let last = session.currentTurn?.lastMessage, session.status == .idle {
-                    GroupBox("最后回复") { Text(last).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
-                }
-                if !session.subagents.isEmpty {
-                    GroupBox("子 agent") {
-                        ForEach(session.subagents, id: \.id) { a in
-                            HStack { Text(a.type ?? "agent"); Spacer(); Text(relative(a.startedAt)).foregroundStyle(.secondary) }
-                        }
-                    }
-                }
-                GroupBox("轮次") {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(session.turns.reversed()) { t in
-                            HStack(alignment: .top) {
-                                Text("#\(t.id)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                                Text(t.prompt.isEmpty ? "（无 prompt）" : t.prompt).lineLimit(2)
-                                Spacer()
-                                Text("\(t.toolCount) 工具 · \(duration(t))").font(.caption).foregroundStyle(.secondary)
-                            }
-                        }
-                        if session.turns.isEmpty { Text("暂无").foregroundStyle(.secondary) }
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                }
-                GroupBox("工具调用（最近 \(session.tools.count) 次）") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(session.tools.reversed()) { t in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Button { openTool = openTool == t.id ? nil : t.id } label: {
-                                    HStack {
-                                        ToolLine(tool: t)
-                                        Spacer()
-                                        if t.subagentId != nil { Text("子 agent").font(.caption2).foregroundStyle(.purple) }
-                                        Text(t.startedAt, style: .time).font(.caption2).foregroundStyle(.secondary)
-                                    }.contentShape(Rectangle())
-                                }.buttonStyle(.plain)
-                                if openTool == t.id {
-                                    CodeBlock(title: "输入", text: t.input)
-                                    if let o = t.output { CodeBlock(title: "输出", text: o) }
-                                }
-                            }
-                        }
-                    }.frame(maxWidth: .infinity, alignment: .leading)
+        HStack(spacing: 5) {
+            Group {
+                if tool.isRunning {
+                    ProgressView().controlSize(.mini).scaleEffect(0.7)
+                } else {
+                    Image(systemName: tool.isError ? "xmark.circle.fill" : "checkmark.circle.fill")
+                        .foregroundStyle(tool.isError ? Color.red : Color.secondary.opacity(0.6))
                 }
             }
-            .padding()
+            .font(.system(size: 10)).frame(width: 12, height: 12)
+            Text(tool.name).font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(tool.isRunning ? Color.blue : Color.primary.opacity(0.8))
+            Text(tool.summary).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+                .lineLimit(1).truncationMode(.middle)
         }
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Image(systemName: session.agent.symbol)
-                Text(session.title).font(.title3.weight(.semibold)).lineLimit(2)
-                Spacer()
-                StatusBadge(status: session.status)
-            }
-            HStack(spacing: 12) {
-                Text(session.agent.displayName)
-                if let cwd = session.cwd { Text(cwd).truncationMode(.head) }
-                if let pid = session.agentPid { Text("pid \(pid)") }
-                if session.terminal?.isWave == true { Text("Wave") }
-                if !session.hooked { Text("未挂 hook，仅粗略状态").foregroundStyle(.orange) }
-            }
-            .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            HStack {
-                Button("跳转到终端") { model.jumper.jump(to: session) }
-                Button("复制 cwd / session") { model.jumper.copyContext(session) }
-                Spacer()
-                Button("从历史删除", role: .destructive) { model.remove(session.id) }
-            }.controlSize(.small)
-        }
-    }
-
-    private func duration(_ t: Turn) -> String {
-        relative(t.startedAt, now: t.endedAt ?? Date())
     }
 }
 
@@ -235,12 +205,12 @@ struct CodeBlock: View {
     let title: String
     let text: String
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.caption2).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
             Text(text.isEmpty ? "（已清理）" : text)
-                .font(.caption.monospaced()).textSelection(.enabled)
-                .padding(6).frame(maxWidth: .infinity, alignment: .leading)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 4))
+                .font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
+                .padding(8).frame(maxWidth: .infinity, alignment: .leading)
+                .background(.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
     }
 }

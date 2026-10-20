@@ -1,8 +1,22 @@
 # Devlog
 
-## fix: address adversarial review findings
+## feat(ui): redesign panel and add review state
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - A finished turn is now "待验收" (`unreadSince`). It stays in the panel, turns the menu-bar icon green with a count, keeps the Wave badge on and plays a sound. It is cleared by 验收, by jumping to the terminal, or by the next prompt.
+  - Sessions started before hooks were installed now show their last prompt, reply and recap, read from the transcript tail (`TranscriptPeek`).
+  - Bug fix: Claude's AskUserQuestion was treated as a command approval. It now becomes a question, the hook no longer blocks for it, and the generic "needs your permission" notice no longer overwrites the question text.
+  - UI: the floating panel is borderless, rounded and vibrant, with no traffic lights. It sizes itself to its content and can be collapsed. Cards have animated status glyphs, pills and hover feedback. The menu and detail page were restyled to match.
+- **Reason**: User feedback: the UI was ugly, a mystery task showed no content, a finished turn should ask for review, and a question was shown as a permission request.
+- **Process**: Tests were written for the review state, transcript parsing and the AskUserQuestion flow. Verified with `yaak snapshot` using live sessions.
+- **Result**: `make test` 46/46.
+- **Notes**: The snapshot command cannot render vibrancy or the sidebar, so the real panel background was not captured.
+
+## fix: address adversarial review findings
+
+`57f0bdb` | 2026-10-20
 
 - **Changes**:
   - Hook commands shell-quote the yaak path.

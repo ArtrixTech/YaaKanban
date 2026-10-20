@@ -20,6 +20,8 @@ public enum SessionReducer {
             if s.status != status { s.lastEventAt = max(s.lastEventAt, e.at) }
             s.cwd = s.cwd ?? e.cwd
             s.agentPid = s.agentPid ?? e.agentPid
+            if status == .idle, s.status == .running || s.status == .stuck { s.unreadSince = e.at }
+            if status == .running { s.unreadSince = nil }
             s.status = status
             return s
         }
@@ -37,6 +39,7 @@ public enum SessionReducer {
         case .promptSubmitted(let prompt):
             s.turns.append(Turn(id: s.turns.count + 1, prompt: prompt, startedAt: e.at, toolCount: 0))
             s.status = .running
+            s.unreadSince = nil
             clearAttention(&s)
 
         case .toolStart(let id, let name, let input):
@@ -69,6 +72,10 @@ public enum SessionReducer {
             s.status = .needsInput
             s.needsInputMessage = message
 
+        case .attentionNotice(let message):
+            if s.status != .needsInput || s.needsInputMessage == nil { s.needsInputMessage = message }
+            s.status = .needsInput
+
         case .inputAnswered:
             if s.status == .needsInput { s.status = .running }
             clearAttention(&s)
@@ -90,6 +97,7 @@ public enum SessionReducer {
             endRunningTools(&s, at: e.at)
             s.subagents.removeAll()
             s.status = .ended
+            s.unreadSince = nil
             clearAttention(&s)
 
         case .subagentStart(let id, let type):
@@ -131,6 +139,7 @@ public enum SessionReducer {
         endRunningTools(&s, at: at)
         s.subagents.removeAll()
         s.status = .idle
+        s.unreadSince = at
         clearAttention(&s)
     }
 
