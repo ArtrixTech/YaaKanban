@@ -1,0 +1,211 @@
+import Foundation
+
+public enum AgentKind: String, Codable, CaseIterable, Sendable {
+    case claudeCode = "claude-code"
+    case codex
+    case cursor
+    case opencode
+    case pi
+
+    public var displayName: String {
+        switch self {
+        case .claudeCode: return "Claude Code"
+        case .codex: return "Codex"
+        case .cursor: return "Cursor"
+        case .opencode: return "OpenCode"
+        case .pi: return "pi"
+        }
+    }
+}
+
+public enum SessionStatus: String, Codable, Sendable {
+    case running, needsInput = "needs_input", stuck, idle, ended
+
+    /// Sessions in these states want the user's attention.
+    public var needsAttention: Bool { self == .needsInput || self == .stuck }
+}
+
+/// Where the agent runs, captured from the hook process environment.
+public struct TerminalContext: Codable, Equatable, Sendable {
+    public var termProgram: String?
+    public var waveBlockId: String?
+    public var waveTabId: String?
+    public var waveWorkspaceId: String?
+    public var waveJWT: String?
+
+    public init(termProgram: String? = nil, waveBlockId: String? = nil, waveTabId: String? = nil,
+                waveWorkspaceId: String? = nil, waveJWT: String? = nil) {
+        self.termProgram = termProgram
+        self.waveBlockId = waveBlockId
+        self.waveTabId = waveTabId
+        self.waveWorkspaceId = waveWorkspaceId
+        self.waveJWT = waveJWT
+    }
+
+    public init(environment env: [String: String]) {
+        self.init(termProgram: env["TERM_PROGRAM"], waveBlockId: env["WAVETERM_BLOCKID"],
+                  waveTabId: env["WAVETERM_TABID"], waveWorkspaceId: env["WAVETERM_WORKSPACEID"],
+                  waveJWT: env["WAVETERM_JWT"])
+    }
+
+    public var isWave: Bool { waveBlockId != nil }
+}
+
+/// What a hook invocation sends to the app: the raw agent payload plus local context.
+public struct HookEnvelope: Codable, Equatable, Sendable {
+    public var agent: AgentKind
+    public var event: String
+    public var receivedAt: Date
+    public var agentPid: Int32?
+    public var cwd: String?
+    public var terminal: TerminalContext
+    public var payload: JSONValue
+
+    public init(agent: AgentKind, event: String, receivedAt: Date = Date(), agentPid: Int32? = nil,
+                cwd: String? = nil, terminal: TerminalContext = TerminalContext(), payload: JSONValue = .null) {
+        self.agent = agent
+        self.event = event
+        self.receivedAt = receivedAt
+        self.agentPid = agentPid
+        self.cwd = cwd
+        self.terminal = terminal
+        self.payload = payload
+    }
+}
+
+public struct PermissionRequest: Codable, Equatable, Sendable {
+    public var id: String
+    public var tool: String
+    public var summary: String
+    /// True when the hook is blocked waiting for a decision from the app.
+    public var awaitingDecision: Bool
+
+    public init(id: String, tool: String, summary: String, awaitingDecision: Bool) {
+        self.id = id
+        self.tool = tool
+        self.summary = summary
+        self.awaitingDecision = awaitingDecision
+    }
+}
+
+/// Agent-neutral event produced by a normalizer from a `HookEnvelope`.
+public struct AgentEvent: Equatable, Sendable {
+    public enum Kind: Equatable, Sendable {
+        case sessionStart
+        case promptSubmitted(String)
+        case toolStart(id: String, name: String, input: JSONValue)
+        case toolEnd(id: String, name: String, output: String?, isError: Bool)
+        case needsInput(String)
+        /// The user answered a prompt that was blocking the agent.
+        case inputAnswered
+        case permission(PermissionRequest)
+        case turnEnd(lastMessage: String?)
+        case sessionEnd
+        case subagentStart(id: String, type: String?)
+        case subagentStop(id: String)
+        /// Status reported by a session file, used for sessions without hooks.
+        case statusSnapshot(SessionStatus)
+    }
+
+    public var agent: AgentKind
+    public var sessionId: String
+    public var at: Date
+    public var kind: Kind
+    public var cwd: String?
+    public var transcriptPath: String?
+    public var agentPid: Int32?
+    public var terminal: TerminalContext?
+    /// Set when the event originated inside a sub-agent.
+    public var subagentId: String?
+
+    public init(agent: AgentKind, sessionId: String, at: Date, kind: Kind, cwd: String? = nil,
+                transcriptPath: String? = nil, agentPid: Int32? = nil, terminal: TerminalContext? = nil,
+                subagentId: String? = nil) {
+        self.agent = agent
+        self.sessionId = sessionId
+        self.at = at
+        self.kind = kind
+        self.cwd = cwd
+        self.transcriptPath = transcriptPath
+        self.agentPid = agentPid
+        self.terminal = terminal
+        self.subagentId = subagentId
+    }
+}
+
+public struct ToolCall: Codable, Equatable, Identifiable, Sendable {
+    public var id: String
+    public var name: String
+    public var summary: String
+    public var input: String
+    public var output: String?
+    public var isError: Bool
+    public var startedAt: Date
+    public var endedAt: Date?
+    /// Set when the call ran inside a sub-agent.
+    public var subagentId: String?
+
+    public var isRunning: Bool { endedAt == nil }
+}
+
+public struct Turn: Codable, Equatable, Identifiable, Sendable {
+    public var id: Int
+    public var prompt: String
+    public var startedAt: Date
+    public var endedAt: Date?
+    public var toolCount: Int
+    public var lastMessage: String?
+}
+
+public struct Subagent: Codable, Equatable, Sendable {
+    public var id: String
+    public var type: String?
+    public var startedAt: Date
+}
+
+public struct SessionState: Codable, Equatable, Identifiable, Sendable {
+    public var id: String { "\(agent.rawValue):\(sessionId)" }
+    public var agent: AgentKind
+    public var sessionId: String
+    public var cwd: String?
+    public var transcriptPath: String?
+    public var agentPid: Int32?
+    public var terminal: TerminalContext?
+    public var status: SessionStatus
+    public var stuckReason: String?
+    public var needsInputMessage: String?
+    public var pendingPermission: PermissionRequest?
+    public var startedAt: Date
+    public var lastEventAt: Date
+    public var turns: [Turn]
+    /// Most recent tool calls, newest last, capped at `SessionState.toolHistoryLimit`.
+    public var tools: [ToolCall]
+    public var subagents: [Subagent]
+    /// True once a real hook event was seen; false for sessions discovered by scanning only.
+    public var hooked: Bool
+
+    public static let toolHistoryLimit = 200
+
+    public init(agent: AgentKind, sessionId: String, at: Date) {
+        self.agent = agent
+        self.sessionId = sessionId
+        self.status = .idle
+        self.startedAt = at
+        self.lastEventAt = at
+        self.turns = []
+        self.tools = []
+        self.subagents = []
+        self.hooked = false
+    }
+
+    public var title: String {
+        if let p = turns.first?.prompt, !p.isEmpty { return String(p.prefix(80)) }
+        if let cwd { return (cwd as NSString).lastPathComponent }
+        return sessionId
+    }
+
+    public var projectName: String? { cwd.map { ($0 as NSString).lastPathComponent } }
+    public var currentTurn: Turn? { turns.last }
+    public var latestTool: ToolCall? { tools.last }
+    public var runningTools: [ToolCall] { tools.filter(\.isRunning) }
+}
