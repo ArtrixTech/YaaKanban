@@ -34,18 +34,35 @@ final class AppModel {
     // MARK: Derived views
 
     /// Active sessions for the floating panel: not ended, and idle ones only for 30 min.
+    /// Sub-agents of a session on the board show inside its card instead.
     var activeSessions: [SessionState] {
         let now = Date()
-        return sorted(sessions.values.filter { s in
-            if s.dismissedAt != nil { return false }
-            switch s.status {
-            case .ended: return false
-            // Unreviewed results stay until looked at; reviewed ones fade out after a while.
-            case .idle: return s.unreadSince != nil || now.timeIntervalSince(s.lastEventAt) < settings.idleVisibleSeconds
-            default: return true
-            }
-        })
+        let live = sessions.values.filter { isLive($0, now: now) }
+        let shown = Set(live.map(\.id))
+        return sorted(live.filter { s in s.parentId.map { !shown.contains($0) } ?? true })
     }
+
+    /// Live sub-agent sessions of `key`, oldest first.
+    func subagents(of key: String) -> [SessionState] {
+        let now = Date()
+        return sessions.values.filter { $0.parentId == key && isLive($0, now: now) }
+            .sorted { $0.startedAt < $1.startedAt }
+    }
+
+    private func isLive(_ s: SessionState, now: Date) -> Bool {
+        if s.dismissedAt != nil { return false }
+        switch s.status {
+        case .ended: return false
+        // Unreviewed results stay until looked at; reviewed ones fade out after a while.
+        // A sub-agent's result is its parent's business, so it only lingers briefly.
+        case .idle:
+            if s.parentId != nil { return now.timeIntervalSince(s.lastEventAt) < Self.subagentLinger }
+            return s.unreadSince != nil || now.timeIntervalSince(s.lastEventAt) < settings.idleVisibleSeconds
+        default: return true
+        }
+    }
+
+    static let subagentLinger: TimeInterval = 60
 
     var allSessions: [SessionState] { sorted(Array(sessions.values)) }
 
@@ -174,20 +191,24 @@ final class AppModel {
         for ev in Normalizer.normalize(env) {
             key = update(SessionState.key(ev.agent, ev.sessionId), alert: alert) { SessionReducer.apply(ev, to: $0) }
         }
+        if let key { linkParent(key) }
         return key
     }
 
     @discardableResult
     private func update(_ key: String, alert: Bool, _ f: (SessionState?) -> SessionState?) -> String {
         let old = sessions[key]
-        guard let new = f(old) else { return key }
+        guard var new = f(old) else { return key }
+        // A sub-agent's finished turn is reviewed through its parent.
+        if new.parentId != nil { new.unreadSince = nil }
         sessions[key] = new
         store?.save(new)
         if old?.pendingPermission?.awaitingDecision == true && new.pendingPermission?.awaitingDecision != true {
             pendingReplies.removeValue(forKey: key)?.send(Wire.encode(WireReply(decision: nil)))
             notifier.withdraw(key: key)
         }
-        if alert, new.dismissedAt == nil, let a = Alerts.between(old, new) { notifier.post(a, for: new, settings: settings) }
+        if alert, new.dismissedAt == nil, let a = Alerts.between(old, new),
+           new.parentId == nil || !a.isDone { notifier.post(a, for: new, settings: settings) }
         // The Wave badge stays on until the user has dealt with it, including reviewing a finished turn.
         if (old.map(Self.wantsUser) ?? false) != Self.wantsUser(new) { jumper.badge(new, on: Self.wantsUser(new)) }
         return key
@@ -255,6 +276,7 @@ final class AppModel {
             let k = SessionState.key(ev.agent, ev.sessionId)
             update(k, alert: sessions[k].map { !$0.hooked } ?? false) { SessionReducer.apply(ev, to: $0) }
         }
+        for s in sessions.values where s.parentId == nil && s.status != .ended { linkParent(s.id) }
         // Titles for every live session; for unhooked ones also the latest prompt and reply.
         for s in activeSessions {
             var peek: TranscriptPeek?
@@ -308,6 +330,29 @@ final class AppModel {
         }
     }
 
+    // MARK: Sub-agents
+
+    /// Transcripts already read for a parent link (the header is written once, at start).
+    @ObservationIgnored private var linkChecked: Set<String> = []
+
+    /// Links a sub-agent session to its parent, from the transcript header.
+    private func linkParent(_ key: String) {
+        guard !linkChecked.contains(key), let s = sessions[key], s.parentId == nil, s.agent == .pi,
+              let path = s.transcriptPath else { return }
+        let url = URL(fileURLWithPath: path)
+        // Not written yet: try again on the next event or scan.
+        guard FileManager.default.fileExists(atPath: path) else { return }
+        linkChecked.insert(key)
+        guard let parent = SubagentLink.parentSession(transcript: url) else { return }
+        let pk = SessionState.key(s.agent, parent)
+        guard pk != key else { return }
+        update(key, alert: false) { s in
+            guard var s else { return nil }
+            s.parentId = pk
+            return s
+        }
+    }
+
     // MARK: User actions
 
     /// The user looked at the result of a finished turn.
@@ -321,6 +366,8 @@ final class AppModel {
     }
 
     func jump(_ key: String) {
+        // A sub-agent has no window of its own; it runs inside its parent's.
+        if let p = sessions[key]?.parentId, sessions[p] != nil { return jump(p) }
         markRead(key)
         if let s = sessions[key] { jumper.jump(to: s) }
     }

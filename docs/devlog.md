@@ -1,8 +1,20 @@
 # Devlog
 
-## docs: open-source under GPL-3.0 with a README
+## feat(panel): show sub-agents in their parent's card
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - `SessionState.parentId`. pi runs each sub-agent as a session of its own, and its transcript header names the parent (`parentSession`). The app reads that line once per session (`SubagentLink`) and links the two.
+  - A sub-agent whose parent is on the board does not get its own card. It shows as one line in a strip under the parent's card: status, name, the current tool or last reply, and the time. Claude's in-process sub-agents (`subagents`) show there too. A child's permission buttons stay under its row.
+  - Children have no review state and no "done" notification. They stay visible for 60 s after finishing, and tapping one jumps to the parent.
+- **Reason**: "现在subagent会和主agent并行显示（pi），需要显示到主agent的subagent槽位（下方，缩略显示subagent详情，只用一行）" and "subagent被遮挡".
+- **Process**: The live pi sub-agent (`…/run-0/session.jsonl`, spawned by pi-subagents) linked to its parent after install. A snapshot showed the row under the parent card. The first layout let the name crowd out the detail and the time; the name is now capped at 120 pt and the time never shrinks.
+- **Result**: `make test` 60/60.
+
+## docs: open-source under GPL-3.0 with a README
+
+`c46c75d` | 2026-10-20
 
 - **Changes**: Added `LICENSE` (GPL-3.0) and `README.md`, covering features, build and install, hook locations, and the attribution for the agent icons.
 - **Reason**: "帮我放到gihub，开源。检查是否有敏感信息。" The license (GPL-3.0) and keeping the devlog as is were the user's choices.

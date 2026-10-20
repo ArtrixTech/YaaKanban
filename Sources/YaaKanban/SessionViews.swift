@@ -30,11 +30,13 @@ extension SessionState {
 
     /// Running: how long the turn has run. Otherwise: how long ago it last changed.
     func clock(now: Date) -> String {
-        if status == .running {
-            let start = currentTurn.flatMap { $0.endedAt == nil ? $0.startedAt : nil } ?? lastEventAt
-            return relative(start, now: now)
-        }
-        return relative(lastEventAt, now: now) + "前"
+        status == .running ? relative(clockStart, now: now) : relative(lastEventAt, now: now) + "前"
+    }
+
+    /// Start of the running turn, else the last change.
+    var clockStart: Date {
+        guard status == .running else { return lastEventAt }
+        return currentTurn.flatMap { $0.endedAt == nil ? $0.startedAt : nil } ?? lastEventAt
     }
 }
 
@@ -113,6 +115,7 @@ struct SessionCard: View {
                     if st == .running, let t = session.latestTool { ToolLine(tool: t) }
                 }
             }
+            SubagentSlots(session: session)
             PermissionButtons(session: session)
             if expanded { expandedBody(st) }
             if st == .review && !expanded { actions(st) }
@@ -193,6 +196,72 @@ struct SessionCard: View {
                 .buttonStyle(PillButtonStyle(tint: st == .review ? .green : .accentColor, prominent: st == .review))
             Spacer()
         }
+    }
+}
+
+/// Sub-agents under their parent's card, one line each: sessions of their own (pi) and
+/// in-process ones reported by hooks (Claude Code).
+struct SubagentSlots: View {
+    @Environment(AppModel.self) private var model
+    let session: SessionState
+
+    var body: some View {
+        let children = model.subagents(of: session.id)
+        let inline = session.subagents
+        if !children.isEmpty || !inline.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(children) { c in
+                    SubagentRow(status: c.display, title: c.title, detail: Self.detail(c), since: c.clockStart)
+                    PermissionButtons(session: c)
+                }
+                ForEach(inline, id: \.id) { a in
+                    // Hook-reported sub-agents share the parent's tool stream, tagged with their id.
+                    let tool = session.tools.last { $0.subagentId == a.id }
+                    SubagentRow(status: .running, title: a.type ?? "子 agent",
+                                detail: tool.map { "\($0.name) \($0.summary)" }, since: a.startedAt)
+                }
+            }
+            .padding(.horizontal, 8).padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .padding(.leading, 36)
+        }
+    }
+
+    /// What it is doing now, else what it last said or needs.
+    static func detail(_ s: SessionState) -> String? {
+        if let m = s.needsInputMessage, s.status == .needsInput { return m }
+        if let r = s.stuckReason, s.status == .stuck { return r }
+        if s.status == .running, let t = s.latestTool { return "\(t.name) \(t.summary)" }
+        return s.lastReply.flatMap(SessionState.firstLine)
+    }
+}
+
+/// One sub-agent: status, name, what it is doing, how long.
+struct SubagentRow: View {
+    let status: DisplayStatus
+    let title: String
+    let detail: String?
+    let since: Date
+
+    var body: some View {
+        HStack(spacing: 5) {
+            StatusGlyph(status: status, size: 13)
+            // The name gets at most about half the row; what it is doing takes the rest.
+            Text(title).font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                .frame(maxWidth: 120, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+            if let detail {
+                Text(detail).font(.system(size: 11)).foregroundStyle(.secondary)
+                    .lineLimit(1).truncationMode(.tail)
+            }
+            Spacer(minLength: 4)
+            TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                Text(relative(since, now: ctx.date))
+                    .font(.system(size: 10).monospacedDigit()).foregroundStyle(.tertiary)
+            }
+            .fixedSize()
+        }
+        .frame(height: 16)
     }
 }
 

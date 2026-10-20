@@ -549,6 +549,28 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
     }
 }
 
+@Suite struct SubagentLinks {
+    private func file(_ text: String) throws -> URL {
+        let u = FileManager.default.temporaryDirectory.appendingPathComponent("yaak-link-\(UUID().uuidString).jsonl")
+        try text.write(to: u, atomically: true, encoding: .utf8)
+        return u
+    }
+
+    @Test func readsPiParentFromHeader() throws {
+        let u = try file(#"{"type":"session","version":3,"id":"c","cwd":"/x","parentSession":"/s/parent.jsonl"}"# + "\n" +
+                         #"{"type":"model_change","id":"1"}"# + "\n")
+        defer { try? FileManager.default.removeItem(at: u) }
+        #expect(SubagentLink.parentSession(transcript: u) == "/s/parent.jsonl")
+    }
+
+    @Test func topLevelSessionHasNoParent() throws {
+        let u = try file(#"{"type":"session","version":3,"id":"p","cwd":"/x"}"# + "\n")
+        defer { try? FileManager.default.removeItem(at: u) }
+        #expect(SubagentLink.parentSession(transcript: u) == nil)
+        #expect(SubagentLink.parentSession(transcript: u.appendingPathExtension("missing")) == nil)
+    }
+}
+
 @Suite struct Dismissal {
     let t0 = Date(timeIntervalSince1970: 1_000)
     private func ev(_ k: AgentEvent.Kind, _ dt: TimeInterval) -> AgentEvent {

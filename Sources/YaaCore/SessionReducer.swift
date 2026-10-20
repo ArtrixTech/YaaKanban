@@ -177,6 +177,10 @@ public enum Alert: Equatable, Sendable {
     case stuck(String)
 }
 
+extension Alert {
+    public var isDone: Bool { if case .done = self { true } else { false } }
+}
+
 public enum Alerts {
     public static func between(_ old: SessionState?, _ new: SessionState) -> Alert? {
         let before = old?.status

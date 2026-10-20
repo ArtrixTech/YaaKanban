@@ -202,6 +202,8 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var usage: Usage?
     /// Set when the user ends the session in the panel; it stays in history but leaves the boards.
     public var dismissedAt: Date?
+    /// Key of the session that spawned this one as a sub-agent (pi runs them as sessions of their own).
+    public var parentId: String?
 
     public static let toolHistoryLimit = 200
 
@@ -225,7 +227,7 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
         return projectName ?? sessionId
     }
 
-    static func firstLine(_ s: String) -> String? {
+    public static func firstLine(_ s: String) -> String? {
         s.split(whereSeparator: \.isNewline).first.map { $0.trimmingCharacters(in: .whitespaces) }
     }
 
