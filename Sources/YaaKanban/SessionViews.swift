@@ -322,6 +322,7 @@ enum DragIds {
 /// The board: project groups of session cards, reorderable by drag or context menu.
 struct BoardList: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.railExtra) private var railExtra
     var expanded: String?
     var onExpand: (SessionState) -> Void = { _ in }
     @State private var dropTarget: String?
@@ -350,7 +351,13 @@ struct BoardList: View {
     }
 
     private func card(_ s: SessionState, grouped: Bool) -> some View {
-        SessionCard(session: s, expanded: expanded == s.id, grouped: grouped) { onExpand(s) }
+        Group {
+            if let extra = railExtra {
+                NarrowSessionCard(session: s, expanded: expanded == s.id, grouped: grouped, extra: extra)
+            } else {
+                SessionCard(session: s, expanded: expanded == s.id, grouped: grouped) { onExpand(s) }
+            }
+        }
             .draggable(DragIds.encode([s.id])) {
                 Text(s.title).font(.system(size: 12, weight: .semibold)).padding(8)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
@@ -377,6 +384,7 @@ struct BoardList: View {
 }
 
 struct GroupHeader: View {
+    @Environment(\.railExtra) private var railExtra
     let group: BoardGroup
     var body: some View {
         HStack(spacing: 6) {
@@ -385,7 +393,18 @@ struct GroupHeader: View {
             Text("\(group.sessions.count)").font(.system(size: 10, weight: .semibold).monospacedDigit())
                 .padding(.horizontal, 5).padding(.vertical, 1)
                 .background(.primary.opacity(0.08), in: Capsule()).foregroundStyle(.secondary)
-            Spacer()
+                .fixedSize()
+            Spacer(minLength: 0)
+            if railExtra == nil { trailing }
+        }
+        .padding(.horizontal, 6).padding(.top, 3)
+        .contentShape(Rectangle())
+        .contextMenu { MoveMenu(ids: group.sessions.map(\.id)) }
+        .help(railExtra == nil ? "拖动整组排序" : group.name)
+    }
+
+    @ViewBuilder private var trailing: some View {
+        HStack(spacing: 6) {
             HStack(spacing: -4) {
                 ForEach(Array(Set(group.sessions.map(\.agent))).sorted { $0.rawValue < $1.rawValue }, id: \.self) {
                     AgentLogo(agent: $0, size: 11)
@@ -393,10 +412,6 @@ struct GroupHeader: View {
             }
             Image(systemName: "line.3.horizontal").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
         }
-        .padding(.horizontal, 6).padding(.top, 3)
-        .contentShape(Rectangle())
-        .contextMenu { MoveMenu(ids: group.sessions.map(\.id)) }
-        .help("拖动整组排序")
     }
 }
 

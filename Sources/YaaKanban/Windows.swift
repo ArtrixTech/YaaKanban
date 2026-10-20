@@ -126,7 +126,7 @@ struct EmptyBoard: View {
 }
 
 /// Floating panel content, at its natural size; the borderless window resizes to fit it. Snapped to
-/// a side it folds into a `SidebarRail` unless the user unfolded it.
+/// a side it is a `SidebarRail` instead, narrow unless hovered or unfolded.
 struct FloatingPanelView: View {
     @Environment(AppModel.self) private var model
     var onHide: () -> Void = {}
@@ -145,37 +145,51 @@ struct FloatingPanelView: View {
     static let maxList: CGFloat = 1400
 
     var body: some View {
-        Group {
-            if let edge = room?.dock, !model.settings.sidebarExpanded, room?.peek != true {
-                SidebarRail(edge: edge, onHide: onHide, listRoom: (room?.height ?? .infinity) - 50)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .onGeometryChange(for: CGSize.self) { $0.size } action: { onSize($0) }
-            } else {
-                panel
-            }
-        }
-        // Pinned to the top and to the docked side however big the window is at the moment. The
-        // content switches at once and the window edge slides open or shut over it, so it is
-        // clickable from the first frame.
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: anchor)
+        panel
+            // Pinned to the top and to the docked side however big the window is at the moment:
+            // the content is laid out at the width it is heading for, and the window edge slides
+            // over it, so it is in place and clickable from the first frame.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: anchor)
     }
 
-    /// Unfolding from the right reveals the panel's left part last, so the panel hangs from its
-    /// left edge while the window grows; folding keeps the rail against the screen edge.
+    /// Docked to a side and neither hovered nor unfolded.
+    private var folded: Bool { room?.dock != nil && !model.settings.sidebarExpanded && room?.peek != true }
+
     private var anchor: Alignment {
         switch room?.dock {
         case .left: .topLeading
-        case .right: room?.peek == true || model.settings.sidebarExpanded ? .topLeading : .topTrailing
+        case .right: .topTrailing
         case nil: .top
         }
     }
 
     private var panel: some View {
         @Bindable var settings = model.settings
+        let folded = self.folded
         return VStack(alignment: .leading, spacing: 10) {
-            BoardHeader {
+            if folded, let edge = room?.dock {
+                RailHeader(edge: edge) { settings.sidebarExpanded = true }
+            } else {
+                header
+            }
+            list
+        }
+        .padding(.horizontal, 10).padding(.top, 10)
+        .padding(.bottom, settings.panelCollapsed || model.activeSessions.isEmpty ? 10 : 0)
+        .environment(\.railExtra, folded ? Rail.extra : nil)
+        .frame(width: folded ? Rail.width : FloatingPanelController.width, alignment: .top)
+        .fixedSize(horizontal: false, vertical: true)
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+            chrome = size.height - (listShown ? shownList : 0)
+            onSize(size)
+        }
+    }
+
+    private var header: some View {
+        @Bindable var settings = model.settings
+        return BoardHeader {
                 if let edge = room?.dock {
-                    if room?.peek == true {
+                    if room?.peek == true && !settings.sidebarExpanded {
                         IconButton(symbol: "pin", help: "固定展开") {
                             settings.sidebarExpanded = true
                             room?.peek = false
@@ -194,6 +208,10 @@ struct FloatingPanelView: View {
                 }
                 IconButton(symbol: "xmark", help: "隐藏（⌥⌘K）", action: onHide)
             }
+    }
+
+    @ViewBuilder private var list: some View {
+        @Bindable var settings = model.settings
             if !settings.panelCollapsed {
                 if model.activeSessions.isEmpty {
                     EmptyBoard().transition(.opacity)
@@ -215,15 +233,6 @@ struct FloatingPanelView: View {
                     }
                 }
             }
-        }
-        .padding(.horizontal, 10).padding(.top, 10)
-        .padding(.bottom, settings.panelCollapsed || model.activeSessions.isEmpty ? 10 : 0)
-        .frame(width: 340, alignment: .top)
-        .fixedSize(horizontal: false, vertical: true)
-        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
-            chrome = size.height - (listShown ? shownList : 0)
-            onSize(size)
-        }
     }
 
     private var listShown: Bool { !model.settings.panelCollapsed && !model.activeSessions.isEmpty }
@@ -242,6 +251,8 @@ final class PanelRoom {
     var dock: DockEdge?
     /// The folded rail is shown unfolded while the pointer is over it.
     var peek = false
+
+    init(dock: DockEdge? = nil, peek: Bool = false) { self.dock = dock; self.peek = peek }
 }
 
 /// Bottom handle that sets the list height. AppKit-backed so the drag does not move the

@@ -1,8 +1,24 @@
 # Devlog
 
-## feat(panel): hover to unfold the sidebar, sliding edge
+## refactor(panel): fold the panel itself instead of swapping in a rail view
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - Folded, the panel no longer swaps to a separate rail view with its own blocks. `FloatingPanelView` stays the same view with the same list, groups and cards, and only its width changes (120 pt folded, 340 unfolded). Unfolded it is exactly the normal floating panel, plus the pin or fold button while docked.
+  - Folded, each card is a `NarrowSessionCard`: status, agent, clock, and as much of the title as fits. Its height is the full card's, measured off a hidden copy laid out at the full width. So every card keeps its height and position, and unfolding only widens the panel. Group headers drop the logos and drag handle. The panel header becomes `RailHeader` (mark and unfold button) at the same height.
+  - The content is laid out at the target width and anchored to the docked side, and the window edge slides over it.
+  - Removed `RailBlock` and the old `SidebarRail`.
+- **Reason**: "需要完全是同一个窗体的内部状态切换……只做横向的宽度展开确保每一个agent item的高度在两个不同的窗体状态下是相同的" and "感觉现在展开状态的ui有变化，这是预期外的". The previous version had its own wide layout, so the unfolded panel no longer looked like the normal panel.
+- **Process**:
+  - Offscreen snapshots of the folded and unfolded panel. Every card starts at the same y and has the same height in both states.
+  - Pressed pin and fold through Accessibility, and the live window switched between 120 and 340 pt with the right edge fixed.
+  - `@Entry` needs the SwiftUI macro plugin, which the Command Line Tools lack, so the environment key is written out by hand.
+- **Result**: `make test` 60/60.
+
+## feat(panel): hover to unfold the sidebar, sliding edge
+
+`fa6d3e3` | 2026-10-20
 
 - **Changes**:
   - Hovering the folded rail for 80 ms unfolds it into the full panel. It folds back 0.3 s after the pointer leaves, or while a mouse button is down. While unfolded this way the header shows a pin button that keeps it open (`sidebarExpanded`). Pinned, the button is the usual fold chevron.
