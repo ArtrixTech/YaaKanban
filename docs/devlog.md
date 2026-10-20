@@ -1,8 +1,21 @@
 # Devlog
 
-## feat(panel): end sessions from the panel; keep the panel on screen
+## fix(claude): end failed tool calls; flag outdated hook installs
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - Claude's hooks now include `PostToolUseFailure`. The normalizer already handled it, but it was never installed.
+  - As a fallback, the transcript tally collects the ids of tool results it sees (byte search, last 100). The app then ends any tool still running after 10 s whose result is already there. The end is stamped at the session's last event time, so it does not count as new activity.
+  - Integrations report `.outdated` when installing again would change the config. Settings shows "需更新" with an "更新" button.
+- **Reason**: "claudecode，提示bash运行了14分钟，但实际上bash已经完毕。"
+- **Process**: The stuck session had three Bash calls marked running, and all three had a `tool_result` with `Exit code 1` in the transcript. Failed calls fire only `PostToolUseFailure`, which `~/.claude/settings.json` did not have. After the fix, the session went from stuck back to running with no running tools.
+- **Result**: `make test` 58/58.
+- **Notes**: Existing installs need the "更新" click (the real `~/.claude/settings.json` was not edited by us).
+
+## feat(panel): end sessions from the panel; keep the panel on screen
+
+`42186ef` | 2026-10-20
 
 - **Changes**:
   - Each card has a ✕ ("结束") button, also in the context menu. It sets `SessionState.dismissedAt`, which hides the session from the panel and the menu, clears its review mark, and leaves it out of badges, counts and notifications. It stays in the main window's history, where "恢复到悬浮窗" brings it back.

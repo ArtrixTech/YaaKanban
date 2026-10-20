@@ -28,6 +28,10 @@ public struct TranscriptTally: Sendable {
     /// Latest assistant text since the last prompt.
     public private(set) var lastReply: String?
     public private(set) var offset: UInt64 = 0
+    /// Tool calls whose result is in the transcript, newest last (id, failed). A safety net for
+    /// tool ends the hooks never reported, such as an interrupt.
+    public private(set) var finishedTools: [(id: String, failed: Bool)] = []
+    static let finishedLimit = 100
     /// Claude repeats one message's usage on each of its content-block lines.
     private var lastMessageId: String?
 
@@ -66,6 +70,7 @@ public struct TranscriptTally: Sendable {
 
     private mutating func claudeLine(_ line: Data.SubSequence) {
         let isAssistant = line.has("\"type\":\"assistant\"")
+        if !isAssistant, line.has("\"tool_result\"") { noteResults(line) }
         // User lines are mostly (large) tool results; only parse ones that may be a typed prompt.
         let isPrompt = !isAssistant && line.has("\"type\":\"user\"") && !line.has("\"tool_result\"")
         guard isAssistant || isPrompt, let j = JSONValue.parse(Data(line)) else { return }
@@ -119,6 +124,13 @@ public struct TranscriptTally: Sendable {
         }
     }
 
+    /// Result ids by byte search: result lines can be megabytes, too big to parse in bulk.
+    private mutating func noteResults(_ line: Data.SubSequence) {
+        let failed = line.has("\"is_error\":true")
+        for id in line.stringValues(of: "tool_use_id") { finishedTools.append((id, failed)) }
+        if finishedTools.count > Self.finishedLimit { finishedTools.removeFirst(finishedTools.count - Self.finishedLimit) }
+    }
+
     private mutating func countTool(_ name: String?) {
         usage.toolCalls += 1
         usage.tools[name ?? "?", default: 0] += 1
@@ -128,6 +140,25 @@ public struct TranscriptTally: Sendable {
 }
 
 extension Data.SubSequence {
+    /// Values of `"key":"…"` pairs, in order (no escape handling; meant for ids).
+    func stringValues(of key: String) -> [String] {
+        let needle = Array("\"\(key)\":\"".utf8)
+        let quote = UInt8(ascii: "\"")
+        var out: [String] = []
+        withUnsafeBytes { (hay: UnsafeRawBufferPointer) in
+            guard let base = hay.baseAddress else { return }
+            var from = 0
+            while from < hay.count {
+                guard let hit = memmem(base + from, hay.count - from, needle, needle.count) else { break }
+                let start = base.distance(to: UnsafeRawPointer(hit)) + needle.count
+                guard let end = hay[start...].firstIndex(of: quote) else { break }
+                out.append(String(decoding: UnsafeRawBufferPointer(rebasing: hay[start..<end]), as: UTF8.self))
+                from = end
+            }
+        }
+        return out
+    }
+
     /// Byte substring test via memmem; the generic `contains` is far too slow for transcripts.
     func has(_ needle: String) -> Bool {
         var n = needle.utf8CString

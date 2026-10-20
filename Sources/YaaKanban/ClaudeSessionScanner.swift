@@ -78,6 +78,7 @@ final class UsageTracker: @unchecked Sendable {
     struct Result: Sendable {
         var usage: Usage
         var lastReply: String?
+        var finishedTools: [(id: String, failed: Bool)]
     }
 
     private let queue = DispatchQueue(label: "yaak.usage", qos: .utility)
@@ -107,7 +108,7 @@ final class UsageTracker: @unchecked Sendable {
                 e.mtime = mtime
                 let changed = e.tally.update(from: e.url)
                 tallies[t.key] = e
-                if changed { out[t.key] = Result(usage: e.tally.usage, lastReply: e.tally.lastReply) }
+                if changed { out[t.key] = Result(usage: e.tally.usage, lastReply: e.tally.lastReply, finishedTools: e.tally.finishedTools) }
             }
             if !out.isEmpty { DispatchQueue.main.async { MainActor.assumeIsolated { done(out) } } }
         }

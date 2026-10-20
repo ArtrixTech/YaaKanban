@@ -534,6 +534,21 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
     }
 }
 
+@Suite struct TranscriptToolResults {
+    @Test func collectsFinishedToolIds() {
+        var t = TranscriptTally(format: .claude)
+        let lines = [
+            #"{"type":"assistant","message":{"id":"m1","content":[{"type":"tool_use","id":"toolu_a","name":"Bash"},{"type":"tool_use","id":"toolu_b","name":"Bash"}]}}"#,
+            #"{"type":"user","message":{"content":[{"tool_use_id":"toolu_a","type":"tool_result","content":"Exit code 1","is_error":true}]}}"#,
+            #"{"type":"user","message":{"content":[{"tool_use_id":"toolu_b","type":"tool_result","content":"ok"}]}}"#,
+        ]
+        t.consume(Data((lines.joined(separator: "\n") + "\n").utf8))
+        #expect(t.finishedTools.map(\.id) == ["toolu_a", "toolu_b"])
+        #expect(t.finishedTools.map(\.failed) == [true, false])
+        #expect(t.usage.toolCalls == 2)
+    }
+}
+
 @Suite struct Dismissal {
     let t0 = Date(timeIntervalSince1970: 1_000)
     private func ev(_ k: AgentEvent.Kind, _ dt: TimeInterval) -> AgentEvent {

@@ -331,12 +331,15 @@ struct SettingsView: View {
         Form {
             Section("Agent 接入") {
                 ForEach(Integrations.all, id: \.agent) { i in
-                    let status = i.status(home: Paths.home())
+                    let status = i.status(home: Paths.home(), yaak: Self.yaak)
                     HStack {
                         Text(i.agent.displayName)
                         Spacer()
                         Text(statusLabel(status)).foregroundStyle(status == .installed ? .green : .secondary).font(.caption)
-                        if status == .installed {
+                        if status == .outdated {
+                            Button("更新") { apply(i, install: true) }
+                        }
+                        if status == .installed || status == .outdated {
                             Button("卸载") { apply(i, install: false) }
                         } else if status == .notInstalled {
                             Button("安装") { apply(i, install: true) }
@@ -375,13 +378,14 @@ struct SettingsView: View {
     }
 
     private func statusLabel(_ s: IntegrationStatus) -> String {
-        switch s { case .installed: "已安装"; case .notInstalled: "未安装"; case .notDetected: "未检测到" }
+        switch s { case .installed: "已安装"; case .outdated: "需更新"; case .notInstalled: "未安装"; case .notDetected: "未检测到" }
     }
 
+    static var yaak: String { Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/yaak").path }
+
     private func apply(_ i: any Integration, install: Bool) {
-        let yaak = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/yaak").path
         do {
-            try Installer.apply(try i.plan(install: install, home: Paths.home(), yaak: yaak))
+            try Installer.apply(try i.plan(install: install, home: Paths.home(), yaak: Self.yaak))
             integrationMessage = "\(i.agent.displayName) 已\(install ? "安装" : "卸载")。" + (install ? (i.postInstallNote ?? "") : "")
         } catch {
             integrationMessage = "\(i.agent.displayName)：\(error)"

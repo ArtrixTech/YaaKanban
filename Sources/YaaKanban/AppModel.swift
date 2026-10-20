@@ -276,6 +276,7 @@ final class AppModel {
         }) { [weak self] results in
             guard let self else { return }
             for (key, r) in results {
+                endReportedTools(key, r.finishedTools)
                 update(key, alert: false) { s in
                     guard var s else { return nil }
                     s.usage = r.usage
@@ -288,6 +289,22 @@ final class AppModel {
                     return s
                 }
             }
+        }
+    }
+
+    /// Ends tool calls the transcript shows a result for but no hook reported (a failed call
+    /// without the PostToolUseFailure hook, an interrupt). Recent calls are left to the hooks,
+    /// which carry the output and arrive within moments.
+    private func endReportedTools(_ key: String, _ finished: [(id: String, failed: Bool)]) {
+        guard let s = sessions[key], !finished.isEmpty else { return }
+        let failed = Dictionary(finished.map { ($0.id, $0.failed) }) { $1 }
+        let now = Date()
+        for t in s.runningTools where now.timeIntervalSince(t.startedAt) > 10 {
+            guard let f = failed[t.id] else { continue }
+            // Stamped at the last known event, so it does not count as new activity.
+            let e = AgentEvent(agent: s.agent, sessionId: s.sessionId, at: s.lastEventAt,
+                               kind: .toolEnd(id: t.id, name: t.name, output: nil, isError: f))
+            update(key, alert: false) { SessionReducer.apply(e, to: $0) }
         }
     }
 
