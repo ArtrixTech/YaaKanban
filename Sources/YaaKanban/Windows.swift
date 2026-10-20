@@ -558,7 +558,7 @@ struct SettingsView: View {
                     Picker("", selection: $settings.idleVisibleMinutes) {
                         ForEach(Preferences.retentionChoices, id: \.self) { Text(Self.duration($0)).tag($0) }
                     }
-                    .labelsHidden().fixedSize()
+                    .pickerStyle(.segmented).labelsHidden().fixedSize()
                     .onChange(of: settings.idleVisibleMinutes) {
                         settings.staleAfterMinutes = min(settings.staleAfterMinutes, settings.idleVisibleMinutes - 1)
                     }

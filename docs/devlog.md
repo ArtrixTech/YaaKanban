@@ -1,8 +1,17 @@
 # Devlog
 
-## feat(settings): retention picks from 4/8/12/24 hours, default 24
+## fix(settings): retention as a segmented control
 
 `pending` | 2026-10-20
+
+- **Changes**: "已验收会话保留" shows 4 / 8 / 12 / 24 hours as a segmented control instead of a pop-up menu.
+- **Reason**: "做成平铺选择器 不要下啦菜单。"
+- **Process**: Checked in a snapshot of a temporarily taller Settings window, then restored the size.
+- **Result**: `make test` 64/64. Installed.
+
+## feat(settings): retention picks from 4/8/12/24 hours, default 24
+
+`65fddf0` | 2026-10-20
 
 - **Changes**:
   - "已验收会话保留" is now a menu with 4, 8, 12 and 24 hours instead of a 30-minute stepper. The default goes from 8 h to 24 h.
