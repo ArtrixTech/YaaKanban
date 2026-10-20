@@ -23,6 +23,23 @@ private final class HoverView: NSVisualEffectView {
 
     override func mouseEntered(with event: NSEvent) { onEnter() }
     override func mouseExited(with event: NSEvent) { onExit() }
+
+    /// The window's own colour over the blur. The bare material lets a light wallpaper through as
+    /// mid grey, where neither light nor dark text reads.
+    let wash = NSView()
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateWash()
+    }
+
+    func updateWash() {
+        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            wash.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(dark ? 0.6 : 0.55).cgColor
+            layer?.borderColor = (dark ? NSColor.white.withAlphaComponent(0.18) : NSColor.black.withAlphaComponent(0.12)).cgColor
+        }
+    }
 }
 
 /// Always-on-top rounded panel on every Space: no title bar, sized to its content, draggable,
@@ -78,6 +95,12 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         host.sizingOptions = []
         host.autoresizingMask = [.width, .height]
         host.frame = blur.bounds
+        blur.wash.wantsLayer = true
+        blur.wash.frame = blur.bounds
+        blur.wash.autoresizingMask = [.width, .height]
+        blur.wash.layer?.cornerRadius = Self.radius
+        blur.wash.layer?.cornerCurve = .continuous
+        blur.addSubview(blur.wash)
         blur.addSubview(host)
         self.host = host
         blur.onEnter = { [weak self] in self?.pointerEntered() }
@@ -88,7 +111,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         blur.layer?.cornerRadius = Self.radius
         blur.layer?.cornerCurve = .continuous
         blur.layer?.borderWidth = 0.5
-        blur.layer?.borderColor = NSColor.white.withAlphaComponent(0.18).cgColor
+        blur.updateWash()
         // The window may be larger than the panel while it slides (see `fit`); the rest is clear,
         // so clicks there go through.
         let root = NSView(frame: blur.frame)

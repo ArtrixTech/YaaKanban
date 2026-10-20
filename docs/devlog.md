@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(settings): retention as a segmented control
+## fix(panel): readable over light backgrounds
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - The floating panel lays its own window colour over the blur: 60% in Dark, 55% in Light. It follows appearance changes.
+  - The hairline edge is dark in Light mode. It was always white.
+- **Reason**: "浅色背景效果很差 需要优化". Over a white wallpaper the bare `.popover` material in Dark mode turned mid grey. White titles were low contrast, and secondary text, card fills and edges nearly vanished.
+- **Process**: A screen capture over a temporary white window failed: screencapture had no screen-recording permission here. `yaak snapshot` draws without the behind-window blur. Not checked by eye.
+- **Result**: `make test` 64/64. Installed.
+
+## fix(settings): retention as a segmented control
+
+`5068953` | 2026-10-20
 
 - **Changes**: "已验收会话保留" shows 4 / 8 / 12 / 24 hours as a segmented control instead of a pop-up menu.
 - **Reason**: "做成平铺选择器 不要下啦菜单。"
