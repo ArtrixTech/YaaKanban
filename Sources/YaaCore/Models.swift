@@ -256,26 +256,28 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
 
 /// How a card asks for a second look, from how long it has been sitting.
 public enum Attention {
-    /// Waiting on the user this long without being clicked: the card flashes.
+    /// Defaults. Waiting on the user this long without being clicked: the card flashes.
     public static let flashAfter: TimeInterval = 30
     /// A reviewed turn with nothing after it starts turning blue after this long.
     public static let staleAfter: TimeInterval = 10 * 60
 
-    /// Whether a session waiting on the user should flash: it has waited `flashAfter` since it
+    /// Whether a session waiting on the user should flash: it has waited `after` since it
     /// started waiting, and the user has not clicked it since.
-    public static func flashes(_ s: SessionState, acknowledged: Date?, now: Date) -> Bool {
+    public static func flashes(_ s: SessionState, acknowledged: Date?, now: Date,
+                               after: TimeInterval = flashAfter) -> Bool {
         guard s.status == .needsInput, let since = s.needsInputSince else { return false }
         if let a = acknowledged, a >= since { return false }
-        return now.timeIntervalSince(since) >= flashAfter
+        return now.timeIntervalSince(since) >= after
     }
 
-    /// 0 to 1: how blue a reviewed, finished turn is. Rises from `staleAfter` to the middle of
-    /// `staleAfter` and `linger` (when the card leaves the board), then falls back to 0.
-    public static func staleness(_ s: SessionState, linger: TimeInterval, now: Date) -> Double {
-        guard s.display == .done, linger > staleAfter else { return 0 }
+    /// 0 to 1: how blue a reviewed, finished turn is. Rises from `after` to the middle of
+    /// `after` and `linger` (when the card leaves the board), then falls back to 0.
+    public static func staleness(_ s: SessionState, linger: TimeInterval, now: Date,
+                                 after: TimeInterval = staleAfter) -> Double {
+        guard s.display == .done, linger > after else { return 0 }
         let t = now.timeIntervalSince(s.lastEventAt)
-        let peak = (staleAfter + linger) / 2
-        let x = t < peak ? (t - staleAfter) / (peak - staleAfter) : (linger - t) / (linger - peak)
+        let peak = (after + linger) / 2
+        let x = t < peak ? (t - after) / (peak - after) : (linger - t) / (linger - peak)
         let c = min(1, max(0, x))
         return sin(c * .pi / 2)  // visible soon after it starts, flat at the peak
     }

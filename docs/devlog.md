@@ -1,8 +1,25 @@
 # Devlog
 
-## fix(panel): fold the peek at once on leaving; folded sub-agents fill their card
+## feat(settings): card reminder thresholds (flash, blue tint, retention)
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - New "会话提醒" section in Settings:
+    - "已验收会话保留", moved from "悬浮窗": how long reviewed sessions stay on the board, and so when they count as ended there.
+    - "需要输入时闪烁": an on/off toggle, plus "开始闪烁" from 5 to 600 s (default 30).
+    - "看过未跟进的会话变蓝": an on/off toggle, plus "开始变蓝" from 1 min up to the retention time minus 1 (default 10 min). "最蓝" shows the resulting peak.
+  - `Attention.flashes` and `Attention.staleness` take the threshold as a parameter. It defaults to the old constant.
+  - The card's one-second timeline runs only when the matching reminder is on.
+- **Reason**: "需要让我们之前加入的，几个小时没看的对话变蓝（渐变）的功能做设置项，允许调整阈值。包括item判定为不活跃（结束）的阈值等。"
+- **Process**:
+  - Other time thresholds: "卡住阈值" was already a setting. The 60 s sub-agent linger stays internal.
+  - Checked the section in a snapshot of a temporarily taller Settings window, then restored the size.
+- **Result**: `make test` 64/64 (new `thresholdsFollowTheSettings`).
+
+## fix(panel): fold the peek at once on leaving; folded sub-agents fill their card
+
+`977f718` | 2026-10-20
 
 - **Changes**:
   - Peek: the panel folds as soon as the pointer leaves, with no 0.15 s dwell and no 4 pt margin.

@@ -10,6 +10,12 @@ final class Preferences {
     var stuckMinutes: Double { didSet { d.set(stuckMinutes, forKey: "stuckMinutes") } }
     var approvalTimeout: Double { didSet { d.set(approvalTimeout, forKey: "approvalTimeout") } }
     var idleVisibleMinutes: Double { didSet { d.set(idleVisibleMinutes, forKey: "idleVisibleMinutes") } }
+    /// A card waiting on the user flashes once it has waited this long unclicked.
+    var flashEnabled: Bool { didSet { d.set(flashEnabled, forKey: "flashEnabled") } }
+    var flashAfterSeconds: Double { didSet { d.set(flashAfterSeconds, forKey: "flashAfterSeconds") } }
+    /// A reviewed turn left alone turns blue from this long after it ended (see `Attention.staleness`).
+    var staleTintEnabled: Bool { didSet { d.set(staleTintEnabled, forKey: "staleTintEnabled") } }
+    var staleAfterMinutes: Double { didSet { d.set(staleAfterMinutes, forKey: "staleAfterMinutes") } }
     var panelOpacity: Double { didSet { d.set(panelOpacity, forKey: "panelOpacity") } }
     var showPanel: Bool { didSet { d.set(showPanel, forKey: "showPanel") } }
     var panelCollapsed: Bool { didSet { d.set(panelCollapsed, forKey: "panelCollapsed") } }
@@ -27,11 +33,17 @@ final class Preferences {
     init() {
         d.register(defaults: [
             "stuckMinutes": 5.0, "approvalTimeout": 20.0, "idleVisibleMinutes": 480.0, "panelOpacity": 0.95,
+            "flashEnabled": true, "flashAfterSeconds": Attention.flashAfter,
+            "staleTintEnabled": true, "staleAfterMinutes": Attention.staleAfter / 60,
             "showPanel": true, "suppressWhenWaveFrontmost": true, "waveTabJump": true,
         ])
         stuckMinutes = d.double(forKey: "stuckMinutes")
         approvalTimeout = d.double(forKey: "approvalTimeout")
         idleVisibleMinutes = d.double(forKey: "idleVisibleMinutes")
+        flashEnabled = d.bool(forKey: "flashEnabled")
+        flashAfterSeconds = d.double(forKey: "flashAfterSeconds")
+        staleTintEnabled = d.bool(forKey: "staleTintEnabled")
+        staleAfterMinutes = d.double(forKey: "staleAfterMinutes")
         panelOpacity = d.double(forKey: "panelOpacity")
         showPanel = d.bool(forKey: "showPanel")
         panelCollapsed = d.bool(forKey: "panelCollapsed")
@@ -45,4 +57,6 @@ final class Preferences {
 
     var stuckConfig: StuckConfig { StuckConfig(silence: stuckMinutes * 60, toolDuration: stuckMinutes * 60) }
     var idleVisibleSeconds: TimeInterval { idleVisibleMinutes * 60 }
+    /// When a reviewed turn is bluest: halfway between turning blue and leaving the board.
+    var stalePeakMinutes: Double { (staleAfterMinutes + idleVisibleMinutes) / 2 }
 }

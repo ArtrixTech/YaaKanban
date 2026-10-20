@@ -553,10 +553,39 @@ struct SettingsView: View {
                     SettingLabel("Wave 在前台时不发系统通知", symbol: "bell.slash.fill", tint: .gray)
                 }
             }
-            Section("悬浮窗") {
+            Section {
                 LabeledContent {
                     Stepper(Self.duration(settings.idleVisibleMinutes), value: $settings.idleVisibleMinutes, in: 0...1440, step: 30)
-                } label: { SettingLabel("已完成会话显示", symbol: "checkmark.circle.fill", tint: .green) }
+                } label: { SettingLabel("已验收会话保留", symbol: "checkmark.circle.fill", tint: .green) }
+                Toggle(isOn: $settings.flashEnabled) {
+                    SettingLabel("需要输入时闪烁", symbol: "light.beacon.max.fill", tint: .red)
+                }
+                if settings.flashEnabled {
+                    LabeledContent {
+                        Stepper("\(Int(settings.flashAfterSeconds)) 秒未点击", value: $settings.flashAfterSeconds, in: 5...600, step: 5)
+                    } label: { Text("开始闪烁").padding(.leading, 30) }
+                }
+                Toggle(isOn: $settings.staleTintEnabled) {
+                    SettingLabel("看过未跟进的会话变蓝", symbol: "drop.fill", tint: .blue)
+                }
+                if settings.staleTintEnabled {
+                    LabeledContent {
+                        Stepper("结束 \(Self.duration(settings.staleAfterMinutes)) 后", value: $settings.staleAfterMinutes,
+                                in: 1...max(1, settings.idleVisibleMinutes - 1), step: settings.staleAfterMinutes < 60 ? 5 : 15)
+                    } label: { Text("开始变蓝").padding(.leading, 30) }
+                    LabeledContent("最蓝") {
+                        Text("结束 \(Self.duration(settings.stalePeakMinutes)) 后").foregroundStyle(.secondary)
+                    }
+                    .padding(.leading, 30)
+                }
+            } header: {
+                Text("会话提醒")
+            } footer: {
+                Text("已验收、之后没再运行的会话：从「开始变蓝」起逐渐变蓝，在它与「已验收会话保留」的正中最蓝，到保留时长结束时褪回灰色并离开悬浮窗。")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Section("悬浮窗") {
                 LabeledContent {
                     HStack(spacing: 8) {
                         Slider(value: $settings.panelOpacity, in: 0.4...1).frame(width: 150)

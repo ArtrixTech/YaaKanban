@@ -646,4 +646,18 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         s.unreadSince = end
         #expect(Attention.staleness(s, linger: linger, now: end.addingTimeInterval(245 * 60)) == 0)
     }
+
+    @Test func thresholdsFollowTheSettings() {
+        #expect(!Attention.flashes(waiting(), acknowledged: nil, now: t0.addingTimeInterval(50), after: 60))
+        #expect(Attention.flashes(waiting(), acknowledged: nil, now: t0.addingTimeInterval(71), after: 60))
+        var s = fold([claude("UserPromptSubmit", ["prompt": .string("go")]), claude("Stop", at: 1)])
+        s.unreadSince = nil
+        let end = s.lastEventAt
+        func at(_ m: Double) -> Double { Attention.staleness(s, linger: 120 * 60, now: end.addingTimeInterval(m * 60), after: 30 * 60) }
+        #expect(at(20) == 0)
+        #expect(abs(at(75) - 1) < 1e-9)  // (30 + 120) / 2
+        #expect(at(120) == 0)
+        // Turning blue no earlier than the card leaves: never blue.
+        #expect(Attention.staleness(s, linger: 30 * 60, now: end.addingTimeInterval(20 * 60), after: 30 * 60) == 0)
+    }
 }

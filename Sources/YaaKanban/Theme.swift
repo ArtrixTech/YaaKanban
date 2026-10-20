@@ -188,10 +188,13 @@ private struct SessionSurface: ViewModifier {
             .card(st, hover: hover)
             .background {
                 // Only the sessions that can need it tick.
-                if st == .needsInput || st == .done {
+                let p = model.settings
+                if (st == .needsInput && p.flashEnabled) || (st == .done && p.staleTintEnabled) {
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                        let flash = Attention.flashes(session, acknowledged: model.acknowledged[session.id], now: ctx.date)
-                        let blue = Attention.staleness(session, linger: model.settings.idleVisibleSeconds, now: ctx.date)
+                        let flash = st == .needsInput && Attention.flashes(
+                            session, acknowledged: model.acknowledged[session.id], now: ctx.date, after: p.flashAfterSeconds)
+                        let blue = st == .done ? Attention.staleness(
+                            session, linger: p.idleVisibleSeconds, now: ctx.date, after: p.staleAfterMinutes * 60) : 0
                         Color.clear
                             .overlay { if flash { Flash(tint: st.tint) } }
                             .overlay { if blue > 0 { Stale(amount: blue) } }
