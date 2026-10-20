@@ -81,7 +81,7 @@ public struct ClaudeIntegration: Integration {
     public init() {}
 
     static let events: [(name: String, timeout: Int)] = [
-        "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Notification",
+        "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "Notification",
         "Stop", "SubagentStart", "SubagentStop", "SessionEnd",
     ].map { ($0, 5) } + [("PermissionRequest", Integrations.approvalTimeout + 10)]
 

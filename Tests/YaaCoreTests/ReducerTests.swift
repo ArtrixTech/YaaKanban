@@ -309,3 +309,275 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(Store.persistable(s).terminal?.waveBlockId == "b")
     }
 }
+
+@Suite struct ReviewState {
+    @Test func finishedTurnIsUnreadUntilNextPrompt() {
+        let done = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), claude("Stop", [:], at: 1)])
+        #expect(done.display == .review)
+        #expect(done.unreadSince == t0.addingTimeInterval(1))
+        let next = fold([claude("UserPromptSubmit", ["prompt": .string("y")], at: 2)], into: done)
+        #expect(next.unreadSince == nil)
+        #expect(next.display == .running)
+        let ended = fold([claude("Stop", [:], at: 3), claude("SessionEnd", [:], at: 4)], into: next)
+        #expect(ended.unreadSince == nil)
+    }
+
+    @Test func unhookedBusyToIdleIsUnread() {
+        func snap(_ st: SessionStatus, _ at: TimeInterval) -> AgentEvent {
+            AgentEvent(agent: .claudeCode, sessionId: "u", at: t0.addingTimeInterval(at), kind: .statusSnapshot(st))
+        }
+        var s = SessionReducer.apply(snap(.idle, 0), to: nil)
+        #expect(s.display == .done)
+        s = SessionReducer.apply(snap(.running, 1), to: s)
+        s = SessionReducer.apply(snap(.idle, 2), to: s)
+        #expect(s.display == .review)
+        s = SessionReducer.apply(snap(.running, 3), to: s)
+        #expect(s.unreadSince == nil)
+    }
+
+    @Test func oldStoredStateDecodes() throws {
+        var s = SessionState(agent: .codex, sessionId: "o", at: t0)
+        s.status = .idle
+        var obj = try #require(JSONValue.parse(JSONEncoder().encode(s))?.object)
+        obj["unreadSince"] = nil
+        obj["peek"] = nil
+        let back = try JSONDecoder().decode(SessionState.self, from: JSONEncoder().encode(JSONValue.object(obj)))
+        #expect(back.display == .done)
+    }
+}
+
+@Suite struct Transcript {
+    private func lines(_ objs: [String]) -> Data { objs.joined(separator: "\n").data(using: .utf8)! }
+
+    @Test func readsPromptReplyAndRecap() {
+        let peek = TranscriptPeek.parse(lines([
+            #"{"type":"user","message":{"role":"user","content":"old prompt"}}"#,
+            #"{"type":"assistant","message":{"content":[{"type":"text","text":"old reply"}]}}"#,
+            #"{"type":"system","subtype":"away_summary","content":"Goal: train v5."}"#,
+            #"{"type":"user","message":{"role":"user","content":"why so slow?"}}"#,
+            #"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash"}]}}"#,
+            #"{"type":"user","message":{"content":[{"type":"tool_result","content":"ok"}]}}"#,
+            #"{"type":"assistant","isSidechain":true,"message":{"content":[{"type":"text","text":"sub"}]}}"#,
+            #"{"type":"assistant","message":{"content":[{"type":"text","text":"Use AMP."}]}}"#,
+        ]))
+        #expect(peek?.lastPrompt == "why so slow?")
+        #expect(peek?.lastReply == "Use AMP.")
+        #expect(peek?.recap == "Goal: train v5.")
+    }
+
+    @Test func replyBeforeLatestPromptIsDropped() {
+        let peek = TranscriptPeek.parse(lines([
+            #"{"type":"assistant","message":{"content":[{"type":"text","text":"old"}]}}"#,
+            #"{"type":"user","message":{"role":"user","content":"new question"}}"#,
+            "not json",
+        ]))
+        #expect(peek?.lastPrompt == "new question")
+        #expect(peek?.lastReply == nil)
+        #expect(TranscriptPeek.parse(Data()) == nil)
+    }
+
+    @Test func titleFallsBackToPeek() {
+        var s = SessionState(agent: .claudeCode, sessionId: "p", at: t0)
+        s.cwd = "/x/LY-Analysis"
+        #expect(s.title == "LY-Analysis")
+        s.peek = TranscriptPeek(lastPrompt: "训练感觉很慢", lastReply: "加 AMP")
+        #expect(s.title == "训练感觉很慢")
+        #expect(s.lastReply == "加 AMP")
+    }
+}
+
+@Suite struct AskUserQuestionFlow {
+    /// Claude sends PreToolUse, then PermissionRequest, then a generic Notification for a question.
+    @Test func questionIsNotShownAsPermission() {
+        let input: JSONValue = .object(["questions": .array([.object(["question": .string("TEC 驱动选哪种？")]),
+                                                             .object(["question": .string("MCU？")])])])
+        let s = fold([
+            claude("UserPromptSubmit", ["prompt": .string("x")]),
+            claude("PreToolUse", ["tool_name": .string("AskUserQuestion"), "tool_use_id": .string("q1"), "tool_input": input], at: 1),
+            claude("PermissionRequest", ["tool_name": .string("AskUserQuestion"), "tool_input": input,
+                                         Normalizer.awaitingKey: .bool(true)], at: 1),
+            claude("Notification", ["notification_type": .string("permission_prompt"),
+                                    "message": .string("Claude needs your permission")], at: 2),
+        ])
+        #expect(s.status == .needsInput)
+        #expect(s.pendingPermission == nil)
+        #expect(s.needsInputMessage == "TEC 驱动选哪种？（共 2 个问题）")
+    }
+
+    @Test func genericNoticeStillFlagsOtherwise() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]),
+                      claude("Notification", ["message": .string("Claude needs your permission")], at: 1)])
+        #expect(s.status == .needsInput)
+        #expect(s.needsInputMessage == "Claude needs your permission")
+    }
+}
+
+@Suite struct BoardLayout {
+    private func s(_ id: String, _ dir: String, _ start: TimeInterval) -> SessionState {
+        var x = SessionState(agent: .claudeCode, sessionId: id, at: t0.addingTimeInterval(start))
+        x.projectDir = dir
+        x.cwd = dir + "/sub"
+        return x
+    }
+
+    @Test func startOrderAndGrouping() {
+        let list = [s("c", "/p/B", 3), s("a", "/p/A", 1), s("b", "/p/B", 2), s("d", "/p/A", 4)]
+        let g = Board.groups(list, manualOrder: [])
+        #expect(g.map(\.name) == ["A", "B"])
+        #expect(g[0].sessions.map(\.sessionId) == ["a", "d"])
+        #expect(g[1].sessions.map(\.sessionId) == ["b", "c"])
+    }
+
+    @Test func manualOrderWinsAndNewcomersAppend() {
+        let list = [s("a", "/A", 1), s("b", "/B", 2), s("c", "/C", 3)]
+        let flat = Board.groups(list, manualOrder: []).flatMap { $0.sessions.map(\.id) }
+        let order = Board.move(["claude-code:c"], before: "claude-code:a", board: flat, manualOrder: ["claude-code:gone"])
+        #expect(order == ["claude-code:c", "claude-code:a", "claude-code:b", "claude-code:gone"])
+        let g = Board.groups(list + [s("n", "/N", 0)], manualOrder: order)
+        #expect(g.map(\.name) == ["C", "A", "B", "N"])
+        #expect(Board.move(["claude-code:c"], before: nil, board: flat, manualOrder: []).last == "claude-code:c")
+    }
+
+    @Test func statusTiersComeFirst() {
+        var r = s("r", "/R", 1); r.status = .running
+        var v = s("v", "/V", 2); v.status = .idle; v.unreadSince = t0
+        var d = s("d", "/D", 0); d.status = .idle
+        var a = s("a", "/A", 3); a.status = .needsInput
+        var r2 = s("r2", "/V", 4); r2.status = .running
+        let g = Board.groups([r, v, d, a, r2], manualOrder: [])
+        #expect(g.map(\.name) == ["A", "V", "R", "D"])
+        #expect(g[1].sessions.map(\.sessionId) == ["v", "r2"])
+        // Manual order still decides within a tier.
+        var r3 = s("r3", "/R3", 5); r3.status = .running
+        #expect(Board.groups([r, r3], manualOrder: ["claude-code:r3"]).map(\.name) == ["R3", "R"])
+    }
+
+    @Test func groupFollowsStartDirNotCd() {
+        let e = AgentEvent(agent: .claudeCode, sessionId: "x", at: t0, kind: .sessionStart, cwd: "/p/A")
+        var st = SessionReducer.apply(e, to: nil)
+        st = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "x", at: t0, kind: .sessionStart, cwd: "/p/A/deep"), to: st)
+        #expect(st.projectName == "A")
+    }
+}
+
+@Suite struct Titles {
+    @Test func agentTitleThenFirstPromptLine() {
+        let lines = [#"{"type":"ai-title","aiTitle":"跨 harness 监控托盘"}"#, #"{"type":"custom-title","customTitle":"我的名字"}"#,
+                     #"{"type":"ai-title","aiTitle":"newer ai"}"#].joined(separator: "\n")
+        #expect(TranscriptPeek.titles(Data(lines.utf8)) == "我的名字")
+        var x = SessionState(agent: .claudeCode, sessionId: "t", at: t0)
+        x.turns = [Turn(id: 1, prompt: "修一下登录页的样式问题\n第二行细节", startedAt: t0, toolCount: 0)]
+        #expect(x.title == "修一下登录页的样式问题")
+        x.peek = TranscriptPeek(title: "登录页样式")
+        #expect(x.title == "登录页样式")
+    }
+}
+
+@Suite struct UsageTallies {
+    private func tmp(_ s: String) -> URL {
+        let u = FileManager.default.temporaryDirectory.appendingPathComponent("yaak-tally-\(UUID().uuidString).jsonl")
+        try? Data(s.utf8).write(to: u)
+        return u
+    }
+
+    @Test func claudeDedupesMessageUsageAndTracksReply() throws {
+        let lines = [
+            #"{"type":"user","message":{"role":"user","content":"做点事"}}"#,
+            #"{"type":"assistant","message":{"id":"m1","content":[{"type":"text","text":"先看看"}],"usage":{"input_tokens":10,"cache_read_input_tokens":100,"cache_creation_input_tokens":5,"output_tokens":3}}}"#,
+            #"{"type":"assistant","message":{"id":"m1","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{}}],"usage":{"input_tokens":10,"cache_read_input_tokens":100,"cache_creation_input_tokens":5,"output_tokens":3}}}"#,
+            #"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]}}"#,
+            #"{"type":"assistant","isSidechain":true,"message":{"id":"s1","content":[{"type":"text","text":"side"}],"usage":{"input_tokens":999,"output_tokens":999}}}"#,
+            #"{"type":"assistant","message":{"id":"m2","content":[{"type":"text","text":"做完了"}],"usage":{"input_tokens":2,"cache_read_input_tokens":120,"cache_creation_input_tokens":0,"output_tokens":7}}}"#,
+        ]
+        let url = tmp(lines.joined(separator: "\n") + "\n")
+        var t = TranscriptTally(format: .claude)
+        let first = t.update(from: url)
+        #expect(first)
+        #expect(t.usage.input == 12 && t.usage.output == 10 && t.usage.cacheRead == 220 && t.usage.cacheWrite == 5)
+        #expect(t.usage.context == 122)
+        #expect(t.usage.toolCalls == 1 && t.usage.tools["Bash"] == 1)
+        #expect(t.lastReply == "做完了")
+        // A partial line waits; a new prompt clears the reply.
+        let h = try FileHandle(forWritingTo: url)
+        h.seekToEndOfFile()
+        h.write(Data(#"{"type":"user","message":{"role":"user","content":"下一个"}}"#.utf8))
+        let partial = t.update(from: url)
+        #expect(!partial)
+        h.write(Data("\n".utf8))
+        try h.close()
+        let rest = t.update(from: url)
+        #expect(rest)
+        #expect(t.lastReply == nil && t.usage.output == 10)
+    }
+
+    @Test func codexCumulativeTokensAndReply() {
+        let lines = [
+            #"{"type":"event_msg","payload":{"type":"task_started"}}"#,
+            #"{"type":"response_item","payload":{"type":"function_call","name":"exec_command","arguments":"{}"}}"#,
+            #"{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"结论在这"}]}}"#,
+            #"{"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":1000,"cached_input_tokens":800,"output_tokens":50},"last_token_usage":{"input_tokens":300},"model_context_window":258400}}}"#,
+        ]
+        var t = TranscriptTally(format: .codex)
+        t.consume(Data(lines.joined(separator: "\n").utf8))
+        #expect(t.usage.input == 200 && t.usage.cacheRead == 800 && t.usage.output == 50)
+        #expect(t.usage.context == 300 && t.usage.contextWindow == 258400)
+        #expect(t.usage.toolCalls == 1 && t.lastReply == "结论在这")
+        t.consume(Data(#"{"type":"event_msg","payload":{"type":"task_started"}}"#.utf8))
+        #expect(t.lastReply == nil)
+    }
+
+    @Test func newPromptDropsStaleReply() {
+        var s = SessionState(agent: .claudeCode, sessionId: "r", at: t0)
+        s.peek = TranscriptPeek(lastReply: "旧回复", title: "T")
+        s = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "r", at: t0, kind: .promptSubmitted("新")), to: s)
+        #expect(s.lastReply == nil && s.title == "T")
+    }
+}
+
+@Suite struct TranscriptToolResults {
+    @Test func collectsFinishedToolIds() {
+        var t = TranscriptTally(format: .claude)
+        let lines = [
+            #"{"type":"assistant","message":{"id":"m1","content":[{"type":"tool_use","id":"toolu_a","name":"Bash"},{"type":"tool_use","id":"toolu_b","name":"Bash"}]}}"#,
+            #"{"type":"user","message":{"content":[{"tool_use_id":"toolu_a","type":"tool_result","content":"Exit code 1","is_error":true}]}}"#,
+            #"{"type":"user","message":{"content":[{"tool_use_id":"toolu_b","type":"tool_result","content":"ok"}]}}"#,
+        ]
+        t.consume(Data((lines.joined(separator: "\n") + "\n").utf8))
+        #expect(t.finishedTools.map(\.id) == ["toolu_a", "toolu_b"])
+        #expect(t.finishedTools.map(\.failed) == [true, false])
+        #expect(t.usage.toolCalls == 2)
+    }
+}
+
+@Suite struct Dismissal {
+    let t0 = Date(timeIntervalSince1970: 1_000)
+    private func ev(_ k: AgentEvent.Kind, _ dt: TimeInterval) -> AgentEvent {
+        AgentEvent(agent: .claudeCode, sessionId: "d", at: t0.addingTimeInterval(dt), kind: k)
+    }
+
+    @Test func endedSessionStaysAwayUntilItNeedsTheUser() {
+        var s = SessionReducer.apply(ev(.promptSubmitted("go"), 0), to: nil)
+        s.dismissedAt = t0
+        // The turn it was in carries on and finishes: still dismissed.
+        s = SessionReducer.apply(ev(.toolStart(id: "1", name: "Bash", input: .null), 1), to: s)
+        s = SessionReducer.apply(ev(.turnEnd(lastMessage: "ok"), 2), to: s)
+        #expect(s.dismissedAt != nil)
+        // It asks for input: back.
+        s.dismissedAt = t0
+        s = SessionReducer.apply(ev(.needsInput("?"), 3), to: s)
+        #expect(s.dismissedAt == nil)
+        // A new prompt: back.
+        s.dismissedAt = t0
+        s = SessionReducer.apply(ev(.promptSubmitted("again"), 4), to: s)
+        #expect(s.dismissedAt == nil)
+    }
+
+    @Test func unhookedSnapshotsDoNotReviveIdleSession() {
+        var s = SessionReducer.apply(ev(.statusSnapshot(.idle), 0), to: nil)
+        s.dismissedAt = t0
+        s = SessionReducer.apply(ev(.statusSnapshot(.idle), 5), to: s)
+        #expect(s.dismissedAt != nil)
+        s = SessionReducer.apply(ev(.statusSnapshot(.running), 6), to: s)
+        #expect(s.dismissedAt == nil)
+    }
+}

@@ -5,7 +5,21 @@ public enum SessionReducer {
     public static let outputLimit = 2048
 
     public static func apply(_ e: AgentEvent, to existing: SessionState?) -> SessionState {
+        var s = reduce(e, existing)
+        // A session the user ended comes back only when it needs them again: a new turn starts
+        // or it asks for input. Finishing the turn it was in does not count.
+        if s.dismissedAt != nil, let old = existing {
+            let newTurn = s.turns.count > old.turns.count
+            let wants = s.status == .needsInput && old.status != .needsInput
+            let started = s.status == .running && old.status != .running && old.status != .stuck
+            if newTurn || wants || started { s.dismissedAt = nil }
+        }
+        return s
+    }
+
+    private static func reduce(_ e: AgentEvent, _ existing: SessionState?) -> SessionState {
         var s = existing ?? SessionState(agent: e.agent, sessionId: e.sessionId, at: e.at)
+        if s.projectDir == nil { s.projectDir = e.cwd }
         if case .statusSnapshot(let status) = e.kind {
             // Session files only drive sessions without hooks; for hooked ones they must not
             // count as activity, or silence-based stuck detection would never fire. The exception:
@@ -20,6 +34,8 @@ public enum SessionReducer {
             if s.status != status { s.lastEventAt = max(s.lastEventAt, e.at) }
             s.cwd = s.cwd ?? e.cwd
             s.agentPid = s.agentPid ?? e.agentPid
+            if status == .idle, s.status == .running || s.status == .stuck { s.unreadSince = e.at }
+            if status == .running { s.unreadSince = nil }
             s.status = status
             return s
         }
@@ -37,6 +53,9 @@ public enum SessionReducer {
         case .promptSubmitted(let prompt):
             s.turns.append(Turn(id: s.turns.count + 1, prompt: prompt, startedAt: e.at, toolCount: 0))
             s.status = .running
+            s.unreadSince = nil
+            // The previous turn's reply; the transcript scan fills in this turn's.
+            s.peek?.lastReply = nil
             clearAttention(&s)
 
         case .toolStart(let id, let name, let input):
@@ -69,6 +88,10 @@ public enum SessionReducer {
             s.status = .needsInput
             s.needsInputMessage = message
 
+        case .attentionNotice(let message):
+            if s.status != .needsInput || s.needsInputMessage == nil { s.needsInputMessage = message }
+            s.status = .needsInput
+
         case .inputAnswered:
             if s.status == .needsInput { s.status = .running }
             clearAttention(&s)
@@ -90,6 +113,7 @@ public enum SessionReducer {
             endRunningTools(&s, at: e.at)
             s.subagents.removeAll()
             s.status = .ended
+            s.unreadSince = nil
             clearAttention(&s)
 
         case .subagentStart(let id, let type):
@@ -131,6 +155,7 @@ public enum SessionReducer {
         endRunningTools(&s, at: at)
         s.subagents.removeAll()
         s.status = .idle
+        s.unreadSince = at
         clearAttention(&s)
     }
 

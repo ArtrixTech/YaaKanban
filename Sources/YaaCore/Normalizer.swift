@@ -9,7 +9,7 @@ public enum Normalizer {
     public static let awaitingKey = "_yaak_awaiting"
 
     /// Tools that are themselves a question to the user.
-    static let askTools: Set<String> = ["askuserquestion", "request_user_input", "ask_user", "askquestion"]
+    public static let askTools: Set<String> = ["askuserquestion", "request_user_input", "ask_user", "askquestion"]
 
     public static func normalize(_ env: HookEnvelope) -> [AgentEvent] {
         switch env.agent {
@@ -48,6 +48,8 @@ public enum Normalizer {
             let text = resp.map(\.text) ?? p["error"]?.string
             return [ev(.toolEnd(id: toolId, name: tool, output: text, isError: failed))]
         case "PermissionRequest":
+            // Claude routes AskUserQuestion through the permission flow; it is a question, not an approval.
+            if askTools.contains(tool.lowercased()) { return [ev(.needsInput(askText(input)))] }
             let req = PermissionRequest(id: toolId, tool: tool,
                                         summary: ToolSummary.summarize(tool: tool, input: input),
                                         awaitingDecision: p[awaitingKey]?.bool == true,
@@ -56,7 +58,7 @@ public enum Normalizer {
         case "Notification":
             switch p["notification_type"]?.string {
             case nil, "permission_prompt", "elicitation_dialog":
-                return [ev(.needsInput(p["message"]?.string ?? "Needs your input"))]
+                return [ev(.attentionNotice(p["message"]?.string ?? "Needs your input"))]
             case "idle_prompt":
                 // Usually follows Stop (no-op then); after an interrupt it is the only "turn over" signal.
                 return [ev(.statusSnapshot(.idle))]
@@ -152,7 +154,9 @@ public enum Normalizer {
     }
 
     static func askText(_ input: JSONValue) -> String {
-        if let q = input["questions"]?.array?.first?["question"]?.string { return q }
+        if let qs = input["questions"]?.array, let q = qs.first?["question"]?.string {
+            return qs.count > 1 ? "\(q)（共 \(qs.count) 个问题）" : q
+        }
         return input["question"]?.string ?? input["prompt"]?.string ?? "Agent asked a question"
     }
 }

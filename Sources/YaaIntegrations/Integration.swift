@@ -12,6 +12,8 @@ public struct FileChange: Equatable, Sendable {
 
 public enum IntegrationStatus: String, Sendable {
     case notDetected, notInstalled, installed
+    /// Installed, but missing hooks a newer version adds (or pointing at another yaak).
+    case outdated
 }
 
 public protocol Integration: Sendable {
@@ -30,6 +32,13 @@ extension Integration {
     public func status(home: URL) -> IntegrationStatus {
         if isInstalled(home: home) { return .installed }
         return isDetected(home: home) ? .notInstalled : .notDetected
+    }
+
+    /// Like `status(home:)`, and `.outdated` when installing again would change something.
+    public func status(home: URL, yaak: String) -> IntegrationStatus {
+        let s = status(home: home)
+        guard s == .installed, let plan = try? plan(install: true, home: home, yaak: yaak) else { return s }
+        return plan.allSatisfy(\.isNoop) ? s : .outdated
     }
 }
 

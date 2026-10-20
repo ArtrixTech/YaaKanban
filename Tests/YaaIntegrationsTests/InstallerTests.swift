@@ -19,6 +19,16 @@ private func json(_ url: URL) throws -> [String: Any] {
 }
 
 @Suite struct InstallerTests {
+    /// Failed calls only fire PostToolUseFailure; without it they look running forever.
+    @Test func claudeGetsToolFailureHook() throws {
+        let home = try tempHome()
+        try Installer.apply(try ClaudeIntegration().plan(install: true, home: home, yaak: yaak))
+        let text = try String(contentsOf: home.appendingPathComponent(".claude/settings.json"), encoding: .utf8)
+        #expect(text.contains("PostToolUseFailure"))
+        #expect(ClaudeIntegration().status(home: home, yaak: yaak) == .installed)
+        #expect(ClaudeIntegration().status(home: home, yaak: "/other/yaak") == .outdated)
+    }
+
     @Test func claudePreservesForeignHooksAndIsIdempotent() throws {
         let home = try tempHome()
         let f = home.appendingPathComponent(".claude/settings.json")

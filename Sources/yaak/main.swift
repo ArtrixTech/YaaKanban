@@ -38,7 +38,9 @@ func runHook(agent: AgentKind, event: String) -> Never {
     // Trim large strings (Edit's originalFile, Write content) so the socket line stays small.
     var payload = Wire.trim(JSONValue.parse(stdin) ?? .object([:]))
     let pid = env["YAAK_AGENT_PID"].flatMap(Int32.init) ?? ProcessUtil.hookOwner()
-    let wantsDecision = approvalEvents[agent] == event
+    // Questions (AskUserQuestion) also arrive as permission requests; never hold those up.
+    let tool = (payload["tool_name"] ?? payload["tool"])?.string?.lowercased() ?? ""
+    let wantsDecision = approvalEvents[agent] == event && !Normalizer.askTools.contains(tool)
 
     if wantsDecision, case .object(var o) = payload {
         o[Normalizer.awaitingKey] = .bool(true)

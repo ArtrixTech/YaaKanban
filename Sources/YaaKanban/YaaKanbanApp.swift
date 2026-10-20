@@ -10,7 +10,7 @@ struct YaaKanbanApp: App {
         MenuBarExtra {
             MenuContent(panel: delegate.panel).environment(delegate.model)
         } label: {
-            MenuBarLabel().environment(delegate.model)
+            MenuBarLabel().environment(delegate.model).modifier(WindowOpener())
         }
         .menuBarExtraStyle(.window)
 
@@ -66,16 +66,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) { model.stop() }
 }
 
-/// Menu-bar icon: tinted by the most urgent state, with a count of sessions needing attention.
+/// Menu-bar icon: tinted by the most urgent state, with a count of sessions waiting on the user.
 struct MenuBarLabel: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        Image(nsImage: icon(count: model.attentionCount, running: model.sessions.values.contains { $0.status == .running }))
+        Image(nsImage: icon(count: model.pendingCount, running: model.runningCount > 0))
     }
 
     private func icon(count: Int, running: Bool) -> NSImage {
-        let color: NSColor? = model.hasNeedsInput ? .systemRed : (model.hasStuck ? .systemOrange : nil)
+        // Red: blocked on you. Orange: stuck. Green: finished, waiting to be reviewed.
+        let color: NSColor? = model.hasNeedsInput ? .systemRed
+            : model.hasStuck ? .systemOrange
+            : model.reviewCount > 0 ? .systemGreen : nil
         let symbol = NSImage(systemSymbolName: running ? "square.stack.3d.up.fill" : "square.stack.3d.up",
                              accessibilityDescription: "YaaKanban")!
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))!
