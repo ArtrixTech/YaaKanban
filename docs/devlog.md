@@ -1,8 +1,17 @@
 # Devlog
 
-## tweak(panel): faster fold and unfold
+## style(card): status glyph in the title row
 
 `pending` | 2026-10-20
+
+- **Changes**: The session card's status glyph (now 20 pt) sits in the title row instead of a 26 pt column of its own. The rows under the title (agent, status, reply, tool) and the sub-agent box use the card's full width, so there is no empty strip down the left side.
+- **Reason**: "这块导致block左边有空白。怎么调整一下让视觉更紧凑？", about the glyph column.
+- **Process**: Offscreen snapshot of the floating panel.
+- **Result**: `make test` 60/60.
+
+## tweak(panel): faster fold and unfold
+
+`5593138` | 2026-10-20
 
 - **Changes**: The slide takes 0.14 s instead of 0.2 s, with a quintic ease-out instead of cubic, so it covers most of the distance at once and then settles. Hover opens the panel after 0.03 s instead of 0.08 s, and it folds 0.15 s after the pointer leaves instead of 0.3 s.
 - **Reason**: "现在打开关闭动画有点拖沓。速度更快、ease in（前面快后面慢）、延迟降低。"

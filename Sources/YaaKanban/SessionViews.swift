@@ -83,37 +83,36 @@ struct SessionCard: View {
     var body: some View {
         let st = session.display
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 10) {
-                StatusGlyph(status: st, size: 26)
-                VStack(alignment: .leading, spacing: 3) {
-                    // 1: title, clock, expand.
-                    HStack(spacing: 6) {
-                        Text(session.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
-                        Spacer(minLength: 4)
-                        TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                            Text(session.clock(now: ctx.date))
-                                .font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.secondary)
-                        }
-                        ExpandButton(expanded: expanded, action: onExpand)
-                        CardIconButton(symbol: "xmark", help: "结束：移出悬浮窗（保留在历史，需要你时会回来）") {
-                            model.dismiss(session.id)
-                        }
+            VStack(alignment: .leading, spacing: 3) {
+                // 1: status, title, clock, expand. The glyph sits in the title row, so the rows
+                // under it use the card's full width.
+                HStack(spacing: 7) {
+                    StatusGlyph(status: st, size: 20)
+                    Text(session.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                    Spacer(minLength: 4)
+                    TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                        Text(session.clock(now: ctx.date))
+                            .font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.secondary)
                     }
-                    // 2: agent, project, status, stats.
-                    HStack(spacing: 5) {
-                        AgentLogo(agent: session.agent, size: 12)
-                        if !grouped, let p = session.projectName {
-                            Text(p).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
-                        }
-                        StatusPill(status: st)
-                        Spacer(minLength: 0)
-                        UsageBadge(session: session)
+                    ExpandButton(expanded: expanded, action: onExpand)
+                    CardIconButton(symbol: "xmark", help: "结束：移出悬浮窗（保留在历史，需要你时会回来）") {
+                        model.dismiss(session.id)
                     }
-                    // 3: what the agent said, or what it needs.
-                    replyLine(st)
-                    // 4: the tool call in progress.
-                    if st == .running, let t = session.latestTool { ToolLine(tool: t) }
                 }
+                // 2: agent, project, status, stats.
+                HStack(spacing: 5) {
+                    AgentLogo(agent: session.agent, size: 12)
+                    if !grouped, let p = session.projectName {
+                        Text(p).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    StatusPill(status: st)
+                    Spacer(minLength: 0)
+                    UsageBadge(session: session)
+                }
+                // 3: what the agent said, or what it needs.
+                replyLine(st)
+                // 4: the tool call in progress.
+                if st == .running, let t = session.latestTool { ToolLine(tool: t) }
             }
             SubagentSlots(session: session)
             PermissionButtons(session: session)
@@ -213,7 +212,6 @@ struct SubagentSlots: View {
             .padding(.horizontal, 8).padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .padding(.leading, 36)
         }
     }
 
