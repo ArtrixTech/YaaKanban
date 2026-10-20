@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(settings): card reminder thresholds (flash, blue tint, retention)
+## feat(settings): retention picks from 4/8/12/24 hours, default 24
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - "已验收会话保留" is now a menu with 4, 8, 12 and 24 hours instead of a 30-minute stepper. The default goes from 8 h to 24 h.
+  - A stored value from the old stepper snaps to the nearest choice on launch.
+  - Shortening the retention pulls "开始变蓝" below it if needed.
+- **Reason**: "已验收提醒保留，只可选4h/8h/12h/24h，默认24h"
+- **Result**: `make test` 64/64. Installed.
+
+## feat(settings): card reminder thresholds (flash, blue tint, retention)
+
+`d966ec0` | 2026-10-20
 
 - **Changes**:
   - New "会话提醒" section in Settings:

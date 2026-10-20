@@ -555,7 +555,13 @@ struct SettingsView: View {
             }
             Section {
                 LabeledContent {
-                    Stepper(Self.duration(settings.idleVisibleMinutes), value: $settings.idleVisibleMinutes, in: 0...1440, step: 30)
+                    Picker("", selection: $settings.idleVisibleMinutes) {
+                        ForEach(Preferences.retentionChoices, id: \.self) { Text(Self.duration($0)).tag($0) }
+                    }
+                    .labelsHidden().fixedSize()
+                    .onChange(of: settings.idleVisibleMinutes) {
+                        settings.staleAfterMinutes = min(settings.staleAfterMinutes, settings.idleVisibleMinutes - 1)
+                    }
                 } label: { SettingLabel("已验收会话保留", symbol: "checkmark.circle.fill", tint: .green) }
                 Toggle(isOn: $settings.flashEnabled) {
                     SettingLabel("需要输入时闪烁", symbol: "light.beacon.max.fill", tint: .red)

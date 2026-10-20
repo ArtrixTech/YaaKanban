@@ -32,14 +32,16 @@ final class Preferences {
 
     init() {
         d.register(defaults: [
-            "stuckMinutes": 5.0, "approvalTimeout": 20.0, "idleVisibleMinutes": 480.0, "panelOpacity": 0.95,
+            "stuckMinutes": 5.0, "approvalTimeout": 20.0, "idleVisibleMinutes": 1440.0, "panelOpacity": 0.95,
             "flashEnabled": true, "flashAfterSeconds": Attention.flashAfter,
             "staleTintEnabled": true, "staleAfterMinutes": Attention.staleAfter / 60,
             "showPanel": true, "suppressWhenWaveFrontmost": true, "waveTabJump": true,
         ])
         stuckMinutes = d.double(forKey: "stuckMinutes")
         approvalTimeout = d.double(forKey: "approvalTimeout")
-        idleVisibleMinutes = d.double(forKey: "idleVisibleMinutes")
+        // Older builds allowed any 30-minute step; snap a stored value to the nearest choice.
+        let stored = d.double(forKey: "idleVisibleMinutes")
+        idleVisibleMinutes = Self.retentionChoices.min { abs($0 - stored) < abs($1 - stored) }!
         flashEnabled = d.bool(forKey: "flashEnabled")
         flashAfterSeconds = d.double(forKey: "flashAfterSeconds")
         staleTintEnabled = d.bool(forKey: "staleTintEnabled")
@@ -56,6 +58,8 @@ final class Preferences {
     }
 
     var stuckConfig: StuckConfig { StuckConfig(silence: stuckMinutes * 60, toolDuration: stuckMinutes * 60) }
+    /// How long reviewed sessions stay on the board, in minutes: 4, 8, 12 or 24 hours.
+    static let retentionChoices: [Double] = [240, 480, 720, 1440]
     var idleVisibleSeconds: TimeInterval { idleVisibleMinutes * 60 }
     /// When a reviewed turn is bluest: halfway between turning blue and leaving the board.
     var stalePeakMinutes: Double { (staleAfterMinutes + idleVisibleMinutes) / 2 }
