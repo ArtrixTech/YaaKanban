@@ -170,7 +170,9 @@ struct FloatingPanelView: View {
     }
 
     /// Docked to a side and neither hovered nor unfolded.
-    private var folded: Bool { room?.dock != nil && !model.settings.sidebarExpanded && room?.peek != true }
+    private var folded: Bool {
+        room?.snapshotFolded == true || (room?.dock != nil && !model.settings.sidebarExpanded && room?.peek != true)
+    }
 
     private var anchor: Alignment {
         switch room?.dock {
@@ -191,7 +193,8 @@ struct FloatingPanelView: View {
             }
             list
         }
-        .padding(.horizontal, 10).padding(.top, 10)
+        // Folded, the sides match the gap between cards.
+        .padding(.horizontal, folded ? Rail.inset : 10).padding(.top, 10)
         .padding(.bottom, settings.panelCollapsed || model.activeSessions.isEmpty ? 10 : 0)
         .environment(\.railExtra, folded ? settings.panelWidth - Rail.width : nil)
         .frame(width: folded ? Rail.width : settings.panelWidth, alignment: .top)
@@ -288,6 +291,8 @@ final class PanelRoom {
     var peek = false
     /// The width grip is being dragged: resize at once instead of sliding.
     var resizing = false
+    /// Snapshots render the rail folded whatever the user pinned.
+    var snapshotFolded = false
 
     init(dock: DockEdge? = nil, peek: Bool = false) { self.dock = dock; self.peek = peek }
 }
@@ -295,13 +300,14 @@ final class PanelRoom {
 /// Bottom handle that sets the list height. AppKit-backed so the drag does not move the
 /// (movable-by-background) window, and so it shows the resize cursor.
 struct ResizeGrip: View {
+    @Environment(\.railExtra) private var railExtra
     /// Vertical drag distance (down is positive); nil when the drag ends.
     var onDrag: (CGFloat?) -> Void
     @State private var hover = false
 
     var body: some View {
         Capsule().fill(.primary.opacity(hover ? 0.35 : 0.15)).frame(width: 36, height: 4)
-            .frame(maxWidth: .infinity).frame(height: 14)
+            .frame(maxWidth: .infinity).frame(height: railExtra == nil ? 14 : 10)
             .overlay(GripTracker(axis: .vertical, onDrag: onDrag))
             .onHover { hover = $0 }
             .animation(.easeOut(duration: 0.12), value: hover)

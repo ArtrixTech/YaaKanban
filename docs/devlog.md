@@ -1,8 +1,22 @@
 # Devlog
 
-## fix(panel): narrow panel layout; folded cards without gaps or overflow
+## fix(rail): fill folded cards to the bottom; tighter rail margins
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - Folded cards show the latest reply (or what the session needs, or why it is stuck) as a row of its own. It takes at least one line and grows by whole lines into the room left. The rows are status, title, tool, reply, project and numbers. `FitStack` keeps the rows that fit whole and shares the last few points out between the gaps (at most 3 pt each), so no blank line is left at the bottom. The live line no longer repeats the reply.
+  - Rail margins: sides 8 pt, the same as the gap between cards. The bottom grip is 10 pt instead of 14. The card's inner padding is 8 by 7 instead of 10, and row spacing is 2.
+  - Snapshots can force the rail folded (`PanelRoom.snapshotFolded`) even when the user pinned it open.
+- **Reason**: "折叠状态底下又有空行了。解决。" "折叠状态，左右下的边框可以再窄一点，左右可以对齐卡与卡之间间距。另外卡内的margin可以稍微小一点点，这样最后一行还能放东西。"
+- **Process**:
+  - A first try spread the leftover height freely between the rows, and the gaps grew large. Capped at 3 pt.
+  - Offscreen snapshots of the folded rail.
+- **Result**: `make test` 60/60.
+
+## fix(panel): narrow panel layout; folded cards without gaps or overflow
+
+`49accb8` | 2026-10-20
 
 - **Changes**:
   - At a small width the board header drops the "YaaKanban" name instead of pushing the buttons out of the window. Tool and token counts no longer wrap ("233.3 / M").
