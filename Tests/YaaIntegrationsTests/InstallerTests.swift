@@ -58,6 +58,52 @@ private func json(_ url: URL) throws -> [String: Any] {
         #expect(((stop[1]["hooks"] as! [[String: Any]])[0]["_yaakanban"]) == nil)
     }
 
+    @Test func quotedPathRunsUnderSh() throws {
+        let cmd = HookCommand.make(yaak: "/tmp/o'neil/yaak", agent: .claudeCode, event: "Stop")
+        #expect(HookCommand.isOurs(cmd))
+        #expect(HookCommand.isOurs("'\(yaak)' hook claude-code Stop"))
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/sh")
+        p.arguments = ["-n", "-c", cmd]
+        try p.run()
+        p.waitUntilExit()
+        #expect(p.terminationStatus == 0)
+    }
+
+    /// Codex trust is keyed by index: a reinstall (even with a new yaak path) must not move our entry.
+    @Test func codexReinstallKeepsOrder() throws {
+        let home = try tempHome()
+        let f = home.appendingPathComponent(".codex/hooks.json")
+        try Installer.apply(try CodexIntegration().plan(install: true, home: home, yaak: yaak))
+        var root = try json(f)
+        var hooks = root["hooks"] as! [String: Any]
+        var stop = hooks["Stop"] as! [[String: Any]]
+        stop.append(["hooks": [["type": "command", "command": "user-hook"]]])
+        hooks["Stop"] = stop
+        root["hooks"] = hooks
+        try JSONSerialization.data(withJSONObject: root).write(to: f)
+
+        try Installer.apply(try CodexIntegration().plan(install: true, home: home, yaak: "/New/yaak"))
+        let after = (try json(f)["hooks"] as! [String: Any])["Stop"] as! [[String: Any]]
+        #expect(after.count == 2)
+        #expect(((after[0]["hooks"] as! [[String: Any]])[0]["command"] as? String) == "'/New/yaak' hook codex Stop")
+        #expect(((after[1]["hooks"] as! [[String: Any]])[0]["command"] as? String) == "user-hook")
+    }
+
+    @Test func symlinkedConfigIsEditedInPlace() throws {
+        let home = try tempHome()
+        let real = home.appendingPathComponent("dotfiles-settings.json")
+        try #"{"model":"opus"}"#.write(to: real, atomically: true, encoding: .utf8)
+        let link = home.appendingPathComponent(".claude/settings.json")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+        try Installer.apply(try ClaudeIntegration().plan(install: true, home: home, yaak: yaak))
+        #expect((try? FileManager.default.destinationOfSymbolicLink(atPath: link.path)) == real.path)
+        #expect(try json(real)["hooks"] != nil)
+        let bak = link.path + Installer.backupSuffix
+        #expect((try? FileManager.default.destinationOfSymbolicLink(atPath: bak)) == nil)
+        #expect(try String(contentsOfFile: bak, encoding: .utf8) == #"{"model":"opus"}"#)
+    }
+
     @Test func cursorCreatesVersionedFile() throws {
         let home = try tempHome()
         let i = CursorIntegration()

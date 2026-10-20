@@ -59,7 +59,12 @@ struct PermissionButtons: View {
     let session: SessionState
 
     var body: some View {
-        if session.pendingPermission?.awaitingDecision == true, model.canDecide(session.id) {
+        if let p = session.pendingPermission, p.awaitingDecision, model.canDecide(session.id) {
+            if let detail = p.detail {
+                Text(detail).font(.caption.monospaced()).lineLimit(8).textSelection(.enabled)
+                    .padding(4).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+            }
             HStack(spacing: 6) {
                 Button("允许一次") { model.decide(session.id, .allow) }
                     .buttonStyle(.borderedProminent).tint(.green)

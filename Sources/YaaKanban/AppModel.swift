@@ -12,7 +12,13 @@ final class AppModel {
 
     @ObservationIgnored private var store: Store?
     @ObservationIgnored private var server: SocketServer?
-    @ObservationIgnored private var pendingReplies: [String: (Data?) -> Void] = [:]
+    /// A blocked permission hook. `token` ties the expiry timer to this request only.
+    private struct PendingReply {
+        let token = UUID()
+        let requestId: String?
+        let send: (Data?) -> Void
+    }
+    @ObservationIgnored private var pendingReplies: [String: PendingReply] = [:]
     @ObservationIgnored private var timers: [Timer] = []
     @ObservationIgnored let notifier = Notifier()
     @ObservationIgnored lazy var jumper = TerminalJumper(settings: settings)
@@ -76,7 +82,9 @@ final class AppModel {
         }
         for req in Wire.drainSpool(paths: paths) { ingest(req.envelope, alert: false) }
 
-        notifier.onAction = { [weak self] key, action in self?.handleNotificationAction(key: key, action: action) }
+        notifier.onAction = { [weak self] key, requestId, action in
+            self?.handleNotificationAction(key: key, requestId: requestId, action: action)
+        }
         notifier.requestAuthorization()
 
         timers.append(Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
@@ -90,7 +98,7 @@ final class AppModel {
 
     func stop() {
         server?.stop()
-        for (_, r) in pendingReplies { r(Wire.encode(WireReply(decision: nil))) }
+        for (_, r) in pendingReplies { r.send(Wire.encode(WireReply(decision: nil))) }
     }
 
     // MARK: Ingest
@@ -108,11 +116,12 @@ final class AppModel {
             ingest(req.envelope, alert: true)
         case .permission:
             guard let key = ingest(req.envelope, alert: true) else { reply(nil); return }
-            pendingReplies[key]?(Wire.encode(WireReply(decision: nil)))
-            pendingReplies[key] = reply
+            pendingReplies[key]?.send(Wire.encode(WireReply(decision: nil)))
+            let pending = PendingReply(requestId: sessions[key]?.pendingPermission?.id, send: reply)
+            pendingReplies[key] = pending
             let timeout = min(settings.approvalTimeout, req.timeout ?? settings.approvalTimeout)
             DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
-                self?.expirePermission(key: key)
+                self?.expirePermission(key: key, token: pending.token)
             }
         }
     }
@@ -134,7 +143,8 @@ final class AppModel {
         sessions[key] = new
         store?.save(new)
         if old?.pendingPermission?.awaitingDecision == true && new.pendingPermission?.awaitingDecision != true {
-            pendingReplies.removeValue(forKey: key)?(Wire.encode(WireReply(decision: nil)))
+            pendingReplies.removeValue(forKey: key)?.send(Wire.encode(WireReply(decision: nil)))
+            notifier.withdraw(key: key)
         }
         if alert, let a = Alerts.between(old, new) { notifier.post(a, for: new, settings: settings) }
         if (old?.status.needsAttention ?? false) != new.status.needsAttention { jumper.badge(new, on: new.status.needsAttention) }
@@ -143,9 +153,14 @@ final class AppModel {
 
     // MARK: Permissions
 
-    func decide(_ key: String, _ decision: PermissionDecision) {
-        guard let reply = pendingReplies.removeValue(forKey: key) else { return }
-        reply(Wire.encode(WireReply(decision: decision)))
+    /// `requestId` (from a notification) must match the request still pending, so a stale
+    /// notification can never approve a newer command.
+    func decide(_ key: String, _ decision: PermissionDecision, requestId: String? = nil) {
+        guard let pending = pendingReplies[key] else { return }
+        if let requestId, requestId != pending.requestId { return }
+        pendingReplies[key] = nil
+        pending.send(Wire.encode(WireReply(decision: decision)))
+        notifier.withdraw(key: key)
         update(key, alert: false) { s in
             guard var s else { return nil }
             s.pendingPermission = nil
@@ -158,9 +173,10 @@ final class AppModel {
 
     func canDecide(_ key: String) -> Bool { pendingReplies[key] != nil }
 
-    private func expirePermission(key: String) {
-        guard let reply = pendingReplies.removeValue(forKey: key) else { return }
-        reply(Wire.encode(WireReply(decision: nil)))
+    private func expirePermission(key: String, token: UUID) {
+        guard let pending = pendingReplies[key], pending.token == token else { return }
+        pendingReplies[key] = nil
+        pending.send(Wire.encode(WireReply(decision: nil)))
         // The agent now shows its own prompt in the terminal; the session still needs input.
         update(key, alert: false) { s in
             guard var s else { return nil }
@@ -169,10 +185,10 @@ final class AppModel {
         }
     }
 
-    private func handleNotificationAction(key: String, action: Notifier.Action) {
+    private func handleNotificationAction(key: String, requestId: String?, action: Notifier.Action) {
         switch action {
-        case .allow: decide(key, .allow)
-        case .deny: decide(key, .deny)
+        case .allow: decide(key, .allow, requestId: requestId ?? "")
+        case .deny: decide(key, .deny, requestId: requestId ?? "")
         case .open: if let s = sessions[key] { jumper.jump(to: s) }
         }
     }

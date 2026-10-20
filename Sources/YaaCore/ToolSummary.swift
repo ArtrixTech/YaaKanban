@@ -5,10 +5,21 @@ public enum ToolSummary {
     public static let maxLength = 120
 
     public static func summarize(tool: String, input: JSONValue) -> String {
-        let raw = pick(tool: tool.lowercased(), input: input) ?? firstString(input) ?? ""
+        let raw = full(tool: tool, input: input)
         let oneLine = raw.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""
         let trimmed = oneLine.trimmingCharacters(in: .whitespaces)
         return trimmed.count > maxLength ? String(trimmed.prefix(maxLength - 1)) + "…" : trimmed
+    }
+
+    /// The untruncated text a summary is cut from.
+    public static func full(tool: String, input: JSONValue) -> String {
+        pick(tool: tool.lowercased(), input: input) ?? firstString(input) ?? ""
+    }
+
+    /// Full text when the summary hides part of it, for approval prompts.
+    public static func detail(tool: String, input: JSONValue) -> String? {
+        let f = full(tool: tool, input: input).trimmingCharacters(in: .whitespacesAndNewlines)
+        return f == summarize(tool: tool, input: input) ? nil : f
     }
 
     private static func pick(tool: String, input: JSONValue) -> String? {

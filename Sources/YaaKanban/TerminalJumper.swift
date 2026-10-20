@@ -121,5 +121,3 @@ struct WaveAdapter {
         }
     }
 }
-
-func shellQuote(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }

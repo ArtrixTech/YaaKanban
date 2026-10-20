@@ -35,7 +35,8 @@ let approvalEvents: [AgentKind: String] = [.claudeCode: "PermissionRequest", .op
 
 func runHook(agent: AgentKind, event: String) -> Never {
     let stdin = isatty(0) == 0 ? FileHandle.standardInput.readDataToEndOfFile() : Data()
-    var payload = JSONValue.parse(stdin) ?? .object([:])
+    // Trim large strings (Edit's originalFile, Write content) so the socket line stays small.
+    var payload = Wire.trim(JSONValue.parse(stdin) ?? .object([:]))
     let pid = env["YAAK_AGENT_PID"].flatMap(Int32.init) ?? ProcessUtil.hookOwner()
     let wantsDecision = approvalEvents[agent] == event
 

@@ -1,8 +1,31 @@
 # Devlog
 
-## feat(app): add menu bar app, floating panel, notifications, Wave jump
+## fix: address adversarial review findings
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - Hook commands shell-quote the yaak path.
+  - Claude-shaped installers update our entry in place, so Codex index trust survives a reinstall.
+  - Installers write through symlinks and back up file contents.
+  - Permission replies carry a per-request token, so a stale timer cannot expire a newer request, and notification Allow/Deny checks the request id.
+  - Resolved permission banners are withdrawn. Truncated or multi-line commands show their full text and get no Allow action in the banner.
+  - Parallel same-name tools no longer clear a pending permission; Claude's id-less PermissionRequest adopts the matching PreToolUse id.
+  - Interrupts end the turn: `idle_prompt` or a newer idle session file goes to idle.
+  - Only permission/elicitation notifications count as needs-input.
+  - `yaak hook` trims strings to 8 KB.
+  - The accept loop survives ECONNABORTED/EMFILE.
+  - `JSONValue.string` no longer traps on huge numbers.
+  - The Wave JWT is dropped from history once a session ends.
+  - Also covers `cf56a8c` (precipitation doc, macOS Swift pitfalls).
+- **Reason**: An adversarial review by an uninvolved agent (AGENTS.md) reported 11 findings. Three were high severity: a path with `'` made hooks exit 2, which blocks Claude; a stale notification could approve a different command; Esc left sessions "running", causing false stuck alerts.
+- **Process**: A regression test was written first for each core/installer finding (11 new). End to end: a 6 MB PostToolUse payload through the built `yaak` with a temp `YAAK_HOME` was spooled at 9 KB, exit 0.
+- **Result**: `make test` 38/38.
+- **Notes**: Not changed: the approval timeout stays capped at 25 s by the hook (Claude hook timeout is 30 s); the setting's range already stops there.
+
+## feat(app): add menu bar app, floating panel, notifications, Wave jump
+
+`5183c4b` | 2026-10-20
 
 - **Changes**: YaaKanban app: `AppModel` (socket server, spool drain, 10 s stuck tick, 5 s Claude session scan, SQLite history), MenuBarExtra with tinted icon + count, floating NSPanel (⌥⌘K, edge snap, opacity), main window with active/history + search/filter + session detail, Settings (installers, thresholds, Wave tab switching, login item). Notifications with Allow/Deny actions, suppressed while Wave is frontmost. Wave jump via `wsh badge` + activate; opt-in Cmd+N tab switch. Stuck silence rule now only applies to hooked sessions. Debug `yaak snapshot <dir>` renders all windows offscreen.
 - **Reason**: Spec §4–§5 UI and alerts.

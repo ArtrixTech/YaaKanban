@@ -50,12 +50,19 @@ public enum Normalizer {
         case "PermissionRequest":
             let req = PermissionRequest(id: toolId, tool: tool,
                                         summary: ToolSummary.summarize(tool: tool, input: input),
-                                        awaitingDecision: p[awaitingKey]?.bool == true)
+                                        awaitingDecision: p[awaitingKey]?.bool == true,
+                                        detail: ToolSummary.detail(tool: tool, input: input))
             return [ev(.permission(req))]
         case "Notification":
-            // idle_prompt fires a while after Stop; the turn end already covered it.
-            if p["notification_type"]?.string == "idle_prompt" { return [] }
-            return [ev(.needsInput(p["message"]?.string ?? "Needs your input"))]
+            switch p["notification_type"]?.string {
+            case nil, "permission_prompt", "elicitation_dialog":
+                return [ev(.needsInput(p["message"]?.string ?? "Needs your input"))]
+            case "idle_prompt":
+                // Usually follows Stop (no-op then); after an interrupt it is the only "turn over" signal.
+                return [ev(.statusSnapshot(.idle))]
+            default:
+                return [] // auth_success and other informational types
+            }
         case "Stop":
             return [ev(.turnEnd(lastMessage: p["last_assistant_message"]?.string))]
         case "SubagentStart":
@@ -122,7 +129,8 @@ public enum Normalizer {
         case "permission":
             let summary = p["title"]?.string ?? ToolSummary.summarize(tool: tool, input: input)
             return [ev(.permission(PermissionRequest(id: toolId, tool: tool, summary: summary,
-                                                     awaitingDecision: p[awaitingKey]?.bool == true)))]
+                                                     awaitingDecision: p[awaitingKey]?.bool == true,
+                                                     detail: ToolSummary.detail(tool: tool, input: input))))]
         case "needs_input": return [ev(.needsInput(p["message"]?.string ?? "Needs your input"))]
         case "input_answered": return [ev(.inputAnswered)]
         case "turn_end": return [ev(.turnEnd(lastMessage: p["message"]?.string))]
@@ -134,9 +142,12 @@ public enum Normalizer {
     // MARK: helpers
 
     /// Stable across processes (pre and post hooks run in different `yaak` processes).
-    static func syntheticToolId(_ tool: String, _ input: JSONValue) -> String {
+    static func syntheticToolId(_ tool: String, _ input: JSONValue) -> String { syntheticToolId(tool, input.text) }
+
+    /// Same id from the stored `ToolCall.input` text.
+    static func syntheticToolId(_ tool: String, _ inputText: String) -> String {
         var h: UInt64 = 0xcbf29ce484222325
-        for b in input.text.utf8 { h = (h ^ UInt64(b)) &* 0x100000001b3 }
+        for b in inputText.utf8 { h = (h ^ UInt64(b)) &* 0x100000001b3 }
         return "\(tool):\(String(h, radix: 16))"
     }
 

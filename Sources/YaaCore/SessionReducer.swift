@@ -8,8 +8,15 @@ public enum SessionReducer {
         var s = existing ?? SessionState(agent: e.agent, sessionId: e.sessionId, at: e.at)
         if case .statusSnapshot(let status) = e.kind {
             // Session files only drive sessions without hooks; for hooked ones they must not
-            // count as activity, or silence-based stuck detection would never fire.
-            if s.hooked { return s }
+            // count as activity, or silence-based stuck detection would never fire. The exception:
+            // going idle after our last hook event means the turn was interrupted (no Stop hook).
+            if s.hooked {
+                if status == .idle, s.status == .running || s.status == .stuck,
+                   e.at > s.lastEventAt.addingTimeInterval(1) {
+                    endTurn(&s, at: e.at, lastMessage: nil)
+                }
+                return s
+            }
             if s.status != status { s.lastEventAt = max(s.lastEventAt, e.at) }
             s.cwd = s.cwd ?? e.cwd
             s.agentPid = s.agentPid ?? e.agentPid
@@ -50,7 +57,12 @@ public enum SessionReducer {
                 s.tools[idx].output = clipped
                 s.tools[idx].isError = isError
             }
-            if s.pendingPermission?.id == id || s.pendingPermission?.tool == name { s.pendingPermission = nil }
+            // Match the pending request by id; fall back to the tool name only when no other
+            // running call of that tool could be the one waiting (parallel Bash calls).
+            if let p = s.pendingPermission,
+               p.id == id || (p.tool == name && !s.tools.contains { $0.isRunning && ($0.id == p.id || $0.name == name) }) {
+                s.pendingPermission = nil
+            }
             resume(&s)
 
         case .needsInput(let message):
@@ -61,20 +73,18 @@ public enum SessionReducer {
             if s.status == .needsInput { s.status = .running }
             clearAttention(&s)
 
-        case .permission(let req):
+        case .permission(var req):
+            // Claude's PermissionRequest has no tool_use_id; adopt the id of the running call with the same input.
+            if let t = s.tools.last(where: { $0.isRunning && $0.name == req.tool
+                                             && Normalizer.syntheticToolId($0.name, $0.input) == req.id }) {
+                req.id = t.id
+            }
             s.status = .needsInput
             s.pendingPermission = req
             s.needsInputMessage = "\(req.tool): \(req.summary)"
 
         case .turnEnd(let last):
-            if let i = s.turns.indices.last {
-                s.turns[i].endedAt = e.at
-                s.turns[i].lastMessage = last
-            }
-            endRunningTools(&s, at: e.at)
-            s.subagents.removeAll()
-            s.status = .idle
-            clearAttention(&s)
+            endTurn(&s, at: e.at, lastMessage: last)
 
         case .sessionEnd:
             endRunningTools(&s, at: e.at)
@@ -111,6 +121,17 @@ public enum SessionReducer {
     private static func lastToolIsAsk(_ s: SessionState) -> Bool {
         guard let t = s.tools.last, t.isRunning else { return false }
         return Normalizer.askTools.contains(t.name.lowercased())
+    }
+
+    private static func endTurn(_ s: inout SessionState, at: Date, lastMessage: String?) {
+        if let i = s.turns.indices.last {
+            s.turns[i].endedAt = at
+            if let lastMessage { s.turns[i].lastMessage = lastMessage }
+        }
+        endRunningTools(&s, at: at)
+        s.subagents.removeAll()
+        s.status = .idle
+        clearAttention(&s)
     }
 
     private static func clearAttention(_ s: inout SessionState) {

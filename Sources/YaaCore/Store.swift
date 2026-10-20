@@ -38,9 +38,17 @@ public final class Store {
 
     private static let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
+    /// What goes to disk: the Wave JWT is a live credential, so it is dropped once the session ended.
+    public static func persistable(_ s: SessionState) -> SessionState {
+        guard s.status == .ended, s.terminal?.waveJWT != nil else { return s }
+        var out = s
+        out.terminal?.waveJWT = nil
+        return out
+    }
+
     public func save(_ s: SessionState) {
         let enc = JSONEncoder()
-        guard let data = try? enc.encode(s) else { return }
+        guard let data = try? enc.encode(Self.persistable(s)) else { return }
         var stmt: OpaquePointer?
         let sql = "INSERT OR REPLACE INTO sessions (id, agent, status, last_event_at, slim, json) VALUES (?,?,?,?,0,?)"
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }

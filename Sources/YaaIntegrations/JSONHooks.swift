@@ -2,31 +2,39 @@ import Foundation
 import YaaCore
 
 /// Edits hook files shaped like Claude's: `{"hooks": {Event: [{matcher?, hooks: [{type, command, timeout}]}]}}`.
-/// Codex uses the same shape. Our entries are recognised by command (`HookCommand.isOurs`), and are always
-/// appended after existing entries so that index-keyed trust (Codex) of other hooks is preserved.
+/// Codex uses the same shape. Our entries are recognised by command (`HookCommand.isOurs`). An existing entry
+/// of ours is updated in place and new ones are appended, so index-keyed trust (Codex) of other hooks is preserved.
 enum ClaudeShapedHooks {
     static func edit(_ root: inout [String: Any], events: [(name: String, timeout: Int)], command: (String) -> String,
                      install: Bool, marker: [String: Any]) {
         var hooks = root["hooks"] as? [String: Any] ?? [:]
+        let wanted = install ? Dictionary(uniqueKeysWithValues: events.map { e -> (String, [String: Any]) in
+            var entry: [String: Any] = ["type": "command", "command": command(e.name), "timeout": e.timeout]
+            entry.merge(marker) { $1 }
+            return (e.name, entry)
+        }) : [:]
+        var placed = Set<String>()
         for (event, groups) in hooks {
             guard var groups = groups as? [[String: Any]] else { continue }
             groups = groups.compactMap { g in
                 var g = g
-                let inner = (g["hooks"] as? [[String: Any]] ?? []).filter { !HookCommand.isOurs($0["command"] as? String ?? "") }
+                let inner = (g["hooks"] as? [[String: Any]] ?? []).compactMap { h -> [String: Any]? in
+                    guard HookCommand.isOurs(h["command"] as? String ?? "") else { return h }
+                    // Keep the first entry of ours where it is; drop duplicates and unwanted ones.
+                    guard let entry = wanted[event], !placed.contains(event) else { return nil }
+                    placed.insert(event)
+                    return entry
+                }
                 if inner.isEmpty && g["hooks"] != nil { return nil }
                 g["hooks"] = inner
                 return g
             }
             hooks[event] = groups.isEmpty ? nil : groups
         }
-        if install {
-            for e in events {
-                var entry: [String: Any] = ["type": "command", "command": command(e.name), "timeout": e.timeout]
-                entry.merge(marker) { $1 }
-                var groups = hooks[e.name] as? [[String: Any]] ?? []
-                groups.append(["hooks": [entry]])
-                hooks[e.name] = groups
-            }
+        for e in events where install && !placed.contains(e.name) {
+            var groups = hooks[e.name] as? [[String: Any]] ?? []
+            groups.append(["hooks": [wanted[e.name]!]])
+            hooks[e.name] = groups
         }
         root["hooks"] = hooks.isEmpty ? nil : hooks
     }

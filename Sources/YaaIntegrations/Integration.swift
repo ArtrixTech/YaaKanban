@@ -45,12 +45,12 @@ public enum Integrations {
 
 public enum HookCommand {
     public static func make(yaak: String, agent: AgentKind, event: String) -> String {
-        "'\(yaak)' hook \(agent.rawValue) \(event)"
+        "\(shellQuote(yaak)) hook \(agent.rawValue) \(event)"
     }
 
-    /// Recognises any YaaKanban hook command, whatever the yaak path.
+    /// Recognises any YaaKanban hook command, whatever the yaak path (quoting included).
     public static func isOurs(_ command: String) -> Bool {
-        command.contains("yaak' hook ")
+        command.contains("yaak' hook ") || command.contains("yaak hook ")
     }
 }
 
@@ -61,14 +61,16 @@ public enum Installer {
     public static func apply(_ changes: [FileChange]) throws {
         let fm = FileManager.default
         for c in changes where !c.isNoop {
-            if fm.fileExists(atPath: c.path.path) {
+            // Write through symlinks (dotfile managers) instead of replacing the link with a file.
+            let target = c.path.resolvingSymlinksInPath()
+            if fm.fileExists(atPath: target.path) {
                 let bak = URL(fileURLWithPath: c.path.path + backupSuffix)
                 try? fm.removeItem(at: bak)
-                try fm.copyItem(at: c.path, to: bak)
+                try Data(contentsOf: target).write(to: bak)
             }
             if let after = c.after {
-                try fm.createDirectory(at: c.path.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try after.write(to: c.path, atomically: true, encoding: .utf8)
+                try fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try after.write(to: target, atomically: true, encoding: .utf8)
             } else {
                 try? fm.removeItem(at: c.path)
             }

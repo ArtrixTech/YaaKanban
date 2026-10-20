@@ -6,7 +6,8 @@ import YaaCore
 @MainActor
 final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     enum Action { case open, allow, deny }
-    var onAction: ((String, Action) -> Void)?
+    /// (session key, permission request id if any, action)
+    var onAction: ((String, String?, Action) -> Void)?
 
     private var center: UNUserNotificationCenter? {
         // UNUserNotificationCenter crashes outside an app bundle (e.g. `swift run`).
@@ -40,7 +41,11 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
             c.body = msg
             c.sound = .default
             c.interruptionLevel = .timeSensitive
-            if s.pendingPermission?.awaitingDecision == true { c.categoryIdentifier = "permission" }
+            // Never offer Allow from a banner that cannot show the whole command.
+            if let p = s.pendingPermission, p.awaitingDecision {
+                c.userInfo["request"] = p.id
+                if p.isTruncated { c.body = String((p.detail ?? msg).prefix(400)) } else { c.categoryIdentifier = "permission" }
+            }
         case .done(let last):
             c.title = "完成 — \(where_)"
             c.body = last.map { String($0.prefix(200)) } ?? s.title
@@ -51,15 +56,27 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         center.add(UNNotificationRequest(identifier: "\(s.id)#\(UUID().uuidString)", content: c, trigger: nil))
     }
 
+    /// Removes delivered banners for a session, e.g. once its permission request is resolved.
+    func withdraw(key: String) {
+        guard let center else { return }
+        center.getDeliveredNotifications { list in
+            let ids = list.filter { $0.request.content.userInfo["key"] as? String == key && $0.request.content.categoryIdentifier == "permission" }
+                .map(\.request.identifier)
+            center.removeDeliveredNotifications(withIdentifiers: ids)
+        }
+    }
+
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                             withCompletionHandler done: @escaping () -> Void) {
-        let key = response.notification.request.content.userInfo["key"] as? String ?? ""
+        let info = response.notification.request.content.userInfo
+        let key = info["key"] as? String ?? ""
+        let request = info["request"] as? String
         let action: Action = switch response.actionIdentifier {
         case "allow": .allow
         case "deny": .deny
         default: .open
         }
-        Task { @MainActor in self.onAction?(key, action) }
+        Task { @MainActor in self.onAction?(key, request, action) }
         done()
     }
 

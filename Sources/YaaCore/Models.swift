@@ -79,13 +79,19 @@ public struct PermissionRequest: Codable, Equatable, Sendable {
     public var summary: String
     /// True when the hook is blocked waiting for a decision from the app.
     public var awaitingDecision: Bool
+    /// Full input text, set only when `summary` does not show all of it (multi-line or long).
+    public var detail: String?
 
-    public init(id: String, tool: String, summary: String, awaitingDecision: Bool) {
+    public init(id: String, tool: String, summary: String, awaitingDecision: Bool, detail: String? = nil) {
         self.id = id
         self.tool = tool
         self.summary = summary
         self.awaitingDecision = awaitingDecision
+        self.detail = detail
     }
+
+    /// The summary hides part of what would be approved.
+    public var isTruncated: Bool { detail != nil }
 }
 
 /// Agent-neutral event produced by a normalizer from a `HookEnvelope`.
@@ -103,7 +109,8 @@ public struct AgentEvent: Equatable, Sendable {
         case sessionEnd
         case subagentStart(id: String, type: String?)
         case subagentStop(id: String)
-        /// Status reported by a session file, used for sessions without hooks.
+        /// Status reported by a session file. Drives sessions without hooks; for hooked ones only an
+        /// `.idle` newer than the last hook event counts (an interrupt fires no Stop hook).
         case statusSnapshot(SessionStatus)
     }
 

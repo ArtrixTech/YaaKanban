@@ -47,6 +47,19 @@ public struct WireReply: Codable, Sendable {
 }
 
 public enum Wire {
+    /// Per-string cap applied to hook payloads before sending. Deterministic, so pre/post hooks still
+    /// derive the same synthetic tool id from the trimmed input.
+    public static let stringLimit = 8192
+
+    public static func trim(_ v: JSONValue, limit: Int = stringLimit) -> JSONValue {
+        switch v {
+        case .string(let s) where s.count > limit: return .string(String(s.prefix(limit)) + "…")
+        case .array(let a): return .array(a.map { trim($0, limit: limit) })
+        case .object(let o): return .object(o.mapValues { trim($0, limit: limit) })
+        default: return v
+        }
+    }
+
     public static func encode<T: Encodable>(_ v: T) -> Data {
         let enc = JSONEncoder()
         enc.dateEncodingStrategy = .millisecondsSince1970
@@ -175,7 +188,13 @@ public final class SocketServer: @unchecked Sendable {
         Thread.detachNewThread { [handler] in
             while true {
                 let c = accept(listenFd, nil, nil)
-                if c < 0 { if errno == EINTR { continue }; return }
+                if c < 0 {
+                    switch errno {
+                    case EINTR, ECONNABORTED: continue
+                    case EMFILE, ENFILE, ENOBUFS, ENOMEM: usleep(100_000); continue
+                    default: return // EBADF/EINVAL: stop() closed the socket
+                    }
+                }
                 var one: Int32 = 1
                 setsockopt(c, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout<Int32>.size))
                 DispatchQueue.global().async {
