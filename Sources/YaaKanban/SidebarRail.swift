@@ -56,7 +56,7 @@ struct NarrowSessionCard: View {
 
     var body: some View {
         let st = session.display
-        VStack(alignment: .leading, spacing: 3) {
+        FitStack(spacing: 3) {
             HStack(spacing: 4) {
                 StatusGlyph(status: st, size: 18)
                 ViewThatFits(in: .horizontal) {
@@ -66,13 +66,15 @@ struct NarrowSessionCard: View {
             }
             .padding(.bottom, 1)
             Text(session.title).font(.system(size: 11, weight: .semibold)).lineLimit(2)
-                .layoutPriority(1)
+                .fixedSize(horizontal: false, vertical: true)
             live(st)
-            // The full card is taller (agent row, reply, tool): the room left goes to its numbers.
-            Spacer(minLength: 0)
-            footer
+            // The full card is taller (agent row, reply, tool), so the rest goes to the project and
+            // numbers, right under the status, as many lines as fit.
+            projectLabel
+            numbers
         }
-        .padding(8)
+        // The full card's padding, so both have the same border.
+        .padding(10)
         // Until measured, at most this tall, so the first frame is never taller than the card.
         .frame(maxWidth: .infinity, minHeight: height, maxHeight: height ?? 60, alignment: .topLeading)
         .clipped()
@@ -118,26 +120,24 @@ struct NarrowSessionCard: View {
         }
     }
 
-    /// Project (unless the group header names it) and, if they fit beside it, tool calls and tokens.
-    @ViewBuilder private var footer: some View {
-        let project = grouped ? nil : session.projectName
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 4) {
-                if let project { projectLabel(project) }
-                Spacer(minLength: 0)
-                UsageBadge(session: session)
-            }
-            if let project {
-                HStack(spacing: 0) { projectLabel(project); Spacer(minLength: 0) }
-            } else {
-                HStack(spacing: 0) { Spacer(minLength: 0); UsageBadge(session: session) }
-            }
+    private var project: String? { grouped ? nil : session.projectName }
+
+    /// Empty (and left out by `FitStack`) when the group header names the project.
+    @ViewBuilder private var projectLabel: some View {
+        if let p = project {
+            Text(p).font(.system(size: 10, weight: .medium)).foregroundStyle(.tertiary).lineLimit(1)
+        } else {
+            Color.clear.frame(height: 0)
         }
-        .frame(height: 13)
     }
 
-    private func projectLabel(_ p: String) -> some View {
-        Text(p).font(.system(size: 9.5, weight: .medium)).foregroundStyle(.tertiary).lineLimit(1)
+    /// Tool calls and tokens, or just the tokens if both do not fit.
+    private var numbers: some View {
+        ViewThatFits(in: .horizontal) {
+            UsageBadge(session: session)
+            UsageBadge(session: session, toolCalls: false)
+            Color.clear.frame(height: 0)
+        }
     }
 
     private var clock: some View {
@@ -153,5 +153,49 @@ struct NarrowSessionCard: View {
         if let d = SubagentSlots.detail(session) { lines.append(d) }
         lines.append("点击跳转到 \(session.agent.displayName)")
         return lines.joined(separator: "\n")
+    }
+}
+
+/// A leading-aligned column that shows its rows top down while they fit in the height it is
+/// offered and leaves out the rest, so nothing is cut in half and no gap opens between rows.
+struct FitStack: Layout {
+    var spacing: CGFloat = 0
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width
+        let rows = fitting(subviews, width: width, height: proposal.height ?? .infinity)
+        let h = rows.enumerated().map { i, r in r.height + (i == 0 || r.height < 0.5 ? 0 : spacing) }.reduce(0, +)
+        return CGSize(width: width ?? rows.map(\.width).max() ?? 0, height: h)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let rows = fitting(subviews, width: bounds.width, height: bounds.height)
+        var y = bounds.minY
+        for (i, v) in subviews.enumerated() {
+            guard i < rows.count else {
+                // Left out: parked out of sight with no size.
+                v.place(at: CGPoint(x: bounds.minX, y: bounds.maxY), proposal: .zero)
+                continue
+            }
+            if i > 0 && rows[i].height >= 0.5 { y += spacing }
+            v.place(at: CGPoint(x: bounds.minX, y: y), proposal: ProposedViewSize(width: bounds.width, height: rows[i].height))
+            y += rows[i].height
+        }
+    }
+
+    /// Sizes of the leading rows that fit.
+    private func fitting(_ subviews: Subviews, width: CGFloat?, height: CGFloat) -> [CGSize] {
+        var rows: [CGSize] = []
+        var used: CGFloat = 0
+        for v in subviews {
+            let size = v.sizeThatFits(ProposedViewSize(width: width, height: nil))
+            let gap = rows.isEmpty || size.height < 0.5 ? 0 : spacing
+            let next = used + gap + size.height
+            // The first rows (status, title) always show; the rest only if whole.
+            if next > height + 0.5 && rows.count >= 2 { break }
+            rows.append(size)
+            used = next
+        }
+        return rows
     }
 }

@@ -1,8 +1,22 @@
 # Devlog
 
-## feat(panel): adjustable width; folded cards show tool name and numbers
+## fix(panel): narrow panel layout; folded cards without gaps or overflow
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - At a small width the board header drops the "YaaKanban" name instead of pushing the buttons out of the window. Tool and token counts no longer wrap ("233.3 / M").
+  - Folded cards lay out through `FitStack`, a column that shows its rows top down while they fit and leaves out the rest whole. The rows are status, title, live line, project and numbers. So the project and numbers sit right under the status with no gap, and nothing is cut in half at the bottom. The numbers fall back to tokens only, or nothing, when the rail is too narrow. The title keeps its two lines.
+  - Folded cards have the full card's 10 pt padding, not 8, so both states have the same border.
+- **Reason**: "小宽度窗口变形" "折叠状态仍然有空行" "折叠模式下和展开模式下的左右边框宽度不一致，以展开模式下的边框宽度为准" "这排版太紧张了，有溢出"
+- **Process**:
+  - Logged `FitStack`'s row sizes against the height it is offered. Rows are kept only while whole.
+  - Offscreen snapshots at width 300, both states.
+- **Result**: `make test` 60/60.
+
+## feat(panel): adjustable width; folded cards show tool name and numbers
+
+`b4862e8` | 2026-10-20
 
 - **Changes**:
   - Drag the floating panel's side edge to set its unfolded width, from 300 to 720 pt (default 340, saved as `panelWidth`). The edge is the one away from the docked side: the left edge when docked right, otherwise the right edge. While dragging, the window follows at once instead of sliding. The folded rail stays 120 pt, and its cards measure their height at the current full width.

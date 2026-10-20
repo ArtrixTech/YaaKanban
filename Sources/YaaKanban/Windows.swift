@@ -10,9 +10,19 @@ struct BoardHeader<Trailing: View>: View {
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
+        // A narrow panel drops the name rather than squeezing the buttons out of the window.
+        ViewThatFits(in: .horizontal) {
+            row(named: true)
+            row(named: false)
+        }
+        // One line, the same height as the folded header, so cards keep their place.
+        .frame(height: BoardHeaderHeight.value)
+    }
+
+    private func row(named: Bool) -> some View {
         HStack(spacing: 6) {
             BrandMark(size: 20)
-            Text("YaaKanban").font(.system(size: 13, weight: .bold)).lineLimit(1).fixedSize()
+            if named { Text("YaaKanban").font(.system(size: 13, weight: .bold)).lineLimit(1).fixedSize() }
             Spacer(minLength: 4)
             HStack(spacing: 4) {
                 let counts = self.counts
@@ -22,8 +32,6 @@ struct BoardHeader<Trailing: View>: View {
             .animation(.snappy, value: counts.map(\.1))
             trailing
         }
-        // One line, the same height as the folded header, so cards keep their place.
-        .frame(height: BoardHeaderHeight.value)
     }
 
     private var counts: [(DisplayStatus, Int)] {

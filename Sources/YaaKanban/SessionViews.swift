@@ -468,8 +468,9 @@ extension SessionState {
 /// Card-sized stats: tool calls and tokens, when there are any.
 struct UsageBadge: View {
     let session: SessionState
+    var toolCalls = true
     var body: some View {
-        let tools = session.toolCallCount
+        let tools = toolCalls ? session.toolCallCount : 0
         HStack(spacing: 7) {
             if tools > 0 {
                 Label(compactCount(tools), systemImage: "wrench.and.screwdriver").help("工具调用 \(tools) 次")
@@ -481,6 +482,8 @@ struct UsageBadge: View {
         .labelStyle(TightLabel())
         .font(.system(size: 10, weight: .medium).monospacedDigit())
         .foregroundStyle(.tertiary)
+        .lineLimit(1)
+        .fixedSize()  // the project name beside it truncates instead
     }
 
     private func usageHelp(_ u: Usage) -> String {
