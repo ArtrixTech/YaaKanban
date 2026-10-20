@@ -75,7 +75,7 @@ struct SessionCard: View {
     var expanded = false
     /// Inside a project group, whose header already names the project.
     var grouped = false
-    var onTap: () -> Void = {}
+    var onExpand: () -> Void = {}
     @State private var hover = false
 
     var body: some View {
@@ -84,6 +84,7 @@ struct SessionCard: View {
             HStack(alignment: .top, spacing: 10) {
                 StatusGlyph(status: st, size: 26)
                 VStack(alignment: .leading, spacing: 3) {
+                    // 1: title, clock, expand.
                     HStack(spacing: 6) {
                         Text(session.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
                         Spacer(minLength: 4)
@@ -91,19 +92,22 @@ struct SessionCard: View {
                             Text(session.clock(now: ctx.date))
                                 .font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.secondary)
                         }
+                        ExpandButton(expanded: expanded, action: onExpand)
                     }
+                    // 2: agent, project, status, stats.
                     HStack(spacing: 5) {
                         AgentLogo(agent: session.agent, size: 12)
                         if !grouped, let p = session.projectName {
                             Text(p).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
                         }
                         StatusPill(status: st)
+                        Spacer(minLength: 0)
+                        UsageBadge(session: session)
                     }
-                    if let p = session.currentPrompt, Self.differs(p, from: session.title) {
-                        Text(p).font(.system(size: 11.5, weight: .medium)).foregroundStyle(.primary.opacity(0.85))
-                            .lineLimit(expanded ? 4 : 1)
-                    }
-                    detailLine(st)
+                    // 3: what the agent said, or what it needs.
+                    replyLine(st)
+                    // 4: the tool call in progress.
+                    if st == .running, let t = session.latestTool { ToolLine(tool: t) }
                 }
             }
             PermissionButtons(session: session)
@@ -115,9 +119,11 @@ struct SessionCard: View {
         .contentShape(RoundedRectangle(cornerRadius: 12))
         .onHover { hover = $0 }
         .animation(.easeOut(duration: 0.12), value: hover)
-        .onTapGesture(perform: onTap)
+        .onTapGesture { model.jump(session.id) }
+        .help("点击跳转到 \(session.agent.displayName)")
         .contextMenu {
             Button("跳转到终端") { model.jump(session.id) }
+            Button(expanded ? "收起详情" : "展开详情", action: onExpand)
             if st == .review { Button("标记已验收") { model.markRead(session.id) } }
             Button("复制 cwd / session") { model.jumper.copyContext(session) }
             Divider()
@@ -127,38 +133,30 @@ struct SessionCard: View {
         }
     }
 
-    /// The prompt adds something beyond the title (not just its first line).
-    static func differs(_ prompt: String, from title: String) -> Bool {
-        let t = title.hasSuffix("…") ? String(title.dropLast()) : title
-        return !prompt.hasPrefix(t)
-    }
-
-    /// Second line: what needs the user, what is running, or the last reply.
-    @ViewBuilder private func detailLine(_ st: DisplayStatus) -> some View {
+    /// The agent's latest words this turn; for blocked sessions, what it is waiting for.
+    @ViewBuilder private func replyLine(_ st: DisplayStatus) -> some View {
         switch st {
         case .needsInput, .stuck:
             Text(session.needsInputMessage ?? session.stuckReason ?? "需要你处理")
                 .font(.system(size: 11.5)).foregroundStyle(st.tint).lineLimit(expanded ? 6 : 2)
-        case .running:
-            // Always one line while running: between tools the last one stays, so the card does
-            // not grow and shrink with every tool call.
-            if let t = session.latestTool {
-                ToolLine(tool: t)
-            } else if let r = session.peek?.recap {
-                Text(r).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+        default:
+            if let r = session.lastReply {
+                Text(r).font(.system(size: 11.5)).foregroundStyle(.primary.opacity(0.8)).lineLimit(expanded ? 12 : 2)
+            } else if st == .running {
+                Text("思考中…").font(.system(size: 11.5)).foregroundStyle(.tertiary)
             } else if !session.hooked {
                 Text("此会话在安装 hook 前启动，只能看到粗略状态").font(.system(size: 11)).foregroundStyle(.tertiary)
-            }
-        case .review, .done, .ended:
-            if let r = session.lastReply {
-                Text(r).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(expanded ? 12 : 2)
             }
         }
     }
 
     @ViewBuilder private func expandedBody(_ st: DisplayStatus) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            if let r = session.peek?.recap, st != .running {
+            if let p = session.currentPrompt {
+                Label { Text(p).lineLimit(6) } icon: { Image(systemName: "person.fill") }
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            if let r = session.peek?.recap {
                 Label { Text(r) } icon: { Image(systemName: "text.quote") }
                     .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(6)
             }
@@ -171,6 +169,7 @@ struct SessionCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
+            if let u = session.usage { UsageGrid(usage: u) }
             HStack(spacing: 4) {
                 Text(session.agent.displayName)
                 if !session.subagents.isEmpty { Text("· \(session.subagents.count) 个子 agent") }
@@ -254,7 +253,7 @@ enum DragIds {
 struct BoardList: View {
     @Environment(AppModel.self) private var model
     var expanded: String?
-    var onTap: (SessionState) -> Void
+    var onExpand: (SessionState) -> Void = { _ in }
     @State private var dropTarget: String?
 
     var body: some View {
@@ -281,7 +280,7 @@ struct BoardList: View {
     }
 
     private func card(_ s: SessionState, grouped: Bool) -> some View {
-        SessionCard(session: s, expanded: expanded == s.id, grouped: grouped) { onTap(s) }
+        SessionCard(session: s, expanded: expanded == s.id, grouped: grouped) { onExpand(s) }
             .draggable(DragIds.encode([s.id])) {
                 Text(s.title).font(.system(size: 12, weight: .semibold)).padding(8)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
@@ -328,5 +327,121 @@ struct GroupHeader: View {
         .contentShape(Rectangle())
         .contextMenu { MoveMenu(ids: group.sessions.map(\.id)) }
         .help("拖动整组排序")
+    }
+}
+
+/// Chevron that rotates open; separate from the card tap, which jumps to the agent.
+struct ExpandButton: View {
+    let expanded: Bool
+    var action: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "chevron.down")
+                .font(.system(size: 9.5, weight: .bold))
+                .rotationEffect(.degrees(expanded ? 180 : 0))
+                .frame(width: 18, height: 18)
+                .background(Circle().fill(.primary.opacity(hover ? 0.12 : 0.06)))
+                .foregroundStyle(hover ? .primary : .secondary)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hover = $0 }
+        .animation(.snappy, value: expanded)
+        .help(expanded ? "收起详情" : "展开详情")
+    }
+}
+
+/// 12.3k, 4.5M.
+func compactCount(_ n: Int) -> String {
+    switch n {
+    case ..<1000: "\(n)"
+    case ..<1_000_000: String(format: n < 10_000 ? "%.1fk" : "%.0fk", Double(n) / 1000)
+    default: String(format: n < 10_000_000 ? "%.2fM" : "%.1fM", Double(n) / 1_000_000)
+    }
+}
+
+extension SessionState {
+    /// Tool calls: the transcript's count when known, else what hooks reported.
+    var toolCallCount: Int { usage?.toolCalls ?? turns.reduce(0) { $0 + $1.toolCount } }
+}
+
+/// Card-sized stats: tool calls and tokens, when there are any.
+struct UsageBadge: View {
+    let session: SessionState
+    var body: some View {
+        let tools = session.toolCallCount
+        HStack(spacing: 7) {
+            if tools > 0 {
+                Label(compactCount(tools), systemImage: "wrench.and.screwdriver").help("工具调用 \(tools) 次")
+            }
+            if let u = session.usage, u.total > 0 {
+                Label(compactCount(u.total), systemImage: "circle.hexagongrid").help(usageHelp(u))
+            }
+        }
+        .labelStyle(TightLabel())
+        .font(.system(size: 10, weight: .medium).monospacedDigit())
+        .foregroundStyle(.tertiary)
+    }
+
+    private func usageHelp(_ u: Usage) -> String {
+        "Token 合计 \(u.total)：输入 \(u.input)，输出 \(u.output)，缓存读 \(u.cacheRead)，缓存写 \(u.cacheWrite)"
+    }
+}
+
+private struct TightLabel: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 2) { configuration.icon.font(.system(size: 8.5)); configuration.title }
+    }
+}
+
+/// Expanded stats: token breakdown, context fill, most-used tools.
+struct UsageGrid: View {
+    let usage: Usage
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 0) {
+                cell("输入", usage.input)
+                cell("输出", usage.output)
+                cell("缓存读", usage.cacheRead)
+                cell("缓存写", usage.cacheWrite)
+            }
+            if usage.context > 0 {
+                HStack(spacing: 6) {
+                    Text("上下文").foregroundStyle(.secondary)
+                    if let w = usage.contextWindow, w > 0 {
+                        ProgressView(value: min(1, Double(usage.context) / Double(w))).controlSize(.mini).tint(.blue)
+                        Text("\(compactCount(usage.context)) / \(compactCount(w))").monospacedDigit()
+                    } else {
+                        Text(compactCount(usage.context)).monospacedDigit()
+                        Spacer()
+                    }
+                }
+            }
+            if !usage.tools.isEmpty {
+                let top = usage.tools.sorted { ($0.value, $1.key) > ($1.value, $0.key) }.prefix(5)
+                HStack(spacing: 4) {
+                    Text("\(usage.toolCalls) 次工具").foregroundStyle(.secondary)
+                    ForEach(Array(top), id: \.key) { name, n in
+                        Text("\(name) \(n)").padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(.primary.opacity(0.06), in: Capsule())
+                    }
+                }
+                .lineLimit(1)
+            }
+        }
+        .font(.system(size: 10.5))
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func cell(_ label: String, _ n: Int) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label).font(.system(size: 9.5)).foregroundStyle(.tertiary)
+            Text(compactCount(n)).font(.system(size: 11.5, weight: .semibold).monospacedDigit())
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

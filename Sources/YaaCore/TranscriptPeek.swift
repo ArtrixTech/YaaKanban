@@ -42,7 +42,7 @@ public struct TranscriptPeek: Codable, Equatable, Sendable {
     /// Latest title in the data; a user-set title beats a generated one.
     static func titles(_ data: Data) -> String? {
         var custom: String?, ai: String?
-        for line in data.split(separator: UInt8(ascii: "\n")) where line.contains("-title\"".utf8) {
+        for line in data.split(separator: UInt8(ascii: "\n")) where line.has("-title\"") {
             guard let j = JSONValue.parse(Data(line)) else { continue }
             switch j["type"]?.string {
             case "custom-title": custom = j["customTitle"]?.string ?? custom
@@ -79,13 +79,13 @@ public struct TranscriptPeek: Codable, Equatable, Sendable {
         return peek == TranscriptPeek() ? nil : peek
     }
 
-    private static func text(of content: JSONValue?) -> String? {
+    static func text(of content: JSONValue?) -> String? {
         if let s = content?.string { return s }
         let parts = content?.array?.compactMap { $0["type"]?.string == "text" ? $0["text"]?.string : nil } ?? []
         return parts.isEmpty ? nil : parts.joined(separator: "\n")
     }
 
-    private static func clip(_ s: String?) -> String? {
+    static func clip(_ s: String?) -> String? {
         guard let t = s?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty else { return nil }
         return t.count > textLimit ? String(t.prefix(textLimit)) + "…" : t
     }

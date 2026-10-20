@@ -30,6 +30,11 @@ struct SessionDetail: View {
                         Text(recap).textSelection(.enabled).font(.system(size: 12.5)).foregroundStyle(.secondary)
                     }
                 }
+                if let u = session.usage {
+                    Section(title: "用量", symbol: "chart.bar", trailing: "合计 \(compactCount(u.total)) token") {
+                        UsageGrid(usage: u)
+                    }
+                }
                 if !session.subagents.isEmpty {
                     Section(title: "子 agent", symbol: "person.2") {
                         ForEach(session.subagents, id: \.id) { a in

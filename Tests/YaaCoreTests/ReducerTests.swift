@@ -472,3 +472,64 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(x.title == "登录页样式")
     }
 }
+
+@Suite struct UsageTallies {
+    private func tmp(_ s: String) -> URL {
+        let u = FileManager.default.temporaryDirectory.appendingPathComponent("yaak-tally-\(UUID().uuidString).jsonl")
+        try? Data(s.utf8).write(to: u)
+        return u
+    }
+
+    @Test func claudeDedupesMessageUsageAndTracksReply() throws {
+        let lines = [
+            #"{"type":"user","message":{"role":"user","content":"做点事"}}"#,
+            #"{"type":"assistant","message":{"id":"m1","content":[{"type":"text","text":"先看看"}],"usage":{"input_tokens":10,"cache_read_input_tokens":100,"cache_creation_input_tokens":5,"output_tokens":3}}}"#,
+            #"{"type":"assistant","message":{"id":"m1","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{}}],"usage":{"input_tokens":10,"cache_read_input_tokens":100,"cache_creation_input_tokens":5,"output_tokens":3}}}"#,
+            #"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]}}"#,
+            #"{"type":"assistant","isSidechain":true,"message":{"id":"s1","content":[{"type":"text","text":"side"}],"usage":{"input_tokens":999,"output_tokens":999}}}"#,
+            #"{"type":"assistant","message":{"id":"m2","content":[{"type":"text","text":"做完了"}],"usage":{"input_tokens":2,"cache_read_input_tokens":120,"cache_creation_input_tokens":0,"output_tokens":7}}}"#,
+        ]
+        let url = tmp(lines.joined(separator: "\n") + "\n")
+        var t = TranscriptTally(format: .claude)
+        let first = t.update(from: url)
+        #expect(first)
+        #expect(t.usage.input == 12 && t.usage.output == 10 && t.usage.cacheRead == 220 && t.usage.cacheWrite == 5)
+        #expect(t.usage.context == 122)
+        #expect(t.usage.toolCalls == 1 && t.usage.tools["Bash"] == 1)
+        #expect(t.lastReply == "做完了")
+        // A partial line waits; a new prompt clears the reply.
+        let h = try FileHandle(forWritingTo: url)
+        h.seekToEndOfFile()
+        h.write(Data(#"{"type":"user","message":{"role":"user","content":"下一个"}}"#.utf8))
+        let partial = t.update(from: url)
+        #expect(!partial)
+        h.write(Data("\n".utf8))
+        try h.close()
+        let rest = t.update(from: url)
+        #expect(rest)
+        #expect(t.lastReply == nil && t.usage.output == 10)
+    }
+
+    @Test func codexCumulativeTokensAndReply() {
+        let lines = [
+            #"{"type":"event_msg","payload":{"type":"task_started"}}"#,
+            #"{"type":"response_item","payload":{"type":"function_call","name":"exec_command","arguments":"{}"}}"#,
+            #"{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"结论在这"}]}}"#,
+            #"{"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":1000,"cached_input_tokens":800,"output_tokens":50},"last_token_usage":{"input_tokens":300},"model_context_window":258400}}}"#,
+        ]
+        var t = TranscriptTally(format: .codex)
+        t.consume(Data(lines.joined(separator: "\n").utf8))
+        #expect(t.usage.input == 200 && t.usage.cacheRead == 800 && t.usage.output == 50)
+        #expect(t.usage.context == 300 && t.usage.contextWindow == 258400)
+        #expect(t.usage.toolCalls == 1 && t.lastReply == "结论在这")
+        t.consume(Data(#"{"type":"event_msg","payload":{"type":"task_started"}}"#.utf8))
+        #expect(t.lastReply == nil)
+    }
+
+    @Test func newPromptDropsStaleReply() {
+        var s = SessionState(agent: .claudeCode, sessionId: "r", at: t0)
+        s.peek = TranscriptPeek(lastReply: "旧回复", title: "T")
+        s = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "r", at: t0, kind: .promptSubmitted("新")), to: s)
+        #expect(s.lastReply == nil && s.title == "T")
+    }
+}

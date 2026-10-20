@@ -68,8 +68,10 @@ struct WaveAdapter {
         let pid = app.processIdentifier
         let block = terminal.waveBlockId
         DispatchQueue.global(qos: .userInitiated).async {
-            guard let place = WaveDB.place(ofTab: tab) else { return }
-            if WaveTabBar(pid: pid).press(tabIndex: place.index, among: place.names) {
+            // Re-read Wave's state on every attempt: a tab just created or renamed, or a block
+            // moved to another tab, may reach the DB or the tab bar a moment later.
+            let found = WaveTabBar(pid: pid).press { WaveDB.place(ofBlock: block, tab: tab) }
+            if found {
                 usleep(150_000)
                 if let block { run(["focusblock", "-b", block]) }
             }
@@ -102,14 +104,19 @@ enum WaveDB {
         Paths.home().appendingPathComponent("Library/Application Support/waveterm/db/waveterm.db").path
     }
 
-    /// The tab's position in its workspace and the names of all tabs there, in order.
-    static func place(ofTab tab: String) -> (index: Int, names: [String])? {
+    /// Where the block is now (the tab holding it; else the tab it started in): that tab's position
+    /// in its workspace and the names of all tabs there, in order.
+    static func place(ofBlock block: String?, tab: String) -> (index: Int, names: [String])? {
         var names: [String: String] = [:]
+        var holder: String?
         for row in query("SELECT data FROM db_tab") {
-            if let id = row["oid"]?.string { names[id] = row["name"]?.string ?? "" }
+            guard let id = row["oid"]?.string else { continue }
+            names[id] = row["name"]?.string ?? ""
+            if let block, row["blockids"]?.array?.contains(where: { $0.string == block }) == true { holder = id }
         }
+        let target = holder ?? tab
         for ws in query("SELECT data FROM db_workspace") {
-            guard let ids = ws["tabids"]?.array?.compactMap(\.string), let i = ids.firstIndex(of: tab) else { continue }
+            guard let ids = ws["tabids"]?.array?.compactMap(\.string), let i = ids.firstIndex(of: target) else { continue }
             return (i, ids.map { names[$0] ?? "" })
         }
         return nil
@@ -134,18 +141,23 @@ enum WaveDB {
 struct WaveTabBar {
     let pid: pid_t
 
-    /// Finds the window whose tab names match the workspace and presses the tab at `index`.
-    func press(tabIndex index: Int, among names: [String]) -> Bool {
+    /// Finds the window whose tab names match the workspace and presses the tab at the index.
+    /// `place` is asked again on each attempt. A looser match (same count, same name at the index)
+    /// is only used once exact matching has had all its tries.
+    func press(_ place: () -> (index: Int, names: [String])?) -> Bool {
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
-        for attempt in 0..<8 {
+        let attempts = 8
+        for attempt in 0..<attempts {
             if attempt > 0 { usleep(250_000) }
+            guard let (index, names) = place() else { continue }
             let windows = (attr(app, kAXWindowsAttribute) as? [AXUIElement]) ?? []
-            let bars = windows.compactMap { w in tabs(in: w).map { (w, $0) } }
-            guard !bars.isEmpty else { continue }
-            let match = bars.first { $0.1.map(label) == names }
-                ?? bars.first { $0.1.count == names.count && $0.1.indices.contains(index) && label($0.1[index]) == names[index] }
-            guard let (window, tabs) = match, tabs.indices.contains(index) else { return false }
+            let bars = windows.compactMap { w in tabs(in: w).map { (w, $0) } }.filter { !$0.1.isEmpty }
+            var match = bars.first { $0.1.map(label) == names }
+            if match == nil, attempt == attempts - 1 {
+                match = bars.first { $0.1.count == names.count && $0.1.indices.contains(index) && label($0.1[index]) == names[index] }
+            }
+            guard let (window, tabs) = match, tabs.indices.contains(index) else { continue }
             AXUIElementPerformAction(window, kAXRaiseAction as CFString)
             return AXUIElementPerformAction(tabs[index], kAXPressAction as CFString) == .success
         }

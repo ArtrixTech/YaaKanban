@@ -1,8 +1,32 @@
 # Devlog
 
-## fix(ui): steady panel height, status-first order, brand header
+## feat(ui): tap to jump, resizable panel, live replies, usage stats
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - Card tap jumps to the agent; a chevron (or the context menu) expands it. Same in the menu popover.
+  - The panel list height is set by dragging a bottom grip (`panelListHeight`, 120–1400). The grip is an AppKit view so the drag does not move the window. Header buttons open the main window and settings: a notification goes to `WindowOpener` in the menu-bar label, which has `openWindow` / `openSettings`.
+  - Card rows: title / agent, project, status, stats / the agent's latest text this turn / the running tool. The prompt moved into the expanded view, and a new prompt clears the previous turn's reply.
+  - `TranscriptTally` reads Claude and Codex transcripts incrementally on a background queue. It collects tokens (input, output, cache read/write, context; Codex also gives the context window), tool calls by name, and the latest assistant text. Shown as a badge on cards and a grid in the expanded card and detail view.
+  - Wave jump: looks up the tab that holds the agent's block now, and re-reads the DB and tab bar on each retry. The loose window match is only used after exact matching has had all its tries.
+  - Logo: A2 graphite with a green dot, the dot under column 3 and flush with column 1's bottom.
+- **Reason**: Round 4 feedback.
+- **User feedback**:
+  - "agent条目默认点击后打开对应agent而不是展开…悬浮窗高度允许调整…第三行显示agent的任何回复。第四行才是工具调用…显示工具效用/token数量的统计"
+  - "悬浮窗要允许打开主界面/设置界面"
+  - "wave新建tab的时候点击查看agent会有tab对应问题，需要每次重新读取"
+- **Process**:
+  - Claude: message usage is repeated on every content-block line, so it is deduped by message id.
+  - Codex: `token_count` totals are cumulative, and `input_tokens` includes cached tokens.
+  - Benchmark: generic `Data.contains` took 31 s on a 100 MB transcript. memmem takes 0.74 s with identical totals (14 MB Codex: 0.19 s).
+  - The panel buttons were tested by pressing them through System Events: the main and settings windows open.
+- **Result**: `make test` 54/54.
+- **Notes**: Wave's tab DOM carries no tab id, so window and tab matching still depends on the tab names in the DB.
+
+## fix(ui): steady panel height, status-first order, brand header
+
+`c9b03c1` | 2026-10-20
 
 - **Changes**:
   - The panel content is top-aligned in a host pinned to all edges. SwiftUI reports the natural height, and the window follows it on the next runloop turn. It used to be sized by `intrinsicContentSize`.

@@ -41,6 +41,8 @@ public enum SessionReducer {
             s.turns.append(Turn(id: s.turns.count + 1, prompt: prompt, startedAt: e.at, toolCount: 0))
             s.status = .running
             s.unreadSince = nil
+            // The previous turn's reply; the transcript scan fills in this turn's.
+            s.peek?.lastReply = nil
             clearAttention(&s)
 
         case .toolStart(let id, let name, let input):

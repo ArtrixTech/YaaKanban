@@ -198,6 +198,8 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var unreadSince: Date?
     /// What the transcript says, for sessions whose turns we did not see through hooks.
     public var peek: TranscriptPeek?
+    /// Token and tool totals from the transcript, when it can be read.
+    public var usage: Usage?
 
     public static let toolHistoryLimit = 200
 

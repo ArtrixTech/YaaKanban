@@ -20,6 +20,7 @@ final class AppModel {
     }
     @ObservationIgnored private var pendingReplies: [String: PendingReply] = [:]
     @ObservationIgnored private var timers: [Timer] = []
+    @ObservationIgnored private let usageTracker = UsageTracker()
     @ObservationIgnored let notifier = Notifier()
     @ObservationIgnored lazy var jumper = TerminalJumper(settings: settings)
     @ObservationIgnored private let scanner = ClaudeSessionScanner()
@@ -263,6 +264,24 @@ final class AppModel {
                 guard var s else { return nil }
                 s.peek = peek
                 return s
+            }
+        }
+        usageTracker.refresh(activeSessions.map {
+            UsageTracker.Target(key: $0.id, agent: $0.agent, sessionId: $0.sessionId, transcriptPath: $0.transcriptPath)
+        }) { [weak self] results in
+            guard let self else { return }
+            for (key, r) in results {
+                update(key, alert: false) { s in
+                    guard var s else { return nil }
+                    s.usage = r.usage
+                    // Claude's reply comes from the transcript peek; Codex has none, so use the tally's.
+                    if s.agent == .codex {
+                        var p = s.peek ?? TranscriptPeek()
+                        p.lastReply = r.lastReply
+                        s.peek = p
+                    }
+                    return s
+                }
             }
         }
     }

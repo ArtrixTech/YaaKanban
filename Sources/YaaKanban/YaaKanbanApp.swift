@@ -10,7 +10,7 @@ struct YaaKanbanApp: App {
         MenuBarExtra {
             MenuContent(panel: delegate.panel).environment(delegate.model)
         } label: {
-            MenuBarLabel().environment(delegate.model)
+            MenuBarLabel().environment(delegate.model).modifier(WindowOpener())
         }
         .menuBarExtraStyle(.window)
 

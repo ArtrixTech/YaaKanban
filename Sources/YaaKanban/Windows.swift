@@ -51,6 +51,7 @@ struct MenuContent: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openWindow) private var openWindow
     let panel: FloatingPanelController
+    @State private var expanded: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -60,7 +61,9 @@ struct MenuContent: View {
                 EmptyBoard()
             } else {
                 ScrollView {
-                    BoardList { open($0) }
+                    BoardList(expanded: expanded) { s in
+                        withAnimation(.spring(duration: 0.3, bounce: 0.15)) { expanded = expanded == s.id ? nil : s.id }
+                    }
                 }
                 .frame(maxHeight: 460)
                 .scrollIndicators(.never)
@@ -107,11 +110,18 @@ struct FloatingPanelView: View {
     var onHeight: (CGFloat) -> Void = { _ in }
     @State private var expanded: String?
     @State private var listHeight: CGFloat = 0
+    /// List height when a resize drag began.
+    @State private var dragStart: CGFloat?
+
+    static let minList: CGFloat = 120
+    static let maxList: CGFloat = 1400
 
     var body: some View {
         @Bindable var settings = model.settings
         VStack(alignment: .leading, spacing: 10) {
             BoardHeader {
+                IconButton(symbol: "macwindow", help: "主界面") { AppWindows.open(.main) }
+                IconButton(symbol: "gearshape", help: "设置") { AppWindows.open(.settings) }
                 IconButton(symbol: settings.panelCollapsed ? "chevron.down" : "chevron.up",
                            help: settings.panelCollapsed ? "展开" : "收起") {
                     withAnimation(.snappy) { settings.panelCollapsed.toggle() }
@@ -129,18 +139,88 @@ struct FloatingPanelView: View {
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
                     }
                     .scrollIndicators(.never)
-                    .frame(height: min(listHeight, 560))
+                    .frame(height: min(listHeight, settings.panelListHeight))
                     .transition(.opacity)
+                    ResizeGrip { delta in
+                        if delta == nil { dragStart = nil; return }
+                        let start = dragStart ?? min(listHeight, settings.panelListHeight)
+                        dragStart = start
+                        settings.panelListHeight = min(Self.maxList, max(Self.minList, start + delta!))
+                    }
                 }
             }
         }
-        .padding(10)
+        .padding(.horizontal, 10).padding(.top, 10)
+        .padding(.bottom, settings.panelCollapsed || model.activeSessions.isEmpty ? 10 : 0)
         .frame(width: 340, alignment: .top)
         .fixedSize(horizontal: false, vertical: true)
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { onHeight($0) }
         // Top-aligned however tall the window is at the moment: while it catches up with the
         // content, the default (centering) would shift the top edge up and down.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+}
+
+/// Bottom handle that sets the list height. AppKit-backed so the drag does not move the
+/// (movable-by-background) window, and so it shows the resize cursor.
+struct ResizeGrip: View {
+    /// Vertical drag distance (down is positive); nil when the drag ends.
+    var onDrag: (CGFloat?) -> Void
+    @State private var hover = false
+
+    var body: some View {
+        Capsule().fill(.primary.opacity(hover ? 0.35 : 0.15)).frame(width: 36, height: 4)
+            .frame(maxWidth: .infinity).frame(height: 14)
+            .overlay(GripTracker(onDrag: onDrag))
+            .onHover { hover = $0 }
+            .animation(.easeOut(duration: 0.12), value: hover)
+            .help("拖动调整高度")
+    }
+}
+
+private struct GripTracker: NSViewRepresentable {
+    var onDrag: (CGFloat?) -> Void
+
+    func makeNSView(context: Context) -> TrackerView { TrackerView() }
+    func updateNSView(_ v: TrackerView, context: Context) { v.onDrag = onDrag }
+
+    final class TrackerView: NSView {
+        var onDrag: (CGFloat?) -> Void = { _ in }
+        private var startY: CGFloat?
+
+        override var mouseDownCanMoveWindow: Bool { false }
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+        override func resetCursorRects() { addCursorRect(bounds, cursor: .resizeUpDown) }
+        override func mouseDown(with e: NSEvent) { startY = NSEvent.mouseLocation.y }
+        override func mouseDragged(with e: NSEvent) {
+            guard let startY else { return }
+            onDrag(startY - NSEvent.mouseLocation.y)
+        }
+        override func mouseUp(with e: NSEvent) { startY = nil; onDrag(nil) }
+    }
+}
+
+/// Opens the SwiftUI windows from AppKit code (the floating panel is outside any scene, so it has
+/// no `openWindow`). `WindowOpener`, living in the menu-bar label, does the opening.
+enum AppWindows {
+    enum Kind: String { case main, settings }
+    static let request = Notification.Name("YaaOpenWindow")
+    static func open(_ k: Kind) { NotificationCenter.default.post(name: request, object: k.rawValue) }
+}
+
+struct WindowOpener: ViewModifier {
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
+
+    func body(content: Content) -> some View {
+        content.onReceive(NotificationCenter.default.publisher(for: AppWindows.request)) { n in
+            NSApp.activate()
+            switch AppWindows.Kind(rawValue: n.object as? String ?? "") {
+            case .main: openWindow(id: "main")
+            case .settings: openSettings()
+            case nil: break
+            }
+        }
     }
 }
 
