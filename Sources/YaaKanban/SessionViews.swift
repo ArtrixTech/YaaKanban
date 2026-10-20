@@ -119,7 +119,7 @@ struct SessionCard: View {
             if expanded { expandedBody(st) }
         }
         .padding(10)
-        .card(st, hover: hover)
+        .sessionCard(session, hover: hover)
         .contentShape(RoundedRectangle(cornerRadius: 12))
         .onHover { hover = $0 }
         .animation(.easeOut(duration: 0.12), value: hover)

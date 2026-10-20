@@ -185,6 +185,8 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var status: SessionStatus
     public var stuckReason: String?
     public var needsInputMessage: String?
+    /// When it last started waiting on the user (`.needsInput`), for the reminder flash.
+    public var needsInputSince: Date?
     public var pendingPermission: PermissionRequest?
     public var startedAt: Date
     public var lastEventAt: Date
@@ -250,6 +252,33 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
 
     /// The agent's latest reply, from hooks or the transcript.
     public var lastReply: String? { currentTurn?.lastMessage ?? peek?.lastReply }
+}
+
+/// How a card asks for a second look, from how long it has been sitting.
+public enum Attention {
+    /// Waiting on the user this long without being clicked: the card flashes.
+    public static let flashAfter: TimeInterval = 30
+    /// A reviewed turn with nothing after it starts turning blue after this long.
+    public static let staleAfter: TimeInterval = 10 * 60
+
+    /// Whether a session waiting on the user should flash: it has waited `flashAfter` since it
+    /// started waiting, and the user has not clicked it since.
+    public static func flashes(_ s: SessionState, acknowledged: Date?, now: Date) -> Bool {
+        guard s.status == .needsInput, let since = s.needsInputSince else { return false }
+        if let a = acknowledged, a >= since { return false }
+        return now.timeIntervalSince(since) >= flashAfter
+    }
+
+    /// 0 to 1: how blue a reviewed, finished turn is. Rises from `staleAfter` to the middle of
+    /// `staleAfter` and `linger` (when the card leaves the board), then falls back to 0.
+    public static func staleness(_ s: SessionState, linger: TimeInterval, now: Date) -> Double {
+        guard s.display == .done, linger > staleAfter else { return 0 }
+        let t = now.timeIntervalSince(s.lastEventAt)
+        let peak = (staleAfter + linger) / 2
+        let x = t < peak ? (t - staleAfter) / (peak - staleAfter) : (linger - t) / (linger - peak)
+        let c = min(1, max(0, x))
+        return sin(c * .pi / 2)  // visible soon after it starts, flat at the peak
+    }
 }
 
 public enum DisplayStatus: Sendable {

@@ -79,7 +79,7 @@ struct NarrowSessionCard: View {
         // Until measured, at most this tall, so the first frame is never taller than the card.
         .frame(maxWidth: .infinity, minHeight: height, maxHeight: height ?? 60, alignment: .topLeading)
         .clipped()
-        .card(st, hover: hover)
+        .sessionCard(session, hover: hover)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .background(alignment: .topLeading) {
             if width > 0 {

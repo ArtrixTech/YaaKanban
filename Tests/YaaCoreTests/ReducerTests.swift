@@ -603,3 +603,47 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(s.dismissedAt == nil)
     }
 }
+
+@Suite struct AttentionTests {
+    private func waiting() -> SessionState {
+        fold([
+            claude("UserPromptSubmit", ["prompt": .string("go")]),
+            claude("Notification", ["message": .string("Claude needs your permission"),
+                                    "notification_type": .string("permission_prompt")], at: 10),
+        ])
+    }
+
+    @Test func flashesAfterThirtySecondsUnlessClicked() {
+        let s = waiting()
+        #expect(s.status == .needsInput)
+        #expect(s.needsInputSince == t0.addingTimeInterval(10))
+        #expect(!Attention.flashes(s, acknowledged: nil, now: t0.addingTimeInterval(39)))
+        #expect(Attention.flashes(s, acknowledged: nil, now: t0.addingTimeInterval(41)))
+        // Clicked after it started waiting: no flash. Clicked before: still flashes.
+        #expect(!Attention.flashes(s, acknowledged: t0.addingTimeInterval(20), now: t0.addingTimeInterval(60)))
+        #expect(Attention.flashes(s, acknowledged: t0.addingTimeInterval(5), now: t0.addingTimeInterval(60)))
+    }
+
+    @Test func waitingSinceClearsWhenItMovesOn() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("next")], at: 50)], into: waiting())
+        #expect(s.status == .running)
+        #expect(s.needsInputSince == nil)
+    }
+
+    @Test func staleBlueRisesToTheMiddleThenFades() {
+        var s = fold([claude("UserPromptSubmit", ["prompt": .string("go")]), claude("Stop", at: 1)])
+        s.unreadSince = nil  // reviewed
+        #expect(s.display == .done)
+        let end = s.lastEventAt, linger: TimeInterval = 8 * 3600
+        func at(_ m: Double) -> Double { Attention.staleness(s, linger: linger, now: end.addingTimeInterval(m * 60)) }
+        #expect(at(5) == 0)
+        #expect(at(10) == 0)
+        #expect(at(60) > 0 && at(60) < at(120))
+        #expect(abs(at(245) - 1) < 1e-9)  // (10 + 480) / 2 minutes
+        #expect(at(400) < at(300))
+        #expect(at(480) == 0)
+        // Not yet reviewed: green "to review", not blue.
+        s.unreadSince = end
+        #expect(Attention.staleness(s, linger: linger, now: end.addingTimeInterval(245 * 60)) == 0)
+    }
+}

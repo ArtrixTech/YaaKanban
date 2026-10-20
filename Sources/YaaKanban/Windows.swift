@@ -195,7 +195,7 @@ struct FloatingPanelView: View {
         }
         // Folded, the sides match the gap between cards.
         .padding(.horizontal, folded ? Rail.inset : 10).padding(.top, 10)
-        .padding(.bottom, settings.panelCollapsed || model.activeSessions.isEmpty ? 10 : 0)
+        .padding(.bottom, folded ? Rail.inset : settings.panelCollapsed || model.activeSessions.isEmpty ? 10 : 0)
         .environment(\.railExtra, folded ? settings.panelWidth - Rail.width : nil)
         .frame(width: folded ? Rail.width : settings.panelWidth, alignment: .top)
         .fixedSize(horizontal: false, vertical: true)
@@ -263,11 +263,14 @@ struct FloatingPanelView: View {
                     .scrollIndicators(.never)
                     .frame(height: shownList)
                     .transition(.opacity)
-                    ResizeGrip { delta in
-                        if delta == nil { dragStart = nil; return }
-                        let start = dragStart ?? shownList
-                        dragStart = start
-                        settings.panelListHeight = min(Self.maxList, max(Self.minList, start + delta!))
+                    // Folded, the bottom is an edge like the sides; the height is set unfolded.
+                    if !folded {
+                        ResizeGrip { delta in
+                            if delta == nil { dragStart = nil; return }
+                            let start = dragStart ?? shownList
+                            dragStart = start
+                            settings.panelListHeight = min(Self.maxList, max(Self.minList, start + delta!))
+                        }
                     }
                 }
             }
@@ -300,14 +303,13 @@ final class PanelRoom {
 /// Bottom handle that sets the list height. AppKit-backed so the drag does not move the
 /// (movable-by-background) window, and so it shows the resize cursor.
 struct ResizeGrip: View {
-    @Environment(\.railExtra) private var railExtra
     /// Vertical drag distance (down is positive); nil when the drag ends.
     var onDrag: (CGFloat?) -> Void
     @State private var hover = false
 
     var body: some View {
         Capsule().fill(.primary.opacity(hover ? 0.35 : 0.15)).frame(width: 36, height: 4)
-            .frame(maxWidth: .infinity).frame(height: railExtra == nil ? 14 : 10)
+            .frame(maxWidth: .infinity).frame(height: 14)
             .overlay(GripTracker(axis: .vertical, onDrag: onDrag))
             .onHover { hover = $0 }
             .animation(.easeOut(duration: 0.12), value: hover)

@@ -365,7 +365,11 @@ final class AppModel {
         }
     }
 
+    /// When the user last clicked each card, so a session waiting on them stops flashing.
+    private(set) var acknowledged: [String: Date] = [:]
+
     func jump(_ key: String) {
+        acknowledged[key] = Date()
         // A sub-agent has no window of its own; it runs inside its parent's.
         if let p = sessions[key]?.parentId, sessions[p] != nil { return jump(p) }
         markRead(key)
