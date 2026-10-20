@@ -200,6 +200,8 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var peek: TranscriptPeek?
     /// Token and tool totals from the transcript, when it can be read.
     public var usage: Usage?
+    /// Set when the user ends the session in the panel; it stays in history but leaves the boards.
+    public var dismissedAt: Date?
 
     public static let toolHistoryLimit = 200
 

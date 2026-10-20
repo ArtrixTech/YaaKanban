@@ -13,6 +13,9 @@ private final class BoardPanel: NSPanel {
 final class FloatingPanelController: NSObject, NSWindowDelegate {
     private let panel: NSPanel
     private let model: AppModel
+    private let room = PanelRoom()
+    /// Gap kept to the screen's usable area, matching where snapping puts the panel.
+    static let margin: CGFloat = 8
     static let snapDistance: CGFloat = 24
     static let radius: CGFloat = 16
     static let width: CGFloat = 340
@@ -46,7 +49,8 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
             onHeight: { [weak self] h in
                 // Outside the layout pass that reported it; top alignment hides the one-frame lag.
                 DispatchQueue.main.async { self?.fit(height: h) }
-            })
+            },
+            room: room)
             .environment(model))
         host.sizingOptions = []
         host.autoresizingMask = [.width, .height]
@@ -65,6 +69,12 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
             panel.setFrameOrigin(NSPoint(x: f.maxX - Self.width - 16, y: f.maxY - 136))
         }
         panel.setFrameAutosaveName("YaaFloatingPanel")
+        updateRoom()
+        // Dock, resolution or display arrangement changed.
+        NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
+                                               object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.updateRoom() }
+        }
         applyOpacity()
     }
 
@@ -86,19 +96,34 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
 
     func toggle() { setVisible(!(panel.isVisible && panel.alphaValue > 0)) }
 
-    /// Resizes to the content, keeping the edge it is snapped to (top unless at the bottom) in place.
+    /// Resizes to the content, keeping the edge it is snapped to (top unless at the bottom) in
+    /// place, and always inside the screen's usable area.
     private func fit(height: CGFloat) {
         let h = ceil(height)
         guard h > 0, abs(panel.frame.height - h) >= 1 else { return }
         var f = panel.frame
-        let pinBottom = panel.screen.map { abs(f.minY - $0.visibleFrame.minY) < Self.snapDistance } ?? false
+        let pinBottom = panel.screen.map { f.minY - $0.visibleFrame.minY < Self.snapDistance } ?? false
         if !pinBottom { f.origin.y = f.maxY - h }
         f.size = NSSize(width: Self.width, height: h)
+        if let v = usable { f.origin.y = min(max(f.minY, v.minY), max(v.minY, v.maxY - f.height)) }
         panel.setFrame(f, display: true)
         panel.invalidateShadow()
     }
 
+    /// The screen's usable area less the snapping margin.
+    private var usable: NSRect? {
+        panel.screen.map { $0.visibleFrame.insetBy(dx: Self.margin, dy: Self.margin) }
+    }
+
+    private func updateRoom() {
+        let h = usable?.height ?? .infinity
+        if room.height != h { room.height = h }
+    }
+
+    func windowDidChangeScreen(_ notification: Notification) { updateRoom() }
+
     func windowDidMove(_ notification: Notification) {
+        updateRoom()
         // Snap once the drag settles.
         NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(snapLater), object: nil)
         perform(#selector(snapLater), with: nil, afterDelay: 0.15)
@@ -107,18 +132,18 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
     @objc private func snapLater() { snap() }
 
     private func snap() {
-        guard let screen = panel.screen else { return }
-        let v = screen.visibleFrame.insetBy(dx: 8, dy: 8)
+        guard let v = usable else { return }
         var f = panel.frame
         let d = Self.snapDistance
         if abs(f.minX - v.minX) < d { f.origin.x = v.minX }
         if abs(f.maxX - v.maxX) < d { f.origin.x = v.maxX - f.width }
         if abs(f.minY - v.minY) < d { f.origin.y = v.minY }
         if abs(f.maxY - v.maxY) < d { f.origin.y = v.maxY - f.height }
+        // Dropped partly off the bottom or top: pull it back in.
+        f.origin.y = min(max(f.minY, v.minY), max(v.minY, v.maxY - f.height))
         if f != panel.frame { panel.setFrame(f, display: true, animate: true) }
     }
 
-    /// Stretchable rounded-rect mask for the vibrancy view.
     private static func roundedMask(radius: CGFloat) -> NSImage {
         let edge = radius * 2 + 1
         let img = NSImage(size: NSSize(width: edge, height: edge), flipped: false) { rect in

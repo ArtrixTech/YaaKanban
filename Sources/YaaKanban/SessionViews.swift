@@ -93,6 +93,9 @@ struct SessionCard: View {
                                 .font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.secondary)
                         }
                         ExpandButton(expanded: expanded, action: onExpand)
+                        CardIconButton(symbol: "xmark", help: "结束：移出悬浮窗（保留在历史，需要你时会回来）") {
+                            model.dismiss(session.id)
+                        }
                     }
                     // 2: agent, project, status, stats.
                     HStack(spacing: 5) {
@@ -129,6 +132,7 @@ struct SessionCard: View {
             Divider()
             MoveMenu(ids: [session.id])
             Divider()
+            Button("结束（移出悬浮窗）") { model.dismiss(session.id) }
             Button("从列表删除", role: .destructive) { model.remove(session.id) }
         }
     }
@@ -331,13 +335,25 @@ struct GroupHeader: View {
 struct ExpandButton: View {
     let expanded: Bool
     var action: () -> Void
+
+    var body: some View {
+        CardIconButton(symbol: "chevron.down", help: expanded ? "收起详情" : "展开详情", action: action)
+            .rotationEffect(.degrees(expanded ? 180 : 0))
+            .animation(.snappy, value: expanded)
+    }
+}
+
+/// Small round icon button on a card, so a tap on it does not count as a tap on the card.
+struct CardIconButton: View {
+    let symbol: String
+    let help: String
+    var action: () -> Void
     @State private var hover = false
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "chevron.down")
+            Image(systemName: symbol)
                 .font(.system(size: 9.5, weight: .bold))
-                .rotationEffect(.degrees(expanded ? 180 : 0))
                 .frame(width: 18, height: 18)
                 .background(Circle().fill(.primary.opacity(hover ? 0.12 : 0.06)))
                 .foregroundStyle(hover ? .primary : .secondary)
@@ -345,8 +361,7 @@ struct ExpandButton: View {
         }
         .buttonStyle(.plain)
         .onHover { hover = $0 }
-        .animation(.snappy, value: expanded)
-        .help(expanded ? "收起详情" : "展开详情")
+        .help(help)
     }
 }
 

@@ -5,6 +5,19 @@ public enum SessionReducer {
     public static let outputLimit = 2048
 
     public static func apply(_ e: AgentEvent, to existing: SessionState?) -> SessionState {
+        var s = reduce(e, existing)
+        // A session the user ended comes back only when it needs them again: a new turn starts
+        // or it asks for input. Finishing the turn it was in does not count.
+        if s.dismissedAt != nil, let old = existing {
+            let newTurn = s.turns.count > old.turns.count
+            let wants = s.status == .needsInput && old.status != .needsInput
+            let started = s.status == .running && old.status != .running && old.status != .stuck
+            if newTurn || wants || started { s.dismissedAt = nil }
+        }
+        return s
+    }
+
+    private static func reduce(_ e: AgentEvent, _ existing: SessionState?) -> SessionState {
         var s = existing ?? SessionState(agent: e.agent, sessionId: e.sessionId, at: e.at)
         if s.projectDir == nil { s.projectDir = e.cwd }
         if case .statusSnapshot(let status) = e.kind {

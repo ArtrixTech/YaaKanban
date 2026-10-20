@@ -37,6 +37,7 @@ final class AppModel {
     var activeSessions: [SessionState] {
         let now = Date()
         return sorted(sessions.values.filter { s in
+            if s.dismissedAt != nil { return false }
             switch s.status {
             case .ended: return false
             // Unreviewed results stay until looked at; reviewed ones fade out after a while.
@@ -78,14 +79,18 @@ final class AppModel {
         }
     }
 
-    var attentionCount: Int { sessions.values.filter { $0.status.needsAttention }.count }
+    /// Sessions the user has not ended; counts and badges ignore the rest.
+    private var visible: [SessionState] { sessions.values.filter { $0.dismissedAt == nil } }
+    var attentionCount: Int { visible.filter { $0.status.needsAttention }.count }
     /// Sessions waiting on the user: blocked, stuck, or finished and not yet reviewed.
     var pendingCount: Int { sessions.values.filter(Self.wantsUser).count }
-    static func wantsUser(_ s: SessionState) -> Bool { s.status.needsAttention || s.display == .review }
-    var hasStuck: Bool { sessions.values.contains { $0.status == .stuck } }
-    var hasNeedsInput: Bool { sessions.values.contains { $0.status == .needsInput } }
-    var reviewCount: Int { sessions.values.filter { $0.display == .review }.count }
-    var runningCount: Int { sessions.values.filter { $0.status == .running }.count }
+    static func wantsUser(_ s: SessionState) -> Bool {
+        s.dismissedAt == nil && (s.status.needsAttention || s.display == .review)
+    }
+    var hasStuck: Bool { visible.contains { $0.status == .stuck } }
+    var hasNeedsInput: Bool { visible.contains { $0.status == .needsInput } }
+    var reviewCount: Int { visible.filter { $0.display == .review }.count }
+    var runningCount: Int { visible.filter { $0.status == .running }.count }
 
     /// History order: most recent first.
     private func sorted(_ list: [SessionState]) -> [SessionState] {
@@ -182,7 +187,7 @@ final class AppModel {
             pendingReplies.removeValue(forKey: key)?.send(Wire.encode(WireReply(decision: nil)))
             notifier.withdraw(key: key)
         }
-        if alert, let a = Alerts.between(old, new) { notifier.post(a, for: new, settings: settings) }
+        if alert, new.dismissedAt == nil, let a = Alerts.between(old, new) { notifier.post(a, for: new, settings: settings) }
         // The Wave badge stays on until the user has dealt with it, including reviewing a finished turn.
         if (old.map(Self.wantsUser) ?? false) != Self.wantsUser(new) { jumper.badge(new, on: Self.wantsUser(new)) }
         return key
@@ -301,6 +306,24 @@ final class AppModel {
     func jump(_ key: String) {
         markRead(key)
         if let s = sessions[key] { jumper.jump(to: s) }
+    }
+
+    /// Ends a session on the boards: it stays in history and comes back if the agent needs the user.
+    func dismiss(_ key: String) {
+        update(key, alert: false) { s in
+            guard var s else { return nil }
+            s.dismissedAt = Date()
+            s.unreadSince = nil
+            return s
+        }
+    }
+
+    func undismiss(_ key: String) {
+        update(key, alert: false) { s in
+            guard var s, s.dismissedAt != nil else { return nil }
+            s.dismissedAt = nil
+            return s
+        }
     }
 
     func remove(_ key: String) {

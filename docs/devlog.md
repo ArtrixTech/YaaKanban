@@ -1,8 +1,20 @@
 # Devlog
 
-## fix(jump): find the host app by process ancestry; raise Cursor's window
+## feat(panel): end sessions from the panel; keep the panel on screen
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - Each card has a ✕ ("结束") button, also in the context menu. It sets `SessionState.dismissedAt`, which hides the session from the panel and the menu, clears its review mark, and leaves it out of badges, counts and notifications. It stays in the main window's history, where "恢复到悬浮窗" brings it back.
+  - A dismissed session comes back by itself only if it needs the user: a new prompt, a question, or a jump from idle to running. Finishing the turn it was in does not bring it back.
+  - The panel window is always kept inside the screen's usable area: fit() and snapping clamp it vertically. The list gives way to the room left on the screen (PanelRoom, updated on move, screen change and screen-parameter change).
+- **Reason**: "需要每个条目有按钮点击结束（不再出现在悬浮窗里面）" "靠边吸附的时候，如果靠下吸附，窗体变高，下面会被遮挡".
+- **Process**: The panel was found with its bottom 161 pt below the built-in display. Nothing kept the frame on screen, and the list (up to 1400 pt) could outgrow the screen. A ✕ click on a live card removed it, and the panel shrank with its bottom edge unchanged.
+- **Result**: `make test` 56/56.
+
+## fix(jump): find the host app by process ancestry; raise Cursor's window
+
+`e7f9928` | 2026-10-20
 
 - **Changes**:
   - The jump walks up from the agent pid to the first regular app, and falls back to TERM_PROGRAM.

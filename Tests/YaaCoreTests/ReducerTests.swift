@@ -533,3 +533,36 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(s.lastReply == nil && s.title == "T")
     }
 }
+
+@Suite struct Dismissal {
+    let t0 = Date(timeIntervalSince1970: 1_000)
+    private func ev(_ k: AgentEvent.Kind, _ dt: TimeInterval) -> AgentEvent {
+        AgentEvent(agent: .claudeCode, sessionId: "d", at: t0.addingTimeInterval(dt), kind: k)
+    }
+
+    @Test func endedSessionStaysAwayUntilItNeedsTheUser() {
+        var s = SessionReducer.apply(ev(.promptSubmitted("go"), 0), to: nil)
+        s.dismissedAt = t0
+        // The turn it was in carries on and finishes: still dismissed.
+        s = SessionReducer.apply(ev(.toolStart(id: "1", name: "Bash", input: .null), 1), to: s)
+        s = SessionReducer.apply(ev(.turnEnd(lastMessage: "ok"), 2), to: s)
+        #expect(s.dismissedAt != nil)
+        // It asks for input: back.
+        s.dismissedAt = t0
+        s = SessionReducer.apply(ev(.needsInput("?"), 3), to: s)
+        #expect(s.dismissedAt == nil)
+        // A new prompt: back.
+        s.dismissedAt = t0
+        s = SessionReducer.apply(ev(.promptSubmitted("again"), 4), to: s)
+        #expect(s.dismissedAt == nil)
+    }
+
+    @Test func unhookedSnapshotsDoNotReviveIdleSession() {
+        var s = SessionReducer.apply(ev(.statusSnapshot(.idle), 0), to: nil)
+        s.dismissedAt = t0
+        s = SessionReducer.apply(ev(.statusSnapshot(.idle), 5), to: s)
+        #expect(s.dismissedAt != nil)
+        s = SessionReducer.apply(ev(.statusSnapshot(.running), 6), to: s)
+        #expect(s.dismissedAt == nil)
+    }
+}

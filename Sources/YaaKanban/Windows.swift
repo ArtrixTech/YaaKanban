@@ -108,8 +108,12 @@ struct FloatingPanelView: View {
     var onHide: () -> Void = {}
     /// Natural content height, reported on every layout change so the window can follow it.
     var onHeight: (CGFloat) -> Void = { _ in }
+    /// Room the window has on its screen; the list gives way so the panel never runs off it.
+    var room: PanelRoom?
     @State private var expanded: String?
     @State private var listHeight: CGFloat = 0
+    /// Everything but the list (header, grip, padding), so the list knows what is left for it.
+    @State private var chrome: CGFloat = 0
     /// List height when a resize drag began.
     @State private var dragStart: CGFloat?
 
@@ -139,11 +143,11 @@ struct FloatingPanelView: View {
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
                     }
                     .scrollIndicators(.never)
-                    .frame(height: min(listHeight, settings.panelListHeight))
+                    .frame(height: shownList)
                     .transition(.opacity)
                     ResizeGrip { delta in
                         if delta == nil { dragStart = nil; return }
-                        let start = dragStart ?? min(listHeight, settings.panelListHeight)
+                        let start = dragStart ?? shownList
                         dragStart = start
                         settings.panelListHeight = min(Self.maxList, max(Self.minList, start + delta!))
                     }
@@ -154,11 +158,27 @@ struct FloatingPanelView: View {
         .padding(.bottom, settings.panelCollapsed || model.activeSessions.isEmpty ? 10 : 0)
         .frame(width: 340, alignment: .top)
         .fixedSize(horizontal: false, vertical: true)
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { onHeight($0) }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
+            chrome = h - (listShown ? shownList : 0)
+            onHeight(h)
+        }
         // Top-aligned however tall the window is at the moment: while it catches up with the
         // content, the default (centering) would shift the top edge up and down.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
+
+    private var listShown: Bool { !model.settings.panelCollapsed && !model.activeSessions.isEmpty }
+
+    private var shownList: CGFloat {
+        let fits = room.map { max(Self.minList, $0.height - chrome) } ?? .infinity
+        return min(listHeight, model.settings.panelListHeight, fits)
+    }
+}
+
+/// Usable height on the floating panel's screen, kept current by the panel controller.
+@MainActor @Observable
+final class PanelRoom {
+    var height: CGFloat = .infinity
 }
 
 /// Bottom handle that sets the list height. AppKit-backed so the drag does not move the
@@ -282,6 +302,7 @@ struct MainWindow: View {
                     .tag(s.id)
                     .contextMenu {
                         if s.display == .review { Button("标记已验收") { model.markRead(s.id) } }
+                        if s.dismissedAt != nil { Button("恢复到悬浮窗") { model.undismiss(s.id) } }
                         Button("从历史删除", role: .destructive) { model.remove(s.id) }
                     }
                 }
