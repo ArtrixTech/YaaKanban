@@ -438,6 +438,20 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(Board.move(["claude-code:c"], before: nil, board: flat, manualOrder: []).last == "claude-code:c")
     }
 
+    @Test func statusTiersComeFirst() {
+        var r = s("r", "/R", 1); r.status = .running
+        var v = s("v", "/V", 2); v.status = .idle; v.unreadSince = t0
+        var d = s("d", "/D", 0); d.status = .idle
+        var a = s("a", "/A", 3); a.status = .needsInput
+        var r2 = s("r2", "/V", 4); r2.status = .running
+        let g = Board.groups([r, v, d, a, r2], manualOrder: [])
+        #expect(g.map(\.name) == ["A", "V", "R", "D"])
+        #expect(g[1].sessions.map(\.sessionId) == ["v", "r2"])
+        // Manual order still decides within a tier.
+        var r3 = s("r3", "/R3", 5); r3.status = .running
+        #expect(Board.groups([r, r3], manualOrder: ["claude-code:r3"]).map(\.name) == ["R3", "R"])
+    }
+
     @Test func groupFollowsStartDirNotCd() {
         let e = AgentEvent(agent: .claudeCode, sessionId: "x", at: t0, kind: .sessionStart, cwd: "/p/A")
         var st = SessionReducer.apply(e, to: nil)

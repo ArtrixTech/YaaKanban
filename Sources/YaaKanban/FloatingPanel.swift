@@ -34,28 +34,24 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         panel.becomesKeyOnlyIfNeeded = true
         panel.delegate = self
 
-        let blur = NSVisualEffectView()
+        let blur = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: Self.width, height: 120))
         blur.material = .popover
         blur.blendingMode = .behindWindow
         blur.state = .active
         blur.maskImage = Self.roundedMask(radius: Self.radius)
-        // The content keeps its natural height, pinned to the top; the window follows it. Pinning the
-        // bottom too would make the window's height drive the content (it then never shrinks, and
-        // while growing the content is centered, so its top jumps).
-        let host = NSHostingView(rootView: FloatingPanelView(onHide: { [weak self] in self?.setVisible(false) })
+        // SwiftUI reports the content's natural height and the window follows it; the content is
+        // top-aligned in the window, so a resize in flight never moves its top edge.
+        let host = NSHostingView(rootView: FloatingPanelView(
+            onHide: { [weak self] in self?.setVisible(false) },
+            onHeight: { [weak self] h in
+                // Outside the layout pass that reported it; top alignment hides the one-frame lag.
+                DispatchQueue.main.async { self?.fit(height: h) }
+            })
             .environment(model))
-        host.translatesAutoresizingMaskIntoConstraints = false
-        host.sizingOptions = [.intrinsicContentSize]
+        host.sizingOptions = []
+        host.autoresizingMask = [.width, .height]
+        host.frame = blur.bounds
         blur.addSubview(host)
-        NSLayoutConstraint.activate([
-            host.leadingAnchor.constraint(equalTo: blur.leadingAnchor),
-            host.trailingAnchor.constraint(equalTo: blur.trailingAnchor),
-            host.topAnchor.constraint(equalTo: blur.topAnchor),
-        ])
-        host.postsFrameChangedNotifications = true
-        NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification, object: host, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.fit(height: host.frame.height) }
-        }
         // Hairline edge so the panel reads against any wallpaper.
         blur.wantsLayer = true
         blur.layer?.cornerRadius = Self.radius

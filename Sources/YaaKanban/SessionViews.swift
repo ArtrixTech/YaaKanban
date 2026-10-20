@@ -140,10 +140,12 @@ struct SessionCard: View {
             Text(session.needsInputMessage ?? session.stuckReason ?? "需要你处理")
                 .font(.system(size: 11.5)).foregroundStyle(st.tint).lineLimit(expanded ? 6 : 2)
         case .running:
-            if let t = session.latestTool, t.isRunning {
+            // Always one line while running: between tools the last one stays, so the card does
+            // not grow and shrink with every tool call.
+            if let t = session.latestTool {
                 ToolLine(tool: t)
             } else if let r = session.peek?.recap {
-                Text(r).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(expanded ? 6 : 2)
+                Text(r).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
             } else if !session.hooked {
                 Text("此会话在安装 hook 前启动，只能看到粗略状态").font(.system(size: 11)).foregroundStyle(.tertiary)
             }

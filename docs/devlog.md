@@ -1,8 +1,25 @@
 # Devlog
 
-## feat(ui): titles, project groups, manual order, logos, Wave tab jump
+## fix(ui): steady panel height, status-first order, brand header
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - The panel content is top-aligned in a host pinned to all edges. SwiftUI reports the natural height, and the window follows it on the next runloop turn. It used to be sized by `intrinsicContentSize`.
+  - A running card's detail line stays one line: the latest tool (finished or not), instead of switching to a two-line recap between tools.
+  - The board is ordered by status tier first: needs input / stuck, then review, then running, then reviewed. Manual or start order applies only inside a tier. A group sits in the tier of its most urgent session.
+  - The header shows the YaaKanban mark (`Resources/Brand/logo.svg`) and name. Five logo drafts were offered, and option A is a placeholder until the user picks one.
+- **Reason**: Round 3 feedback.
+- **User feedback**: "悬浮窗显示不对劲，上下会跳动，顶上空间一会大一会小。另外，需要先按照运行状态排序，优先排列待验收，然后是运行中，然后已验收。" and "悬浮窗左上角放YaaKanban的名字和Logo，Logo帮我重新画一个，给我一些选项。"
+- **Process**: Sampled the window frame with CGWindowList every 100 ms.
+  - Before: the top edge stayed fixed while the height swung 478 → 447 → 464 within seconds.
+  - After: steady at 528 for 12 s.
+- **Result**: `make test` 51/51.
+- **Notes**: When NSHostingView is taller than its content for a moment, it centers that content. Every height change the window had not caught up with yet showed up as a moving gap at the top.
+
+## feat(ui): titles, project groups, manual order, logos, Wave tab jump
+
+`39e0a7f` | 2026-10-20
 
 - **Changes**:
   - Card titles are the agent's own short title: Claude `custom-title`/`ai-title` from the transcript, Codex `thread_name` from `session_index.jsonl`. Falls back to the first line of the first prompt, then the project.

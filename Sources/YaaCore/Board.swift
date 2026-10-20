@@ -7,10 +7,20 @@ public struct BoardGroup: Identifiable, Equatable, Sendable {
     public var sessions: [SessionState]
 }
 
-/// Board layout: start order, user overrides, and grouping by project.
+/// Board layout: status tiers, then start order or the user's, grouped by project.
 public enum Board {
-    /// Sessions the user placed keep their place; the rest follow by start time. Each project's
-    /// sessions are gathered at the position of its first one.
+    /// Status tier, most urgent first: waiting on the user, to review, running, reviewed.
+    public static func tier(_ s: DisplayStatus) -> Int {
+        switch s {
+        case .needsInput, .stuck: 0
+        case .review: 1
+        case .running: 2
+        case .done, .ended: 3
+        }
+    }
+
+    /// Groups come in the tier of their most urgent session, cards within a group by tier; inside a
+    /// tier, sessions the user placed keep their place and the rest follow by start time.
     public static func groups(_ sessions: [SessionState], manualOrder: [String]) -> [BoardGroup] {
         let pos = Dictionary(manualOrder.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
         let ordered = sessions.sorted { a, b in
@@ -32,8 +42,16 @@ public enum Board {
                 groups.append(BoardGroup(id: key, name: s.projectName ?? s.agent.displayName, sessions: [s]))
             }
         }
-        return groups
+        for i in groups.indices {
+            // Stable sort: manual / start order survives within a tier.
+            groups[i].sessions = groups[i].sessions.enumerated()
+                .sorted { (tier($0.element.display), $0.offset) < (tier($1.element.display), $1.offset) }.map(\.element)
+        }
+        return groups.enumerated()
+            .sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }.map(\.element)
     }
+
+    private static func rank(_ g: BoardGroup) -> Int { g.sessions.map { tier($0.display) }.min() ?? 3 }
 
     /// New manual order after dropping `moving` before `target` (nil: to the end). Ids not on the
     /// board are kept at the end so a session that comes back finds its place.

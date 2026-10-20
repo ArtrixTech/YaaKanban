@@ -15,6 +15,7 @@ IDENTITY="${YAAK_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/de
 IDENTITY="${IDENTITY:--}"
 mkdir -p "$APP/Contents/Resources/AgentIcons"
 cp Resources/AgentIcons/*.svg "$APP/Contents/Resources/AgentIcons/"
+cp Resources/Brand/logo.svg "$APP/Contents/Resources/logo.svg"
 codesign --force --sign "$IDENTITY" "$APP/Contents/Helpers/yaak"
 codesign --force --sign "$IDENTITY" "$APP"
 echo "signed with: $IDENTITY"

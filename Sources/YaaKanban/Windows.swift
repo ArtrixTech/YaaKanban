@@ -11,13 +11,8 @@ struct BoardHeader<Trailing: View>: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(LinearGradient(colors: [.indigo, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
-                Image(systemName: "square.stack.3d.up.fill").font(.system(size: 10, weight: .bold)).foregroundStyle(.white)
-            }
-            .frame(width: 20, height: 20)
-            Text("Agents").font(.system(size: 13, weight: .bold))
+            BrandMark(size: 20)
+            Text("YaaKanban").font(.system(size: 13, weight: .bold))
             Spacer(minLength: 4)
             HStack(spacing: 4) {
                 let counts = self.counts
@@ -33,6 +28,20 @@ struct BoardHeader<Trailing: View>: View {
         return [DisplayStatus.needsInput, .stuck, .review, .running].compactMap { st in
             let n = all.filter { $0 == st }.count
             return n > 0 ? (st, n) : nil
+        }
+    }
+}
+
+/// App logo from the bundle, with a symbol fallback when running unbundled.
+struct BrandMark: View {
+    var size: CGFloat
+    private static let image = Bundle.main.url(forResource: "logo", withExtension: "svg").flatMap(NSImage.init(contentsOf:))
+
+    var body: some View {
+        if let img = Self.image {
+            Image(nsImage: img).resizable().interpolation(.high).frame(width: size, height: size)
+        } else {
+            Image(systemName: "square.stack.3d.up.fill").font(.system(size: size * 0.6)).frame(width: size, height: size)
         }
     }
 }
@@ -94,6 +103,8 @@ struct EmptyBoard: View {
 struct FloatingPanelView: View {
     @Environment(AppModel.self) private var model
     var onHide: () -> Void = {}
+    /// Natural content height, reported on every layout change so the window can follow it.
+    var onHeight: (CGFloat) -> Void = { _ in }
     @State private var expanded: String?
     @State private var listHeight: CGFloat = 0
 
@@ -126,6 +137,10 @@ struct FloatingPanelView: View {
         .padding(10)
         .frame(width: 340, alignment: .top)
         .fixedSize(horizontal: false, vertical: true)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { onHeight($0) }
+        // Top-aligned however tall the window is at the moment: while it catches up with the
+        // content, the default (centering) would shift the top edge up and down.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }
 
