@@ -40,21 +40,25 @@ struct RailHeader: View {
 
 enum BoardHeaderHeight { static let value: CGFloat = 22 }
 
-/// A card folded into the rail: status, agent, clock, and as much of the title as fits. Its
-/// height is the full card's, measured off a hidden copy laid out at the full width.
+/// A card folded into the rail: status, agent, clock, the title, and below it what is going on
+/// now (the tool running, what it needs, its last reply), as much as fits. Its height is the full
+/// card's: known from when the panel was unfolded, and re-measured off a hidden copy laid out at
+/// the full width.
 struct NarrowSessionCard: View {
     @Environment(AppModel.self) private var model
     let session: SessionState
     let expanded: Bool
     let grouped: Bool
     let extra: CGFloat
+    /// Full card height, if known.
+    let height: CGFloat?
+    var onHeight: (CGFloat) -> Void
     @State private var width: CGFloat = 0
-    @State private var fullHeight: CGFloat?
     @State private var hover = false
 
     var body: some View {
         let st = session.display
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 4) {
                 StatusGlyph(status: st, size: 18)
                 ViewThatFits(in: .horizontal) {
@@ -62,11 +66,15 @@ struct NarrowSessionCard: View {
                     HStack(spacing: 0) { Spacer(minLength: 2); clock }
                 }
             }
-            Text(session.title).font(.system(size: 11, weight: .semibold)).lineLimit(4)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(.bottom, 1)
+            Text(session.title).font(.system(size: 11, weight: .semibold)).lineLimit(2)
+                .layoutPriority(1)
+            live(st)
         }
         .padding(8)
-        .frame(maxWidth: .infinity, minHeight: fullHeight, maxHeight: fullHeight ?? .infinity, alignment: .topLeading)
+        // Until measured, at most this tall, so the first frame is never taller than the card.
+        .frame(maxWidth: .infinity, minHeight: height, maxHeight: height ?? 60, alignment: .topLeading)
+        .clipped()
         .card(st, hover: hover)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .background(alignment: .topLeading) {
@@ -77,7 +85,7 @@ struct NarrowSessionCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .hidden()
                     .allowsHitTesting(false)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { onHeight($0) }
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: 12))
@@ -91,6 +99,21 @@ struct NarrowSessionCard: View {
             Button("复制 cwd / session") { model.jumper.copyContext(session) }
             Divider()
             Button("结束（移出悬浮窗）") { model.dismiss(session.id) }
+        }
+    }
+
+    /// What it is doing now: the tool in flight, what it needs, why it may be stuck, its reply.
+    @ViewBuilder private func live(_ st: DisplayStatus) -> some View {
+        if st == .running, let t = session.latestTool {
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Image(systemName: "gearshape.2.fill").font(.system(size: 8.5)).foregroundStyle(st.tint)
+                Text("\(t.name) \(t.summary)").font(.system(size: 10, design: .monospaced))
+            }
+            .foregroundStyle(.secondary)
+        } else if let d = SubagentSlots.detail(session) {
+            Text(d).font(.system(size: 10)).foregroundStyle(st.isLoud ? AnyShapeStyle(st.tint) : AnyShapeStyle(.secondary))
+        } else {
+            Text(st.label).font(.system(size: 10, weight: .medium)).foregroundStyle(st.tint)
         }
     }
 

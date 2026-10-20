@@ -10,17 +10,20 @@ struct BoardHeader<Trailing: View>: View {
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             BrandMark(size: 20)
-            Text("YaaKanban").font(.system(size: 13, weight: .bold))
+            Text("YaaKanban").font(.system(size: 13, weight: .bold)).lineLimit(1).fixedSize()
             Spacer(minLength: 4)
             HStack(spacing: 4) {
                 let counts = self.counts
                 ForEach(counts, id: \.0.rank) { st, n in CountChip(count: n, status: st).transition(.scale.combined(with: .opacity)) }
             }
+            .fixedSize()
             .animation(.snappy, value: counts.map(\.1))
             trailing
         }
+        // One line, the same height as the folded header, so cards keep their place.
+        .frame(height: BoardHeaderHeight.value)
     }
 
     private var counts: [(DisplayStatus, Int)] {
@@ -149,7 +152,10 @@ struct FloatingPanelView: View {
             // Pinned to the top and to the docked side however big the window is at the moment:
             // the content is laid out at the width it is heading for, and the window edge slides
             // over it, so it is in place and clickable from the first frame.
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: anchor)
+            // minHeight 0: content taller than the window (mid-resize) overflows at the bottom
+            // instead of growing the frame, which the window would center, pushing the header up.
+            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: anchor)
+            .clipped()
     }
 
     /// Docked to a side and neither hovered nor unfolded.

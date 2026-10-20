@@ -325,6 +325,9 @@ struct BoardList: View {
     @Environment(\.railExtra) private var railExtra
     var expanded: String?
     var onExpand: (SessionState) -> Void = { _ in }
+    /// Each card's height in the full panel, which it keeps when the panel folds. Kept here, across
+    /// folding, so a folded card has its height from the first frame.
+    @State private var heights: [String: CGFloat] = [:]
     @State private var dropTarget: String?
 
     var body: some View {
@@ -353,9 +356,13 @@ struct BoardList: View {
     private func card(_ s: SessionState, grouped: Bool) -> some View {
         Group {
             if let extra = railExtra {
-                NarrowSessionCard(session: s, expanded: expanded == s.id, grouped: grouped, extra: extra)
+                NarrowSessionCard(session: s, expanded: expanded == s.id, grouped: grouped, extra: extra,
+                                  height: heights[s.id]) { h in if heights[s.id] != h { heights[s.id] = h } }
             } else {
                 SessionCard(session: s, expanded: expanded == s.id, grouped: grouped) { onExpand(s) }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
+                        if heights[s.id] != h { heights[s.id] = h }
+                    }
             }
         }
             .draggable(DragIds.encode([s.id])) {

@@ -1,8 +1,24 @@
 # Devlog
 
-## refactor(panel): fold the panel itself instead of swapping in a rail view
+## fix(panel): header pushed off the top when folding; live status in folded cards
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - The panel's root frame now has `minHeight: 0` and clips. Before, content taller than the window, for a moment mid-resize, grew the root frame, and the hosting view centered it, so the header went above the window top.
+  - BoardList remembers each card's full-panel height across folding. A folded card has its height from the first frame instead of growing into it. Until a height is known, it is capped.
+  - A snap waits until a fold or unfold slide finishes. When the slide ends, the window settles on the last size the content asked for.
+  - Folded cards show live status under a two-line title: the running tool, what it needs, why it may be stuck, or the last reply, in as many lines as fit.
+  - The board header is one line high (`fixedSize` title and counts), the same height as the folded header. The title used to wrap next to the pin button, which moved every card down when unfolding.
+- **Reason**: "折叠后items的高度会往上（偶尔）并导致看不到顶上的logo/按钮。另外，折叠状态在下方还是要提供实时状态信息。"
+- **Process**:
+  - Toggled fold and unfold seven times through Accessibility. The window kept its height (591), and the header button stayed 10 pt below the window top.
+  - Offscreen snapshots of both states. The cards line up, and the folded ones show the tool or the reply.
+- **Result**: `make test` 60/60.
+
+## refactor(panel): fold the panel itself instead of swapping in a rail view
+
+`6b62c9e` | 2026-10-20
 
 - **Changes**:
   - Folded, the panel no longer swaps to a separate rail view with its own blocks. `FloatingPanelView` stays the same view with the same list, groups and cards, and only its width changes (120 pt folded, 340 unfolded). Unfolded it is exactly the normal floating panel, plus the pin or fold button while docked.

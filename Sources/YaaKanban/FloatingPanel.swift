@@ -115,11 +115,14 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
 
     /// Frame a width animation (fold / unfold) is heading for; the window's own frame is mid-way.
     private var animatingTo: NSRect?
+    /// Last size the content asked for, to settle on after a slide.
+    private var lastSize: CGSize?
 
     /// Resizes to the content, keeping the edges it is snapped to (top unless at the bottom, and
     /// the side it is docked to) in place, and always inside the screen's usable area. A change of
     /// width (folding or unfolding) slides the window edge; height alone follows at once.
     private func fit(_ size: CGSize) {
+        lastSize = size
         let w = ceil(size.width), h = ceil(size.height)
         let current = animatingTo ?? panel.frame
         guard w > 0, h > 0, abs(current.height - h) >= 1 || abs(current.width - w) >= 1 else { return }
@@ -148,6 +151,8 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
                 guard let self, self.animatingTo == f else { return }
                 self.animatingTo = nil
                 self.panel.invalidateShadow()
+                // Something (a snap, the content) may have moved the frame mid-slide.
+                if let s = self.lastSize { self.fit(s) }
             }
         })
     }
@@ -232,8 +237,8 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
     }
 
     @objc private func snapLater() {
-        // Still dragging (paused): wait for the drop.
-        if NSEvent.pressedMouseButtons & 1 != 0 {
+        // Still dragging (paused), or sliding open or shut: wait.
+        if NSEvent.pressedMouseButtons & 1 != 0 || animatingTo != nil {
             perform(#selector(snapLater), with: nil, afterDelay: 0.15)
             return
         }
