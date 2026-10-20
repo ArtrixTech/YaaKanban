@@ -41,7 +41,7 @@ struct RailHeader: View {
 enum BoardHeaderHeight { static let value: CGFloat = 22 }
 
 /// A card folded into the rail: status, agent, clock, the title, and below it what is going on
-/// now (the tool running, what it needs, its last reply), as much as fits. Its height is the full
+/// now (the tool running, what it needs, its last reply) on one line. Its height is the full
 /// card's: known from when the panel was unfolded, and re-measured off a hidden copy laid out at
 /// the full width.
 struct NarrowSessionCard: View {
@@ -105,15 +105,15 @@ struct NarrowSessionCard: View {
     /// What it is doing now: the tool in flight, what it needs, why it may be stuck, its reply.
     @ViewBuilder private func live(_ st: DisplayStatus) -> some View {
         if st == .running, let t = session.latestTool {
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Image(systemName: "gearshape.2.fill").font(.system(size: 8.5)).foregroundStyle(st.tint)
+            HStack(spacing: 3) {
+                ToolGlyph(tool: t)
                 Text("\(t.name) \(t.summary)").font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.secondary).lineLimit(1)
             }
-            .foregroundStyle(.secondary)
         } else if let d = SubagentSlots.detail(session) {
-            Text(d).font(.system(size: 10)).foregroundStyle(st.isLoud ? AnyShapeStyle(st.tint) : AnyShapeStyle(.secondary))
+            Text(d).font(.system(size: 10)).lineLimit(1).foregroundStyle(st.isLoud ? AnyShapeStyle(st.tint) : AnyShapeStyle(.secondary))
         } else {
-            Text(st.label).font(.system(size: 10, weight: .medium)).foregroundStyle(st.tint)
+            Text(st.label).font(.system(size: 10, weight: .medium)).lineLimit(1).foregroundStyle(st.tint)
         }
     }
 

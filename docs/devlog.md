@@ -1,8 +1,27 @@
 # Devlog
 
-## fix(panel): header pushed off the top when folding; live status in folded cards
+## fix(panel): keep hover and clicks through the unfold slide; tidy folded cards
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - Fold and unfold no longer animate the window frame. The window takes the union of both shapes at once, and the visible panel (the blur view, now inside a clear root view) slides within it, driven by a display link with an ease-out curve over 0.2 s. At the end, the window settles to the final frame. The SwiftUI content keeps its final size and position on screen during the slide, so it never re-lays out, and the moving edge only uncovers or covers it.
+  - Peek checks use where the panel is drawn, not the window frame.
+  - The panel's tracking area is added once (`.inVisibleRect` follows resizes), so a resize no longer reports a new entry.
+  - Review cards no longer have a "去查看" button, because clicking the card does the same thing. The button is also gone from the expanded card.
+  - In folded cards, a running tool shows the same spinner (or check or cross) as the full card, through a shared `ToolGlyph`. The title takes at most two lines, and the status line under it one.
+- **Reason**: "1现在待验收不要显示去查看按钮，点击本身就是查看 2折叠状态，对于bash等命令，显示和展开状态一样的loading圈。3标题最多两行，标题下只给一行。4展开的时候hover状态会掉导致无法点击，需要确保连续。"
+- **Process**:
+  - Logged the panel's pointer enter and exit and the cards' SwiftUI hover while moving the pointer in with CGEvent.
+  - Before the fix, the panel reported an exit about 70 ms into the slide and a new entry about 180 ms later, with hover false in between. The new part of a resized window stays blank for a few frames, and the pointer falls through it.
+  - After the fix, hover stayed true through the whole slide with the pointer moving.
+  - Offscreen snapshots of the folded and unfolded panel: card heights still match.
+  - Temporary logging removed.
+- **Result**: `make test` 60/60.
+
+## fix(panel): header pushed off the top when folding; live status in folded cards
+
+`52b713f` | 2026-10-20
 
 - **Changes**:
   - The panel's root frame now has `minHeight: 0` and clips. Before, content taller than the window, for a moment mid-resize, grew the root frame, and the hosting view centered it, so the header went above the window top.

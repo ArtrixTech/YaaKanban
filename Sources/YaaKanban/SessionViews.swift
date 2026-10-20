@@ -118,7 +118,6 @@ struct SessionCard: View {
             SubagentSlots(session: session)
             PermissionButtons(session: session)
             if expanded { expandedBody(st) }
-            if st == .review && !expanded { actions(st) }
         }
         .padding(10)
         .card(st, hover: hover)
@@ -184,18 +183,8 @@ struct SessionCard: View {
                 if !session.hooked { Text("· 未挂 hook").foregroundStyle(.orange) }
             }
             .font(.system(size: 10.5)).foregroundStyle(.tertiary)
-            actions(st)
         }
         .transition(.opacity.combined(with: .move(edge: .top)))
-    }
-
-    /// One way out: looking at the result in the terminal is what marks it reviewed.
-    private func actions(_ st: DisplayStatus) -> some View {
-        HStack(spacing: 6) {
-            Button { model.jump(session.id) } label: { Label("去查看", systemImage: "arrow.up.forward.app") }
-                .buttonStyle(PillButtonStyle(tint: st == .review ? .green : .accentColor, prominent: st == .review))
-            Spacer()
-        }
     }
 }
 
@@ -269,20 +258,28 @@ struct ToolLine: View {
     let tool: ToolCall
     var body: some View {
         HStack(spacing: 5) {
-            Group {
-                if tool.isRunning {
-                    ProgressView().controlSize(.mini).scaleEffect(0.7)
-                } else {
-                    Image(systemName: tool.isError ? "xmark.circle.fill" : "checkmark.circle.fill")
-                        .foregroundStyle(tool.isError ? Color.red : Color.secondary.opacity(0.6))
-                }
-            }
-            .font(.system(size: 10)).frame(width: 12, height: 12)
+            ToolGlyph(tool: tool)
             Text(tool.name).font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(tool.isRunning ? Color.blue : Color.primary.opacity(0.8))
             Text(tool.summary).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
                 .lineLimit(1).truncationMode(.middle)
         }
+    }
+}
+
+/// A tool call's state: spinning while it runs, then done or failed.
+struct ToolGlyph: View {
+    let tool: ToolCall
+    var body: some View {
+        Group {
+            if tool.isRunning {
+                ProgressView().controlSize(.mini).scaleEffect(0.7)
+            } else {
+                Image(systemName: tool.isError ? "xmark.circle.fill" : "checkmark.circle.fill")
+                    .foregroundStyle(tool.isError ? Color.red : Color.secondary.opacity(0.6))
+            }
+        }
+        .font(.system(size: 10)).frame(width: 12, height: 12)
     }
 }
 
