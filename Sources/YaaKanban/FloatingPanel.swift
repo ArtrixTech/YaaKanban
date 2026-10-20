@@ -130,7 +130,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
     private var link: CADisplayLink?
     /// Last size the content asked for, to settle on after a slide.
     private var lastSize: CGSize?
-    static let slideDuration: CFTimeInterval = 0.2
+    static let slideDuration: CFTimeInterval = 0.14
 
     /// Where the panel is drawn now, in screen coordinates.
     private var shown: NSRect { blur.frame.offsetBy(dx: panel.frame.minX, dy: panel.frame.minY) }
@@ -174,7 +174,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
     @objc private func step() {
         guard let s = slide else { return }
         let t = min(1, (CACurrentMediaTime() - s.start) / Self.slideDuration)
-        let e = 1 - pow(1 - t, 3)  // ease out
+        let e = 1 - pow(1 - t, 5)  // ease out: most of the way at once, then settling
         func mix(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a + (b - a) * e }
         let r = NSRect(x: mix(s.from.minX, s.to.minX), y: mix(s.from.minY, s.to.minY),
                        width: mix(s.from.width, s.to.width), height: mix(s.from.height, s.to.height))
@@ -214,8 +214,8 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
     private var peekPending: DispatchWorkItem?
     private var peekTimer: Timer?
     private var outsideSince: Date?
-    static let peekDelay: TimeInterval = 0.08
-    static let unpeekDelay: TimeInterval = 0.3
+    static let peekDelay: TimeInterval = 0.03
+    static let unpeekDelay: TimeInterval = 0.15
 
     private var folded: Bool { room.dock != nil && !model.settings.sidebarExpanded }
 

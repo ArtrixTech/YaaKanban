@@ -1,8 +1,16 @@
 # Devlog
 
-## fix(panel): keep hover and clicks through the unfold slide; tidy folded cards
+## tweak(panel): faster fold and unfold
 
 `pending` | 2026-10-20
+
+- **Changes**: The slide takes 0.14 s instead of 0.2 s, with a quintic ease-out instead of cubic, so it covers most of the distance at once and then settles. Hover opens the panel after 0.03 s instead of 0.08 s, and it folds 0.15 s after the pointer leaves instead of 0.3 s.
+- **Reason**: "现在打开关闭动画有点拖沓。速度更快、ease in（前面快后面慢）、延迟降低。"
+- **Result**: `make test` 60/60.
+
+## fix(panel): keep hover and clicks through the unfold slide; tidy folded cards
+
+`0c35656` | 2026-10-20
 
 - **Changes**:
   - Fold and unfold no longer animate the window frame. The window takes the union of both shapes at once, and the visible panel (the blur view, now inside a clear root view) slides within it, driven by a display link with an ease-out curve over 0.2 s. At the end, the window settles to the final frame. The SwiftUI content keeps its final size and position on screen during the slide, so it never re-lays out, and the moving edge only uncovers or covers it.
