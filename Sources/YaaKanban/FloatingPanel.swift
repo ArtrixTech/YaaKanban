@@ -119,7 +119,9 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
             onHide: { [weak self] in self?.setVisible(false) },
             onSize: { [weak self] size in
                 // Outside the layout pass that reported it; top alignment hides the one-frame lag.
-                DispatchQueue.main.async { self?.fit(size) }
+                // Common modes: the main queue stalls under a modal alert (asking to reopen a
+                // session) while the content still re-lays out, leaving the window at the old width.
+                RunLoop.main.perform(inModes: [.common]) { MainActor.assumeIsolated { self?.fit(size) } }
             },
             room: room)
             .environment(model))

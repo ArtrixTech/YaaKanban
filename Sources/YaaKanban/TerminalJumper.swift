@@ -87,6 +87,13 @@ struct TerminalJumper {
         }
     }
 
+    /// Whether `resume` runs the command itself; otherwise it only raises a terminal and copies it.
+    /// For Wave this also needs a working token, which only the caller knows.
+    static func runsResume(_ s: SessionState) -> Bool {
+        guard let t = s.terminal else { return s.agent == .codex && codexThreadURL(s.sessionId) != nil }
+        return s.resumeCommand != nil && (t.isWave || t.termProgram == "Apple_Terminal" || t.termProgram == "iTerm.app")
+    }
+
     /// `cd <cwd>` and the resume command, for pasting into any terminal.
     func copyResume(_ s: SessionState) {
         guard let cmd = s.resumeCommand else { return copyContext(s) }

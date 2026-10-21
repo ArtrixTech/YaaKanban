@@ -53,6 +53,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("main", AnyView(MainWindow().environment(model)), NSSize(width: 1000, height: 640)),
             ("settings", AnyView(SettingsView(panel: panel).environment(model)), SettingsView.size),
             ("dashboard", AnyView(DashboardView().environment(model)), NSSize(width: 1000, height: 900)),
+            ("dashboard-week", AnyView(DashboardView(period: .week).environment(model)), NSSize(width: 1000, height: 900)),
+            ("dashboard-month", AnyView(DashboardView(period: .month).environment(model)), NSSize(width: 1000, height: 900)),
         ]
         for (name, view, size) in views {
             let window = NSWindow(contentRect: NSRect(origin: NSPoint(x: -10000, y: -10000), size: size),

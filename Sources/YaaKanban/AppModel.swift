@@ -376,7 +376,8 @@ final class AppModel {
     /// Token use waiting to be written: one row per session per minute instead of one per scan.
     @ObservationIgnored private var pendingTokens: [String: Double] = [:]
     @ObservationIgnored private var tokensFlushedAt = Date()
-    @ObservationIgnored private var reports: [DateInterval: (version: Int, at: Date, report: ActivityReport)] = [:]
+    @ObservationIgnored private var reports: [ReportKey: (version: Int, at: Date, report: ActivityReport)] = [:]
+    private struct ReportKey: Hashable { var range: DateInterval; var buckets: Int }
 
     /// The session's lane, as the boards show it: one past its retention has left the lanes.
     private func lane(_ s: SessionState?) -> Lane? {
@@ -471,17 +472,21 @@ final class AppModel {
     }
 
     /// The report for `range`, computed again when something was recorded, at most every few
-    /// seconds (views ask on every redraw).
-    func report(_ range: DateInterval) -> ActivityReport {
+    /// seconds (views ask on every redraw). A range already over is kept for minutes: only an
+    /// absence ending later still reaches into it.
+    func report(_ range: DateInterval, buckets: Int = 48, edges: [Date]? = nil) -> ActivityReport {
         guard let store else { return ActivityReport(range: range) }
         let now = Date()
-        if let c = reports[range], c.version == activityVersion || now.timeIntervalSince(c.at) < 5,
-           now.timeIntervalSince(c.at) < 30 { return c.report }
-        if reports.count > 16 { reports = [:] }
+        let key = ReportKey(range: range, buckets: edges.map { $0.count - 1 } ?? buckets)
+        if let c = reports[key] {
+            let age = now.timeIntervalSince(c.at)
+            if range.end <= c.at ? age < 600 : (c.version == activityVersion || age < 5) && age < 30 { return c.report }
+        }
+        if reports.count > 24 { reports = [:] }
         let r = ActivityReport.compute(rows: store.activity(from: range.start, to: min(range.end, now)),
                                        lanesBefore: store.lanes(before: range.start), range: range, now: now,
-                                       awaySince: awaySince, recordedSince: recordedSince)
-        reports[range] = (activityVersion, now, r)
+                                       awaySince: awaySince, recordedSince: recordedSince, buckets: buckets, edges: edges)
+        reports[key] = (activityVersion, now, r)
         return r
     }
 
@@ -535,7 +540,11 @@ final class AppModel {
         record([ActivityRow(at: Date(), session: key, kind: .focus)])
         guard Self.isGone(s) else { jumper.jump(to: s); return }
         let runners = waveRunners(for: s)
-        switch Self.askReopen(s, canRun: s.terminal?.isWave != true || !runners.isEmpty) {
+        let name = s.terminal?.termProgram.flatMap(TerminalJumper.app(forTermProgram:))?.localizedName ?? "终端"
+        let why: String? = s.terminal?.isWave == true && runners.isEmpty ? "Wave 的授权已过期"
+            : TerminalJumper.runsResume(s) ? nil
+            : s.terminal?.termProgram == "waveterm" ? "没有记下它在哪个 Wave 标签页" : "\(name)不接受外部输入命令"
+        switch Self.askReopen(s, cannotRun: why.map { ($0, name) }) {
         case .alertFirstButtonReturn: jumper.resume(s, wave: runners) { Self.tellResumeFailed(s) }
         case .alertSecondButtonReturn: jumper.copyResume(s)
         default: break
@@ -568,17 +577,18 @@ final class AppModel {
         alert.runModal()
     }
 
-    private static func askReopen(_ s: SessionState, canRun: Bool) -> NSApplication.ModalResponse {
+    /// `cannotRun`: why the command can't be typed in for the user, and the terminal to go to.
+    private static func askReopen(_ s: SessionState, cannotRun: (why: String, app: String)?) -> NSApplication.ModalResponse {
         let alert = NSAlert()
         if let icon = BrandMark.image { alert.icon = icon }
         alert.messageText = "\(s.agent.displayName) 进程已不在"
-        if canRun {
+        if let (why, app) = cannotRun {
+            // Nothing can type into that terminal: go there and paste.
+            alert.informativeText = "\(why)，无法自动打开。将切到\(app)并复制恢复命令，在原处新开一个终端粘贴即可继续。"
+            alert.addButton(withTitle: "切到\(app)并复制")
+        } else {
             alert.informativeText = "是否在原终端重新打开这个会话？"
             alert.addButton(withTitle: "重新打开")
-        } else {
-            // Nothing can type into that Wave tab any more: go there and paste.
-            alert.informativeText = "Wave 的授权已过期，无法自动打开。将切到 Wave 并复制恢复命令，在原标签页新开一个终端粘贴即可继续。"
-            alert.addButton(withTitle: "切到 Wave 并复制")
         }
         alert.addButton(withTitle: "复制恢复命令")
         alert.addButton(withTitle: "取消")

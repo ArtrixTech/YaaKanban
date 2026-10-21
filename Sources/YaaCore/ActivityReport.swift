@@ -20,8 +20,12 @@ public struct ActivityReport: Sendable {
     /// Average number of running sessions while at least one ran, and the most at once.
     public var parallelAverage: Double = 0
     public var parallelPeak = 0
-    /// Average running sessions per slice of the range, for a sparkline.
+    /// Where the chart slices start and end: `buckets + 1` dates over the whole range.
+    public var bucketEdges: [Date] = []
+    /// Average running sessions per slice of the whole range, for a chart.
     public var parallelBuckets: [Double] = []
+    /// Average sessions waiting on the user per slice, while the user was here.
+    public var waitingBuckets: [Double] = []
     /// Running ÷ (running + waiting on the user), in session-time, while the user was here.
     public var utilization: Double?
     /// Time something waited on the user and nothing ran, while the user was here.
@@ -49,15 +53,32 @@ public struct ActivityReport: Sendable {
     public var activeHours: Double { activeTime / 3600 }
     public func perActiveHour(_ n: Int) -> Double? { activeTime >= 60 ? Double(n) / activeHours : nil }
 
+    /// Per session, time running and waiting on the user (away time taken out) in the range,
+    /// busiest first.
+    public var sessionTotals: [(session: String, running: TimeInterval, waiting: TimeInterval)] {
+        lanes.map { l in
+            var run = 0.0, wait = 0.0
+            for s in l.segments {
+                let i = DateInterval(start: s.start, end: s.end)
+                if s.lane == .running { run += i.duration } else { wait += i.duration - Self.overlap(i, away) }
+            }
+            return (l.session, run, wait)
+        }
+        .sorted { $0.running + $0.waiting > $1.running + $1.waiting }
+    }
+
     /// - Parameters:
     ///   - rows: rows in `range`, plus away rows that reach into it.
     ///   - lanesBefore: each session's lane when the range starts.
     ///   - awaySince: the user has been away since then, still.
     ///   - recordedSince: rows before this were rebuilt (`ActivityBackfill`).
+    ///   - buckets: equal chart slices, unless `edges` gives them (e.g. calendar days).
     public static func compute(rows: [ActivityRow], lanesBefore: [String: Lane], range: DateInterval,
                                now: Date, awaySince: Date? = nil, recordedSince: Date? = nil,
-                               buckets: Int = 48) -> ActivityReport {
+                               buckets: Int = 48, edges: [Date]? = nil) -> ActivityReport {
         var r = ActivityReport(range: range)
+        r.bucketEdges = edges.flatMap { $0.count > 1 ? $0 : nil }
+            ?? (0...max(buckets, 1)).map { range.start.addingTimeInterval(range.duration * Double($0) / Double(max(buckets, 1))) }
         r.computedAt = now
         r.rebuiltUntil = recordedSince.flatMap { $0 > range.start ? min($0, range.end) : nil }
         let end = min(range.end, now)
@@ -69,6 +90,7 @@ public struct ActivityReport: Sendable {
         // Lane segments.
         var open: [String: (Lane, Date)] = [:]
         var order: [String] = []
+        var seen: Set<String> = []
         var segs: [String: [Segment]] = [:]
         func close(_ id: String, at t: Date) {
             guard let (lane, from) = open.removeValue(forKey: id), t > from else { return }
@@ -76,20 +98,19 @@ public struct ActivityReport: Sendable {
         }
         for (id, lane) in lanesBefore.sorted(by: { $0.key < $1.key }) {
             open[id] = (lane, range.start)
-            order.append(id)
+            order.append(id); seen.insert(id)
         }
         for row in rows where row.kind == .lane && row.at >= range.start && row.at < end {
             close(row.session, at: row.at)
             if let lane = Lane(rawValue: row.text) {
                 open[row.session] = (lane, row.at)
-                if !order.contains(row.session) { order.append(row.session) }
+                if seen.insert(row.session).inserted { order.append(row.session) }
             }
         }
         for id in Array(open.keys) { close(id, at: end) }
         r.lanes = order.compactMap { id in segs[id].map { (id, $0) } }
 
-        r.sweep(segments: segs.values.flatMap { $0 }, from: range.start, to: end, measuredFrom: r.rebuiltUntil ?? range.start,
-                buckets: buckets)
+        r.sweep(segments: segs.values.flatMap { $0 }, from: range.start, to: end, measuredFrom: r.rebuiltUntil ?? range.start)
 
         for row in rows where row.at >= range.start && row.at < end {
             switch row.kind {
@@ -118,7 +139,7 @@ public struct ActivityReport: Sendable {
 
     /// Walks the range through every segment and away edge, adding up time by how many sessions
     /// ran or waited. Waits count only from `measuredFrom`, where they were recorded.
-    private mutating func sweep(segments: [Segment], from start: Date, to end: Date, measuredFrom: Date, buckets n: Int) {
+    private mutating func sweep(segments: [Segment], from start: Date, to end: Date, measuredFrom: Date) {
         // (time, Δrunning, Δwaiting, Δaway)
         var edges: [(Date, Int, Int, Int)] = []
         for s in segments {
@@ -133,9 +154,24 @@ public struct ActivityReport: Sendable {
         edges.append((measuredFrom, 0, 0, 0))
         edges.sort { $0.0 < $1.0 }
 
-        let span = end.timeIntervalSince(start)
-        let width = span / Double(max(n, 1))
-        var bucketSums = [Double](repeating: 0, count: max(n, 0))
+        // Slices cover the whole range, so they line up with its axis; those past now stay 0.
+        let cuts = bucketEdges.map { $0.timeIntervalSince(start) }
+        let n = cuts.count - 1
+        var runSums = [Double](repeating: 0, count: max(n, 0))
+        var waitSums = runSums
+        /// Spreads `count` over the slices t..<next covers. Steps by slice index: recomputing it
+        /// from `a` can round down at an edge and never advance.
+        func spread(_ count: Int, _ t: Date, _ next: Date, into sums: inout [Double]) {
+            var a = t.timeIntervalSince(start)
+            let b = next.timeIntervalSince(start)
+            var k = max(0, (cuts.firstIndex { $0 > a } ?? cuts.count) - 1)
+            while a < b, k < n {
+                let edge = k == n - 1 ? b : min(b, cuts[k + 1])
+                sums[k] += Double(count) * max(0, edge - a)
+                a = max(a, edge)
+                k += 1
+            }
+        }
         var running = 0, waiting = 0, awayDepth = 0
         var t = start
         var runTime = 0.0, waitTime = 0.0, parallelWeighted = 0.0, parallelTime = 0.0
@@ -152,19 +188,9 @@ public struct ActivityReport: Sendable {
                     parallelWeighted += Double(running) * dt
                     parallelTime += dt
                     parallelPeak = max(parallelPeak, running)
-                    // Spread over the buckets this slice covers.
-                    // Steps by bucket index: recomputing it from `a` can round down at an edge
-                    // and never advance.
-                    var a = t.timeIntervalSince(start)
-                    let b = next.timeIntervalSince(start)
-                    var k = width > 0 ? min(max(Int(a / width), 0), n - 1) : n
-                    while a < b, k < n {
-                        let edge = k == n - 1 ? b : min(b, Double(k + 1) * width)
-                        bucketSums[k] += Double(running) * max(0, edge - a)
-                        a = max(a, edge)
-                        k += 1
-                    }
+                    spread(running, t, next, into: &runSums)
                 }
+                if waiting > 0, awayDepth == 0 { spread(waiting, t, next, into: &waitSums) }
                 if awayDepth == 0 {
                     if running > 0 || waiting > 0 { activeTime += dt }
                     if t >= measuredFrom {
@@ -177,7 +203,9 @@ public struct ActivityReport: Sendable {
             t = next
         }
         parallelAverage = parallelTime > 0 ? parallelWeighted / parallelTime : 0
-        parallelBuckets = width > 0 ? bucketSums.map { $0 / width } : []
+        let widths = (0..<max(n, 0)).map { cuts[$0 + 1] - cuts[$0] }
+        parallelBuckets = zip(runSums, widths).map { $1 > 0 ? $0 / $1 : 0 }
+        waitingBuckets = zip(waitSums, widths).map { $1 > 0 ? $0 / $1 : 0 }
         utilization = runTime + waitTime > 0 ? runTime / (runTime + waitTime) : nil
     }
 

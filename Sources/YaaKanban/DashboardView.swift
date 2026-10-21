@@ -1,38 +1,64 @@
 import SwiftUI
 import YaaCore
 
-/// Main-window home: how the user's parallel sessions went over a day (or seven) — swimlanes,
-/// then the figures under them, then this week against the last.
+extension Period {
+    var label: String { switch self { case .day: "日"; case .week: "周"; case .month: "月" } }
+    /// "this" one, said of the current period.
+    var current: String { switch self { case .day: "今天"; case .week: "本周"; case .month: "本月" } }
+    /// The one before, so far (while the current one runs) or in full.
+    func previous(soFar: Bool) -> String {
+        switch self {
+        case .day: soFar ? "昨天同期" : "前一天"
+        case .week: soFar ? "上周同期" : "前一周"
+        case .month: soFar ? "上月同期" : "前一月"
+        }
+    }
+
+    func rangeLabel(_ p: Periods) -> String {
+        let md = Date.FormatStyle().month().day()
+        let d = switch self {
+        case .day: p.range.start.formatted(md.weekday(.abbreviated))
+        case .week: "\(p.range.start.formatted(md)) – \(p.range.end.addingTimeInterval(-1).formatted(md))"
+        case .month: p.range.start.formatted(.dateTime.year().month())
+        }
+        return p.inProgress ? "\(current) · \(d)" : d
+    }
+}
+
+/// Main-window home: how the user's parallel sessions went over a day, week or month, against
+/// the one before. The headline figures and one chart first, the breakdowns under them.
 struct DashboardView: View {
     @Environment(AppModel.self) private var model
-    /// Days back from today; today follows the clock past midnight.
+    /// Periods back from the current one; the current one follows the clock.
     @State private var back = 0
-    @State private var week = false
+    @State private var period: Period
+
+    init(period: Period = .day) { _period = State(initialValue: period) }
 
     var body: some View {
         // Redraws every 30 s for the now line, and on each recorded row.
         TimelineView(.periodic(from: .now, by: 30)) { ctx in
             let _ = model.activityVersion
-            let now = ctx.date
-            let day = Calendar.current.date(byAdding: .day, value: -back, to: Calendar.current.startOfDay(for: now))!
-            let r = model.report(range(day))
-            // Whole minutes, so the cached reports serve redraws within one.
-            let minute = Date(timeIntervalSince1970: (now.timeIntervalSince1970 / 60).rounded(.up) * 60)
-            let thisWeek = model.report(Self.days(7, endingAt: minute))
-            let lastWeek = model.report(Self.days(7, endingAt: minute.addingTimeInterval(-7 * 86400)))
+            let p = Periods(period, back: back, now: ctx.date)
+            let r = model.report(p.range, edges: p.edges)
+            // The one before over the same stretch, for the figures; in full, for the chart.
+            let prev = model.report(p.previousSoFar)
+            let prevFull = model.report(p.previous, edges: p.previousEdges)
+            let vs = period.previous(soFar: p.inProgress)
+            // Nothing recorded then: no comparison, rather than "up by all of it".
+            let base = prev.lanes.isEmpty && prev.turns == 0 ? nil : prev
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    header(day)
-                    Text(summary(r)).font(.system(size: 13)).foregroundStyle(.secondary).textSelection(.enabled)
-                    if let until = r.rebuiltUntil {
-                        Label(r.allRebuilt ? "这段时间在开始记录之前，只从会话历史还原了运行时段和轮数；等待、回复、离开和 token 没有数据。"
-                              : "\(until.formatted(.dateTime.month().day().hour().minute())) 之前从会话历史还原，只有运行时段和轮数。",
-                              systemImage: "clock.arrow.circlepath")
-                            .font(.system(size: 11.5)).foregroundStyle(.tertiary)
+                    header(p)
+                    Text(summary(r, base, p, vs: vs)).font(.system(size: 13)).foregroundStyle(.secondary).textSelection(.enabled)
+                    if let until = r.rebuiltUntil { rebuiltNote(r, until) }
+                    Headline(r: r, prev: base, vs: vs)
+                    ActivityChart(period: period, report: r, previous: prevFull, now: ctx.date)
+                    HStack(alignment: .top, spacing: 12) {
+                        ProjectBreakdown(report: r)
+                        details(r, base, vs: vs, now: ctx.date)
                     }
-                    Swimlanes(report: r, now: now)
-                    tiles(r, now: now)
-                    WeekComparison(this: thisWeek, last: lastWeek)
+                    SessionLanes(period: period, report: r, now: ctx.date)
                 }
                 .padding(20)
                 .frame(maxWidth: 980, alignment: .leading)
@@ -40,81 +66,77 @@ struct DashboardView: View {
             }
         }
     }
-
-    private func range(_ day: Date) -> DateInterval {
-        let cal = Calendar.current
-        let end = cal.date(byAdding: .day, value: 1, to: day)!
-        return DateInterval(start: week ? cal.date(byAdding: .day, value: -6, to: day)! : day, end: end)
-    }
-
-    static func days(_ n: Int, endingAt end: Date) -> DateInterval {
-        DateInterval(start: end.addingTimeInterval(-Double(n) * 86400), end: end)
-    }
-
-    private var isToday: Bool { back == 0 }
-
-    private func header(_ day: Date) -> some View {
+    private func header(_ p: Periods) -> some View {
         HStack(spacing: 8) {
             Text("概览").font(.system(size: 20, weight: .bold))
             Spacer()
-            IconButton(symbol: "chevron.left", help: "前一天") { shift(-1) }
-            Text(dayLabel(day)).font(.system(size: 12.5, weight: .medium)).monospacedDigit().frame(minWidth: 110)
-            IconButton(symbol: "chevron.right", help: "后一天") { shift(1) }.disabled(isToday).opacity(isToday ? 0.3 : 1)
-            if !isToday { Button("今天") { back = 0 }.controlSize(.small) }
-            Picker("", selection: $week) {
-                Text("日").tag(false)
-                Text("7 天").tag(true)
+            IconButton(symbol: "chevron.left", help: period.previous(soFar: false)) { back += 1 }
+            Text(period.rangeLabel(p)).font(.system(size: 12.5, weight: .medium)).monospacedDigit().frame(minWidth: 130)
+            IconButton(symbol: "chevron.right", help: "后一\(period == .day ? "天" : period == .week ? "周" : "月")") {
+                back = max(0, back - 1)
+            }
+            .disabled(back == 0).opacity(back == 0 ? 0.3 : 1)
+            if back > 0 { Button(period.current) { back = 0 }.controlSize(.small) }
+            Picker("", selection: Binding(get: { period }, set: { period = $0; back = 0 })) {
+                ForEach(Period.allCases, id: \.self) { Text($0.label).tag($0) }
             }
             .pickerStyle(.segmented).labelsHidden().fixedSize()
         }
     }
 
-    private func shift(_ n: Int) { back = max(0, back - n) }
-
-    private func dayLabel(_ day: Date) -> String {
-        let f = Date.FormatStyle().month().day().weekday(.abbreviated)
-        guard week else { return isToday ? "今天 · \(day.formatted(f))" : day.formatted(f) }
-        return "\(range(day).start.formatted(.dateTime.month().day())) – \(day.formatted(.dateTime.month().day()))"
+    private func rebuiltNote(_ r: ActivityReport, _ until: Date) -> some View {
+        Label(r.allRebuilt ? "这段时间在开始记录之前，只从会话历史还原了运行时段和轮数；等待、回复、离开和 token 没有数据。"
+              : "\(until.formatted(.dateTime.month().day().hour().minute())) 之前从会话历史还原，只有运行时段和轮数。",
+              systemImage: "clock.arrow.circlepath")
+            .font(.system(size: 11.5)).foregroundStyle(.tertiary)
     }
 
-    /// One line on how the range went.
-    private func summary(_ r: ActivityReport) -> String {
-        guard !r.lanes.isEmpty || r.turns > 0 else { return week ? "这 7 天没有记录到 agent 活动。" : "这一天没有记录到 agent 活动。" }
-        var parts = ["\(isToday && !week ? "今天" : "这段时间")活跃 \(duration(r.activeTime))",
-                     "平均同时跑 \(String(format: "%.1f", r.parallelAverage)) 个（峰值 \(r.parallelPeak)）"]
-        if let m = r.replyMedian { parts.append("回复中位 \(duration(m))") }
-        if !r.allRebuilt, r.bottleneck >= 60 { parts.append("全员等你 \(duration(r.bottleneck))") }
-        parts.append("完成 \(r.turns) 轮")
-        return parts.joined(separator: "，") + "。"
+    /// One plain sentence on how the period went, against the one before.
+    private func summary(_ r: ActivityReport, _ prev: ActivityReport?, _ p: Periods, vs: String) -> String {
+        let subject = p.inProgress ? period.current : period == .day ? "这一天" : period == .week ? "这一周" : "这个月"
+        guard !r.lanes.isEmpty || r.turns > 0 else { return "\(subject)没有记录到 agent 活动。" }
+        var s = "\(subject) agent 活跃了 \(duration(r.activeTime))"
+        if let prev, prev.activeTime >= 60 {
+            let d = r.activeTime - prev.activeTime
+            s += abs(d) < 60 ? "，和\(vs)差不多" : "，比\(vs)\(d > 0 ? "多" : "少") \(duration(abs(d)))"
+        }
+        s += "；平均同时跑 \(String(format: "%.1f", r.parallelAverage)) 个，最多 \(r.parallelPeak) 个"
+        if !r.allRebuilt {
+            s += r.bottleneck >= 60 ? "；有 \(duration(r.bottleneck)) 所有 agent 都停下来等你" : "；几乎没有让 agent 全停下来等你"
+        }
+        return s + "；完成 \(r.turns) 轮。"
     }
 
-    private func tiles(_ r: ActivityReport, now: Date) -> some View {
+    private func details(_ r: ActivityReport, _ prev: ActivityReport?, vs: String, now: Date) -> some View {
         let backlog = model.backlog
-        let running = model.sessions.values.filter { Activity.lane($0) == .running }.count
-        return LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 12)], spacing: 12) {
-            Tile(title: "并行度", symbol: "square.stack.3d.up", value: String(format: "%.1f", r.parallelAverage),
-                 caption: "当前 \(running) · 峰值 \(r.parallelPeak)") {
-                Sparkline(values: r.parallelBuckets)
-            }
+        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
             Tile(title: "回复延迟", symbol: "timer", value: r.replyMedian.map(duration) ?? "–",
-                 caption: r.replyP90.map { "P90 \(duration($0)) · \(r.replies.count) 次" } ?? "还没有回复") {
-                if let p = r.replyByProject.first, r.replyByProject.count > 1 {
-                    Text("最慢：\(p.project) \(duration(p.median))").font(.system(size: 10.5)).foregroundStyle(.tertiary).lineLimit(1)
-                }
-            }
+                 caption: r.replyP90.map { "中位 · P90 \(duration($0)) · \(r.replies.count) 次" } ?? "还没有回复",
+                 delta: comparesWaits(r, prev) ? Delta(r.replyMedian, prev?.replyMedian, better: .down, vs: vs, fmt: duration) : nil)
             Tile(title: "Agent 利用率", symbol: "gauge.with.dots.needle.67percent",
-                 value: r.utilization.map { "\(Int(($0 * 100).rounded()))%" } ?? "–", caption: "运行 ÷（运行 + 等你）")
-            Tile(title: "瓶颈时间", symbol: "hourglass.bottomhalf.filled", value: r.allRebuilt ? "–" : duration(r.bottleneck),
-                 caption: "有会话在等你、没有在跑的")
+                 value: r.utilization.map(percent) ?? "–", caption: "在跑 ÷（在跑 + 等你）",
+                 delta: comparesWaits(r, prev) ? Delta(r.utilization, prev?.utilization, better: .up, vs: vs, fmt: percent) : nil)
             Tile(title: "吞吐", symbol: "bolt", value: r.perActiveHour(r.turns).map { String(format: "%.1f 轮/时", $0) } ?? "–",
-                 caption: "\(r.turns) 轮 · \(r.toolCalls) 次工具 · \(compactCount(r.tokens)) token（不含缓存读）")
-            Tile(title: "当前积压", symbol: "tray.full", value: "\(backlog.count)",
+                 caption: "\(r.toolCalls) 次工具 · \(compactCount(r.tokens)) token（不含缓存读）")
+            Tile(title: "当前积压", symbol: "tray.full", value: "\(backlog.count) 个",
                  caption: backlog.oldest.map { "最久已等 \(relative($0, now: now))" } ?? "没有在等你的会话")
             Tile(title: "切换", symbol: "arrow.left.arrow.right", value: "\(r.switches) 次",
                  caption: r.perActiveHour(r.switches).map { String(format: "每活跃小时 %.1f 次", $0) } ?? "点卡片或通知跳转")
+            if let p = r.replyByProject.first, r.replyByProject.count > 1 {
+                Tile(title: "回复最慢的项目", symbol: "tortoise", value: duration(p.median), caption: "\(p.project) · \(p.count) 次")
+            }
         }
+        .frame(maxWidth: .infinity)
     }
 }
+
+/// Waits, replies and absences exist only where recorded live: compare them only when neither
+/// period was partly rebuilt, or the rebuilt side reads as "no waiting".
+private func comparesWaits(_ a: ActivityReport, _ b: ActivityReport?) -> Bool {
+    a.rebuiltUntil == nil && b?.rebuiltUntil == nil
+}
+
+func percent(_ x: Double) -> String { "\(Int((x * 100).rounded()))%" }
 
 /// "1分12秒", "3分", "2.4时".
 func duration(_ t: TimeInterval) -> String {
@@ -136,38 +158,369 @@ extension Lane {
     }
 }
 
-/// One row per session that ran or waited in the range, colored by lane, with away time shaded
-/// across all of them.
-private struct Swimlanes: View {
-    @Environment(AppModel.self) private var model
-    let report: ActivityReport
-    let now: Date
-    static let label: CGFloat = 170
-    static let maxRows = 40
+/// Chart colors: running, and every way of waiting on the user, as one.
+private enum Ink {
+    static let running = DisplayStatus.running.tint
+    static let waiting = DisplayStatus.needsInput.tint
+    static let away = Color.primary.opacity(0.07)
+}
+
+/// A change against the period before: "↑ 1.2时 vs 昨天同期", green when it went the good way.
+struct Delta {
+    enum Better { case up, down }
+    var text: String
+    var color: Color
+
+    init?(_ a: Double?, _ b: Double?, better: Better, vs: String, fmt: (Double) -> String) {
+        guard let a, let b else { return nil }
+        let d = a - b
+        let shown = fmt(abs(d))
+        if shown == fmt(0) {
+            text = "与\(vs)持平"; color = .secondary
+        } else {
+            text = "\(d > 0 ? "↑" : "↓") \(shown) vs \(vs)"
+            color = (d > 0) == (better == .up) ? .green : .red
+        }
+    }
+}
+
+/// The four figures at the top, each against the period before.
+private struct Headline: View {
+    let r: ActivityReport
+    let prev: ActivityReport?
+    let vs: String
 
     var body: some View {
-        let rows = Array(report.lanes.prefix(Self.maxRows))
-        VStack(alignment: .leading, spacing: 6) {
+        let bottleneck = { (x: ActivityReport?) in x.flatMap { $0.allRebuilt ? nil : $0.bottleneck } }
+        let waits = comparesWaits(r, prev)
+        HStack(spacing: 12) {
+            Figure(title: "Agent 活跃", value: duration(r.activeTime), note: "有 agent 在跑或等你，不含你离开的时间",
+                   delta: Delta(r.activeTime, prev?.activeTime, better: .up, vs: vs, fmt: duration))
+            Figure(title: "平均同时在跑", value: String(format: "%.1f 个", r.parallelAverage), note: "最多 \(r.parallelPeak) 个",
+                   delta: Delta(r.parallelAverage, prev?.parallelAverage, better: .up, vs: vs) { String(format: "%.1f", $0) })
+            Figure(title: "全员等你", value: bottleneck(r).map(duration) ?? "–", note: "有 agent 在等你、一个都没在跑",
+                   delta: waits ? Delta(bottleneck(r), bottleneck(prev), better: .down, vs: vs, fmt: duration) : nil)
+            Figure(title: "完成轮数", value: "\(r.turns)",
+                   note: r.perActiveHour(r.turns).map { String(format: "每活跃小时 %.1f 轮", $0) } ?? "agent 回完一次算一轮",
+                   delta: Delta(Double(r.turns), prev.map { Double($0.turns) }, better: .up, vs: vs) { "\(Int($0))" })
+        }
+    }
+}
+
+private struct Figure: View {
+    let title: String
+    let value: String
+    let note: String
+    let delta: Delta?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(.secondary)
+            Text(value).font(.system(size: 28, weight: .bold).monospacedDigit()).lineLimit(1).minimumScaleFactor(0.6)
+            Text(delta?.text ?? " ").font(.system(size: 11.5, weight: .medium).monospacedDigit())
+                .foregroundStyle(delta?.color ?? .clear).lineLimit(1)
+            Text(note).font(.system(size: 10.5)).foregroundStyle(.tertiary).lineLimit(1)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card(.done, radius: 14)
+    }
+}
+
+/// Axis labels along a period: every 3 hours of a day (on the clock), under each day of a week,
+/// under every few days of a month. Each label sits at the middle of its span.
+func axisTicks(_ period: Period, _ range: DateInterval, calendar cal: Calendar = .current) -> [(span: DateInterval, label: String)] {
+    func day(_ i: Int) -> DateInterval? {
+        cal.date(byAdding: .day, value: i, to: range.start).flatMap { cal.dateInterval(of: .day, for: $0) }
+    }
+    switch period {
+    case .day:
+        return stride(from: 0, through: 24, by: 3).compactMap { h in
+            let d = h == 24 ? range.end : cal.date(bySettingHour: h, minute: 0, second: 0, of: range.start)
+            return d.map { (DateInterval(start: $0, duration: 0), "\(h)") }
+        }
+    case .week:
+        return (0..<7).compactMap { i in day(i).map { ($0, $0.start.formatted(.dateTime.weekday(.abbreviated))) } }
+    case .month:
+        let days = cal.range(of: .day, in: .month, for: range.start)?.count ?? 30
+        return [1, 5, 10, 15, 20, 25, days].compactMap { n in day(n - 1).map { ($0, "\(n)日") } }
+    }
+}
+
+/// Where `d` falls along `edges`, as a fraction of the slots (each slot drawn equally wide).
+func slotFraction(_ d: Date, _ edges: [Date]) -> Double {
+    guard let first = edges.first, let last = edges.last, edges.count > 1 else { return 0 }
+    if d <= first { return 0 }
+    if d >= last { return 1 }
+    let k = max(0, (edges.firstIndex { $0 > d } ?? edges.count) - 1)
+    let w = edges[k + 1].timeIntervalSince(edges[k])
+    return (Double(k) + (w > 0 ? d.timeIntervalSince(edges[k]) / w : 0)) / Double(edges.count - 1)
+}
+
+func midpoint(_ i: DateInterval) -> Date { i.start.addingTimeInterval(i.duration / 2) }
+
+/// The main chart: per slice of the period, how many sessions ran and how many waited on you,
+/// with the period before as a line.
+private struct ActivityChart: View {
+    let period: Period
+    let report: ActivityReport
+    let previous: ActivityReport
+    let now: Date
+    @State private var hover: Int?
+    static let gutter: CGFloat = 26
+
+    /// Per day in a month (hours of session time), otherwise sessions at once.
+    private var scale: Double { period == .month ? 24 : 1 }
+    private func fx(_ d: Date) -> Double { slotFraction(d, report.bucketEdges) }
+    private var unit: String { period == .month ? "时" : "个" }
+    private func fmt(_ v: Double) -> String { String(format: "%.1f", v * scale) + unit }
+
+    var body: some View {
+        let run = report.parallelBuckets, wait = report.waitingBuckets, ghost = previous.parallelBuckets
+        let peak = max((0..<run.count).map { run[$0] + (wait.indices.contains($0) ? wait[$0] : 0) }.max() ?? 0, ghost.max() ?? 0)
+        // A whole number on the axis, in the shown unit, and an even one past 2 so its half is too.
+        let whole = max(1, (peak * scale).rounded(.up))
+        let top = (whole > 2 ? (whole / 2).rounded(.up) * 2 : whole) / scale
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Label("泳道", systemImage: "chart.bar.xaxis").font(.system(size: 11.5, weight: .semibold)).foregroundStyle(.secondary)
+                Text(period == .month ? "每天的会话时长" : "同时在跑 / 在等你的会话数")
+                    .font(.system(size: 12, weight: .semibold))
                 Spacer()
-                legend
+                if let i = hover, i < run.count { readout(i, run, wait, ghost) } else { legend }
             }
-            if rows.isEmpty {
-                Text("这段时间没有会话在跑或等你。").font(.system(size: 12)).foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity, minHeight: 60)
-            } else {
-                axis
-                ForEach(rows, id: \.session) { row in
-                    HStack(spacing: 8) {
-                        rowLabel(row.session)
-                        Track(range: report.range, now: now, segments: row.segments, away: report.away)
-                            .frame(height: 14)
+            .frame(height: 16)
+            GeometryReader { g in
+                let plot = CGRect(x: Self.gutter, y: 0, width: g.size.width - Self.gutter, height: g.size.height)
+                canvas(run, wait, ghost, top: top, plot: plot)
+                    .onContinuousHover { phase in
+                        if case .active(let p) = phase, p.x >= plot.minX, !run.isEmpty {
+                            hover = min(run.count - 1, Int((p.x - plot.minX) / plot.width * CGFloat(run.count)))
+                        } else { hover = nil }
                     }
-                    .frame(height: 18)
+            }
+            .frame(height: 170)
+            GeometryReader { g in
+                let w = g.size.width - Self.gutter
+                ForEach(Array(axisTicks(period, report.range).enumerated()), id: \.offset) { _, t in
+                    Text(t.label).font(.system(size: 10)).monospacedDigit().foregroundStyle(.tertiary).fixedSize()
+                        .position(x: Self.gutter + w * fx(midpoint(t.span)), y: 6)
                 }
-                if report.lanes.count > rows.count {
-                    Text("另有 \(report.lanes.count - rows.count) 个会话未显示").font(.system(size: 10.5)).foregroundStyle(.tertiary)
+            }
+            .frame(height: 12)
+        }
+        .padding(14)
+        .card(.done, radius: 14)
+    }
+    private func canvas(_ run: [Double], _ wait: [Double], _ ghost: [Double], top: Double, plot: CGRect) -> some View {
+        let range = report.range, away = report.away, hover = hover, edges = report.bucketEdges
+        let gridLabel = { (v: Double) in String(format: (v * scale).rounded() == v * scale ? "%.0f" : "%.1f", v * scale) }
+        return Canvas { ctx, _ in
+            func y(_ v: Double) -> CGFloat { plot.maxY - plot.height * CGFloat(min(v, top) / top) }
+            func x(_ d: Date) -> CGFloat { plot.minX + plot.width * CGFloat(slotFraction(d, edges)) }
+            for a in away {
+                ctx.fill(Path(CGRect(x: x(a.start), y: plot.minY, width: x(a.end) - x(a.start), height: plot.height)), with: .color(Ink.away))
+            }
+            for v in [0, top / 2, top] {
+                ctx.fill(Path(CGRect(x: plot.minX, y: y(v) - 0.25, width: plot.width, height: 0.5)), with: .color(.primary.opacity(0.12)))
+                ctx.draw(Text(gridLabel(v)).font(.system(size: 9.5)).foregroundStyle(.tertiary),
+                         at: CGPoint(x: plot.minX - 4, y: min(max(y(v), 6), plot.maxY - 6)), anchor: .trailing)
+            }
+            let n = max(run.count, 1)
+            let bw = plot.width / CGFloat(n)
+            let gap = min(2, bw * 0.2)
+            for i in 0..<run.count {
+                let x0 = plot.minX + CGFloat(i) * bw + gap / 2
+                let w = waitAt(wait, i)
+                if hover == i {
+                    ctx.fill(Path(CGRect(x: x0 - gap / 2, y: plot.minY, width: bw, height: plot.height)), with: .color(.primary.opacity(0.06)))
+                }
+                if run[i] > 0 {
+                    ctx.fill(Path(roundedRect: CGRect(x: x0, y: y(run[i]), width: bw - gap, height: plot.maxY - y(run[i])), cornerRadius: 1.5),
+                             with: .color(Ink.running.opacity(0.85)))
+                }
+                if w > 0 {
+                    ctx.fill(Path(roundedRect: CGRect(x: x0, y: y(run[i] + w), width: bw - gap, height: y(run[i]) - y(run[i] + w)), cornerRadius: 1.5),
+                             with: .color(Ink.waiting.opacity(0.85)))
+                }
+            }
+            // The period before, running only, as a step line over the same slices.
+            if ghost.contains(where: { $0 > 0 }) {
+                var line = Path()
+                for (i, v) in ghost.prefix(n).enumerated() {
+                    let a = CGPoint(x: plot.minX + CGFloat(i) * bw, y: y(v)), b = CGPoint(x: a.x + bw, y: y(v))
+                    i == 0 ? line.move(to: a) : line.addLine(to: a)
+                    line.addLine(to: b)
+                }
+                ctx.stroke(line, with: .color(.primary.opacity(0.45)), style: StrokeStyle(lineWidth: 1.2, lineJoin: .round, dash: [3, 2]))
+            }
+            if range.contains(now) {
+                ctx.fill(Path(CGRect(x: x(now) - 0.5, y: plot.minY, width: 1, height: plot.height)), with: .color(.primary.opacity(0.4)))
+            }
+        }
+    }
+
+    private func waitAt(_ wait: [Double], _ i: Int) -> Double { wait.indices.contains(i) ? wait[i] : 0 }
+
+    private func readout(_ i: Int, _ run: [Double], _ wait: [Double], _ ghost: [Double]) -> some View {
+        let e = report.bucketEdges
+        let a = e.indices.contains(i) ? e[i] : report.range.start, b = e.indices.contains(i + 1) ? e[i + 1] : report.range.end
+        let when = period == .month ? a.formatted(.dateTime.month().day())
+            : period == .week ? "\(a.formatted(.dateTime.weekday(.abbreviated).hour().minute()))–\(b.formatted(.dateTime.hour().minute()))"
+            : "\(a.formatted(.dateTime.hour().minute()))–\(b.formatted(.dateTime.hour().minute()))"
+        var parts = [when, "在跑 \(fmt(run[i]))", "等你 \(fmt(waitAt(wait, i)))"]
+        if ghost.indices.contains(i) { parts.append("上期在跑 \(fmt(ghost[i]))") }
+        return Text(parts.joined(separator: "  ·  ")).font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary)
+    }
+
+    private var legend: some View {
+        HStack(spacing: 12) {
+            swatch(Ink.running, "在跑")
+            swatch(Ink.waiting, "等你处理")
+            swatch(Ink.away, "你不在")
+            HStack(spacing: 4) {
+                Path { p in p.move(to: CGPoint(x: 0, y: 3)); p.addLine(to: CGPoint(x: 12, y: 3)) }
+                    .stroke(Color.primary.opacity(0.45), style: StrokeStyle(lineWidth: 1.2, dash: [3, 2])).frame(width: 12, height: 6)
+                Text("上期在跑")
+            }
+        }
+        .font(.system(size: 10.5)).foregroundStyle(.secondary)
+    }
+}
+
+private func swatch(_ c: Color, _ name: String) -> some View {
+    HStack(spacing: 4) {
+        RoundedRectangle(cornerRadius: 2).fill(c).frame(width: 10, height: 6)
+        Text(name)
+    }
+}
+/// Where the time went: per project, running and waiting on the user, busiest first.
+private struct ProjectBreakdown: View {
+    @Environment(AppModel.self) private var model
+    let report: ActivityReport
+    static let shown = 7
+
+    var body: some View {
+        let rows = projects
+        let top = rows.first.map { $0.running + $0.waiting } ?? 0
+        VStack(alignment: .leading, spacing: 9) {
+            Text("按项目").font(.system(size: 12, weight: .semibold))
+            if rows.isEmpty {
+                Text("没有会话在跑或等你。").font(.system(size: 12)).foregroundStyle(.tertiary)
+            }
+            ForEach(rows.prefix(Self.shown), id: \.name) { p in
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text(p.name).font(.system(size: 11.5, weight: .medium)).lineLimit(1)
+                        Spacer()
+                        Text("在跑 \(duration(p.running)) · 等你 \(duration(p.waiting))")
+                            .font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.secondary)
+                    }
+                    GeometryReader { g in
+                        let unit = top > 0 ? g.size.width / top : 0
+                        HStack(spacing: 1) {
+                            RoundedRectangle(cornerRadius: 2).fill(Ink.running.opacity(0.85)).frame(width: max(0, p.running * unit))
+                            RoundedRectangle(cornerRadius: 2).fill(Ink.waiting.opacity(0.85)).frame(width: max(0, p.waiting * unit))
+                            Spacer(minLength: 0)
+                        }
+                    }
+                    .frame(height: 6)
+                }
+            }
+            if rows.count > Self.shown {
+                Text("另有 \(rows.count - Self.shown) 个项目").font(.system(size: 10.5)).foregroundStyle(.tertiary)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .card(.done, radius: 14)
+    }
+
+    private var projects: [(name: String, running: TimeInterval, waiting: TimeInterval)] {
+        var by: [String: (TimeInterval, TimeInterval)] = [:]
+        for t in report.sessionTotals {
+            let s = model.sessions[t.session]
+            let name = s == nil ? "已删除的会话" : s?.projectName ?? "其他"
+            by[name, default: (0, 0)].0 += t.running
+            by[name, default: (0, 0)].1 += t.waiting
+        }
+        return by.map { ($0.key, $0.value.0, $0.value.1) }.filter { $0.1 + $0.2 >= 1 }
+            .sorted { $0.1 + $0.2 > $1.1 + $1.2 }
+    }
+}
+
+private struct Tile: View {
+    let title: String
+    let symbol: String
+    let value: String
+    let caption: String
+    var delta: Delta?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(title, systemImage: symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(value).font(.system(size: 18, weight: .bold).monospacedDigit()).lineLimit(1).minimumScaleFactor(0.6)
+                if let delta { Text(delta.text).font(.system(size: 10.5).monospacedDigit()).foregroundStyle(delta.color).lineLimit(1) }
+            }
+            Text(caption).font(.system(size: 10.5)).foregroundStyle(.tertiary).lineLimit(2)
+        }
+        .padding(11)
+        .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
+        .card(.done, radius: 12)
+    }
+}
+/// Per-session swimlanes, folded by default; open, the busiest few, then all on request.
+private struct SessionLanes: View {
+    @Environment(AppModel.self) private var model
+    let period: Period
+    let report: ActivityReport
+    let now: Date
+    @State private var open = false
+    @State private var all = false
+    static let label: CGFloat = 170
+    static let few = 10
+
+    var body: some View {
+        let totals = report.sessionTotals
+        let segments = Dictionary(report.lanes.map { ($0.session, $0.segments) }, uniquingKeysWith: { a, _ in a })
+        let rows = all ? totals : Array(totals.prefix(Self.few))
+        VStack(alignment: .leading, spacing: 5) {
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) { open.toggle() }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
+                        .rotationEffect(.degrees(open ? 90 : 0))
+                    Text("会话明细").font(.system(size: 12, weight: .semibold))
+                    Text("\(totals.count) 个会话").font(.system(size: 11)).foregroundStyle(.secondary)
+                    Spacer()
+                    if open { lanesLegend }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if open, !rows.isEmpty {
+                HStack(spacing: 8) {
+                    Color.clear.frame(width: Self.label, height: 1)
+                    GeometryReader { g in
+                        ForEach(Array(axisTicks(period, report.range).enumerated()), id: \.offset) { _, t in
+                            Text(t.label).font(.system(size: 9.5)).monospacedDigit().foregroundStyle(.tertiary).fixedSize()
+                                .position(x: g.size.width * midpoint(t.span).timeIntervalSince(report.range.start) / report.range.duration, y: 6)
+                        }
+                    }
+                    .frame(height: 12)
+                }
+                ForEach(rows, id: \.session) { t in
+                    HStack(spacing: 8) {
+                        rowLabel(t.session)
+                        Track(range: report.range, now: now, segments: segments[t.session] ?? [], away: report.away)
+                            .frame(height: 10)
+                    }
+                    .frame(height: 14)
+                }
+                if totals.count > Self.few {
+                    Button(all ? "只看最忙的 \(Self.few) 个" : "显示全部 \(totals.count) 个") { all.toggle() }
+                        .buttonStyle(.link).font(.system(size: 11))
                 }
             }
         }
@@ -193,39 +546,12 @@ private struct Swimlanes: View {
         .help(s.map { "\($0.projectName ?? "") · \($0.title)" } ?? "")
     }
 
-    private var legend: some View {
+    private var lanesLegend: some View {
         HStack(spacing: 10) {
-            ForEach(Lane.allCases, id: \.self) { l in
-                HStack(spacing: 4) {
-                    RoundedRectangle(cornerRadius: 2).fill(l.status.tint).frame(width: 10, height: 6)
-                    Text(l.status.label)
-                }
-            }
-            HStack(spacing: 4) {
-                RoundedRectangle(cornerRadius: 2).fill(Color.primary.opacity(0.12)).frame(width: 10, height: 6)
-                Text("离开")
-            }
+            ForEach(Lane.allCases, id: \.self) { swatch($0.status.tint, $0.status.label) }
+            swatch(Color.primary.opacity(0.12), "离开")
         }
         .font(.system(size: 10.5)).foregroundStyle(.secondary)
-    }
-
-    /// Hours along a day, days along a week.
-    private var axis: some View {
-        let span = report.range.duration
-        let step: TimeInterval = span > 86400 * 1.5 ? 86400 : 3 * 3600
-        let ticks = stride(from: 0, through: span, by: step).map { report.range.start.addingTimeInterval($0) }
-        return HStack(spacing: 8) {
-            Color.clear.frame(width: Self.label, height: 1)
-            GeometryReader { g in
-                ForEach(ticks, id: \.self) { t in
-                    Text(step >= 86400 ? t.formatted(.dateTime.month(.defaultDigits).day()) : t.formatted(.dateTime.hour(.defaultDigits(amPM: .omitted))))
-                        .font(.system(size: 9.5)).monospacedDigit().foregroundStyle(.tertiary)
-                        .fixedSize()
-                        .position(x: g.size.width * t.timeIntervalSince(report.range.start) / span, y: 6)
-                }
-            }
-            .frame(height: 12)
-        }
     }
 }
 
@@ -246,7 +572,7 @@ private struct Track: View {
             }
             for s in segments {
                 let w = max(1.5, x(s.end) - x(s.start))
-                ctx.fill(Path(roundedRect: CGRect(x: x(s.start), y: 2, width: w, height: size.height - 4), cornerRadius: 2),
+                ctx.fill(Path(roundedRect: CGRect(x: x(s.start), y: 1, width: w, height: size.height - 2), cornerRadius: 2),
                          with: .color(s.lane.status.tint.opacity(0.85)))
             }
             if range.contains(now) {
@@ -255,112 +581,6 @@ private struct Track: View {
         }
     }
 }
-
-private struct Tile<Extra: View>: View {
-    let title: String
-    let symbol: String
-    let value: String
-    let caption: String
-    @ViewBuilder var extra: Extra
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Label(title, systemImage: symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-            Text(value).font(.system(size: 22, weight: .bold).monospacedDigit()).lineLimit(1).minimumScaleFactor(0.6)
-            Text(caption).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2)
-            extra
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 128, alignment: .topLeading)
-        .card(.done, radius: 12)
-    }
-}
-
-extension Tile where Extra == EmptyView {
-    init(title: String, symbol: String, value: String, caption: String) {
-        self.init(title: title, symbol: symbol, value: value, caption: caption) { EmptyView() }
-    }
-}
-
-private struct Sparkline: View {
-    let values: [Double]
-
-    var body: some View {
-        Canvas { ctx, size in
-            guard values.count > 1, let top = values.max(), top > 0 else { return }
-            let dx = size.width / CGFloat(values.count - 1)
-            var line = Path()
-            for (i, v) in values.enumerated() {
-                let p = CGPoint(x: CGFloat(i) * dx, y: size.height * (1 - v / top))
-                i == 0 ? line.move(to: p) : line.addLine(to: p)
-            }
-            var fill = line
-            fill.addLine(to: CGPoint(x: size.width, y: size.height))
-            fill.addLine(to: CGPoint(x: 0, y: size.height))
-            fill.closeSubpath()
-            ctx.fill(fill, with: .color(.blue.opacity(0.15)))
-            ctx.stroke(line, with: .color(.blue.opacity(0.8)), lineWidth: 1.2)
-        }
-        .frame(height: 22)
-    }
-}
-
-/// The last 7 days against the 7 before.
-private struct WeekComparison: View {
-    let this: ActivityReport
-    let last: ActivityReport
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("周环比（近 7 天 vs 前 7 天）", systemImage: "calendar").font(.system(size: 11.5, weight: .semibold)).foregroundStyle(.secondary)
-            Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 6) {
-                GridRow {
-                    Text("")
-                    Text("近 7 天")
-                    Text("前 7 天")
-                    Text("变化")
-                }
-                .font(.system(size: 10.5, weight: .medium)).foregroundStyle(.tertiary)
-                row("活跃时间", this.activeTime, last.activeTime, duration, better: .up)
-                row("平均并行", this.parallelAverage, last.parallelAverage, { String(format: "%.1f", $0) }, better: .up)
-                row("利用率", this.utilization, last.utilization, { "\(Int(($0 * 100).rounded()))%" }, better: .up)
-                row("回复中位", this.replyMedian, last.replyMedian, duration, better: .down)
-                row("瓶颈时间", this.allRebuilt ? nil : this.bottleneck, last.allRebuilt ? nil : last.bottleneck, duration, better: .down)
-                row("完成轮数", Double(this.turns), Double(last.turns), { "\(Int($0))" }, better: .up)
-                row("切换", Double(this.switches), Double(last.switches), { "\(Int($0))" }, better: nil)
-            }
-            .font(.system(size: 12)).monospacedDigit()
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card(.done, radius: 14)
-    }
-
-    enum Better { case up, down }
-
-    private func row(_ name: String, _ a: Double?, _ b: Double?, _ fmt: (Double) -> String, better: Better?) -> some View {
-        GridRow {
-            Text(name).foregroundStyle(.secondary)
-            Text(a.map(fmt) ?? "–")
-            Text(b.map(fmt) ?? "–").foregroundStyle(.secondary)
-            change(a, b, better: better)
-        }
-    }
-
-    @ViewBuilder
-    private func change(_ a: Double?, _ b: Double?, better: Better?) -> some View {
-        if let a, let b, b > 0 {
-            let pct = (a - b) / b * 100
-            let up = pct >= 0
-            let good = better.map { ($0 == .up) == up }
-            Text("\(up ? "↑" : "↓") \(Int(abs(pct).rounded()))%")
-                .foregroundStyle(abs(pct) < 1 || good == nil ? Color.secondary : good! ? .green : .red)
-        } else {
-            Text("–").foregroundStyle(.tertiary)
-        }
-    }
-}
-
 /// The menu popover's three numbers for today: average parallel, median reply, bottleneck.
 struct TodayFigures: View {
     @Environment(AppModel.self) private var model

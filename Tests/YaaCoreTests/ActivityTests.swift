@@ -122,6 +122,16 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         #expect(r.activeTime == 250)
         #expect(abs(r.utilization! - 200.0 / 300) < 1e-9)
         #expect(r.parallelBuckets.map { ($0 * 100).rounded() / 100 } == [1.5, 0.5, 0, 0])
+        #expect(r.waitingBuckets.map { ($0 * 100).rounded() / 100 } == [0, 0.5, 0.5, 0])
+        #expect(r.sessionTotals.map(\.session) == ["claude-code:b", "claude-code:a"])
+        #expect(r.sessionTotals.first.map { [$0.running, $0.waiting] } == [100, 100])
+    }
+
+    @Test func bucketsSpanTheWholeRange() {
+        // Now halfway in: the buckets still split the full range, the later ones empty.
+        let r = ActivityReport.compute(rows: [], lanesBefore: ["x": .running], range: DateInterval(start: t0, duration: 1000),
+                                       now: at(500), buckets: 4)
+        #expect(r.parallelBuckets.map { ($0 * 100).rounded() / 100 } == [1, 1, 0, 0])
     }
 
     @Test func bucketsOnUnevenSpans() {
@@ -143,6 +153,8 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         #expect(r.activeTime == 50)
         #expect(r.replies == [50])
         #expect(r.away == [DateInterval(start: at(20), duration: 50)])
+        #expect(r.sessionTotals.first?.waiting == 50)
+        #expect(r.waitingBuckets.reduce(0, +) > 0)
     }
 
     @Test func lanesCarriedIntoRangeAndClippedAtNow() {
@@ -212,5 +224,61 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         #expect(abs(r.activeTime - 200) < 0.01)
         #expect(r.turns == 1 && r.toolCalls == 2)
         #expect(r.bottleneck == 0)
+    }
+}
+
+@Suite struct Periods_ {
+    let cal: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "America/New_York")!
+        c.firstWeekday = 1
+        return c
+    }()
+    func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0) -> Date {
+        cal.date(from: DateComponents(year: y, month: m, day: d, hour: h, minute: min))!
+    }
+
+    @Test func dayEdgesFollowTheClockAcrossDaylightSaving() {
+        let p = Periods(.day, back: 0, now: date(2025, 3, 9, 12), calendar: cal)
+        #expect(p.edges.count == 47)  // 23 hours
+        #expect(p.edges.contains(date(2025, 3, 9, 3)))
+        #expect(p.previousEdges.count == 49)
+        #expect(Periods(.day, back: 0, now: date(2025, 11, 2, 12), calendar: cal).edges.count == 49)  // 1:00 once
+    }
+
+    @Test func weekEdgesStayOnThreeHourMarks() {
+        let p = Periods(.week, back: 0, now: date(2025, 3, 12, 12), calendar: cal)
+        #expect(p.range.start == date(2025, 3, 9))
+        #expect(p.edges.count == 57)
+        #expect(p.edges.contains(date(2025, 3, 15, 21)))
+    }
+
+    @Test func monthEdgesAreDays() {
+        let p = Periods(.month, back: 0, now: date(2025, 3, 20), calendar: cal)
+        #expect(p.edges.count == 32)
+        #expect(p.edges[10] == date(2025, 3, 11))
+        #expect(p.previousEdges.count == 29)
+    }
+
+    @Test func previousSoFarIsTheSameClockTime() {
+        // Day after the clocks went forward: yesterday up to the same 12:00, not 13:00.
+        let p = Periods(.day, back: 0, now: date(2025, 3, 10, 11, 55), calendar: cal)
+        #expect(p.previousSoFar == DateInterval(start: date(2025, 3, 9), end: date(2025, 3, 9, 12)))
+        // A past day: the whole day before.
+        let q = Periods(.day, back: 1, now: date(2025, 3, 10, 11, 55), calendar: cal)
+        #expect(q.previousSoFar == q.previous && q.previous.start == date(2025, 3, 8))
+        // Late in a long month: capped at the shorter month's end.
+        let m = Periods(.month, back: 0, now: date(2025, 3, 30, 12), calendar: cal)
+        #expect(m.previousSoFar.end == date(2025, 3, 1))
+    }
+
+    @Test func explicitEdgesSliceTheReport() {
+        let t = date(2025, 3, 1)
+        let edges = [t, t.addingTimeInterval(100), t.addingTimeInterval(400)]
+        let r = ActivityReport.compute(rows: [], lanesBefore: ["x": .running], range: DateInterval(start: t, duration: 400),
+                                       now: t.addingTimeInterval(200), edges: edges)
+        #expect(r.parallelBuckets.count == 2)
+        #expect(r.parallelBuckets[0] == 1)
+        #expect(abs(r.parallelBuckets[1] - 1.0 / 3) < 1e-9)
     }
 }

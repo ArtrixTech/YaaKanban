@@ -2,7 +2,7 @@
 
 ## fix(wave): trade the swap token in resumed Wave blocks
 
-`pending` | 2026-10-21
+`5740cec` | 2026-10-21
 
 - **Changes**: `WaveAdapter.resumeScript` runs `wsh token "$WAVETERM_SWAPTOKEN" zsh` and evals it before `"$SHELL" -ilc <resume>`.
 - **Reason**: a `wsh run -c` block gets only `WAVETERM_SWAPTOKEN` (one-time, 5 min). Wave's ZDOTDIR/rcfile trade it for `WAVETERM_BLOCKID`/`TABID`/`JWT`, but `-ilc` reads the user's rc, so the resumed agent's hooks sent `terminal = {termProgram: waveterm}` only. `isWave` was false, the jump fell to `hostApp(...).activate()` on the already-front Wave: no visible effect.
@@ -11,9 +11,36 @@
 - **Result**: `make build` ok, `make test` 91 passed. Sessions resumed before this fix stay without a block until resumed again.
 - **Notes**: `wsh token` output for zsh is `export K='v'` lines (POSIX), so the type is fixed to zsh. The token is consumed on first use; nothing else in the block needs it.
 
-## feat(metrics): add efficiency overview and an experimental slim rail
+## feat(metrics): lead the overview with figures and one chart
 
 `pending` | 2026-10-21
+
+- **Changes**:
+  - `DashboardView` rebuilt. From the top: header with 日/周/月 picker and ‹ › navigation (`Periods`: calendar day, week or month), a summary sentence, four headline figures (活跃, 平均同时在跑, 全员等你, 完成轮数) with deltas, and a stacked bar chart (running in blue, waiting in red, away shaded, a dashed step line for the previous period's running, hover readout; for a month, hours per day). Then 按项目 bars, detail tiles with deltas, and 会话明细 swimlanes, folded with the busiest 10. The 7-day table and sparkline are gone.
+  - `ActivityReport`: `waitingBuckets` (away excluded); buckets span the whole range, not just up to now; `sessionTotals` (running / waiting with away time taken out, busiest first).
+  - New YaaCore `ActivityPeriod.swift`:
+    - `Period` (day / week / month);
+    - `Periods`: range, previous, previousSoFar, and wall-clock slot edges.
+  - `AppModel.report(_:buckets:edges:)`: the slot count is part of the cache key.
+  - Snapshots: `dashboard-week`, `dashboard-month`.
+- **Reason**: dozens of swimlanes made the page too tall to read, and the numbers didn't say plainly how things went.
+- **User feedback**: "效率显示要大改，现在泳道太长，几十条高度很高，没法看。数据也看不明白，不够直观。上来应该就是直观的内容，之后才是细项。" "对比的颗粒度，默认day，可选一周/一月。"
+- **Process**: Snapshots of the day, week and month views were checked. Comparing against a period with nothing recorded showed "↑ 全部"; it now shows no delta. Adversarial review found:
+  - Month reports were recomputed every redraw. Finished ranges now stay cached for 10 min, and `previousSoFar` is rounded to 10 min.
+  - Elapsed seconds shifted the "same point" across a clock change. It is now days in plus the same clock time.
+  - Equal-width buckets drifted off midnight and 3-hour marks. Calendar edges replaced them (`Periods.edges`, `compute(edges:)`), and the chart draws slots equal-width via `slotFraction`.
+  - Day ticks were at +h hours. They now use `bySettingHour`.
+  - Bottleneck, utilization and reply deltas were shown against a partly rebuilt period. They are now hidden when either side has rebuilt time.
+- **Result**: `make test` 96 passed. New tests: `bucketsSpanTheWholeRange`, waiting buckets, session totals, and the `Periods_` suite (DST day / week / month edges, same clock time, month cap, explicit edges).
+- **Notes**:
+  - A running period is compared to the same point of the previous one: days in, same clock time.
+  - Late in a long month, the comparison is capped at the previous month's end, so March 29–31 compare against all of February.
+  - The chart ghost covers the full previous period, aligned by slot index.
+  - A repeated DST hour is one longer slot.
+
+## feat(metrics): add efficiency overview and an experimental slim rail
+
+`3712467` | 2026-10-21
 
 - **Changes**:
   - YaaCore `Activity` (rows diffed from session states: lane / reply / turn / tokens / focus / away), `ActivityReport` (pure sweep: swimlanes, parallelism, utilization, bottleneck, reply percentiles, throughput), `ActivityBackfill` (session turns → running lanes + turn rows before recording began). `Store`: `activity` and `meta` tables.
