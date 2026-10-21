@@ -1,8 +1,19 @@
 # Devlog
 
-## style(ui): unify agent logos in white
+## fix(ui): repair the Codex logo path for CoreSVG
 
 `pending` | 2026-10-21
+
+- **Changes**: rewrote the single path in `Resources/AgentIcons/codex.svg` with explicit separators between every number and arc flag. Same geometry, no code change.
+- **Reason**: the monochrome Codex logo rendered as a broken blob. CoreSVG logged an error and mis-parsed the compact path (packed decimals like `1.223.123.123`, packed arc flags like `012.285`). The old colored asset hid this behind its white plate and gradient.
+- **User feedback**: "之前做了logo统一，Codex Logo看起来不对劲。请修复"
+- **Process**: rendered all five SVGs to PNG through `NSImage` (the app's loader). Before: Codex malformed and a CoreSVG error. After: correct cloud mark with the `>_` cutout and no CoreSVG error. The other four were unaffected.
+- **Result**: `make app` passed.
+- **Notes**: when adding lobe-icons SVGs, render them through NSImage first; CoreSVG is stricter than browsers on compact path syntax.
+
+## style(ui): unify agent logos in white
+
+`80a53e7` | 2026-10-21
 
 - **Changes**: `AgentLogo` renders every SVG and fallback symbol in white; Claude and Codex use monochrome assets. Removed the Codex background plate and gradient while preserving its mark and terminal cutouts. Recorded the visual decision in `docs/spec.md`.
 - **Reason**: agent logos mixed brand colors and inherited text colors across the UI.
