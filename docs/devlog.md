@@ -1,5 +1,16 @@
 # Devlog
 
+## fix(board): say when reopen can only copy, and keep the rail sized under alerts
+
+`pending` | 2026-10-21
+
+- **Changes**: `TerminalJumper.runsResume` (Wave block, Terminal, iTerm, Codex app). `AppModel.jump` gives `askReopen` a reason when the command can't be run: Wave token expired, Wave block unknown, or another terminal; the button then reads "切到<app>并复制". `FloatingPanelController` runs `fit` through `RunLoop.main.perform(inModes: [.common])` instead of `DispatchQueue.main.async`.
+- **Reason**: (1) a Wave session with no block (resumed before `5740cec`) offered "重新打开", but `resume` could only copy the command and activate the Wave app that was already in front: no visible effect. (2) Clicking a card on a peeked rail opens the alert; the peek ends under it and SwiftUI re-lays out narrow, but `fit` sat on the main queue, which does not drain during `runModal`. The window stayed wide.
+- **User feedback**: "点重新打开没反应。另外，如果侧边栏是折叠状态，点击之后的询问是否重新打开弹窗会导致侧边栏窗体仍然是宽状态，但内容已经是窄状态了。"
+- **Process**: probe app with `NSAlert.runModal`: `DispatchQueue.main.async` did not run inside the modal, `RunLoop.main.perform(inModes: [.common])` did, and an NSView display link in `.common` kept ticking (the slide still animates). Wave DB has no trace of the closed block, so the old session's tab can't be recovered.
+- **Result**: `make build` ok, `make test` 96 passed; the staged tree alone builds. Alert flow not checked by hand.
+- **Notes**: Ghostty, WezTerm and editors now get "切到…并复制" too; their `resume` never ran the command either.
+
 ## fix(wave): trade the swap token in resumed Wave blocks
 
 `5740cec` | 2026-10-21
