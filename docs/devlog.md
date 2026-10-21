@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(codex): open the thread on click; ignore the app's background calls
+## style(ui): unify agent logos in white
 
 `pending` | 2026-10-21
+
+- **Changes**: `AgentLogo` renders every SVG and fallback symbol in white; Claude and Codex use monochrome assets. Removed the Codex background plate and gradient while preserving its mark and terminal cutouts. Recorded the visual decision in `docs/spec.md`.
+- **Reason**: agent logos mixed brand colors and inherited text colors across the UI.
+- **User feedback**: "需要把Logo统一一下（不同agent的），都统一成白色。"
+- **Process**: independent read-only review confirmed all five UI call sites use `AgentLogo` and checked the Codex alpha-mask pitfall. `git diff --check` passed.
+- **Result**: `make app` passed; all five packaged SVGs match the source assets. Existing `Notifier.swift` Sendable warnings remain.
+- **Notes**: no architecture change; no live app visual check or installation performed.
+
+## fix(codex): open the thread on click; ignore the app's background calls
+
+`108a666` | 2026-10-21
 
 - **Changes**:
   - `TerminalJumper`: when the Codex agent's host app is the Codex desktop app (`com.openai.codex`), open `codex://threads/<session_id>` with that app instead of only activating it. Ids that are not hex/dash are never put in the URL. Codex in a terminal keeps the old path.

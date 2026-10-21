@@ -228,19 +228,20 @@ private struct Stale: View {
 }
 
 /// The agent's real logo, bundled as SVG in `Resources/AgentIcons` (from @lobehub/icons).
-/// Monochrome logos are templates and follow the text color.
+/// All agent logos use white template rendering, including the symbol fallback.
 struct AgentLogo: View {
     let agent: AgentKind
     var size: CGFloat = 13
 
     var body: some View {
         if let img = Self.image(agent) {
-            Image(nsImage: img).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+            Image(nsImage: img).renderingMode(.template).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
                 .frame(width: size, height: size)
-                .foregroundStyle(.primary.opacity(0.85))
+                .foregroundStyle(.white)
                 .help(agent.displayName)
         } else {
             Image(systemName: agent.symbol).font(.system(size: size * 0.8)).frame(width: size, height: size)
+                .foregroundStyle(.white)
         }
     }
 
@@ -248,16 +249,16 @@ struct AgentLogo: View {
 
     @MainActor static func image(_ agent: AgentKind) -> NSImage? {
         if let i = cache[agent] { return i }
-        let (file, colored): (String, Bool) = switch agent {
-        case .claudeCode: ("claudecode-color", true)
-        case .codex: ("codex-color", true)
-        case .cursor: ("cursor", false)
-        case .opencode: ("opencode", false)
-        case .pi: ("pi", false)
+        let file: String = switch agent {
+        case .claudeCode: "claudecode"
+        case .codex: "codex"
+        case .cursor: "cursor"
+        case .opencode: "opencode"
+        case .pi: "pi"
         }
         guard let url = Bundle.main.resourceURL?.appendingPathComponent("AgentIcons/\(file).svg"),
               let img = NSImage(contentsOf: url) else { return nil }
-        img.isTemplate = !colored
+        img.isTemplate = true
         cache[agent] = img
         return img
     }

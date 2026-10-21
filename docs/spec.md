@@ -36,6 +36,8 @@ Decisions below were agreed with the user on 2026-10-20 (grilling session).
 
 ## 5. UI & alerts
 
+- Agent logos: all five agents use white monochrome marks throughout the UI, including fallback symbols (updated 2026-10-21).
+
 - Menu bar: icon + count of sessions needing attention (`needs_input` + `stuck`); click opens the popover; the main window lists all sessions including history.
 - Floating panel (NSPanel): all Spaces, draggable, edge snapping, adjustable opacity, toggle ⌥⌘K. One row per active session (status + latest tool), click to expand timeline. `idle` shows grey for 30 min then hides; `ended` hides immediately.
 - Timeline: tool name + one-line summary; expand for full input; output truncated to 2 KB. `needs_input` rows show the agent's last message / permission request.
