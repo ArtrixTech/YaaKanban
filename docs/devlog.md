@@ -1,8 +1,23 @@
 # Devlog
 
-## feat(cards): opening a reviewed session restarts its blue clock
+## fix(panel): Liquid Glass surface that adapts to what is behind it
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - On macOS 26 and later the floating panel sits on `NSGlassEffectView`. The SwiftUI content is its `contentView`, so the glass picks light or dark for the content to suit the backdrop.
+  - The fixed colour wash from a328e83 is removed.
+  - Before 26, the `.popover` blur with the white hairline stays.
+  - `HoverView` is now a plain view that holds the surface. The content goes in `content`, which clips during slides.
+- **Reason**: "我感觉解决方案不能是只靠拉深背景颜色实现啊。还是得自适应。" "别的app咋做到自适应的？" System surfaces adapt through the material. They never sample the screen.
+- **Process**:
+  - Sampling the screen behind the panel would need the Screen Recording permission, and the user turned that down.
+  - Not checked by eye: screencapture has no permission here, and `yaak snapshot` draws no backdrop.
+- **Result**: `make test` 65/65. Installed.
+
+## feat(cards): opening a reviewed session restarts its blue clock
+
+`cfce1ef` | 2026-10-20
 
 - **Changes**:
   - `SessionState.reviewedAt` is set each time the user opens a session (click, jump, "标记已验收").

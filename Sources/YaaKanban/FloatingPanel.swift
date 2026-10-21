@@ -7,9 +7,9 @@ private final class BoardPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-/// Reports the pointer entering and leaving the panel whether or not the app is active (SwiftUI's hover
-/// only tracks while it is).
-private final class HoverView: NSVisualEffectView {
+/// The panel's surface: system glass that reports the pointer entering and leaving whether or not
+/// the app is active (SwiftUI's hover only tracks while it is). Content goes in `content`.
+private final class HoverView: NSView {
     var onEnter: () -> Void = {}
     var onExit: () -> Void = {}
 
@@ -24,21 +24,56 @@ private final class HoverView: NSVisualEffectView {
     override func mouseEntered(with event: NSEvent) { onEnter() }
     override func mouseExited(with event: NSEvent) { onExit() }
 
-    /// The window's own colour over the blur. The bare material lets a light wallpaper through as
-    /// mid grey, where neither light nor dark text reads.
-    let wash = NSView()
+    /// Where the content goes, filling the surface. Laid in the glass, it takes the glass's
+    /// adaptive look: light or dark to suit whatever is behind the panel.
+    let content = NSView()
 
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        updateWash()
+    init(frame: NSRect, radius: CGFloat) {
+        super.init(frame: frame)
+        content.frame = bounds
+        content.autoresizingMask = [.width, .height]
+        // Mid-slide the content is larger than the surface; only the surface shows.
+        content.clipsToBounds = true
+        clipsToBounds = true
+        let surface: NSView
+        if #available(macOS 26, *) {
+            let glass = NSGlassEffectView()
+            glass.style = .regular
+            glass.cornerRadius = radius
+            glass.contentView = content
+            surface = glass
+        } else {
+            let blur = NSVisualEffectView()
+            blur.material = .popover
+            blur.blendingMode = .behindWindow
+            blur.state = .active
+            blur.maskImage = Self.roundedMask(radius: radius)
+            blur.addSubview(content)
+            surface = blur
+            // Hairline edge so the panel reads against any wallpaper.
+            wantsLayer = true
+            layer?.cornerRadius = radius
+            layer?.cornerCurve = .continuous
+            layer?.borderWidth = 0.5
+            layer?.borderColor = NSColor.white.withAlphaComponent(0.18).cgColor
+        }
+        surface.frame = bounds
+        surface.autoresizingMask = [.width, .height]
+        addSubview(surface)
     }
 
-    func updateWash() {
-        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        effectiveAppearance.performAsCurrentDrawingAppearance {
-            wash.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(dark ? 0.6 : 0.55).cgColor
-            layer?.borderColor = (dark ? NSColor.white.withAlphaComponent(0.18) : NSColor.black.withAlphaComponent(0.12)).cgColor
+    required init?(coder: NSCoder) { fatalError() }
+
+    private static func roundedMask(radius: CGFloat) -> NSImage {
+        let edge = radius * 2 + 1
+        let img = NSImage(size: NSSize(width: edge, height: edge), flipped: false) { rect in
+            NSColor.black.set()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
         }
+        img.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        img.resizingMode = .stretch
+        return img
     }
 }
 
@@ -64,7 +99,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         panel = BoardPanel(contentRect: NSRect(x: 0, y: 0, width: Self.width, height: 120),
                            styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
                            backing: .buffered, defer: false)
-        blur = HoverView(frame: NSRect(x: 0, y: 0, width: Self.width, height: 120))
+        blur = HoverView(frame: NSRect(x: 0, y: 0, width: Self.width, height: 120), radius: Self.radius)
         super.init()
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -78,10 +113,6 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         panel.delegate = self
 
         blur.autoresizingMask = [.width, .height]
-        blur.material = .popover
-        blur.blendingMode = .behindWindow
-        blur.state = .active
-        blur.maskImage = Self.roundedMask(radius: Self.radius)
         // SwiftUI reports the content's natural height and the window follows it; the content is
         // top-aligned in the window, so a resize in flight never moves its top edge.
         let host = NSHostingView(rootView: FloatingPanelView(
@@ -95,23 +126,11 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         host.sizingOptions = []
         host.autoresizingMask = [.width, .height]
         host.frame = blur.bounds
-        blur.wash.wantsLayer = true
-        blur.wash.frame = blur.bounds
-        blur.wash.autoresizingMask = [.width, .height]
-        blur.wash.layer?.cornerRadius = Self.radius
-        blur.wash.layer?.cornerCurve = .continuous
-        blur.addSubview(blur.wash)
-        blur.addSubview(host)
+        blur.content.addSubview(host)
         self.host = host
         blur.onEnter = { [weak self] in self?.pointerEntered() }
         // Leaving folds it back at once; the poll in `checkPeek` catches what the event misses.
         blur.onExit = { [weak self] in self?.checkPeek() }
-        // Hairline edge so the panel reads against any wallpaper.
-        blur.wantsLayer = true
-        blur.layer?.cornerRadius = Self.radius
-        blur.layer?.cornerCurve = .continuous
-        blur.layer?.borderWidth = 0.5
-        blur.updateWash()
         // The window may be larger than the panel while it slides (see `fit`); the rest is clear,
         // so clicks there go through.
         let root = NSView(frame: blur.frame)
@@ -332,18 +351,6 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         f.origin.y = min(max(f.minY, v.minY), max(v.minY, v.maxY - f.height))
         f.origin.x = min(max(f.minX, v.minX), max(v.minX, v.maxX - f.width))
         if f != panel.frame { panel.setFrame(f, display: true, animate: true) }
-    }
-
-    private static func roundedMask(radius: CGFloat) -> NSImage {
-        let edge = radius * 2 + 1
-        let img = NSImage(size: NSSize(width: edge, height: edge), flipped: false) { rect in
-            NSColor.black.set()
-            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
-            return true
-        }
-        img.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
-        img.resizingMode = .stretch
-        return img
     }
 }
 
