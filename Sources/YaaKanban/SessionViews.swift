@@ -122,12 +122,13 @@ struct SessionCard: View {
         .onHover { hover = $0 }
         .animation(.easeOut(duration: 0.12), value: hover)
         .onTapGesture { model.jump(session.id) }
-        .help("点击跳转到 \(session.agent.displayName)")
+        .help(AppModel.isGone(session) ? "点击在原终端恢复 \(session.agent.displayName)" : "点击跳转到 \(session.agent.displayName)")
         .contextMenu {
-            Button("跳转到终端") { model.jump(session.id) }
+            Button(AppModel.isGone(session) ? "在原终端恢复" : "跳转到终端") { model.jump(session.id) }
             Button(expanded ? "收起详情" : "展开详情", action: onExpand)
             if st == .review { Button("标记已验收") { model.markRead(session.id) } }
             Button("复制 cwd / session") { model.jumper.copyContext(session) }
+            Button("复制恢复命令") { model.jumper.copyResume(session) }
             Divider()
             MoveMenu(ids: [session.id])
             Divider()

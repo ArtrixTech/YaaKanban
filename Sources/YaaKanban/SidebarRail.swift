@@ -98,9 +98,10 @@ struct NarrowSessionCard: View {
         .onTapGesture { model.jump(session.id) }
         .help(help(st))
         .contextMenu {
-            Button("跳转到终端") { model.jump(session.id) }
+            Button(AppModel.isGone(session) ? "在原终端恢复" : "跳转到终端") { model.jump(session.id) }
             if st == .review { Button("标记已验收") { model.markRead(session.id) } }
             Button("复制 cwd / session") { model.jumper.copyContext(session) }
+            Button("复制恢复命令") { model.jumper.copyResume(session) }
             Divider()
             Button("结束（移出悬浮窗）") { model.dismiss(session.id) }
         }
@@ -171,7 +172,7 @@ struct NarrowSessionCard: View {
         var lines = ["\(session.title) · \(st.label)"]
         if let p = session.projectName { lines.append(p) }
         if let d = SubagentSlots.detail(session) { lines.append(d) }
-        lines.append("点击跳转到 \(session.agent.displayName)")
+        lines.append(AppModel.isGone(session) ? "点击在原终端恢复 \(session.agent.displayName)" : "点击跳转到 \(session.agent.displayName)")
         return lines.joined(separator: "\n")
     }
 }

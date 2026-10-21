@@ -315,10 +315,29 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
     @Test func storeDropsWaveTokenForEndedSessions() {
         var s = SessionState(agent: .claudeCode, sessionId: "x", at: t0)
         s.terminal = TerminalContext(waveBlockId: "b", waveJWT: "secret")
-        #expect(Store.persistable(s).terminal?.waveJWT == "secret")
+        #expect(Store.persistable(s, now: t0).terminal?.waveJWT == "secret")
+        // Ended (e.g. its terminal crashed): kept so it can be resumed in its tab, for a while.
         s.status = .ended
-        #expect(Store.persistable(s).terminal?.waveJWT == nil)
-        #expect(Store.persistable(s).terminal?.waveBlockId == "b")
+        #expect(Store.persistable(s, now: t0).terminal?.waveJWT == "secret")
+        let late = t0.addingTimeInterval(SessionState.waveTokenTTL + 1)
+        #expect(Store.persistable(s, now: late).terminal?.waveJWT == nil)
+        #expect(Store.persistable(s, now: late).terminal?.waveBlockId == "b")
+        // Looking at the card later does not extend it.
+        s.reviewedAt = late
+        #expect(Store.persistable(s, now: late).terminal?.waveJWT == nil)
+        // Ended by the user on the board: dropped at once.
+        s.dismissedAt = t0
+        #expect(Store.persistable(s, now: t0).terminal?.waveJWT == nil)
+    }
+
+    @Test func resumeCommandPerAgent() {
+        func cmd(_ a: AgentKind, _ id: String) -> String? { SessionState(agent: a, sessionId: id, at: t0).resumeCommand }
+        #expect(cmd(.claudeCode, "abc") == "claude --resume 'abc'")
+        #expect(cmd(.codex, "abc") == "codex resume 'abc'")
+        #expect(cmd(.opencode, "ses_1") == "opencode --session 'ses_1'")
+        #expect(cmd(.pi, "/s/it's.jsonl") == "pi --session '/s/it'\\''s.jsonl'")
+        #expect(cmd(.claudeCode, "") == nil)
+        #expect(cmd(.claudeCode, "--dangerously-skip-permissions") == nil)
     }
 }
 

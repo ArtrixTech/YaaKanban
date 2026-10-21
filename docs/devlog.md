@@ -1,8 +1,41 @@
 # Devlog
 
-## fix(ui): repair the Codex logo path for CoreSVG
+## feat(board): keep ended sessions and resume them in their terminal
 
 `pending` | 2026-10-21
+
+- **Changes**:
+  - `AppModel.isLive`: `ended` cards linger like reviewed idle ones (`idleVisibleSeconds`, 24 h default). They hide when they are sub-agents, or when a top-level session with the same `agentPid` started at or after their last event (`/clear`, `/new`).
+  - Clicking a gone session (`AppModel.isGone`: ended, or pid dead) calls `TerminalJumper.resume`:
+    - Wave: switch tab and run `wsh run --cwd <cwd> -c '"$SHELL" -ilc <resume>; exec "$SHELL" -il'` with the stored JWT.
+    - Terminal/iTerm: new window via `osascript`.
+    - Other or unknown terminal: raise it and copy `cd … && <resume>`.
+    - Codex app with no terminal: open `codex://threads/<id>`.
+  - `SessionState.resumeCommand`, per agent. Ids starting with `-` are refused.
+  - The Wave JWT is now kept for ended sessions until the card is dismissed, or for `waveTokenTTL` (24 h) from the last event. Before, it was dropped as soon as the session ended. `tick` also strips aged-out tokens.
+  - UI: resume labels, plus a new 复制恢复命令 menu item. spec §5 updated.
+- **Reason**: a Wave crash SIGHUPs every agent. SessionEnd hooks fire, and `ended` used to hide the card at once, so the work could not be found.
+- **User feedback**: "跑在waveterm的claudecode/pi等，在waveterm挂掉必须重启的时候，右侧悬浮窗任务都消失了……导致我无法找回我的工作". Chose: keep ended cards like idle with 24 h retention, and resume in the original terminal.
+- **Process**:
+  - DB showed 3 pi and 3 Claude sessions ended at 15:49:03–07, right after Wave restarted at 15:49:14.
+  - Verified that a pre-restart JWT still authenticates (`wsh getmeta`). The JWT is long-lived and bound to a blockid; the signing key persists in Wave's DB.
+  - `wsh run` lands in the token's tab. A non-login `-c` shell lacks `~/.npm-global/bin`, so `$SHELL -ilc` is used.
+  - The adversarial review found five issues; four were fixed:
+    - The pid-superseded check hid OpenCode sibling sessions; it now uses the last event and top-level sessions only.
+    - The unknown-terminal fallback copied no resume command, and a Codex CLI session opened the Codex app.
+    - Flag-like ids are now refused.
+    - Clicks extended the JWT TTL.
+- **Result**: `make test` passes (73).
+  - Live Wave resume was only exercised with test commands (they spawned and closed blocks).
+  - Terminal/iTerm AppleScript was not run.
+- **Notes**:
+  - The 6 sessions from today's crash already lost their JWT, so clicking them switches tab and copies the command.
+  - Known trade-off: headless `claude -p` runs and normal `/exit` now also leave an 已结束 card for the retention period.
+  - Resuming makes a new Wave block; the old block stays.
+
+## fix(ui): repair the Codex logo path for CoreSVG
+
+`5384ebf` | 2026-10-21
 
 - **Changes**: rewrote the single path in `Resources/AgentIcons/codex.svg` with explicit separators between every number and arc flag. Same geometry, no code change.
 - **Reason**: the monochrome Codex logo rendered as a broken blob. CoreSVG logged an error and mis-parsed the compact path (packed decimals like `1.223.123.123`, packed arc flags like `012.285`). The old colored asset hid this behind its white plate and gradient.

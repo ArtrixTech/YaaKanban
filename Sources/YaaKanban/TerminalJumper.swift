@@ -44,6 +44,69 @@ struct TerminalJumper {
         return .copied
     }
 
+    /// Continues a session whose agent is gone (ended, or its terminal crashed) in the terminal it
+    /// ran in: a new block in its Wave tab, a new Terminal/iTerm window. Elsewhere the terminal is
+    /// raised and the resume command copied.
+    @discardableResult
+    func resume(_ s: SessionState) -> Outcome {
+        // The Codex app keeps the thread; opening it is resuming it.
+        guard let t = s.terminal, t.termProgram != nil || t.isWave, let cmd = s.resumeCommand else {
+            if s.agent == .codex, s.terminal == nil, let url = Self.codexThreadURL(s.sessionId) {
+                NSWorkspace.shared.open(url)
+                return .activated("Codex")
+            }
+            // Unknown terminal: raise what we can, then leave the resume command to paste.
+            let outcome = jump(to: s)
+            copyResume(s)
+            return outcome
+        }
+        copyResume(s)
+        let cwd = s.cwd ?? s.projectDir
+        if t.isWave, let wave = NSRunningApplication.runningApplications(withBundleIdentifier: Self.waveBundleId).first {
+            WaveAdapter(terminal: t, switchTabs: settings.waveTabSwitching).resume(cmd, cwd: cwd, app: wave)
+            return .activated("Wave")
+        }
+        let line = [cwd.map { "cd \(shellQuote($0))" }, cmd].compactMap { $0 }.joined(separator: " && ")
+        switch t.termProgram {
+        case "Apple_Terminal":
+            Self.osascript("tell application \"Terminal\"\nactivate\ndo script \(Self.appleString(line))\nend tell")
+            return .activated("Terminal")
+        case "iTerm.app":
+            Self.osascript("tell application \"iTerm\"\nactivate\nset w to (create window with default profile)\ntell current session of w to write text \(Self.appleString(line))\nend tell")
+            return .activated("iTerm")
+        default:
+            if let app = t.termProgram.flatMap(Self.app(forTermProgram:)) {
+                app.activate()
+                return .activated(app.localizedName ?? "")
+            }
+            return .copied
+        }
+    }
+
+    /// `cd <cwd>` and the resume command, for pasting into any terminal.
+    func copyResume(_ s: SessionState) {
+        guard let cmd = s.resumeCommand else { return copyContext(s) }
+        let text = [(s.cwd ?? s.projectDir).map { "cd \(shellQuote($0))" }, cmd].compactMap { $0 }.joined(separator: " && ")
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    static func appleString(_ s: String) -> String {
+        "\"" + s.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
+    }
+
+    /// Off the main thread: the first run may wait on the Automation permission prompt.
+    static func osascript(_ source: String) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+            p.arguments = ["-e", source]
+            p.standardOutput = FileHandle.nullDevice
+            p.standardError = FileHandle.nullDevice
+            try? p.run()
+        }
+    }
+
     /// Codex thread ids are UUIDs; anything else is not put into a URL.
     static func codexThreadURL(_ id: String) -> URL? {
         guard !id.isEmpty, id.allSatisfy({ $0.isHexDigit || $0 == "-" }) else { return nil }
@@ -142,6 +205,22 @@ struct WaveAdapter {
                 if let block { run(["focusblock", "-b", block]) }
             }
         }
+    }
+
+    /// Runs `cmd` in a new block of the session's tab (Wave places it next to the block the token
+    /// was issued for), then stays in a shell. A login shell gives the agent CLIs their PATH.
+    /// Without a token (or with Wave's tab gone) the user pastes the copied command instead.
+    func resume(_ cmd: String, cwd: String?, app: NSRunningApplication) {
+        app.activate()
+        if switchTabs, let tab = terminal.waveTabId, AXIsProcessTrusted() {
+            let pid = app.processIdentifier
+            let block = terminal.waveBlockId
+            DispatchQueue.global(qos: .userInitiated).async {
+                _ = WaveTabBar(pid: pid).press { WaveDB.place(ofBlock: block, tab: tab) }
+            }
+        }
+        let script = "\"$SHELL\" -ilc \(shellQuote(cmd)); exec \"$SHELL\" -il"
+        run(["run"] + (cwd.map { ["--cwd", $0] } ?? []) + ["-c", script])
     }
 
     func badge(on: Bool) {

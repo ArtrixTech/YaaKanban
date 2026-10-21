@@ -33,7 +33,7 @@ final class AppModel {
 
     // MARK: Derived views
 
-    /// Active sessions for the floating panel: not ended, and idle ones only for a while (8 h by default).
+    /// Active sessions for the floating panel; idle and ended ones only for a while (24 h by default).
     /// Sub-agents of a session on the board show inside its card instead.
     var activeSessions: [SessionState] {
         let now = Date()
@@ -52,7 +52,16 @@ final class AppModel {
     private func isLive(_ s: SessionState, now: Date) -> Bool {
         if s.dismissedAt != nil { return false }
         switch s.status {
-        case .ended: return false
+        // An ended session lingers like a reviewed one so it can be resumed (e.g. after its
+        // terminal crashed), unless the same process went on with a new session (`/clear`, `/new`).
+        case .ended:
+            if s.parentId != nil || now.timeIntervalSince(s.quietSince) >= settings.idleVisibleSeconds { return false }
+            // One process may host sibling sessions (OpenCode, the Codex app): only a top-level
+            // session started after this one's last event replaced it.
+            guard let pid = s.agentPid else { return true }
+            return !sessions.values.contains {
+                $0.agentPid == pid && $0.id != s.id && $0.parentId == nil && $0.startedAt >= s.lastEventAt
+            }
         // Unreviewed results stay until looked at; reviewed ones fade out after a while.
         // A sub-agent's result is its parent's business, so it only lingers briefly.
         case .idle:
@@ -255,6 +264,11 @@ final class AppModel {
         for key in Array(sessions.keys) {
             update(key, alert: true) { s in
                 guard let s else { return nil }
+                if s.terminal?.waveJWT != nil, s.dropsWaveToken(now: now) {
+                    var out = s
+                    out.terminal?.waveJWT = nil
+                    return out
+                }
                 return StuckDetector.evaluate(s, now: now, config: cfg, isAlive: ProcessUtil.isAlive)
             }
         }
@@ -365,7 +379,13 @@ final class AppModel {
         // A sub-agent has no window of its own; it runs inside its parent's.
         if let p = sessions[key]?.parentId, sessions[p] != nil { return jump(p) }
         markRead(key)
-        if let s = sessions[key] { jumper.jump(to: s) }
+        guard let s = sessions[key] else { return }
+        if Self.isGone(s) { jumper.resume(s) } else { jumper.jump(to: s) }
+    }
+
+    /// The agent is no longer running this session: it ended, or its process died (a crashed terminal).
+    static func isGone(_ s: SessionState) -> Bool {
+        s.status == .ended || s.agentPid.map { !ProcessUtil.isAlive($0) } ?? false
     }
 
     /// Ends a session on the boards: it stays in history and comes back if the agent needs the user.

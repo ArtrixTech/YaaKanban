@@ -260,6 +260,31 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
 
     /// Since when nothing has happened: the last event, or the user looking later.
     public var quietSince: Date { max(lastEventAt, reviewedAt ?? lastEventAt) }
+
+    /// The shell command that continues this session in its own CLI, run from `cwd`.
+    public var resumeCommand: String? {
+        // The id comes from a hook payload: never let it read as a flag.
+        guard !sessionId.isEmpty, !sessionId.hasPrefix("-") else { return nil }
+        let id = shellQuote(sessionId)
+        switch agent {
+        case .claudeCode: return "claude --resume \(id)"
+        case .codex: return "codex resume \(id)"
+        case .cursor: return "cursor-agent --resume \(id)"
+        case .opencode: return "opencode --session \(id)"
+        // pi's session id is the session file path.
+        case .pi: return "pi --session \(id)"
+        }
+    }
+
+    /// How long an ended session keeps its Wave token, so it can be resumed in its tab.
+    public static let waveTokenTTL: TimeInterval = 24 * 3600
+
+    /// The Wave token is a live credential: kept while the ended session may still be resumed,
+    /// dropped once the user ended it on the board or `waveTokenTTL` after its last event
+    /// (clicking the card does not extend it).
+    public func dropsWaveToken(now: Date) -> Bool {
+        status == .ended && (dismissedAt != nil || now.timeIntervalSince(lastEventAt) > Self.waveTokenTTL)
+    }
 }
 
 /// How a card asks for a second look, from how long it has been sitting.

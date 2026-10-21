@@ -38,9 +38,10 @@ public final class Store {
 
     private static let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
-    /// What goes to disk: the Wave JWT is a live credential, so it is dropped once the session ended.
-    public static func persistable(_ s: SessionState) -> SessionState {
-        guard s.status == .ended, s.terminal?.waveJWT != nil else { return s }
+    /// What goes to disk: the Wave JWT is a live credential, so it is dropped once it is no
+    /// longer needed to resume the session (see `SessionState.dropsWaveToken`).
+    public static func persistable(_ s: SessionState, now: Date = Date()) -> SessionState {
+        guard s.terminal?.waveJWT != nil, s.dropsWaveToken(now: now) else { return s }
         var out = s
         out.terminal?.waveJWT = nil
         return out
