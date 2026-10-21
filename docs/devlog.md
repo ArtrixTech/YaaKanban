@@ -1,10 +1,21 @@
 # Devlog
 
-## fix(board): say when reopen can only copy, and keep the rail sized under alerts
+## feat(metrics): read the overview as you and your agents
 
 `pending` | 2026-10-21
 
-- **Changes**: `TerminalJumper.runsResume` (Wave block, Terminal, iTerm, Codex app). `AppModel.jump` gives `askReopen` a reason when the command can't be run: Wave token expired, Wave block unknown, or another terminal; the button then reads "切到<app>并复制". `FloatingPanelController` runs `fit` through `RunLoop.main.perform(inModes: [.common])` instead of `DispatchQueue.main.async`.
+- **Changes**: `ActivityReport` adds `agentTime` / `agentTimeAway` (running session-time, and the part while away, from the sweep), `leverage` ((agentTime − agentTimeAway) ÷ activeTime), `longestRun` (longest running segment), `turnsBySession`. `DashboardView`: headline is Agent 总工时, 杠杆, 全员等你, 完成轮数; new `Highlights` row (最卖力, 最长连跑, 最忙的时候, 你不在时) and `AgentMix` (军团构成: running time per agent kind); 平均同时在跑 moves to the tiles; summary sentence leads with your time vs the agents'; `slotLabel` shared by the chart readout and 最忙的时候. Spec revised.
+- **Reason**: figures read as machine stats; the user wants to see how they and their agents did today.
+- **User feedback**: "感觉指标还得再有趣一点，还可补一些数据，例如可以评估，agent总工作时长等。可以从用户角度思考，我希望知道，今天我和我的agent军团工作效率如何。"
+- **Process**: `make test` 97 passed (new `agentHoursWhileAway`). Day snapshot checked by eye; week/month rendered, not inspected.
+- **Result**: real data today: 20.4 h agent time over 9.6 h, 2.0×, 46 min while away.
+- **Notes**: leverage away time is excluded from the numerator, so overnight runs don't inflate it; they show in 你不在时. Leverage delta is hidden against partly rebuilt periods (no away data there). Leverage ≈ average parallel × (running share of active time), so the two often read close. This commit also carries the peer session's `bef18a9` hash fill in the devlog.
+
+## fix(board): say when reopen can only copy, and keep the rail sized under alerts
+
+`bef18a9` | 2026-10-21
+
+- **Changes** (the code landed in `081c74d`: a parallel session's commit picked up these staged files; `bef18a9` carries only this entry): `TerminalJumper.runsResume` (Wave block, Terminal, iTerm, Codex app). `AppModel.jump` gives `askReopen` a reason when the command can't be run: Wave token expired, Wave block unknown, or another terminal; the button then reads "切到<app>并复制". `FloatingPanelController` runs `fit` through `RunLoop.main.perform(inModes: [.common])` instead of `DispatchQueue.main.async`.
 - **Reason**: (1) a Wave session with no block (resumed before `5740cec`) offered "重新打开", but `resume` could only copy the command and activate the Wave app that was already in front: no visible effect. (2) Clicking a card on a peeked rail opens the alert; the peek ends under it and SwiftUI re-lays out narrow, but `fit` sat on the main queue, which does not drain during `runModal`. The window stayed wide.
 - **User feedback**: "点重新打开没反应。另外，如果侧边栏是折叠状态，点击之后的询问是否重新打开弹窗会导致侧边栏窗体仍然是宽状态，但内容已经是窄状态了。"
 - **Process**: probe app with `NSAlert.runModal`: `DispatchQueue.main.async` did not run inside the modal, `RunLoop.main.perform(inModes: [.common])` did, and an NSView display link in `.common` kept ticking (the slide still animates). Wave DB has no trace of the closed block, so the old session's tab can't be recovered.
@@ -24,7 +35,7 @@
 
 ## feat(metrics): lead the overview with figures and one chart
 
-`pending` | 2026-10-21
+`081c74d` | 2026-10-21
 
 - **Changes**:
   - `DashboardView` rebuilt. From the top: header with 日/周/月 picker and ‹ › navigation (`Periods`: calendar day, week or month), a summary sentence, four headline figures (活跃, 平均同时在跑, 全员等你, 完成轮数) with deltas, and a stacked bar chart (running in blue, waiting in red, away shaded, a dashed step line for the previous period's running, hover readout; for a month, hours per day). Then 按项目 bars, detail tiles with deltas, and 会话明细 swimlanes, folded with the busiest 10. The 7-day table and sparkline are gone.

@@ -53,9 +53,13 @@ struct DashboardView: View {
                     Text(summary(r, base, p, vs: vs)).font(.system(size: 13)).foregroundStyle(.secondary).textSelection(.enabled)
                     if let until = r.rebuiltUntil { rebuiltNote(r, until) }
                     Headline(r: r, prev: base, vs: vs)
+                    Highlights(period: period, report: r)
                     ActivityChart(period: period, report: r, previous: prevFull, now: ctx.date)
                     HStack(alignment: .top, spacing: 12) {
-                        ProjectBreakdown(report: r)
+                        VStack(spacing: 12) {
+                            AgentMix(report: r)
+                            ProjectBreakdown(report: r)
+                        }
                         details(r, base, vs: vs, now: ctx.date)
                     }
                     SessionLanes(period: period, report: r, now: ctx.date)
@@ -95,14 +99,15 @@ struct DashboardView: View {
     private func summary(_ r: ActivityReport, _ prev: ActivityReport?, _ p: Periods, vs: String) -> String {
         let subject = p.inProgress ? period.current : period == .day ? "这一天" : period == .week ? "这一周" : "这个月"
         guard !r.lanes.isEmpty || r.turns > 0 else { return "\(subject)没有记录到 agent 活动。" }
-        var s = "\(subject) agent 活跃了 \(duration(r.activeTime))"
-        if let prev, prev.activeTime >= 60 {
-            let d = r.activeTime - prev.activeTime
+        var s = "\(subject)你带着 \(r.lanes.count) 个会话忙了 \(duration(r.activeTime))，agent 一共干了 \(duration(r.agentTime))"
+        if let x = r.leverage, x >= 0.05 { s += String(format: "，相当于 %.1f 个你", x) }
+        if let prev, prev.agentTime >= 60 {
+            let d = r.agentTime - prev.agentTime
             s += abs(d) < 60 ? "，和\(vs)差不多" : "，比\(vs)\(d > 0 ? "多" : "少") \(duration(abs(d)))"
         }
-        s += "；平均同时跑 \(String(format: "%.1f", r.parallelAverage)) 个，最多 \(r.parallelPeak) 个"
+        if r.agentTimeAway >= 60 { s += "；你不在时它们又干了 \(duration(r.agentTimeAway))" }
         if !r.allRebuilt {
-            s += r.bottleneck >= 60 ? "；有 \(duration(r.bottleneck)) 所有 agent 都停下来等你" : "；几乎没有让 agent 全停下来等你"
+            s += r.bottleneck >= 60 ? "；有 \(duration(r.bottleneck)) 所有 agent 都停下来等你" : "；几乎没让 agent 全停下来等你"
         }
         return s + "；完成 \(r.turns) 轮。"
     }
@@ -110,6 +115,9 @@ struct DashboardView: View {
     private func details(_ r: ActivityReport, _ prev: ActivityReport?, vs: String, now: Date) -> some View {
         let backlog = model.backlog
         return LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+            Tile(title: "平均同时在跑", symbol: "square.stack.3d.up", value: String(format: "%.1f 个", r.parallelAverage),
+                 caption: "有 agent 在跑时 · 最多 \(r.parallelPeak) 个",
+                 delta: Delta(r.parallelAverage, prev?.parallelAverage, better: .up, vs: vs) { String(format: "%.1f", $0) })
             Tile(title: "回复延迟", symbol: "timer", value: r.replyMedian.map(duration) ?? "–",
                  caption: r.replyP90.map { "中位 · P90 \(duration($0)) · \(r.replies.count) 次" } ?? "还没有回复",
                  delta: comparesWaits(r, prev) ? Delta(r.replyMedian, prev?.replyMedian, better: .down, vs: vs, fmt: duration) : nil)
@@ -194,10 +202,12 @@ private struct Headline: View {
         let bottleneck = { (x: ActivityReport?) in x.flatMap { $0.allRebuilt ? nil : $0.bottleneck } }
         let waits = comparesWaits(r, prev)
         HStack(spacing: 12) {
-            Figure(title: "Agent 活跃", value: duration(r.activeTime), note: "有 agent 在跑或等你，不含你离开的时间",
-                   delta: Delta(r.activeTime, prev?.activeTime, better: .up, vs: vs, fmt: duration))
-            Figure(title: "平均同时在跑", value: String(format: "%.1f 个", r.parallelAverage), note: "最多 \(r.parallelPeak) 个",
-                   delta: Delta(r.parallelAverage, prev?.parallelAverage, better: .up, vs: vs) { String(format: "%.1f", $0) })
+            Figure(title: "Agent 总工时", value: duration(r.agentTime),
+                   note: r.agentTimeAway >= 60 ? "其中你不在时 \(duration(r.agentTimeAway))" : "所有 agent 在跑的时间相加",
+                   delta: Delta(r.agentTime, prev?.agentTime, better: .up, vs: vs, fmt: duration))
+            Figure(title: "杠杆", value: r.leverage.map { String(format: "%.1f×", $0) } ?? "–",
+                   note: "你在场的每小时，agent 干了几小时",
+                   delta: waits ? Delta(r.leverage, prev?.leverage, better: .up, vs: vs) { String(format: "%.1f×", $0) } : nil)
             Figure(title: "全员等你", value: bottleneck(r).map(duration) ?? "–", note: "有 agent 在等你、一个都没在跑",
                    delta: waits ? Delta(bottleneck(r), bottleneck(prev), better: .down, vs: vs, fmt: duration) : nil)
             Figure(title: "完成轮数", value: "\(r.turns)",
@@ -224,6 +234,129 @@ private struct Figure: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(.done, radius: 14)
+    }
+}
+
+/// Four facts to read the period by: the hardest worker, the longest run, the busiest slice,
+/// and what got done while the user was away.
+private struct Highlights: View {
+    @Environment(AppModel.self) private var model
+    let period: Period
+    let report: ActivityReport
+
+    var body: some View {
+        let r = report
+        let mvp = r.sessionTotals.filter { $0.running > 0 }.max { $0.running < $1.running }
+        let long = r.longestRun
+        HStack(spacing: 12) {
+            Fact(symbol: "trophy", title: "最卖力", agent: mvp.flatMap { agent($0.session) },
+                 value: mvp.map { title($0.session) } ?? "–",
+                 caption: mvp.map { "跑了 \(duration($0.running)) · \(r.turnsBySession[$0.session] ?? 0) 轮" } ?? "还没有 agent 跑过")
+            Fact(symbol: "flame", title: "最长连跑", agent: long.flatMap { agent($0.session) },
+                 value: long.map { duration($0.duration) } ?? "–",
+                 caption: long.map { title($0.session) } ?? "一口气不停地跑")
+            let peak = busiest
+            Fact(symbol: "chart.bar.fill", title: "最忙的时候", value: peak?.value ?? "–", caption: peak?.when ?? "还没有 agent 跑过")
+            Fact(symbol: "moon.zzz", title: "你不在时", value: duration(r.agentTimeAway),
+                 caption: r.allRebuilt ? "这段没有离开的记录" : r.away.isEmpty ? "你一直都在"
+                    : r.agentTimeAway >= 60 ? "agent 自己接着干的工时" : "你一走它们也停了")
+        }
+    }
+
+    private func agent(_ id: String) -> AgentKind? {
+        model.sessions[id]?.agent ?? id.split(separator: ":").first.flatMap { AgentKind(rawValue: String($0)) }
+    }
+    private func title(_ id: String) -> String { model.sessions[id]?.title ?? "已删除的会话" }
+
+    /// The slice with the most running: sessions at once, or agent hours on a month's day.
+    private var busiest: (value: String, when: String)? {
+        let b = report.parallelBuckets, e = report.bucketEdges
+        guard let i = b.indices.max(by: { b[$0] < b[$1] }), b[i] > 0, e.indices.contains(i + 1) else { return nil }
+        let value = period == .month ? duration(b[i] * e[i + 1].timeIntervalSince(e[i])) + " 工时"
+            : String(format: "%.1f 个同时在跑", b[i])
+        return (value, slotLabel(period, e[i], e[i + 1]))
+    }
+}
+
+private struct Fact: View {
+    let symbol: String
+    let title: String
+    var agent: AgentKind?
+    let value: String
+    let caption: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(title, systemImage: symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+            HStack(spacing: 5) {
+                if let agent { AgentLogo(agent: agent, size: 12) }
+                Text(value).font(.system(size: 15, weight: .bold).monospacedDigit()).lineLimit(1).truncationMode(.tail)
+            }
+            Text(caption).font(.system(size: 10.5)).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.tail)
+        }
+        .padding(11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card(.done, radius: 12)
+    }
+}
+
+/// Which agents did the work: running time per agent kind, as one bar and a row each.
+private struct AgentMix: View {
+    @Environment(AppModel.self) private var model
+    let report: ActivityReport
+
+    var body: some View {
+        let rows = kinds
+        let total = rows.reduce(0) { $0 + $1.time }
+        VStack(alignment: .leading, spacing: 9) {
+            Text("军团构成").font(.system(size: 12, weight: .semibold))
+            if total < 1 {
+                Text("没有 agent 在跑。").font(.system(size: 12)).foregroundStyle(.tertiary)
+            } else {
+                GeometryReader { g in
+                    HStack(spacing: 1) {
+                        ForEach(rows, id: \.kind) { k in
+                            RoundedRectangle(cornerRadius: 2).fill(Self.tint(k.kind)).frame(width: max(0, g.size.width * k.time / total - 1))
+                        }
+                    }
+                }
+                .frame(height: 8)
+                ForEach(rows, id: \.kind) { k in
+                    HStack(spacing: 6) {
+                        RoundedRectangle(cornerRadius: 2).fill(Self.tint(k.kind)).frame(width: 4, height: 12)
+                        AgentLogo(agent: k.kind, size: 11)
+                        Text(k.kind.displayName).font(.system(size: 11.5, weight: .medium))
+                        Spacer()
+                        Text("\(duration(k.time)) · \(percent(k.time / total)) · \(k.sessions) 个会话")
+                            .font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .card(.done, radius: 14)
+    }
+
+    static func tint(_ k: AgentKind) -> Color {
+        switch k {
+        case .claudeCode: .orange
+        case .codex: .teal
+        case .cursor: .purple
+        case .opencode: .green
+        case .pi: .pink
+        }
+    }
+
+    private var kinds: [(kind: AgentKind, time: TimeInterval, sessions: Int)] {
+        var by: [AgentKind: (TimeInterval, Int)] = [:]
+        for t in report.sessionTotals where t.running > 0 {
+            guard let k = model.sessions[t.session]?.agent
+                    ?? t.session.split(separator: ":").first.flatMap({ AgentKind(rawValue: String($0)) }) else { continue }
+            by[k, default: (0, 0)].0 += t.running
+            by[k, default: (0, 0)].1 += 1
+        }
+        return by.map { ($0.key, $0.value.0, $0.value.1) }.sorted { $0.1 > $1.1 }
     }
 }
 
@@ -258,6 +391,16 @@ func slotFraction(_ d: Date, _ edges: [Date]) -> Double {
 }
 
 func midpoint(_ i: DateInterval) -> Date { i.start.addingTimeInterval(i.duration / 2) }
+
+/// One chart slice in words: "14:00–14:30", "周二 15:00–18:00", "10月3日".
+func slotLabel(_ period: Period, _ a: Date, _ b: Date) -> String {
+    let hm = Date.FormatStyle.dateTime.hour().minute()
+    return switch period {
+    case .month: a.formatted(.dateTime.month().day())
+    case .week: "\(a.formatted(hm.weekday(.abbreviated)))–\(b.formatted(hm))"
+    case .day: "\(a.formatted(hm))–\(b.formatted(hm))"
+    }
+}
 
 /// The main chart: per slice of the period, how many sessions ran and how many waited on you,
 /// with the period before as a line.
@@ -364,10 +507,7 @@ private struct ActivityChart: View {
     private func readout(_ i: Int, _ run: [Double], _ wait: [Double], _ ghost: [Double]) -> some View {
         let e = report.bucketEdges
         let a = e.indices.contains(i) ? e[i] : report.range.start, b = e.indices.contains(i + 1) ? e[i + 1] : report.range.end
-        let when = period == .month ? a.formatted(.dateTime.month().day())
-            : period == .week ? "\(a.formatted(.dateTime.weekday(.abbreviated).hour().minute()))–\(b.formatted(.dateTime.hour().minute()))"
-            : "\(a.formatted(.dateTime.hour().minute()))–\(b.formatted(.dateTime.hour().minute()))"
-        var parts = [when, "在跑 \(fmt(run[i]))", "等你 \(fmt(waitAt(wait, i)))"]
+        var parts = [slotLabel(period, a, b), "在跑 \(fmt(run[i]))", "等你 \(fmt(waitAt(wait, i)))"]
         if ghost.indices.contains(i) { parts.append("上期在跑 \(fmt(ghost[i]))") }
         return Text(parts.joined(separator: "  ·  ")).font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary)
     }

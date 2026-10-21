@@ -20,6 +20,13 @@ public struct ActivityReport: Sendable {
     /// Average number of running sessions while at least one ran, and the most at once.
     public var parallelAverage: Double = 0
     public var parallelPeak = 0
+    /// Session-time spent running, the "agent hours"; and the part of it while the user was away.
+    public var agentTime: TimeInterval = 0
+    public var agentTimeAway: TimeInterval = 0
+    /// The longest unbroken stretch one session ran.
+    public var longestRun: (session: String, duration: TimeInterval)?
+    /// Turns per session.
+    public var turnsBySession: [String: Int] = [:]
     /// Where the chart slices start and end: `buckets + 1` dates over the whole range.
     public var bucketEdges: [Date] = []
     /// Average running sessions per slice of the whole range, for a chart.
@@ -52,6 +59,8 @@ public struct ActivityReport: Sendable {
 
     public var activeHours: Double { activeTime / 3600 }
     public func perActiveHour(_ n: Int) -> Double? { activeTime >= 60 ? Double(n) / activeHours : nil }
+    /// Agent hours per hour the user was on: how many agents' worth of work each of the user's hours drove.
+    public var leverage: Double? { activeTime >= 60 ? (agentTime - agentTimeAway) / activeTime : nil }
 
     /// Per session, time running and waiting on the user (away time taken out) in the range,
     /// busiest first.
@@ -109,12 +118,18 @@ public struct ActivityReport: Sendable {
         }
         for id in Array(open.keys) { close(id, at: end) }
         r.lanes = order.compactMap { id in segs[id].map { (id, $0) } }
+        for (id, ss) in segs {
+            for s in ss where s.lane == .running {
+                let d = s.end.timeIntervalSince(s.start)
+                if d > r.longestRun?.duration ?? 0 { r.longestRun = (id, d) }
+            }
+        }
 
         r.sweep(segments: segs.values.flatMap { $0 }, from: range.start, to: end, measuredFrom: r.rebuiltUntil ?? range.start)
 
         for row in rows where row.at >= range.start && row.at < end {
             switch row.kind {
-            case .turn: r.turns += 1; r.toolCalls += Int(row.value)
+            case .turn: r.turns += 1; r.toolCalls += Int(row.value); r.turnsBySession[row.session, default: 0] += 1
             case .tokens: r.tokens += Int(row.value)
             case .focus: r.switches += 1
             case .lane, .reply, .away: break
@@ -189,6 +204,8 @@ public struct ActivityReport: Sendable {
                     parallelTime += dt
                     parallelPeak = max(parallelPeak, running)
                     spread(running, t, next, into: &runSums)
+                    agentTime += Double(running) * dt
+                    if awayDepth > 0 { agentTimeAway += Double(running) * dt }
                 }
                 if waiting > 0, awayDepth == 0 { spread(waiting, t, next, into: &waitSums) }
                 if awayDepth == 0 {

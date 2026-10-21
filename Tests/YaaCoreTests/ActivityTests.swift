@@ -125,6 +125,25 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         #expect(r.waitingBuckets.map { ($0 * 100).rounded() / 100 } == [0, 0.5, 0.5, 0])
         #expect(r.sessionTotals.map(\.session) == ["claude-code:b", "claude-code:a"])
         #expect(r.sessionTotals.first.map { [$0.running, $0.waiting] } == [100, 100])
+        #expect(r.agentTime == 200)
+        #expect(r.agentTimeAway == 0)
+        #expect(abs(r.leverage! - 200.0 / 250) < 1e-9)
+        #expect(r.longestRun?.duration == 100)
+    }
+
+    @Test func agentHoursWhileAway() {
+        // a runs 0–300 with the user away 100–250; b runs 0–60 and finishes a turn.
+        let rows = [lane("a", 0, .running), lane("a", 300, nil), lane("b", 0, .running), lane("b", 60, nil),
+                    ActivityRow(at: at(60), session: "claude-code:b", kind: .turn, value: 3),
+                    ActivityRow(at: at(100), session: "", kind: .away, value: 150)]
+        let r = ActivityReport.compute(rows: rows, lanesBefore: [:], range: DateInterval(start: t0, duration: 400), now: at(500))
+        #expect(r.agentTime == 360)
+        #expect(r.agentTimeAway == 150)
+        // Present 150 s, agents ran 210 s of it.
+        #expect(abs(r.leverage! - 210.0 / 150) < 1e-9)
+        #expect(r.longestRun?.session == "claude-code:a")
+        #expect(r.longestRun?.duration == 300)
+        #expect(r.turnsBySession == ["claude-code:b": 1])
     }
 
     @Test func bucketsSpanTheWholeRange() {
