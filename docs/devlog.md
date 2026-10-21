@@ -1,5 +1,16 @@
 # Devlog
 
+## fix(wave): trade the swap token in resumed Wave blocks
+
+`pending` | 2026-10-21
+
+- **Changes**: `WaveAdapter.resumeScript` runs `wsh token "$WAVETERM_SWAPTOKEN" zsh` and evals it before `"$SHELL" -ilc <resume>`.
+- **Reason**: a `wsh run -c` block gets only `WAVETERM_SWAPTOKEN` (one-time, 5 min). Wave's ZDOTDIR/rcfile trade it for `WAVETERM_BLOCKID`/`TABID`/`JWT`, but `-ilc` reads the user's rc, so the resumed agent's hooks sent `terminal = {termProgram: waveterm}` only. `isWave` was false, the jump fell to `hostApp(...).activate()` on the already-front Wave: no visible effect.
+- **User feedback**: "点了这条一点反应没有，其他waveterminal+cc是正常的。"
+- **Process**: the dead card (artrix-media, `claude --resume` under `/bin/zsh -c` under wavesrv) had only `WAVETERM_SWAPTOKEN`/`VERSION`/`WSHBINDIR` in its env. Read Wave v0.14.5 `shellexec.StartLocalShellProc` / `makeSwapToken` / `wsh token`. Fake-`wsh` test under zsh and bash: good token exports reach the child shell; bad or empty token is a no-op.
+- **Result**: `make build` ok, `make test` 91 passed. Sessions resumed before this fix stay without a block until resumed again.
+- **Notes**: `wsh token` output for zsh is `export K='v'` lines (POSIX), so the type is fixed to zsh. The token is consumed on first use; nothing else in the block needs it.
+
 ## feat(metrics): add efficiency overview and an experimental slim rail
 
 `pending` | 2026-10-21
