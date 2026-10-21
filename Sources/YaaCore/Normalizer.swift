@@ -24,6 +24,7 @@ public enum Normalizer {
     static func claudeSchema(_ env: HookEnvelope) -> [AgentEvent] {
         let p = env.payload
         guard let sid = p["session_id"]?.string else { return [] }
+        if isCodexBackground(env.agent, transcriptPath: p["transcript_path"]?.string) { return [] }
         let subagent = p["agent_id"]?.string
         func ev(_ kind: AgentEvent.Kind) -> AgentEvent {
             AgentEvent(agent: env.agent, sessionId: sid, at: env.receivedAt, kind: kind,
@@ -74,6 +75,13 @@ public enum Normalizer {
         case "SessionEnd": return [ev(.sessionEnd)]
         default: return []
         }
+    }
+
+    /// The Codex app runs its own model calls (next-message suggestions, their safety check,
+    /// memory consolidation) as threads that fire hooks but have no rollout file. A user's thread,
+    /// and its sub-agents, always have one.
+    public static func isCodexBackground(_ agent: AgentKind, transcriptPath: String?) -> Bool {
+        agent == .codex && (transcriptPath ?? "").isEmpty
     }
 
     // MARK: Cursor

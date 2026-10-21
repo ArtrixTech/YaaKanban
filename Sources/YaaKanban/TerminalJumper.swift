@@ -6,6 +6,7 @@ import YaaCore
 @MainActor
 struct TerminalJumper {
     static let waveBundleId = "dev.commandline.waveterm"
+    static let codexBundleId = "com.openai.codex"
     let settings: Preferences
 
     enum Outcome { case activated(String), copied }
@@ -19,6 +20,15 @@ struct TerminalJumper {
         // The app the agent runs under: Cursor's own agent has no terminal at all, and an editor's
         // built-in terminal says TERM_PROGRAM=vscode whether it is VS Code or Cursor.
         if let app = s.agentPid.flatMap(Self.hostApp(of:)) ?? s.terminal?.termProgram.flatMap(Self.app(forTermProgram:)) {
+            if app.bundleIdentifier == Self.codexBundleId, let url = Self.codexThreadURL(s.sessionId) {
+                // The Codex app opens a thread from its own URL scheme (`codex://threads/<id>`).
+                if let bundle = app.bundleURL {
+                    NSWorkspace.shared.open([url], withApplicationAt: bundle, configuration: NSWorkspace.OpenConfiguration())
+                } else {
+                    NSWorkspace.shared.open(url)
+                }
+                return .activated(app.localizedName ?? "Codex")
+            }
             if Self.isEditor(app) {
                 // Raise the window that has the project (opening the folder would make a new editor
                 // window when the session lives in Cursor's separate Agents window).
@@ -32,6 +42,12 @@ struct TerminalJumper {
         }
         copyContext(s)
         return .copied
+    }
+
+    /// Codex thread ids are UUIDs; anything else is not put into a URL.
+    static func codexThreadURL(_ id: String) -> URL? {
+        guard !id.isEmpty, id.allSatisfy({ $0.isHexDigit || $0 == "-" }) else { return nil }
+        return URL(string: "codex://threads/\(id)")
     }
 
     /// First ancestor of the agent that is a regular app (a terminal or an editor).

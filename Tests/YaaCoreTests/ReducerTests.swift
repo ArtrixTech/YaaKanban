@@ -698,3 +698,23 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(s.quietSince == end)
     }
 }
+
+@Suite struct CodexBackground {
+    private func codex(_ event: String, path: JSONValue?) -> HookEnvelope {
+        var p: [String: JSONValue] = ["session_id": .string("01a15cf0-c3fc"), "hook_event_name": .string(event),
+                                      "prompt": .string("app-generated request")]
+        if let path { p["transcript_path"] = path }
+        return HookEnvelope(agent: .codex, event: event, receivedAt: t0, payload: .object(p))
+    }
+
+    @Test func threadsWithoutRolloutAreIgnored() {
+        #expect(Normalizer.normalize(codex("UserPromptSubmit", path: nil)).isEmpty)
+        #expect(Normalizer.normalize(codex("SessionStart", path: .null)).isEmpty)
+        #expect(Normalizer.normalize(codex("Stop", path: .string(""))).isEmpty)
+        #expect(Normalizer.normalize(codex("UserPromptSubmit", path: .string("/r/rollout.jsonl"))).count == 1)
+        // Claude Code is not affected.
+        let claude = HookEnvelope(agent: .claudeCode, event: "UserPromptSubmit", receivedAt: t0,
+                                  payload: .object(["session_id": .string("c"), "prompt": .string("hi")]))
+        #expect(Normalizer.normalize(claude).count == 1)
+    }
+}

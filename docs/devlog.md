@@ -1,8 +1,21 @@
 # Devlog
 
-## feat(pi): session titles from /name or an auto title; ended cards show ended
+## fix(codex): open the thread on click; ignore the app's background calls
 
 `pending` | 2026-10-21
+
+- **Changes**:
+  - `TerminalJumper`: when the Codex agent's host app is the Codex desktop app (`com.openai.codex`), open `codex://threads/<session_id>` with that app instead of only activating it. Ids that are not hex/dash are never put in the URL. Codex in a terminal keeps the old path.
+  - `Normalizer.isCodexBackground`: Codex hook events without `transcript_path` produce no events. `AppModel` deletes stored Codex sessions without a transcript path on load.
+- **Reason**: clicking a Codex card only raised the window; the Codex app's own model calls (next-message suggestions and their safety check, "hyperpersonalized suggestions", memory consolidation in `~/.codex/memories_v2`) fire hooks and became cards.
+- **User feedback**: "codex兼容性问题比较大，最大问题是点击无法自动跳转对应的对话…很多系统内部的 agent调用也会被视为一个新的thread" / "都修掉。已经存进历史的 6 条后台调用记录，要一起清掉"
+- **Process**: read-only investigation of the Codex app bundle (`codex` URL scheme; `open-url` routes `codex://threads/<id>` to `localConversation`) and today's history: 6 of 8 Codex rows had no transcript path, rollout file or `session_index.jsonl` entry; both real threads had all three. Sub-agents already fold into the parent (their hooks carry the parent `session_id`). "Clarify task req…" in the screenshot is a real user thread whose first message was "1". New test `threadsWithoutRolloutAreIgnored` fails without the filter.
+- **Result**: `make test` 72/72.
+- **Notes**: The rule rests on 8 rows. `codex exec --ephemeral` runs would also be hidden. If a real thread's first SessionStart ever arrives without a path, only that event is lost. The deep link was not opened during investigation.
+
+## feat(pi): session titles from /name or an auto title; ended cards show ended
+
+`89084c8` | 2026-10-21
 
 - **Changes**:
   - New `AgentEvent.Kind.titleChanged` (yaak schema event `title`) sets `peek.title`; handled like a snapshot, so it neither counts as activity nor revives a dismissed card.

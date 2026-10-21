@@ -108,7 +108,11 @@ final class AppModel {
         do {
             let store = try Store(path: paths.database)
             store.purgeDetails()
-            for s in store.loadAll() { sessions[s.id] = s }
+            for s in store.loadAll() {
+                // Codex background calls recorded before they were filtered out.
+                if Normalizer.isCodexBackground(s.agent, transcriptPath: s.transcriptPath) { store.delete(id: s.id); continue }
+                sessions[s.id] = s
+            }
             self.store = store
         } catch {
             serverError = "History unavailable: \(error)"
