@@ -326,6 +326,12 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         // Looking at the card later does not extend it.
         s.reviewedAt = late
         #expect(Store.persistable(s, now: late).terminal?.waveJWT == nil)
+        // Idle with its process gone: the same 24 h, never forever; live ones keep it.
+        s.status = .idle
+        #expect(!s.dropsWaveToken(now: late))
+        #expect(s.dropsWaveToken(now: late, gone: true))
+        #expect(!s.dropsWaveToken(now: t0, gone: true))
+        s.status = .ended
         // Ended by the user on the board: dropped at once.
         s.dismissedAt = t0
         #expect(Store.persistable(s, now: t0).terminal?.waveJWT == nil)
@@ -343,7 +349,8 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         s.needsInputMessage = "Bash: ls"
         s.needsInputSince = t0
         let out = StuckDetector.evaluate(s, now: t0, config: StuckConfig(), isAlive: { _ in false })!
-        #expect(out.status == .idle && out.needsInputMessage == nil && out.needsInputSince == nil && out.unreadSince == t0)
+        // No result came of it, so it is not waiting for review either.
+        #expect(out.status == .idle && out.needsInputMessage == nil && out.needsInputSince == nil && out.unreadSince == nil)
         #expect(StuckDetector.evaluate(s, now: t0, config: StuckConfig(), isAlive: { _ in true }) == nil)
     }
 

@@ -279,11 +279,11 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     /// How long an ended session keeps its Wave token, so it can be resumed in its tab.
     public static let waveTokenTTL: TimeInterval = 24 * 3600
 
-    /// The Wave token is a live credential: kept while the ended session may still be resumed.
-    /// Dropped once the user ended it on the board, or `waveTokenTTL` after its last event
-    /// (clicking the card does not extend it).
-    public func dropsWaveToken(now: Date) -> Bool {
-        guard status == .ended else { return false }
+    /// The Wave token is a live credential: kept while the session runs, and after it ended (or its
+    /// process went, `gone`) while it may still be resumed. Dropped once the user ended it on the
+    /// board, or `waveTokenTTL` after its last event (clicking the card does not extend it).
+    public func dropsWaveToken(now: Date, gone: Bool = false) -> Bool {
+        guard status == .ended || gone else { return false }
         return dismissedAt != nil || now.timeIntervalSince(lastEventAt) > Self.waveTokenTTL
     }
 }

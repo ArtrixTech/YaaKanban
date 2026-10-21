@@ -1,8 +1,33 @@
 # Devlog
 
-## fix(wave): resume with a token borrowed from the same tab
+## fix(wave): bound token lifetime and report failed resumes
 
 `pending` | 2026-10-21
+
+- **Changes**:
+  - `dropsWaveToken(now:gone:)`: a session whose process died (`AppModel.isGone`) loses its JWT 24 h after its last event, like an ended one. Before, idle or stuck sessions with a dead pid kept it forever.
+  - `AppModel.waveRunners(for:)`: tries the session's own token first, then other tokens in the same tab. Live sessions come before gone ones, newest first, with duplicates removed.
+  - `WaveAdapter.resume`: tries each runner in turn on a background queue (`runWaiting`: 5 s bound, exit status 0). If none opens the block, it shows an alert saying the command was copied.
+  - The no-token dialog wording no longer promises a tab switch (that needs the experimental tab-switching setting): 切到 Wave 并复制.
+  - A needs-input session whose process died no longer sets `unreadSince`: no result came of it, so it fades on retention instead of waiting for review forever.
+  - `tick`/`scan` timers run in `.common` run-loop modes, so they keep going while the reopen dialog is open.
+  - spec §5: idle wording corrected (it still said "30 min").
+- **Reason**: review of ec8f485 and 5228841:
+  - (1, high) The token could live forever.
+  - (2) The dialog promised a tab switch.
+  - (3, 4) Donor or own tokens whose block was closed failed silently, the original symptom.
+  - (5) Dead waits stayed as review indefinitely.
+  - (7) The modal paused the timers.
+- **Result**: `make test` passes (74).
+- **Notes**: Not addressed (pre-existing or low):
+  - Codex `/new` leaves the old idle card on a live pid.
+  - A reused pid looks alive.
+  - The reopen dialog also shows for unknown terminals and Codex threads, where 重新打开 raises and copies, or opens the thread.
+  - The ec8f485 devlog line "Cursor, OpenCode never send SessionEnd" is imprecise: Cursor has `sessionEnd`, and OpenCode sends it on `session.deleted` only.
+
+## fix(wave): resume with a token borrowed from the same tab
+
+`5228841` | 2026-10-21
 
 - **Changes**:
   - `AppModel.waveRunner(for:)`: the session's own Wave terminal if it has a JWT, else the newest session in the same `waveTabId` that has one.

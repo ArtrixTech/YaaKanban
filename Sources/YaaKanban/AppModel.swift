@@ -147,12 +147,14 @@ final class AppModel {
         }
         notifier.requestAuthorization()
 
-        timers.append(Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+        timers.append(Timer(timeInterval: 10, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         })
-        timers.append(Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+        timers.append(Timer(timeInterval: 5, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.scan() }
         })
+        // Common modes: keep going while a dialog or menu is open.
+        for t in timers { RunLoop.main.add(t, forMode: .common) }
         scan()
     }
 
@@ -265,7 +267,7 @@ final class AppModel {
         for key in Array(sessions.keys) {
             update(key, alert: true) { s in
                 guard let s else { return nil }
-                if s.terminal?.waveJWT != nil, s.dropsWaveToken(now: now) {
+                if s.terminal?.waveJWT != nil, s.dropsWaveToken(now: now, gone: Self.isGone(s)) {
                     var out = s
                     out.terminal?.waveJWT = nil
                     return out
@@ -382,22 +384,38 @@ final class AppModel {
         markRead(key)
         guard let s = sessions[key] else { return }
         guard Self.isGone(s) else { jumper.jump(to: s); return }
-        let runner = waveRunner(for: s)
-        switch Self.askReopen(s, canRun: s.terminal?.isWave != true || runner != nil) {
-        case .alertFirstButtonReturn: jumper.resume(s, wave: runner)
+        let runners = waveRunners(for: s)
+        switch Self.askReopen(s, canRun: s.terminal?.isWave != true || !runners.isEmpty) {
+        case .alertFirstButtonReturn: jumper.resume(s, wave: runners) { Self.tellResumeFailed(s) }
         case .alertSecondButtonReturn: jumper.copyResume(s)
         default: break
         }
     }
 
-    /// A Wave terminal that can still run commands in the session's tab: its own token, else the
-    /// newest one from another session in that tab (ended sessions' tokens expire).
-    private func waveRunner(for s: SessionState) -> TerminalContext? {
-        guard let t = s.terminal, t.isWave else { return nil }
-        if t.waveJWT != nil { return t }
-        guard let tab = t.waveTabId else { return nil }
-        return sessions.values.filter { $0.terminal?.waveTabId == tab && $0.terminal?.waveJWT != nil }
-            .max { $0.lastEventAt < $1.lastEventAt }?.terminal
+    /// Wave terminals that may still run commands in the session's tab, best first: its own token,
+    /// then other sessions in that tab, live ones (their block is surely open) before gone ones,
+    /// newest first. A token whose block was closed fails and the next is tried.
+    private func waveRunners(for s: SessionState) -> [TerminalContext] {
+        guard let t = s.terminal, t.isWave else { return [] }
+        let others = t.waveTabId.map { tab in
+            sessions.values.filter { $0.id != s.id && $0.terminal?.waveTabId == tab && $0.terminal?.waveJWT != nil }
+                .sorted { a, b in
+                    let (la, lb) = (!Self.isGone(a), !Self.isGone(b))
+                    return la != lb ? la : a.lastEventAt > b.lastEventAt
+                }
+                .compactMap(\.terminal)
+        } ?? []
+        var seen = Set<String>()
+        return ([t] + others).filter { $0.waveJWT.map { seen.insert($0).inserted } ?? false }
+    }
+
+    private static func tellResumeFailed(_ s: SessionState) {
+        let alert = NSAlert()
+        if let icon = BrandMark.image { alert.icon = icon }
+        alert.messageText = "没能在 Wave 里打开"
+        alert.informativeText = "原标签页或终端可能已关闭，Wave 的授权也可能已过期。恢复命令已复制，在 Wave 里新开一个终端粘贴即可继续 \(s.agent.displayName)。"
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
     }
 
     private static func askReopen(_ s: SessionState, canRun: Bool) -> NSApplication.ModalResponse {
@@ -409,8 +427,8 @@ final class AppModel {
             alert.addButton(withTitle: "重新打开")
         } else {
             // Nothing can type into that Wave tab any more: go there and paste.
-            alert.informativeText = "Wave 的授权已过期，无法自动打开。将切到原标签页并复制恢复命令，粘贴到新终端即可继续。"
-            alert.addButton(withTitle: "切过去并复制")
+            alert.informativeText = "Wave 的授权已过期，无法自动打开。将切到 Wave 并复制恢复命令，在原标签页新开一个终端粘贴即可继续。"
+            alert.addButton(withTitle: "切到 Wave 并复制")
         }
         alert.addButton(withTitle: "复制恢复命令")
         alert.addButton(withTitle: "取消")

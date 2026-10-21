@@ -34,7 +34,6 @@ public enum StuckDetector {
             out.pendingPermission = nil
             out.needsInputMessage = nil
             out.needsInputSince = nil
-            if out.unreadSince == nil { out.unreadSince = now }
             return out
         case .running, .stuck:
             let reason: String?
