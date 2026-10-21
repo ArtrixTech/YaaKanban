@@ -47,8 +47,10 @@ struct TerminalJumper {
     /// Continues a session whose agent is gone (ended, or its terminal crashed) in the terminal it
     /// ran in: a new block in its Wave tab, a new Terminal/iTerm window. Elsewhere the terminal is
     /// raised and the resume command copied.
+    /// `wave` is the Wave terminal to run in: the session's own, or one borrowed from a live
+    /// session in the same tab when its token is gone (Wave adds the block next to the token's).
     @discardableResult
-    func resume(_ s: SessionState) -> Outcome {
+    func resume(_ s: SessionState, wave: TerminalContext? = nil) -> Outcome {
         // The Codex app keeps the thread; opening it is resuming it.
         guard let t = s.terminal, t.termProgram != nil || t.isWave, let cmd = s.resumeCommand else {
             if s.agent == .codex, s.terminal == nil, let url = Self.codexThreadURL(s.sessionId) {
@@ -62,8 +64,8 @@ struct TerminalJumper {
         }
         copyResume(s)
         let cwd = s.cwd ?? s.projectDir
-        if t.isWave, let wave = NSRunningApplication.runningApplications(withBundleIdentifier: Self.waveBundleId).first {
-            WaveAdapter(terminal: t, switchTabs: settings.waveTabSwitching).resume(cmd, cwd: cwd, app: wave)
+        if t.isWave, let app = NSRunningApplication.runningApplications(withBundleIdentifier: Self.waveBundleId).first {
+            WaveAdapter(terminal: t, switchTabs: settings.waveTabSwitching).resume(cmd, cwd: cwd, app: app, runner: wave)
             return .activated("Wave")
         }
         let line = [cwd.map { "cd \(shellQuote($0))" }, cmd].compactMap { $0 }.joined(separator: " && ")
@@ -210,8 +212,9 @@ struct WaveAdapter {
 
     /// Runs `cmd` in a new block of the session's tab (Wave places it next to the block the token
     /// was issued for), then stays in a shell. A login shell gives the agent CLIs their PATH.
-    /// Without a token (or with Wave's tab gone) the user pastes the copied command instead.
-    func resume(_ cmd: String, cwd: String?, app: NSRunningApplication) {
+    /// `runner` supplies the token when the session's own is gone. Without any token (or with
+    /// Wave's tab gone) the user pastes the copied command instead.
+    func resume(_ cmd: String, cwd: String?, app: NSRunningApplication, runner: TerminalContext? = nil) {
         app.activate()
         if switchTabs, let tab = terminal.waveTabId, AXIsProcessTrusted() {
             let pid = app.processIdentifier
@@ -221,7 +224,7 @@ struct WaveAdapter {
             }
         }
         let script = "\"$SHELL\" -ilc \(shellQuote(cmd)); exec \"$SHELL\" -il"
-        run(["run"] + (cwd.map { ["--cwd", $0] } ?? []) + ["-c", script])
+        run(["run"] + (cwd.map { ["--cwd", $0] } ?? []) + ["-c", script], as: terminal.waveJWT == nil ? runner ?? terminal : terminal)
     }
 
     func badge(on: Bool) {
@@ -229,7 +232,8 @@ struct WaveAdapter {
         run(on ? ["badge", "bell", "--color", "#f59e0b", "-b", block] : ["badge", "--clear", "-b", block])
     }
 
-    private func run(_ args: [String]) {
+    private func run(_ args: [String], as terminal: TerminalContext? = nil) {
+        let terminal = terminal ?? self.terminal
         guard let jwt = terminal.waveJWT, FileManager.default.isExecutableFile(atPath: Self.wsh) else { return }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: Self.wsh)

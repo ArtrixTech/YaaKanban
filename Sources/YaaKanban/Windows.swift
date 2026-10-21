@@ -46,7 +46,7 @@ struct BoardHeader<Trailing: View>: View {
 /// App logo from the bundle, with a symbol fallback when running unbundled.
 struct BrandMark: View {
     var size: CGFloat
-    private static let image = Bundle.main.url(forResource: "logo", withExtension: "svg").flatMap(NSImage.init(contentsOf:))
+    static let image = Bundle.main.url(forResource: "logo", withExtension: "svg").flatMap(NSImage.init(contentsOf:))
 
     var body: some View {
         if let img = Self.image {

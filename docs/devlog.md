@@ -1,8 +1,24 @@
 # Devlog
 
-## fix(board): keep every finished session until its retention ends
+## fix(wave): resume with a token borrowed from the same tab
 
 `pending` | 2026-10-21
+
+- **Changes**:
+  - `AppModel.waveRunner(for:)`: the session's own Wave terminal if it has a JWT, else the newest session in the same `waveTabId` that has one.
+  - `TerminalJumper.resume(_:wave:)` → `WaveAdapter.resume(..., runner:)`: `wsh run` uses the runner's JWT/block/tab env when the session's own JWT is gone. Tab switching still uses the session's own tab/block.
+  - Reopen dialog: app logo as the icon (`BrandMark.image`, was the blank generic icon). With no token anywhere in the tab, the dialog says Wave's authorization expired and offers 切过去并复制 (raise the tab, copy the resume command).
+- **Reason**: clicking 重新打开 on a Wave card only switched the tab. Every ended Wave session in history had `waveJWT = nil` (f600089 dropped it 60 s after a clean exit), so `WaveAdapter.run` returned at its JWT guard without a word.
+- **User feedback**: "waveterm的恢复目前无效" "能打开对应tab 但是没有开新的terminal并启动cc" (screenshot: the reopen dialog with a blank icon).
+- **Process**:
+  - `history.sqlite`: 21 ended Wave sessions in the last day, all without a JWT. 20 have a session with a JWT in the same tab.
+  - Every stored donor JWT was accepted by Wave (`wsh getmeta -b <block> view` → `"term"`).
+- **Result**: `make test` passes. Not run end to end here: that would open a block in the user's Wave.
+- **Notes**: new ended sessions keep their own JWT for 24 h (ec8f485), so borrowing mainly covers sessions from before that.
+
+## fix(board): keep every finished session until its retention ends
+
+`ec8f485` | 2026-10-21
 
 - **Changes**:
   - Removed `interruptedAt`, `interruptGrace`, `AppModel.terminalQuit` (NSWorkspace didTerminate observer) and `TerminalJumper.bundleId(of:)`.

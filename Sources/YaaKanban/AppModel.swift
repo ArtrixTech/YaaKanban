@@ -382,18 +382,36 @@ final class AppModel {
         markRead(key)
         guard let s = sessions[key] else { return }
         guard Self.isGone(s) else { jumper.jump(to: s); return }
-        switch Self.askReopen(s) {
-        case .alertFirstButtonReturn: jumper.resume(s)
+        let runner = waveRunner(for: s)
+        switch Self.askReopen(s, canRun: s.terminal?.isWave != true || runner != nil) {
+        case .alertFirstButtonReturn: jumper.resume(s, wave: runner)
         case .alertSecondButtonReturn: jumper.copyResume(s)
         default: break
         }
     }
 
-    private static func askReopen(_ s: SessionState) -> NSApplication.ModalResponse {
+    /// A Wave terminal that can still run commands in the session's tab: its own token, else the
+    /// newest one from another session in that tab (ended sessions' tokens expire).
+    private func waveRunner(for s: SessionState) -> TerminalContext? {
+        guard let t = s.terminal, t.isWave else { return nil }
+        if t.waveJWT != nil { return t }
+        guard let tab = t.waveTabId else { return nil }
+        return sessions.values.filter { $0.terminal?.waveTabId == tab && $0.terminal?.waveJWT != nil }
+            .max { $0.lastEventAt < $1.lastEventAt }?.terminal
+    }
+
+    private static func askReopen(_ s: SessionState, canRun: Bool) -> NSApplication.ModalResponse {
         let alert = NSAlert()
+        if let icon = BrandMark.image { alert.icon = icon }
         alert.messageText = "\(s.agent.displayName) 进程已不在"
-        alert.informativeText = "是否在原终端重新打开这个会话？"
-        alert.addButton(withTitle: "重新打开")
+        if canRun {
+            alert.informativeText = "是否在原终端重新打开这个会话？"
+            alert.addButton(withTitle: "重新打开")
+        } else {
+            // Nothing can type into that Wave tab any more: go there and paste.
+            alert.informativeText = "Wave 的授权已过期，无法自动打开。将切到原标签页并复制恢复命令，粘贴到新终端即可继续。"
+            alert.addButton(withTitle: "切过去并复制")
+        }
         alert.addButton(withTitle: "复制恢复命令")
         alert.addButton(withTitle: "取消")
         NSApp.activate(ignoringOtherApps: true)
