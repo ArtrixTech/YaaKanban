@@ -154,9 +154,6 @@ struct FloatingPanelView: View {
     @State private var widthStart: CGFloat?
     /// Where the list's bottom is in the scroll view, to fade the bottom edge while more is below.
     @State private var listBottom: CGFloat = 0
-    /// Until when the list may grow past the height set by hand: a new card (or sub-agent) just
-    /// arrived, and it should be seen whole rather than land under the bottom edge.
-    @State private var growUntil: Date?
 
     static let minList: CGFloat = 120
     static let maxList: CGFloat = 1400
@@ -247,6 +244,7 @@ struct FloatingPanelView: View {
                 IconButton(symbol: "gearshape", help: "设置") { AppWindows.open(.settings) }
                 IconButton(symbol: settings.panelCollapsed ? "chevron.down" : "chevron.up",
                            help: settings.panelCollapsed ? "展开" : "收起") {
+                    room?.holdTop()
                     withAnimation(.snappy) { settings.panelCollapsed.toggle() }
                 }
                 IconButton(symbol: "xmark", help: "隐藏（⌥⌘K）", action: onHide)
@@ -277,14 +275,12 @@ struct FloatingPanelView: View {
                         }
                         .animation(.easeOut(duration: 0.15), value: moreBelow)
                     }
-                    .onChange(of: cardKeys) { old, new in
-                        if !new.isSubset(of: old) { growUntil = .now.addingTimeInterval(2) }
-                    }
                     .transition(.opacity)
                     // Folded, the bottom is an edge like the sides; the height is set unfolded.
                     if !folded {
                         ResizeGrip { delta in
                             if delta == nil { dragStart = nil; return }
+                            room?.holdTop()
                             let start = dragStart ?? shownList
                             dragStart = start
                             settings.panelListHeight = min(Self.maxList, max(Self.minList, start + delta!))
@@ -296,24 +292,11 @@ struct FloatingPanelView: View {
 
     private var moreBelow: Bool { listBottom > shownList + 1 }
 
-    /// Cards and sub-agents on the board; one appearing lets the list grow to show it.
-    private var cardKeys: Set<String> {
-        var keys = Set<String>()
-        for s in model.activeSessions {
-            keys.insert(s.id)
-            for c in model.subagents(of: s.id) { keys.insert(c.id) }
-            for a in s.subagents { keys.insert(s.id + "/" + a.id) }
-        }
-        return keys
-    }
-
-    /// The list's natural height changed. The panel follows it, up to the height set by hand,
-    /// except just after something new arrived: then that height grows so the new card is seen.
+    /// The list's natural height changed. The panel follows it both ways: more content grows the
+    /// height set by hand so nothing lands out of sight, less content shrinks the panel with it.
     private func grow(to h: CGFloat) {
         let settings = model.settings
-        if let until = growUntil, until > .now, h > settings.panelListHeight {
-            settings.panelListHeight = min(Self.maxList, h)
-        }
+        if h > settings.panelListHeight { settings.panelListHeight = min(Self.maxList, h) }
         listHeight = h
     }
 
@@ -337,6 +320,11 @@ final class PanelRoom {
     var resizing = false
     /// Snapshots render the rail folded whatever the user pinned.
     var snapshotFolded = false
+    /// Until when a height change keeps the top edge still: the user is resizing or folding the
+    /// list by hand. Otherwise the panel grows and shrinks about its middle.
+    @ObservationIgnored var topHeldUntil: CFTimeInterval = 0
+
+    func holdTop() { topHeldUntil = CACurrentMediaTime() + 0.6 }
 
     init(dock: DockEdge? = nil, peek: Bool = false) { self.dock = dock; self.peek = peek }
 }

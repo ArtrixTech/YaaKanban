@@ -181,17 +181,26 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
     /// Where the panel is drawn now, in screen coordinates.
     private var shown: NSRect { blur.frame.offsetBy(dx: panel.frame.minX, dy: panel.frame.minY) }
 
-    /// Resizes to the content, keeping the edges it is snapped to (top unless at the bottom, and
-    /// the side it is docked to) in place, and always inside the screen's usable area. A change of
-    /// width (folding or unfolding) slides the panel edge; height alone follows at once.
+    /// Resizes to the content, keeping the edges it is snapped to (the top or bottom of the screen,
+    /// and the side it is docked to) in place, and always inside the screen's usable area. Content
+    /// coming and going grows or shrinks it about its middle; the user resizing or folding the list
+    /// moves only the bottom edge. A change of width (folding or unfolding) slides the panel edge;
+    /// height alone follows at once.
     private func fit(_ size: CGSize) {
         lastSize = size
         let w = ceil(size.width), h = ceil(size.height)
         let current = slide?.to ?? panel.frame
         guard w > 0, h > 0, abs(current.height - h) >= 1 || abs(current.width - w) >= 1 else { return }
         var f = current
-        let pinBottom = panel.screen.map { f.minY - $0.visibleFrame.minY < Self.snapDistance } ?? false
-        if !pinBottom { f.origin.y = f.maxY - h }
+        let v0 = panel.screen?.visibleFrame
+        let pinBottom = v0.map { f.minY - $0.minY < Self.snapDistance } ?? false
+        let pinTop = v0.map { $0.maxY - f.maxY < Self.snapDistance } ?? false
+        if pinBottom {
+        } else if pinTop || CACurrentMediaTime() < room.topHeldUntil {
+            f.origin.y = f.maxY - h
+        } else {
+            f.origin.y = (f.midY - h / 2).rounded()
+        }
         if room.dock == .right { f.origin.x = f.maxX - w }
         f.size = NSSize(width: w, height: h)
         if let v = usable {

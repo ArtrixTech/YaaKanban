@@ -1,8 +1,20 @@
 # Devlog
 
-## feat(board): one priority-ordered list; project runs get a header line, not a box
+## fix(panel): height follows the content both ways, growing about its middle
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - The list grows whenever its content is taller than the height set by hand. Before, it grew only within 2 s of a new card or sub-agent id appearing. It shrinks with the content as before.
+  - Content-driven height changes keep the panel's middle still, so it grows up and down at once. Snapped to the top or bottom of the screen, it keeps that edge.
+  - Dragging the resize grip or folding the list (header chevron) holds the top edge for 0.6 s (`PanelRoom.holdTop`).
+- **Reason**: "随着新的任务派发出来，悬浮窗的高度不会自己增加，而是会把多出来的内容折叠进去……任务已经减少的时候自动降低高度……上下两边同时增长的"
+- **Process**: A new session often gets its content (reply, tool, sub-agents) after the 2 s window had closed. Then the list stayed at the old height with the new card under the fade.
+- **Result**: `make test` 66/66. Installed. Not checked live with real sessions arriving.
+
+## feat(board): one priority-ordered list; project runs get a header line, not a box
+
+`d486a42` | 2026-10-20
 
 - **Changes**:
   - `Board.groups` orders every card by status tier first: needs you / stuck, then to review, then running, then reviewed.
