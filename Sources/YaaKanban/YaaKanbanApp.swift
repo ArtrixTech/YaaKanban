@@ -41,15 +41,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Renders each surface offscreen into `dir`.
     private func snapshot(to dir: URL) {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        if model.selection == nil { model.selection = model.activeSessions.first?.id }
+        let home = model.selection
+        model.selection = model.activeSessions.first?.id ?? home
         let views: [(String, AnyView, NSSize)] = [
             ("panel", AnyView(FloatingPanelView().environment(model)), NSSize(width: model.settings.panelWidth, height: 300)),
             ("rail", AnyView(FloatingPanelView(room: { let r = PanelRoom(dock: .right); r.snapshotFolded = true; return r }()).environment(model)), NSSize(width: Rail.width, height: 600)),
             ("rail-wide", AnyView(FloatingPanelView(room: PanelRoom(dock: .right, peek: true)).environment(model)),
              NSSize(width: model.settings.panelWidth, height: 600)),
+            ("rail-slim", AnyView(FloatingPanelView(room: { let r = PanelRoom(dock: .right); r.snapshotFolded = true; r.snapshotSlim = true; return r }()).environment(model)), NSSize(width: Rail.slimWidth, height: 600)),
             ("menu", AnyView(MenuContent(panel: panel).environment(model)), NSSize(width: 230, height: 200)),
             ("main", AnyView(MainWindow().environment(model)), NSSize(width: 1000, height: 640)),
             ("settings", AnyView(SettingsView(panel: panel).environment(model)), SettingsView.size),
+            ("dashboard", AnyView(DashboardView().environment(model)), NSSize(width: 1000, height: 900)),
         ]
         for (name, view, size) in views {
             let window = NSWindow(contentRect: NSRect(origin: NSPoint(x: -10000, y: -10000), size: size),
@@ -64,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 try? rep.representation(using: .png, properties: [:])?.write(to: dir.appendingPathComponent("\(name).png"))
             }
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { self.model.selection = home }
     }
 
     func applicationWillTerminate(_ notification: Notification) { model.stop() }

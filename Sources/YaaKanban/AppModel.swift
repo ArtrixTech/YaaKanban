@@ -28,8 +28,9 @@ final class AppModel {
     var serverError: String?
     /// Debug hook: render windows to PNGs (`yaak snapshot <dir>`), for verification without screen recording.
     @ObservationIgnored var onSnapshot: ((URL) -> Void)?
-    /// Session selected in the main window.
-    var selection: String?
+    /// Session selected in the main window, or `overview` (the home page).
+    var selection: String? = AppModel.overview
+    static let overview = "overview"
 
     // MARK: Derived views
 
@@ -133,8 +134,10 @@ final class AppModel {
         } catch {
             serverError = "History unavailable: \(error)"
         }
+        beginActivity()
         // Sessions that were live when the app quit may have ended meanwhile.
         tick()
+        syncLanes()
 
         do {
             try FileManager.default.createDirectory(at: paths.base, withIntermediateDirectories: true)
@@ -162,9 +165,16 @@ final class AppModel {
         // Common modes: keep going while a dialog or menu is open.
         for t in timers { RunLoop.main.add(t, forMode: .common) }
         scan()
+
+        let ws = NSWorkspace.shared.notificationCenter
+        ws.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.awaySince = self?.awaySince ?? Date() }
+        }
     }
 
     func stop() {
+        endAway(at: Date())
+        store?.setMeta(Self.heartbeatKey, Date().timeIntervalSince1970)
         server?.stop()
         for (_, r) in pendingReplies { r.send(Wire.encode(WireReply(decision: nil))) }
     }
@@ -213,6 +223,7 @@ final class AppModel {
         if new.parentId != nil { new.unreadSince = nil }
         sessions[key] = new
         store?.save(new)
+        record(Activity.rows(old: old, new: new, now: Date()))
         if old?.pendingPermission?.awaitingDecision == true && new.pendingPermission?.awaitingDecision != true {
             pendingReplies.removeValue(forKey: key)?.send(Wire.encode(WireReply(decision: nil)))
             notifier.withdraw(key: key)
@@ -269,6 +280,9 @@ final class AppModel {
 
     private func tick() {
         let now = Date()
+        trackAway(now: now)
+        if now.timeIntervalSince(tokensFlushedAt) >= 60 { flushTokens() }
+        store?.setMeta(Self.heartbeatKey, now.timeIntervalSince1970)
         let cfg = settings.stuckConfig
         for key in Array(sessions.keys) {
             update(key, alert: true) { s in
@@ -281,6 +295,7 @@ final class AppModel {
                 return StuckDetector.evaluate(s, now: now, config: cfg, isAlive: ProcessUtil.isAlive)
             }
         }
+        syncLanes()
     }
 
     private func scan() {
@@ -344,6 +359,134 @@ final class AppModel {
         }
     }
 
+    // MARK: Activity
+
+    /// Bumped on each recorded row, so the efficiency views redraw.
+    private(set) var activityVersion = 0
+    /// The user has been away (no input for `awayAfter`, or the Mac asleep) since then.
+    private(set) var awaySince: Date?
+    /// Activity before this was rebuilt from the session history: running time and turns only.
+    private(set) var recordedSince: Date?
+    static let awayAfter: TimeInterval = 120
+    private static let heartbeatKey = "heartbeat"
+    private static let awayKey = "awaySince"
+    private static let recordedKey = "recordedSince"
+    /// Each session's lane as last recorded, so a tick can catch lanes the record missed.
+    @ObservationIgnored private var recordedLanes: [String: Lane] = [:]
+    /// Token use waiting to be written: one row per session per minute instead of one per scan.
+    @ObservationIgnored private var pendingTokens: [String: Double] = [:]
+    @ObservationIgnored private var tokensFlushedAt = Date()
+    @ObservationIgnored private var reports: [DateInterval: (version: Int, at: Date, report: ActivityReport)] = [:]
+
+    /// The session's lane, as the boards show it: one past its retention has left the lanes.
+    private func lane(_ s: SessionState?) -> Lane? {
+        guard let s, s.parentId == nil, s.dismissedAt == nil else { return nil }
+        return Lane(display(s))
+    }
+
+    private func record(_ rows: [ActivityRow]) {
+        guard let store else { return }
+        var rows = rows
+        rows.removeAll { r in
+            guard r.kind == .tokens else { return false }
+            pendingTokens[r.session, default: 0] += r.value
+            return true
+        }
+        guard !rows.isEmpty else { return }
+        for r in rows where r.kind == .lane { recordedLanes[r.session] = Lane(rawValue: r.text) }
+        // The heartbeat covers the rows just written, so lanes left open at a quit close after them.
+        store.record(rows, meta: [Self.heartbeatKey: Date().timeIntervalSince1970])
+        activityVersion += 1
+    }
+
+    private func flushTokens() {
+        tokensFlushedAt = Date()
+        guard !pendingTokens.isEmpty else { return }
+        let rows = pendingTokens.map { ActivityRow(at: tokensFlushedAt, session: $0.key, kind: .tokens, value: $0.value) }
+        pendingTokens = [:]
+        store?.record(rows)
+        activityVersion += 1
+    }
+
+    /// At launch, before the first tick: the time the app was not running counts as away, and
+    /// lanes still open then end when it stopped (nothing was watching after that). The first
+    /// launch also rebuilds what the session history knows of the time before.
+    private func beginActivity() {
+        guard let store else { return }
+        store.purgeActivity()
+        let now = Date()
+        if let since = store.meta(Self.recordedKey) {
+            recordedSince = Date(timeIntervalSince1970: since)
+        } else {
+            let since = store.firstActivity() ?? now
+            store.record(ActivityBackfill.rows(Array(sessions.values), before: since),
+                         meta: [Self.recordedKey: since.timeIntervalSince1970])
+            recordedSince = since
+        }
+        // Away when the app stopped (or was killed), else from the last sign of life.
+        let hb = store.meta(Self.heartbeatKey).map(Date.init(timeIntervalSince1970:))
+        let wasAway = store.meta(Self.awayKey).map(Date.init(timeIntervalSince1970:))
+        store.deleteMeta(Self.awayKey)
+        recordedLanes = store.lanes()
+        guard let hb, let from = [hb, wasAway ?? hb].min(), now.timeIntervalSince(hb) > 30 || wasAway != nil else { return }
+        var rows = [ActivityRow(at: from, session: "", kind: .away, value: now.timeIntervalSince(from))]
+        for id in recordedLanes.keys { rows.append(ActivityRow(at: hb, session: id, kind: .lane)) }
+        record(rows)
+    }
+
+    /// Lanes as they are now, where the record says otherwise: at launch, and on each tick for
+    /// sessions whose lane changed without a state change (retention running out).
+    private func syncLanes() {
+        let now = Date()
+        var rows: [ActivityRow] = []
+        for id in Set(recordedLanes.keys).union(sessions.keys) {
+            let l = lane(sessions[id])
+            if l != recordedLanes[id] { rows.append(ActivityRow(at: now, session: id, kind: .lane, text: l?.rawValue ?? "")) }
+        }
+        record(rows)
+    }
+
+    /// Away once there has been no mouse or keyboard input for `awayAfter`, counted from the last input.
+    private func trackAway(now: Date) {
+        let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
+        if idle >= Self.awayAfter {
+            beginAway(at: now.addingTimeInterval(-idle))
+        } else {
+            endAway(at: now.addingTimeInterval(-idle))
+        }
+    }
+
+    private func beginAway(at t: Date) {
+        guard awaySince == nil else { return }
+        awaySince = t
+        // Survives a crash or force quit, so that time still counts as away at the next launch.
+        store?.setMeta(Self.awayKey, t.timeIntervalSince1970)
+    }
+
+    private func endAway(at end: Date) {
+        guard let since = awaySince else { return }
+        awaySince = nil
+        store?.deleteMeta(Self.awayKey)
+        if end > since { record([ActivityRow(at: since, session: "", kind: .away, value: end.timeIntervalSince(since))]) }
+    }
+
+    /// The report for `range`, computed again when something was recorded, at most every few
+    /// seconds (views ask on every redraw).
+    func report(_ range: DateInterval) -> ActivityReport {
+        guard let store else { return ActivityReport(range: range) }
+        let now = Date()
+        if let c = reports[range], c.version == activityVersion || now.timeIntervalSince(c.at) < 5,
+           now.timeIntervalSince(c.at) < 30 { return c.report }
+        if reports.count > 16 { reports = [:] }
+        let r = ActivityReport.compute(rows: store.activity(from: range.start, to: min(range.end, now)),
+                                       lanesBefore: store.lanes(before: range.start), range: range, now: now,
+                                       awaySince: awaySince, recordedSince: recordedSince)
+        reports[range] = (activityVersion, now, r)
+        return r
+    }
+
+    var backlog: Backlog { Backlog(Array(sessions.values)) }
+
     // MARK: Sub-agents
 
     /// Transcripts already read for a parent link (the header is written once, at start).
@@ -389,6 +532,7 @@ final class AppModel {
         if let p = sessions[key]?.parentId, sessions[p] != nil { return jump(p) }
         markRead(key)
         guard let s = sessions[key] else { return }
+        record([ActivityRow(at: Date(), session: key, kind: .focus)])
         guard Self.isGone(s) else { jumper.jump(to: s); return }
         let runners = waveRunners(for: s)
         switch Self.askReopen(s, canRun: s.terminal?.isWave != true || !runners.isEmpty) {

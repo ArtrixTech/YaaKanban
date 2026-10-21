@@ -72,6 +72,7 @@ struct MenuContent: View {
             .padding(.horizontal, 8).padding(.top, 2).padding(.bottom, 4)
             Text(summary).font(.system(size: 11)).foregroundStyle(.secondary)
                 .padding(.horizontal, 8).padding(.bottom, 4)
+            TodayFigures().padding(.horizontal, 8).padding(.bottom, 2)
             if let err = model.serverError {
                 Text(err).font(.caption).foregroundStyle(.red).padding(.horizontal, 8)
             }
@@ -187,6 +188,8 @@ struct FloatingPanelView: View {
     private var panel: some View {
         @Bindable var settings = model.settings
         let folded = self.folded
+        let slim = folded && (settings.slimRail || room?.snapshotSlim == true)
+        let railWidth = Rail.width(slim: slim), inset = Rail.inset(slim: slim)
         return VStack(alignment: .leading, spacing: 10) {
             if folded, let edge = room?.dock {
                 RailHeader(edge: edge) { settings.sidebarExpanded = true }
@@ -196,10 +199,12 @@ struct FloatingPanelView: View {
             list
         }
         // Folded, the sides match the gap between cards.
-        .padding(.horizontal, folded ? Rail.inset : 10).padding(.top, 10)
-        .padding(.bottom, folded ? Rail.inset : settings.panelCollapsed || model.activeSessions.isEmpty ? 10 : 0)
-        .environment(\.railExtra, folded ? settings.panelWidth - Rail.width : nil)
-        .frame(width: folded ? Rail.width : settings.panelWidth, alignment: .top)
+        .padding(.horizontal, folded ? inset : 10).padding(.top, 10)
+        .padding(.bottom, folded ? inset : settings.panelCollapsed || model.activeSessions.isEmpty ? 10 : 0)
+        // Cards are measured as wide as in the normal rail plus its extra, so either rail keeps their height.
+        .environment(\.railExtra, folded ? settings.panelWidth - 2 * Rail.inset - (railWidth - 2 * inset) : nil)
+        .environment(\.railSlim, slim)
+        .frame(width: folded ? railWidth : settings.panelWidth, alignment: .top)
         .fixedSize(horizontal: false, vertical: true)
         .overlay(alignment: widthGripSide) { if !folded { widthGrip } }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
@@ -319,8 +324,9 @@ final class PanelRoom {
     var peek = false
     /// The width grip is being dragged: resize at once instead of sliding.
     var resizing = false
-    /// Snapshots render the rail folded whatever the user pinned.
+    /// Snapshots render the rail folded whatever the user pinned, and slim if asked.
     var snapshotFolded = false
+    var snapshotSlim = false
     /// Until when a height change keeps the top edge still: the user is resizing or folding the
     /// list by hand. Otherwise the panel grows and shrinks about its middle.
     @ObservationIgnored var topHeldUntil: CFTimeInterval = 0
@@ -419,6 +425,7 @@ struct MainWindow: View {
         @Bindable var model = model
         NavigationSplitView {
             List(selection: $model.selection) {
+                Label("概览", systemImage: "chart.xyaxis.line").tag(AppModel.overview)
                 section("活跃", model.board)
                 section("历史", model.allSessions.filter { s in !model.activeSessions.contains { $0.id == s.id } })
             }
@@ -434,10 +441,7 @@ struct MainWindow: View {
             if let id = model.selection, let s = model.sessions[id] {
                 SessionDetail(session: s)
             } else {
-                VStack(spacing: 8) {
-                    Image(systemName: "square.stack.3d.up").font(.system(size: 34)).foregroundStyle(.tertiary)
-                    Text("选择一个会话").foregroundStyle(.secondary)
-                }
+                DashboardView()
             }
         }
         .frame(minWidth: 760, minHeight: 480)
@@ -593,6 +597,13 @@ struct SettingsView: View {
                     Text("⌥⌘K").font(.system(size: 12, weight: .medium)).padding(.horizontal, 7).padding(.vertical, 2)
                         .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.primary.opacity(0.08)))
                 } label: { SettingLabel("显示 / 隐藏", symbol: "command", tint: .blue) }
+                Toggle(isOn: $settings.slimRail) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        SettingLabel("超窄侧边栏（实验性）", symbol: "sidebar.right", tint: .teal)
+                        Text("吸附到屏幕左右边并收起后，变成一条细条，每个会话只显示状态色块，高度不变。鼠标移上去展开。")
+                            .font(.system(size: 11)).foregroundStyle(.secondary).padding(.leading, 30)
+                    }
+                }
             }
             Section {
                 Toggle(isOn: $settings.waveTabSwitching) {

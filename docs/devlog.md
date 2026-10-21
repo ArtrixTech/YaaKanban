@@ -1,8 +1,22 @@
 # Devlog
 
-## fix(board): show an agent exit as done, not ended
+## feat(metrics): add efficiency overview and an experimental slim rail
 
 `pending` | 2026-10-21
+
+- **Changes**:
+  - YaaCore `Activity` (rows diffed from session states: lane / reply / turn / tokens / focus / away), `ActivityReport` (pure sweep: swimlanes, parallelism, utilization, bottleneck, reply percentiles, throughput), `ActivityBackfill` (session turns → running lanes + turn rows before recording began). `Store`: `activity` and `meta` tables.
+  - App: `DashboardView` (概览, default selection) with swimlanes, tiles, daily summary, week-over-week; menu shows 3 numbers. Away = 2 min without input, sleep, or app not running (heartbeat; `awaySince` persisted in meta).
+  - Slim rail: `settings.slimRail` (设置 → 悬浮窗, experimental). Folded rail is 22 pt wide; each card is a status-color block at its full-card height.
+- **Reason**: show the user's multi-session parallelism and response efficiency; history wanted for days before recording.
+- **User feedback**: "增加对用户的回复效率等指标的跟踪…核心目标是让用户直观看到最近的多任务并行状态/效率"; "效率面板好像没有历史数据啊。最好能看到。"; "超窄侧边栏，实验性功能…只用色块显示状态，高度保持不变，只是宽度降低。"
+- **Process**: adversarial review found: bucket loop could hang on non-integer spans (fixed: step by index, test over 3600.37… spans); reports recomputed on every redraw (now cached per range, ≤ every 5 s, whole-minute week ranges); token rows per scan (now buffered, flushed per minute); replies counted after an already-reviewed turn or a resume days later (now only from needsInput/review); lane left open when a session turns into a sub-agent; lanes of sessions past retention never closed (tick `syncLanes` with `AppModel.display`); willSleep set inside a Task (now synchronous + didWake); dashboard stuck on yesterday past midnight (day offset); session delete no longer drops its activity.
+- **Result**: `make test` 90 passed. Snapshots of dashboard, rail, rail-slim checked.
+- **Notes**: tokens exclude cacheRead. Rebuilt time has no waits/away: utilization and bottleneck only count from `recordedSince` (meta key); the dashboard notes the rebuilt part. One reply row and the 5.04M token row recorded before the fixes remain in today's data.
+
+## fix(board): show an agent exit as done, not ended
+
+`b504d2f` | 2026-10-21
 
 - **Changes**:
   - `SessionState.display`: `.ended` status maps like `.idle` (done / review / ended-if-dismissed).

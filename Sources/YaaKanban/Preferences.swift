@@ -21,6 +21,8 @@ final class Preferences {
     var panelCollapsed: Bool { didSet { d.set(panelCollapsed, forKey: "panelCollapsed") } }
     /// Snapped to a side, the panel folds into a rail unless the user unfolded it.
     var sidebarExpanded: Bool { didSet { d.set(sidebarExpanded, forKey: "sidebarExpanded") } }
+    /// Experimental: the folded rail is a thin strip of status colors, each card's block as tall as the card.
+    var slimRail: Bool { didSet { d.set(slimRail, forKey: "slimRail") } }
     /// Height of the floating panel's list set with its resize grip, kept whatever the content; nil
     /// (the grip dragged all the way up) lets the list follow its content.
     var panelListHeight: CGFloat? { didSet { d.set(panelListHeight.map(Double.init), forKey: "panelListHeightManual") } }
@@ -63,6 +65,7 @@ final class Preferences {
         showPanel = d.bool(forKey: "showPanel")
         panelCollapsed = d.bool(forKey: "panelCollapsed")
         sidebarExpanded = d.bool(forKey: "sidebarExpanded")
+        slimRail = d.bool(forKey: "slimRail")
         panelListHeight = d.object(forKey: "panelListHeightManual") == nil ? nil : CGFloat(d.double(forKey: "panelListHeightManual"))
         panelWidth = d.object(forKey: "panelWidth") == nil ? 340 : CGFloat(d.double(forKey: "panelWidth"))
         manualOrder = d.stringArray(forKey: "manualOrder") ?? []

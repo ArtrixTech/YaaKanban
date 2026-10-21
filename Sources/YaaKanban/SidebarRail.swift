@@ -11,9 +11,16 @@ enum Rail {
     static let width: CGFloat = 120
     /// Side margin of the folded panel: the gap between cards.
     static let inset: CGFloat = 8
+    /// The slim rail (experimental): a strip of status colors.
+    static let slimWidth: CGFloat = 22
+    static let slimInset: CGFloat = 5
+
+    static func width(slim: Bool) -> CGFloat { slim ? slimWidth : width }
+    static func inset(slim: Bool) -> CGFloat { slim ? slimInset : inset }
 }
 
 private struct RailExtraKey: EnvironmentKey { static let defaultValue: CGFloat? = nil }
+private struct RailSlimKey: EnvironmentKey { static let defaultValue = false }
 
 extension EnvironmentValues {
     /// Set while the panel is folded: how much wider the card would be unfolded.
@@ -21,14 +28,30 @@ extension EnvironmentValues {
         get { self[RailExtraKey.self] }
         set { self[RailExtraKey.self] = newValue }
     }
+
+    /// The folded panel is the slim rail: cards show as blocks of their status color.
+    var railSlim: Bool {
+        get { self[RailSlimKey.self] }
+        set { self[RailSlimKey.self] = newValue }
+    }
 }
 
 /// Folded header: the mark and the unfold button, the height of the full one.
 struct RailHeader: View {
+    @Environment(\.railSlim) private var slim
     let edge: DockEdge
     var onUnfold: () -> Void
 
     var body: some View {
+        // Too narrow for the button: hovering unfolds it, and its header has the pin.
+        if slim {
+            BrandMark(size: 12).frame(maxWidth: .infinity).frame(height: BoardHeaderHeight.value)
+        } else {
+            full
+        }
+    }
+
+    private var full: some View {
         HStack(spacing: 4) {
             BrandMark(size: 20)
             Spacer(minLength: 0)
@@ -52,11 +75,58 @@ struct NarrowSessionCard: View {
     /// Full card height, if known.
     let height: CGFloat?
     var onHeight: (CGFloat) -> Void
+    @Environment(\.railSlim) private var slim
     @State private var width: CGFloat = 0
     @State private var hover = false
 
     var body: some View {
         let st = session.display
+        content(st)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .background(alignment: .topLeading) {
+            if width > 0 {
+                SessionCard(session: session, expanded: expanded)
+                    .environment(\.railExtra, nil)
+                    .frame(width: width + extra)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .hidden()
+                    .allowsHitTesting(false)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { onHeight($0) }
+            }
+        }
+        .contentShape(RoundedRectangle(cornerRadius: slim ? 5 : 12))
+        .onHover { hover = $0 }
+        .animation(.easeOut(duration: 0.12), value: hover)
+        .onTapGesture { model.jump(session.id) }
+        .help(help(st))
+        .contextMenu {
+            Button(AppModel.isGone(session) ? "在原终端恢复" : "跳转到终端") { model.jump(session.id) }
+            if st == .review { Button("标记已验收") { model.markRead(session.id) } }
+            Button("复制 cwd / session") { model.jumper.copyContext(session) }
+            Button("复制恢复命令") { model.jumper.copyResume(session) }
+            Divider()
+            Button("结束（移出悬浮窗）") { model.dismiss(session.id) }
+        }
+    }
+
+    @ViewBuilder private func content(_ st: DisplayStatus) -> some View {
+        if slim {
+            // Just the status: its color, the full card's height. Quiet ones stay faint.
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(st.isLoud || st == .running ? st.tint.opacity(hover ? 1 : 0.85) : Color.primary.opacity(hover ? 0.3 : 0.18))
+                .overlay {
+                    if st == .running, session.latestTool?.isRunning == true {
+                        RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(.white.opacity(0.5), lineWidth: 1)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: height ?? 60)
+        } else {
+            card(st)
+        }
+    }
+
+    private func card(_ st: DisplayStatus) -> some View {
         FitStack(spacing: 2) {
             HStack(spacing: 4) {
                 StatusGlyph(status: st, size: 18)
@@ -80,31 +150,6 @@ struct NarrowSessionCard: View {
         .frame(maxWidth: .infinity, minHeight: height, maxHeight: height ?? 60, alignment: .topLeading)
         .clipped()
         .sessionCard(session, hover: hover)
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-        .background(alignment: .topLeading) {
-            if width > 0 {
-                SessionCard(session: session, expanded: expanded)
-                    .environment(\.railExtra, nil)
-                    .frame(width: width + extra)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .hidden()
-                    .allowsHitTesting(false)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { onHeight($0) }
-            }
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 12))
-        .onHover { hover = $0 }
-        .animation(.easeOut(duration: 0.12), value: hover)
-        .onTapGesture { model.jump(session.id) }
-        .help(help(st))
-        .contextMenu {
-            Button(AppModel.isGone(session) ? "在原终端恢复" : "跳转到终端") { model.jump(session.id) }
-            if st == .review { Button("标记已验收") { model.markRead(session.id) } }
-            Button("复制 cwd / session") { model.jumper.copyContext(session) }
-            Button("复制恢复命令") { model.jumper.copyResume(session) }
-            Divider()
-            Button("结束（移出悬浮窗）") { model.dismiss(session.id) }
-        }
     }
 
     /// What it is doing now: the tool in flight, what it needs, why it may be stuck, its reply.
