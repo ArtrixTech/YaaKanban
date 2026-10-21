@@ -1,8 +1,20 @@
 # Devlog
 
-## fix(wave): bound token lifetime and report failed resumes
+## fix(board): show an agent exit as done, not ended
 
 `pending` | 2026-10-21
+
+- **Changes**:
+  - `SessionState.display`: `.ended` status maps like `.idle` (done / review / ended-if-dismissed).
+  - New `AppModel.display(_:)`: `.ended` for a top-level session that is no longer live (retention over, or dismissed). The main-window list and the detail header use it.
+- **Reason**: since ec8f485 the cards of exited agents (12 within the last 24 h) were on the panel labelled 已结束. To the user, "ended" means the idle threshold ran out (adjustable, 24 h default), not that the agent exited.
+- **User feedback**: "现在已结束的都显示出来了，啥情况？" "结束=idle阈值超时（阈值可调，默认24h）"
+- **Result**: `make test` passes (75, adds `agentExitIsNotTheEndForTheUser`).
+- **Notes**: `sessionEnd` still clears `unreadSince`, so an exited session shows as 已验收 (done), not 待验收.
+
+## fix(wave): bound token lifetime and report failed resumes
+
+`e47e0a8` | 2026-10-21
 
 - **Changes**:
   - `dropsWaveToken(now:gone:)`: a session whose process died (`AppModel.isGone`) loses its JWT 24 h after its last event, like an ended one. Before, idle or stuck sessions with a dead pid kept it forever.

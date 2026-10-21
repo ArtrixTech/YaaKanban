@@ -8,7 +8,7 @@ struct SessionDetail: View {
     @State private var openTool: String?
 
     var body: some View {
-        let st = session.display
+        let st = model.display(session)
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 header(st)

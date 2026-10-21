@@ -656,6 +656,13 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(s.dismissedAt == nil)
     }
 
+    @Test func agentExitIsNotTheEndForTheUser() {
+        var s = SessionReducer.apply(ev(.promptSubmitted("go"), 0), to: nil)
+        s = SessionReducer.apply(ev(.turnEnd(lastMessage: "ok"), 1), to: s)
+        s = SessionReducer.apply(ev(.sessionEnd, 2), to: s)
+        #expect(s.status == .ended && s.display == .done)
+    }
+
     @Test func endedFinishedSessionShowsEndedNotReviewed() {
         var s = SessionReducer.apply(ev(.promptSubmitted("go"), 0), to: nil)
         s = SessionReducer.apply(ev(.turnEnd(lastMessage: "ok"), 1), to: s)

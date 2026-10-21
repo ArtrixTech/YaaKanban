@@ -74,6 +74,12 @@ final class AppModel {
 
     static let subagentLinger: TimeInterval = 60
 
+    /// A session's status as the user sees it: one that has left the boards (retention over, or
+    /// ended on the panel) is ended, whatever the agent did.
+    func display(_ s: SessionState) -> DisplayStatus {
+        s.parentId == nil && !isLive(s, now: Date()) ? .ended : s.display
+    }
+
     var allSessions: [SessionState] { sorted(Array(sessions.values)) }
 
     /// Active sessions as the boards show them: most urgent first, then the user's order or start order.

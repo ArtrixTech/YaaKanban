@@ -243,15 +243,14 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var latestTool: ToolCall? { tools.last }
     public var runningTools: [ToolCall] { tools.filter(\.isRunning) }
 
-    /// What the UI shows: `.idle` splits into "to review" and "done".
+    /// What the UI shows: `.idle` splits into "to review" and "done". The agent exiting is not the
+    /// end for the user: only ending it on the panel is (and, in the app, outliving the retention).
     public var display: DisplayStatus {
         switch status {
         case .running: .running
         case .needsInput: .needsInput
         case .stuck: .stuck
-        // Ended from the panel: finished as far as the user is concerned, not merely reviewed.
-        case .idle: dismissedAt != nil ? .ended : unreadSince == nil ? .done : .review
-        case .ended: .ended
+        case .idle, .ended: dismissedAt != nil ? .ended : unreadSince == nil ? .done : .review
         }
     }
 

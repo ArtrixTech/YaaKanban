@@ -450,7 +450,7 @@ struct MainWindow: View {
             Section(title) {
                 ForEach(shown) { s in
                     HStack(spacing: 10) {
-                        StatusGlyph(status: s.display, size: 22)
+                        StatusGlyph(status: model.display(s), size: 22)
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 6) {
                                 Text(s.title).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
