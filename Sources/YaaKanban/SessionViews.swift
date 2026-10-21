@@ -314,7 +314,8 @@ enum DragIds {
     }
 }
 
-/// The board: project groups of session cards, reorderable by drag or context menu.
+/// The board: one list of full-width cards, most urgent first. Cards of one project that sit together
+/// get a header line above them instead of a box, so every card has the same width.
 struct BoardList: View {
     @Environment(AppModel.self) private var model
     @Environment(\.railExtra) private var railExtra
@@ -326,26 +327,43 @@ struct BoardList: View {
     @State private var dropTarget: String?
 
     var body: some View {
+        // Flat, so a card keeps its identity when it moves into or out of a group.
         VStack(spacing: 8) {
-            ForEach(model.board) { g in
-                if g.sessions.count == 1, let s = g.sessions.first {
-                    card(s, grouped: false)
-                } else {
-                    VStack(spacing: 5) {
-                        GroupHeader(group: g)
-                            .draggable(DragIds.encode(g.sessions.map(\.id)))
-                            .dropDestination(for: String.self) { items, _ in drop(items, before: g.sessions.first?.id) }
-                                isTargeted: { dropTarget = $0 ? g.id : (dropTarget == g.id ? nil : dropTarget) }
-                            .overlay(alignment: .top) { dropLine(g.id) }
-                        ForEach(g.sessions) { card($0, grouped: true) }
-                    }
-                    .padding(5)
-                    .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.primary.opacity(0.03)))
-                    .transition(.opacity)
+            ForEach(items) { item in
+                switch item {
+                case let .header(g):
+                    GroupHeader(group: g)
+                        .draggable(DragIds.encode(g.sessions.map(\.id)))
+                        .dropDestination(for: String.self) { items, _ in drop(items, before: g.sessions.first?.id) }
+                            isTargeted: { dropTarget = $0 ? g.id : (dropTarget == g.id ? nil : dropTarget) }
+                        .overlay(alignment: .top) { dropLine(g.id) }
+                        // Closer to its cards than to the card above.
+                        .padding(.top, 4).padding(.bottom, -3)
+                        .transition(.opacity)
+                case let .card(s, grouped):
+                    card(s, grouped: grouped)
                 }
             }
         }
-        .animation(.snappy, value: model.board.map { $0.sessions.map(\.id) })
+        .animation(.snappy, value: items.map(\.id))
+    }
+
+    private enum Item: Identifiable {
+        case header(BoardGroup)
+        case card(SessionState, grouped: Bool)
+        var id: String {
+            switch self {
+            case let .header(g): "h:" + g.id
+            case let .card(s, _): s.id
+            }
+        }
+    }
+
+    private var items: [Item] {
+        model.board.flatMap { g -> [Item] in
+            let grouped = g.sessions.count > 1
+            return (grouped ? [.header(g)] : []) + g.sessions.map { .card($0, grouped: grouped) }
+        }
     }
 
     private func card(_ s: SessionState, grouped: Bool) -> some View {
@@ -396,10 +414,10 @@ struct GroupHeader: View {
                 .padding(.horizontal, 5).padding(.vertical, 1)
                 .background(.primary.opacity(0.08), in: Capsule()).foregroundStyle(.secondary)
                 .fixedSize()
-            Spacer(minLength: 0)
+            Rectangle().fill(.primary.opacity(0.12)).frame(height: 1).frame(minWidth: 8)
             if railExtra == nil { trailing }
         }
-        .padding(.horizontal, 6).padding(.top, 3)
+        .padding(.horizontal, 4)
         .contentShape(Rectangle())
         .contextMenu { MoveMenu(ids: group.sessions.map(\.id)) }
         .help(railExtra == nil ? "拖动整组排序" : group.name)

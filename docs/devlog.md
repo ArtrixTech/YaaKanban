@@ -1,8 +1,23 @@
 # Devlog
 
-## fix(panel): Liquid Glass surface that adapts to what is behind it
+## feat(board): one priority-ordered list; project runs get a header line, not a box
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - `Board.groups` orders every card by status tier first: needs you / stuck, then to review, then running, then reviewed.
+    - Inside a tier, one project's cards sit together.
+    - A project that ends a tier opens the next, so its cards stay adjacent across the boundary.
+    - Groups are now runs of consecutive cards. A project can have runs in several tiers, with ids of the form `dir#first-card`.
+  - `BoardList` is one flat list. A run of two or more cards gets a `GroupHeader` (folder, name, count, hairline) above it, with no background box. Every card has the same width.
+  - Status tiers have no headers of their own: card colours already tell them apart.
+- **Reason**: "现在的分组在UI上面会让所有的卡片都比其他部分组的要窄一点……目前的优先级顺序又一定要保证的". The user chose a status-first order with project clustering and no status headers.
+- **Process**: Before, a group ranked by its most urgent card dragged its reviewed cards above other projects' cards waiting for review. Checked with `yaak snapshot` (folded rail).
+- **Result**: `make test` 66/66 (new `strictPriorityAcrossProjects`).
+
+## fix(panel): Liquid Glass surface that adapts to what is behind it
+
+`a4c1571` | 2026-10-20
 
 - **Changes**:
   - On macOS 26 and later the floating panel sits on `NSGlassEffectView`. The SwiftUI content is its `contentView`, so the glass picks light or dark for the content to suit the backdrop.
