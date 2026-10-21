@@ -30,11 +30,13 @@ extension SessionState {
 
     /// Running: how long the turn has run. Otherwise: how long ago it last changed.
     func clock(now: Date) -> String {
-        if status == .running {
-            let start = currentTurn.flatMap { $0.endedAt == nil ? $0.startedAt : nil } ?? lastEventAt
-            return relative(start, now: now)
-        }
-        return relative(lastEventAt, now: now) + "前"
+        status == .running ? relative(clockStart, now: now) : relative(lastEventAt, now: now) + "前"
+    }
+
+    /// Start of the running turn, else the last change.
+    var clockStart: Date {
+        guard status == .running else { return lastEventAt }
+        return currentTurn.flatMap { $0.endedAt == nil ? $0.startedAt : nil } ?? lastEventAt
     }
 }
 
@@ -81,44 +83,43 @@ struct SessionCard: View {
     var body: some View {
         let st = session.display
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 10) {
-                StatusGlyph(status: st, size: 26)
-                VStack(alignment: .leading, spacing: 3) {
-                    // 1: title, clock, expand.
-                    HStack(spacing: 6) {
-                        Text(session.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
-                        Spacer(minLength: 4)
-                        TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                            Text(session.clock(now: ctx.date))
-                                .font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.secondary)
-                        }
-                        ExpandButton(expanded: expanded, action: onExpand)
-                        CardIconButton(symbol: "xmark", help: "结束：移出悬浮窗（保留在历史，需要你时会回来）") {
-                            model.dismiss(session.id)
-                        }
+            VStack(alignment: .leading, spacing: 3) {
+                // 1: status, title, clock, expand. The glyph sits in the title row, so the rows
+                // under it use the card's full width.
+                HStack(spacing: 7) {
+                    StatusGlyph(status: st, size: 20)
+                    Text(session.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                    Spacer(minLength: 4)
+                    TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                        Text(session.clock(now: ctx.date))
+                            .font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.secondary)
                     }
-                    // 2: agent, project, status, stats.
-                    HStack(spacing: 5) {
-                        AgentLogo(agent: session.agent, size: 12)
-                        if !grouped, let p = session.projectName {
-                            Text(p).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
-                        }
-                        StatusPill(status: st)
-                        Spacer(minLength: 0)
-                        UsageBadge(session: session)
+                    ExpandButton(expanded: expanded, action: onExpand)
+                    CardIconButton(symbol: "xmark", help: "结束：移出悬浮窗（保留在历史，需要你时会回来）") {
+                        model.dismiss(session.id)
                     }
-                    // 3: what the agent said, or what it needs.
-                    replyLine(st)
-                    // 4: the tool call in progress.
-                    if st == .running, let t = session.latestTool { ToolLine(tool: t) }
                 }
+                // 2: agent, project, status, stats.
+                HStack(spacing: 5) {
+                    AgentLogo(agent: session.agent, size: 12)
+                    if !grouped, let p = session.projectName {
+                        Text(p).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    StatusPill(status: st)
+                    Spacer(minLength: 0)
+                    UsageBadge(session: session)
+                }
+                // 3: what the agent said, or what it needs.
+                replyLine(st)
+                // 4: the tool call in progress.
+                if st == .running, let t = session.latestTool { ToolLine(tool: t) }
             }
+            SubagentSlots(session: session)
             PermissionButtons(session: session)
             if expanded { expandedBody(st) }
-            if st == .review && !expanded { actions(st) }
         }
         .padding(10)
-        .card(st, hover: hover)
+        .sessionCard(session, hover: hover)
         .contentShape(RoundedRectangle(cornerRadius: 12))
         .onHover { hover = $0 }
         .animation(.easeOut(duration: 0.12), value: hover)
@@ -181,18 +182,73 @@ struct SessionCard: View {
                 if !session.hooked { Text("· 未挂 hook").foregroundStyle(.orange) }
             }
             .font(.system(size: 10.5)).foregroundStyle(.tertiary)
-            actions(st)
         }
         .transition(.opacity.combined(with: .move(edge: .top)))
     }
+}
 
-    /// One way out: looking at the result in the terminal is what marks it reviewed.
-    private func actions(_ st: DisplayStatus) -> some View {
-        HStack(spacing: 6) {
-            Button { model.jump(session.id) } label: { Label("去查看", systemImage: "arrow.up.forward.app") }
-                .buttonStyle(PillButtonStyle(tint: st == .review ? .green : .accentColor, prominent: st == .review))
-            Spacer()
+/// Sub-agents under their parent's card, one line each: sessions of their own (pi) and
+/// in-process ones reported by hooks (Claude Code).
+struct SubagentSlots: View {
+    @Environment(AppModel.self) private var model
+    let session: SessionState
+
+    var body: some View {
+        let children = model.subagents(of: session.id)
+        let inline = session.subagents
+        if !children.isEmpty || !inline.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(children) { c in
+                    SubagentRow(status: c.display, title: c.title, detail: Self.detail(c), since: c.clockStart)
+                    PermissionButtons(session: c)
+                }
+                ForEach(inline, id: \.id) { a in
+                    // Hook-reported sub-agents share the parent's tool stream, tagged with their id.
+                    let tool = session.tools.last { $0.subagentId == a.id }
+                    SubagentRow(status: .running, title: a.type ?? "子 agent",
+                                detail: tool.map { "\($0.name) \($0.summary)" }, since: a.startedAt)
+                }
+            }
+            .padding(.horizontal, 8).padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
+    }
+
+    /// What it is doing now, else what it last said or needs.
+    static func detail(_ s: SessionState) -> String? {
+        if let m = s.needsInputMessage, s.status == .needsInput { return m }
+        if let r = s.stuckReason, s.status == .stuck { return r }
+        if s.status == .running, let t = s.latestTool { return "\(t.name) \(t.summary)" }
+        return s.lastReply.flatMap(SessionState.firstLine)
+    }
+}
+
+/// One sub-agent: status, name, what it is doing, how long.
+struct SubagentRow: View {
+    let status: DisplayStatus
+    let title: String
+    let detail: String?
+    let since: Date
+
+    var body: some View {
+        HStack(spacing: 5) {
+            StatusGlyph(status: status, size: 13)
+            // The name gets at most about half the row; what it is doing takes the rest.
+            Text(title).font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                .frame(maxWidth: 120, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+            if let detail {
+                Text(detail).font(.system(size: 11)).foregroundStyle(.secondary)
+                    .lineLimit(1).truncationMode(.tail)
+            }
+            Spacer(minLength: 4)
+            TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                Text(relative(since, now: ctx.date))
+                    .font(.system(size: 10).monospacedDigit()).foregroundStyle(.tertiary)
+            }
+            .fixedSize()
+        }
+        .frame(height: 16)
     }
 }
 
@@ -200,20 +256,28 @@ struct ToolLine: View {
     let tool: ToolCall
     var body: some View {
         HStack(spacing: 5) {
-            Group {
-                if tool.isRunning {
-                    ProgressView().controlSize(.mini).scaleEffect(0.7)
-                } else {
-                    Image(systemName: tool.isError ? "xmark.circle.fill" : "checkmark.circle.fill")
-                        .foregroundStyle(tool.isError ? Color.red : Color.secondary.opacity(0.6))
-                }
-            }
-            .font(.system(size: 10)).frame(width: 12, height: 12)
+            ToolGlyph(tool: tool)
             Text(tool.name).font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(tool.isRunning ? Color.blue : Color.primary.opacity(0.8))
             Text(tool.summary).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
                 .lineLimit(1).truncationMode(.middle)
         }
+    }
+}
+
+/// A tool call's state: spinning while it runs, then done or failed.
+struct ToolGlyph: View {
+    let tool: ToolCall
+    var body: some View {
+        Group {
+            if tool.isRunning {
+                ProgressView().controlSize(.mini).scaleEffect(0.7)
+            } else {
+                Image(systemName: tool.isError ? "xmark.circle.fill" : "checkmark.circle.fill")
+                    .foregroundStyle(tool.isError ? Color.red : Color.secondary.opacity(0.6))
+            }
+        }
+        .font(.system(size: 10)).frame(width: 12, height: 12)
     }
 }
 
@@ -253,8 +317,12 @@ enum DragIds {
 /// The board: project groups of session cards, reorderable by drag or context menu.
 struct BoardList: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.railExtra) private var railExtra
     var expanded: String?
     var onExpand: (SessionState) -> Void = { _ in }
+    /// Each card's height in the full panel, which it keeps when the panel folds. Kept here, across
+    /// folding, so a folded card has its height from the first frame.
+    @State private var heights: [String: CGFloat] = [:]
     @State private var dropTarget: String?
 
     var body: some View {
@@ -281,7 +349,17 @@ struct BoardList: View {
     }
 
     private func card(_ s: SessionState, grouped: Bool) -> some View {
-        SessionCard(session: s, expanded: expanded == s.id, grouped: grouped) { onExpand(s) }
+        Group {
+            if let extra = railExtra {
+                NarrowSessionCard(session: s, expanded: expanded == s.id, grouped: grouped, extra: extra,
+                                  height: heights[s.id]) { h in if heights[s.id] != h { heights[s.id] = h } }
+            } else {
+                SessionCard(session: s, expanded: expanded == s.id, grouped: grouped) { onExpand(s) }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
+                        if heights[s.id] != h { heights[s.id] = h }
+                    }
+            }
+        }
             .draggable(DragIds.encode([s.id])) {
                 Text(s.title).font(.system(size: 12, weight: .semibold)).padding(8)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
@@ -308,6 +386,7 @@ struct BoardList: View {
 }
 
 struct GroupHeader: View {
+    @Environment(\.railExtra) private var railExtra
     let group: BoardGroup
     var body: some View {
         HStack(spacing: 6) {
@@ -316,7 +395,18 @@ struct GroupHeader: View {
             Text("\(group.sessions.count)").font(.system(size: 10, weight: .semibold).monospacedDigit())
                 .padding(.horizontal, 5).padding(.vertical, 1)
                 .background(.primary.opacity(0.08), in: Capsule()).foregroundStyle(.secondary)
-            Spacer()
+                .fixedSize()
+            Spacer(minLength: 0)
+            if railExtra == nil { trailing }
+        }
+        .padding(.horizontal, 6).padding(.top, 3)
+        .contentShape(Rectangle())
+        .contextMenu { MoveMenu(ids: group.sessions.map(\.id)) }
+        .help(railExtra == nil ? "拖动整组排序" : group.name)
+    }
+
+    @ViewBuilder private var trailing: some View {
+        HStack(spacing: 6) {
             HStack(spacing: -4) {
                 ForEach(Array(Set(group.sessions.map(\.agent))).sorted { $0.rawValue < $1.rawValue }, id: \.self) {
                     AgentLogo(agent: $0, size: 11)
@@ -324,10 +414,6 @@ struct GroupHeader: View {
             }
             Image(systemName: "line.3.horizontal").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
         }
-        .padding(.horizontal, 6).padding(.top, 3)
-        .contentShape(Rectangle())
-        .contextMenu { MoveMenu(ids: group.sessions.map(\.id)) }
-        .help("拖动整组排序")
     }
 }
 
@@ -382,8 +468,9 @@ extension SessionState {
 /// Card-sized stats: tool calls and tokens, when there are any.
 struct UsageBadge: View {
     let session: SessionState
+    var toolCalls = true
     var body: some View {
-        let tools = session.toolCallCount
+        let tools = toolCalls ? session.toolCallCount : 0
         HStack(spacing: 7) {
             if tools > 0 {
                 Label(compactCount(tools), systemImage: "wrench.and.screwdriver").help("工具调用 \(tools) 次")
@@ -395,6 +482,8 @@ struct UsageBadge: View {
         .labelStyle(TightLabel())
         .font(.system(size: 10, weight: .medium).monospacedDigit())
         .foregroundStyle(.tertiary)
+        .lineLimit(1)
+        .fixedSize()  // the project name beside it truncates instead
     }
 
     private func usageHelp(_ u: Usage) -> String {

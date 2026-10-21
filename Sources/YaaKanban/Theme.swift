@@ -169,6 +169,64 @@ extension View {
     }
 }
 
+extension View {
+    /// A session's card surface: `card`, plus a flash while it has waited on the user for a while
+    /// unclicked, and a blue tint that comes and goes on a reviewed turn nobody followed up.
+    func sessionCard(_ session: SessionState, hover: Bool) -> some View {
+        modifier(SessionSurface(session: session, hover: hover))
+    }
+}
+
+private struct SessionSurface: ViewModifier {
+    @Environment(AppModel.self) private var model
+    let session: SessionState
+    let hover: Bool
+
+    func body(content: Content) -> some View {
+        let st = session.display
+        content
+            .card(st, hover: hover)
+            .background {
+                // Only the sessions that can need it tick.
+                let p = model.settings
+                if (st == .needsInput && p.flashEnabled) || (st == .done && p.staleTintEnabled) {
+                    TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                        let flash = st == .needsInput && Attention.flashes(
+                            session, acknowledged: model.acknowledged[session.id], now: ctx.date, after: p.flashAfterSeconds)
+                        let blue = st == .done ? Attention.staleness(
+                            session, linger: p.idleVisibleSeconds, now: ctx.date, after: p.staleAfterMinutes * 60) : 0
+                        Color.clear
+                            .overlay { if flash { Flash(tint: st.tint) } }
+                            .overlay { if blue > 0 { Stale(amount: blue) } }
+                            .allowsHitTesting(false)
+                    }
+                }
+            }
+    }
+}
+
+/// Pulsing tint and edge, under the content.
+private struct Flash: View {
+    let tint: Color
+    @State private var on = false
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        shape.fill(tint.opacity(on ? 0.28 : 0.04))
+            .overlay(shape.strokeBorder(tint.opacity(on ? 0.9 : 0.3), lineWidth: 1.5))
+            .onAppear { withAnimation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true)) { on = true } }
+    }
+}
+
+/// Blue wash, from nothing to clearly blue at `amount` 1.
+private struct Stale: View {
+    let amount: Double
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        shape.fill(Color.blue.opacity(0.16 * amount))
+            .overlay(shape.strokeBorder(Color.blue.opacity(0.45 * amount), lineWidth: 1))
+    }
+}
+
 /// The agent's real logo, bundled as SVG in `Resources/AgentIcons` (from @lobehub/icons).
 /// Monochrome logos are templates and follow the text color.
 struct AgentLogo: View {

@@ -1,8 +1,305 @@
 # Devlog
 
-## docs: open-source under GPL-3.0 with a README
+## fix(panel): Liquid Glass surface that adapts to what is behind it
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - On macOS 26 and later the floating panel sits on `NSGlassEffectView`. The SwiftUI content is its `contentView`, so the glass picks light or dark for the content to suit the backdrop.
+  - The fixed colour wash from a328e83 is removed.
+  - Before 26, the `.popover` blur with the white hairline stays.
+  - `HoverView` is now a plain view that holds the surface. The content goes in `content`, which clips during slides.
+- **Reason**: "我感觉解决方案不能是只靠拉深背景颜色实现啊。还是得自适应。" "别的app咋做到自适应的？" System surfaces adapt through the material. They never sample the screen.
+- **Process**:
+  - Sampling the screen behind the panel would need the Screen Recording permission, and the user turned that down.
+  - Not checked by eye: screencapture has no permission here, and `yaak snapshot` draws no backdrop.
+- **Result**: `make test` 65/65. Installed.
+
+## feat(cards): opening a reviewed session restarts its blue clock
+
+`cfce1ef` | 2026-10-20
+
+- **Changes**:
+  - `SessionState.reviewedAt` is set each time the user opens a session (click, jump, "标记已验收").
+  - `quietSince`, the later of the last event and the last look, is what blue tint and retention now count from. Opening a blue card clears it, and it turns blue again only after "开始变蓝" has passed once more.
+  - The settings footer says the clock restarts on each look.
+- **Reason**: "验收很久没看变蓝的效果，需要加上，如果用户这次点进去了，重置计时器（这相当于用户明确看了但是没有继续给反馈）。"
+- **Process**: `markRead` used to stop at the first look, since it only cleared `unreadSince`. Now every look is recorded.
+- **Result**: `make test` 65/65 (new `lookingAgainRestartsTheBlueClock`). Installed.
+
+## fix(panel): readable over light backgrounds
+
+`a328e83` | 2026-10-20
+
+- **Changes**:
+  - The floating panel lays its own window colour over the blur: 60% in Dark, 55% in Light. It follows appearance changes.
+  - The hairline edge is dark in Light mode. It was always white.
+- **Reason**: "浅色背景效果很差 需要优化". Over a white wallpaper the bare `.popover` material in Dark mode turned mid grey. White titles were low contrast, and secondary text, card fills and edges nearly vanished.
+- **Process**: A screen capture over a temporary white window failed: screencapture had no screen-recording permission here. `yaak snapshot` draws without the behind-window blur. Not checked by eye.
+- **Result**: `make test` 64/64. Installed.
+
+## fix(settings): retention as a segmented control
+
+`5068953` | 2026-10-20
+
+- **Changes**: "已验收会话保留" shows 4 / 8 / 12 / 24 hours as a segmented control instead of a pop-up menu.
+- **Reason**: "做成平铺选择器 不要下啦菜单。"
+- **Process**: Checked in a snapshot of a temporarily taller Settings window, then restored the size.
+- **Result**: `make test` 64/64. Installed.
+
+## feat(settings): retention picks from 4/8/12/24 hours, default 24
+
+`65fddf0` | 2026-10-20
+
+- **Changes**:
+  - "已验收会话保留" is now a menu with 4, 8, 12 and 24 hours instead of a 30-minute stepper. The default goes from 8 h to 24 h.
+  - A stored value from the old stepper snaps to the nearest choice on launch.
+  - Shortening the retention pulls "开始变蓝" below it if needed.
+- **Reason**: "已验收提醒保留，只可选4h/8h/12h/24h，默认24h"
+- **Result**: `make test` 64/64. Installed.
+
+## feat(settings): card reminder thresholds (flash, blue tint, retention)
+
+`d966ec0` | 2026-10-20
+
+- **Changes**:
+  - New "会话提醒" section in Settings:
+    - "已验收会话保留", moved from "悬浮窗": how long reviewed sessions stay on the board, and so when they count as ended there.
+    - "需要输入时闪烁": an on/off toggle, plus "开始闪烁" from 5 to 600 s (default 30).
+    - "看过未跟进的会话变蓝": an on/off toggle, plus "开始变蓝" from 1 min up to the retention time minus 1 (default 10 min). "最蓝" shows the resulting peak.
+  - `Attention.flashes` and `Attention.staleness` take the threshold as a parameter. It defaults to the old constant.
+  - The card's one-second timeline runs only when the matching reminder is on.
+- **Reason**: "需要让我们之前加入的，几个小时没看的对话变蓝（渐变）的功能做设置项，允许调整阈值。包括item判定为不活跃（结束）的阈值等。"
+- **Process**:
+  - Other time thresholds: "卡住阈值" was already a setting. The 60 s sub-agent linger stays internal.
+  - Checked the section in a snapshot of a temporarily taller Settings window, then restored the size.
+- **Result**: `make test` 64/64 (new `thresholdsFollowTheSettings`).
+
+## fix(panel): fold the peek at once on leaving; folded sub-agents fill their card
+
+`977f718` | 2026-10-20
+
+- **Changes**:
+  - Peek: the panel folds as soon as the pointer leaves, with no 0.15 s dwell and no 4 pt margin.
+    - `HoverView` now reports exits, and the exit runs the check directly. The 50 ms poll still catches exits that the event misses.
+    - The check waits while a slide is running or a mouse button is held.
+  - Folded sub-agents now use the full card's `SubagentSlots` metrics: 16 pt rows, 4 pt gaps, 6 pt padding. Every sub-agent is listed, with no "+N" cap.
+- **Reason**: "展开状态，鼠标离开悬浮窗收起的时候不要有延迟，直接收起。" "现在在折叠状态有subagent的时候，还是有一行空行。"
+- **Process**: The folded block was shorter than the full card's block, and the full card's block sets the card height. A card with no reply had nothing to take up the difference, so a blank line showed under the project. Checked with a temporary snapshot of cards with 1 and 3 sub-agents and no reply, then removed it.
+- **Result**: `make test` 63/63. Snapshot: no gap under the project row. The instant fold was not checked with real pointer moves.
+
+## feat(panel): grow for new cards; fade the overflow; sub-agents in folded cards
+
+`53bfeeb` | 2026-10-20
+
+- **Changes**:
+  - When a new card or sub-agent appears, the list grows past the height set by hand for 2 s, so the new card shows whole. The cap is still the screen's room and 1400 pt. Growth comes from the list's measured height, so it happens after the card is laid out.
+  - When the list is taller than the panel, its bottom 28 pt fades out. The fade goes away once the list is scrolled to the end. The list's bottom is tracked with `frame(in: .scrollView)`.
+  - Folded cards show sub-agents under the tool line: status and name, at most 5 rows, then "+N 个子 agent". This covers child sessions (pi) and hook-reported sub-agents (Claude Code). The block is a single `FitStack` row, so it either shows whole or not at all.
+- **Reason**: "对于新增任务的情况，需要确保悬浮窗高度自动调整，不要出现折叠" "悬浮窗高度低于实际内容高度的情况下，底部overflow需要有渐变遮罩" "subagent现在在折叠状态没有显示，需要显示。"
+- **Process**:
+  - Temporary snapshot views: a panel with a 330 pt room, and folded cards with 2 and 5 hook sub-agents built through `SessionReducer`. Both were removed afterwards.
+  - Showing 3 rows left an empty gap, because the card keeps the full card's height, which lists every sub-agent. Raised to 5.
+- **Result**: `make test` 63/63. The fade and the folded sub-agents were checked in snapshots. The growth on a new card was not seen live.
+
+## feat(cards): flash when input waits unclicked; blue tint on reviewed turns left alone
+
+`3ec371e` | 2026-10-20
+
+- **Changes**:
+  - Folded rail: no list-height grip. The bottom margin is 8 pt, the same as the sides and the gap between cards. The height is still set in the unfolded panel.
+  - A session waiting on the user (`.needsInput`) flashes, with a pulsing red fill and edge, once it has waited 30 s without its card being clicked.
+    - `SessionState.needsInputSince` records when it started waiting (set in `SessionReducer.apply`, cleared when it moves on).
+    - `AppModel.acknowledged` records the last click on each card. A click after it started waiting stops the flash.
+  - A reviewed, finished turn with nothing after it (`.done`) turns blue from 10 min after its last event. The tint is strongest halfway between 10 min and the "reviewed cards stay" setting (8 h by default, so at 4 h 5 min), then fades back to gray by the time the card leaves the board. The curve is a sine ramp each way, so the tint shows soon after it starts.
+  - Logic in `YaaCore.Attention` (`flashes`, `staleness`), drawn by a `sessionCard` modifier. Only waiting and done cards tick (once a second).
+- **Reason**: "折叠状态底部不应该有高度调整把手。应该左右下三边等宽。" "对于需要输入的状态，如果30s内没点击，请闪烁提醒。" "对于turn结束、验收了但是没有后续运行的turn，在10min后颜色稍微给一点蓝色……到（10min与……8h）中间的时间到达最蓝，此后颜色慢慢变回原来的灰色。"
+- **Process**:
+  - A temporary offscreen view of reviewed cards at 5, 60, 150, 245 and 400 min, plus a card waiting 60 s.
+  - With smoothstep, the 60 min card was still almost gray. Switched to a sine ramp.
+  - Removed the temporary view afterwards.
+- **Result**: `make test` 63/63 (new `AttentionTests`: the flash threshold and click, the waiting time cleared on resume, the blue curve's zero points and peak).
+
+## fix(rail): fill folded cards to the bottom; tighter rail margins
+
+`07dde05` | 2026-10-20
+
+- **Changes**:
+  - Folded cards show the latest reply (or what the session needs, or why it is stuck) as a row of its own. It takes at least one line and grows by whole lines into the room left. The rows are status, title, tool, reply, project and numbers. `FitStack` keeps the rows that fit whole and shares the last few points out between the gaps (at most 3 pt each), so no blank line is left at the bottom. The live line no longer repeats the reply.
+  - Rail margins: sides 8 pt, the same as the gap between cards. The bottom grip is 10 pt instead of 14. The card's inner padding is 8 by 7 instead of 10, and row spacing is 2.
+  - Snapshots can force the rail folded (`PanelRoom.snapshotFolded`) even when the user pinned it open.
+- **Reason**: "折叠状态底下又有空行了。解决。" "折叠状态，左右下的边框可以再窄一点，左右可以对齐卡与卡之间间距。另外卡内的margin可以稍微小一点点，这样最后一行还能放东西。"
+- **Process**:
+  - A first try spread the leftover height freely between the rows, and the gaps grew large. Capped at 3 pt.
+  - Offscreen snapshots of the folded rail.
+- **Result**: `make test` 60/60.
+
+## fix(panel): narrow panel layout; folded cards without gaps or overflow
+
+`49accb8` | 2026-10-20
+
+- **Changes**:
+  - At a small width the board header drops the "YaaKanban" name instead of pushing the buttons out of the window. Tool and token counts no longer wrap ("233.3 / M").
+  - Folded cards lay out through `FitStack`, a column that shows its rows top down while they fit and leaves out the rest whole. The rows are status, title, live line, project and numbers. So the project and numbers sit right under the status with no gap, and nothing is cut in half at the bottom. The numbers fall back to tokens only, or nothing, when the rail is too narrow. The title keeps its two lines.
+  - Folded cards have the full card's 10 pt padding, not 8, so both states have the same border.
+- **Reason**: "小宽度窗口变形" "折叠状态仍然有空行" "折叠模式下和展开模式下的左右边框宽度不一致，以展开模式下的边框宽度为准" "这排版太紧张了，有溢出"
+- **Process**:
+  - Logged `FitStack`'s row sizes against the height it is offered. Rows are kept only while whole.
+  - Offscreen snapshots at width 300, both states.
+- **Result**: `make test` 60/60.
+
+## feat(panel): adjustable width; folded cards show tool name and numbers
+
+`b4862e8` | 2026-10-20
+
+- **Changes**:
+  - Drag the floating panel's side edge to set its unfolded width, from 300 to 720 pt (default 340, saved as `panelWidth`). The edge is the one away from the docked side: the left edge when docked right, otherwise the right edge. While dragging, the window follows at once instead of sliding. The folded rail stays 120 pt, and its cards measure their height at the current full width.
+  - A folded card's tool line shows only the tool's name (blue while it runs), without its arguments.
+  - The space at the bottom of a folded card, there because the full card is taller, now holds the project (unless the group header names it), plus the tool-call and token counts when they fit beside it.
+- **Reason**: "展开宽度允许调节。" "另外现在折叠之后每个block底下都空一行，这里可以放点啥" "工具调用行，只显示工具名称，不要显示细节（折叠状态）"
+- **Process**:
+  - Dragged the left edge of a panel docked right with CGEvent: 340 to 420 to 500 and back to 340. The right edge stayed put, and the panel folded back to 120 pt each time.
+  - Offscreen snapshots of both states.
+- **Result**: `make test` 60/60.
+
+## style(card): status glyph in the title row
+
+`b0d8850` | 2026-10-20
+
+- **Changes**: The session card's status glyph (now 20 pt) sits in the title row instead of a 26 pt column of its own. The rows under the title (agent, status, reply, tool) and the sub-agent box use the card's full width, so there is no empty strip down the left side.
+- **Reason**: "这块导致block左边有空白。怎么调整一下让视觉更紧凑？", about the glyph column.
+- **Process**: Offscreen snapshot of the floating panel.
+- **Result**: `make test` 60/60.
+
+## tweak(panel): faster fold and unfold
+
+`5593138` | 2026-10-20
+
+- **Changes**: The slide takes 0.14 s instead of 0.2 s, with a quintic ease-out instead of cubic, so it covers most of the distance at once and then settles. Hover opens the panel after 0.03 s instead of 0.08 s, and it folds 0.15 s after the pointer leaves instead of 0.3 s.
+- **Reason**: "现在打开关闭动画有点拖沓。速度更快、ease in（前面快后面慢）、延迟降低。"
+- **Result**: `make test` 60/60.
+
+## fix(panel): keep hover and clicks through the unfold slide; tidy folded cards
+
+`0c35656` | 2026-10-20
+
+- **Changes**:
+  - Fold and unfold no longer animate the window frame. The window takes the union of both shapes at once, and the visible panel (the blur view, now inside a clear root view) slides within it, driven by a display link with an ease-out curve over 0.2 s. At the end, the window settles to the final frame. The SwiftUI content keeps its final size and position on screen during the slide, so it never re-lays out, and the moving edge only uncovers or covers it.
+  - Peek checks use where the panel is drawn, not the window frame.
+  - The panel's tracking area is added once (`.inVisibleRect` follows resizes), so a resize no longer reports a new entry.
+  - Review cards no longer have a "去查看" button, because clicking the card does the same thing. The button is also gone from the expanded card.
+  - In folded cards, a running tool shows the same spinner (or check or cross) as the full card, through a shared `ToolGlyph`. The title takes at most two lines, and the status line under it one.
+- **Reason**: "1现在待验收不要显示去查看按钮，点击本身就是查看 2折叠状态，对于bash等命令，显示和展开状态一样的loading圈。3标题最多两行，标题下只给一行。4展开的时候hover状态会掉导致无法点击，需要确保连续。"
+- **Process**:
+  - Logged the panel's pointer enter and exit and the cards' SwiftUI hover while moving the pointer in with CGEvent.
+  - Before the fix, the panel reported an exit about 70 ms into the slide and a new entry about 180 ms later, with hover false in between. The new part of a resized window stays blank for a few frames, and the pointer falls through it.
+  - After the fix, hover stayed true through the whole slide with the pointer moving.
+  - Offscreen snapshots of the folded and unfolded panel: card heights still match.
+  - Temporary logging removed.
+- **Result**: `make test` 60/60.
+
+## fix(panel): header pushed off the top when folding; live status in folded cards
+
+`52b713f` | 2026-10-20
+
+- **Changes**:
+  - The panel's root frame now has `minHeight: 0` and clips. Before, content taller than the window, for a moment mid-resize, grew the root frame, and the hosting view centered it, so the header went above the window top.
+  - BoardList remembers each card's full-panel height across folding. A folded card has its height from the first frame instead of growing into it. Until a height is known, it is capped.
+  - A snap waits until a fold or unfold slide finishes. When the slide ends, the window settles on the last size the content asked for.
+  - Folded cards show live status under a two-line title: the running tool, what it needs, why it may be stuck, or the last reply, in as many lines as fit.
+  - The board header is one line high (`fixedSize` title and counts), the same height as the folded header. The title used to wrap next to the pin button, which moved every card down when unfolding.
+- **Reason**: "折叠后items的高度会往上（偶尔）并导致看不到顶上的logo/按钮。另外，折叠状态在下方还是要提供实时状态信息。"
+- **Process**:
+  - Toggled fold and unfold seven times through Accessibility. The window kept its height (591), and the header button stayed 10 pt below the window top.
+  - Offscreen snapshots of both states. The cards line up, and the folded ones show the tool or the reply.
+- **Result**: `make test` 60/60.
+
+## refactor(panel): fold the panel itself instead of swapping in a rail view
+
+`6b62c9e` | 2026-10-20
+
+- **Changes**:
+  - Folded, the panel no longer swaps to a separate rail view with its own blocks. `FloatingPanelView` stays the same view with the same list, groups and cards, and only its width changes (120 pt folded, 340 unfolded). Unfolded it is exactly the normal floating panel, plus the pin or fold button while docked.
+  - Folded, each card is a `NarrowSessionCard`: status, agent, clock, and as much of the title as fits. Its height is the full card's, measured off a hidden copy laid out at the full width. So every card keeps its height and position, and unfolding only widens the panel. Group headers drop the logos and drag handle. The panel header becomes `RailHeader` (mark and unfold button) at the same height.
+  - The content is laid out at the target width and anchored to the docked side, and the window edge slides over it.
+  - Removed `RailBlock` and the old `SidebarRail`.
+- **Reason**: "需要完全是同一个窗体的内部状态切换……只做横向的宽度展开确保每一个agent item的高度在两个不同的窗体状态下是相同的" and "感觉现在展开状态的ui有变化，这是预期外的". The previous version had its own wide layout, so the unfolded panel no longer looked like the normal panel.
+- **Process**:
+  - Offscreen snapshots of the folded and unfolded panel. Every card starts at the same y and has the same height in both states.
+  - Pressed pin and fold through Accessibility, and the live window switched between 120 and 340 pt with the right edge fixed.
+  - `@Entry` needs the SwiftUI macro plugin, which the Command Line Tools lack, so the environment key is written out by hand.
+- **Result**: `make test` 60/60.
+
+## feat(panel): hover to unfold the sidebar, sliding edge
+
+`fa6d3e3` | 2026-10-20
+
+- **Changes**:
+  - Hovering the folded rail for 80 ms unfolds it into the full panel. It folds back 0.3 s after the pointer leaves, or while a mouse button is down. While unfolded this way the header shows a pin button that keeps it open (`sidebarExpanded`). Pinned, the button is the usual fold chevron.
+  - The pointer is caught by an `NSTrackingArea` with `.activeAlways` on the panel's background view, because SwiftUI hover only tracks while the app is active. Leaving is polled every 50 ms against the window frame, since the window changes size under the pointer.
+  - Unfolding and folding no longer crossfade two views. The content switches at once, anchored to the side being revealed, and the window edge slides over 0.2 s (`NSAnimationContext`, ease-out). The panel takes clicks from the first frame. Moves made by the slide are not treated as drags.
+  - The rail's logo and unfold button share one row.
+- **Reason**: "鼠标hover自动展开悬浮窗。另外，现有logo/展开按钮放到一行，现在两行占空间。" and "需要直接展开，流畅的展开动画，而不是两个窗体切换，导致过程要卡顿一会等待展开好才能点击。"
+- **Process**:
+  - Hovering did nothing at first: SwiftUI `onHover` does not fire for an inactive app's panel. Switched to the tracking area.
+  - Sampled the window frame every 10 ms. The edge moves step by step, starts about 0.15 s after the pointer enters, and is fully open by about 0.35 s. A temporary file log showed the extra delay after the dwell was building the panel (about 50 ms).
+  - A brush past the rail does not unfold it. Pin and fold work. The left edge works the same way. Dragging off the edge gives the panel, and dropping back at the edge gives the rail.
+- **Result**: `make test` 60/60.
+
+## feat(panel): fold into a sidebar rail when snapped to a side
+
+`6be589e` | 2026-10-20
+
+- **Changes**:
+  - When the floating panel is snapped to the left or right edge, it folds into a 112 pt rail (`SidebarRail`). The rail shows the logo, an unfold button, and one block per session in board order. A block shows the status mark, agent logo, sub-agent count, a two-line title, the project and the clock. Tapping a block jumps to the session; hovering shows its detail. Folded is the default.
+  - The unfold button (or the context menu) sets `sidebarExpanded`. The setting persists, so the full panel stays open at the edge until the fold button in its header is clicked. That button only shows while docked. Dragging the panel off the edge always gives the normal panel.
+  - The controller tracks the dock edge (`PanelRoom.dock`) and updates it only after a move settles. It waits while the mouse button is still down, so the panel does not fold under the pointer. `fit` keeps the docked side in place when the width changes. `snap` also pulls a panel dropped past a side back against that side, which docks it.
+- **Reason**: "加入横向折叠功能（收纳到侧边，变成侧边栏，例如右侧），每个agent以块状显示，有一定宽度。靠左边/右边吸附，默认折叠。除非点击展开才会常驻展开。"
+- **Process**:
+  - The live panel was already at the right edge and came up as the rail. Clicking unfold and fold switched between 340 and 112 pt with the right edge fixed. The same worked at the left edge with the left edge fixed. Moving the rail to mid-screen gave the full panel.
+  - A panel dropped partly past the right edge was pulled back but not docked, because only the vertical position was clamped. `snap` now clamps the horizontal position as well.
+  - Checked an offscreen snapshot of the rail.
+- **Result**: `make test` 60/60.
+
+## feat(settings): logo header, styled rows, about section
+
+`e63f5b2` | 2026-10-20
+
+- **Changes**:
+  - The settings window opens with the logo, name, version and a one-line pitch.
+  - Each agent row shows its logo and a colored status capsule (已安装 / 需更新 / 未安装 / 未检测到) with small buttons. The other rows have System Settings style icon tiles. The opacity slider shows a percentage, and the hotkey is shown as a keycap. Notes moved to section footers.
+  - New 关于 section: version, license, source link, issue link, copyright. Login item moved to 通用. The window is 500×640.
+- **Reason**: "设置页面太丑，需要优化。顶上要加入logo。需要关于信息。"
+- **Process**: Checked an offscreen snapshot of the window.
+- **Result**: `make test` 60/60.
+
+## feat(menu): logo menu-bar icon, small control popover, 8 h finished-session window
+
+`51f3e43` | 2026-10-20
+
+- **Changes**:
+  - The menu-bar icon is the logo's three bars, drawn as a template. A dot under the short bar appears while something runs; it is red, orange or green for needs-input, stuck or to-review, next to the count.
+  - The popover is a 230 pt control menu: the name, a one-line summary, show or hide the floating panel (⌥⌘K), main window, settings, quit. The session list is gone from it. Opening a window closes the popover first.
+  - Finished sessions stay on the boards for 8 hours by default (was 30 min). The settings stepper now goes up to 24 h in 30-min steps and shows hours.
+- **Reason**: "顶栏图标也要换。点击图标之后显示一个小窗口就行，现在窗口太大，只用来toggle悬浮窗、设置、主页等。" and "现在默认结束时间似乎太短。设置为8小时。"
+- **Process**: Rendered the icon variants offscreen to check them. Clicked the status item and the popover opened at 230×178. 主界面 opened the main window, and the panel toggle flipped `showPanel` 1→0→1. The user had never set `idleVisibleMinutes`, so the new default applies.
+- **Result**: `make test` 60/60.
+
+## feat(panel): show sub-agents in their parent's card
+
+`b3089e2` | 2026-10-20
+
+- **Changes**:
+  - `SessionState.parentId`. pi runs each sub-agent as a session of its own, and its transcript header names the parent (`parentSession`). The app reads that line once per session (`SubagentLink`) and links the two.
+  - A sub-agent whose parent is on the board does not get its own card. It shows as one line in a strip under the parent's card: status, name, the current tool or last reply, and the time. Claude's in-process sub-agents (`subagents`) show there too. A child's permission buttons stay under its row.
+  - Children have no review state and no "done" notification. They stay visible for 60 s after finishing, and tapping one jumps to the parent.
+- **Reason**: "现在subagent会和主agent并行显示（pi），需要显示到主agent的subagent槽位（下方，缩略显示subagent详情，只用一行）" and "subagent被遮挡".
+- **Process**: The live pi sub-agent (`…/run-0/session.jsonl`, spawned by pi-subagents) linked to its parent after install. A snapshot showed the row under the parent card. The first layout let the name crowd out the detail and the time; the name is now capped at 120 pt and the time never shrinks.
+- **Result**: `make test` 60/60.
+
+## docs: open-source under GPL-3.0 with a README
+
+`c46c75d` | 2026-10-20
 
 - **Changes**: Added `LICENSE` (GPL-3.0) and `README.md`, covering features, build and install, hook locations, and the attribution for the agent icons.
 - **Reason**: "帮我放到gihub，开源。检查是否有敏感信息。" The license (GPL-3.0) and keeping the devlog as is were the user's choices.

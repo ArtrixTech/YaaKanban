@@ -10,14 +10,25 @@ struct BoardHeader<Trailing: View>: View {
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
-        HStack(spacing: 8) {
+        // A narrow panel drops the name rather than squeezing the buttons out of the window.
+        ViewThatFits(in: .horizontal) {
+            row(named: true)
+            row(named: false)
+        }
+        // One line, the same height as the folded header, so cards keep their place.
+        .frame(height: BoardHeaderHeight.value)
+    }
+
+    private func row(named: Bool) -> some View {
+        HStack(spacing: 6) {
             BrandMark(size: 20)
-            Text("YaaKanban").font(.system(size: 13, weight: .bold))
+            if named { Text("YaaKanban").font(.system(size: 13, weight: .bold)).lineLimit(1).fixedSize() }
             Spacer(minLength: 4)
             HStack(spacing: 4) {
                 let counts = self.counts
                 ForEach(counts, id: \.0.rank) { st, n in CountChip(count: n, status: st).transition(.scale.combined(with: .opacity)) }
             }
+            .fixedSize()
             .animation(.snappy, value: counts.map(\.1))
             trailing
         }
@@ -46,49 +57,72 @@ struct BrandMark: View {
     }
 }
 
-/// Menu-bar popover: active sessions plus shortcuts.
+/// Menu-bar popover: a few controls. The sessions live in the floating panel and the main window.
 struct MenuContent: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.openWindow) private var openWindow
     let panel: FloatingPanelController
-    @State private var expanded: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            BoardHeader { EmptyView() }
-            if let err = model.serverError { Text(err).font(.caption).foregroundStyle(.red) }
-            if model.activeSessions.isEmpty {
-                EmptyBoard()
-            } else {
-                ScrollView {
-                    BoardList(expanded: expanded) { s in
-                        withAnimation(.spring(duration: 0.3, bounce: 0.15)) { expanded = expanded == s.id ? nil : s.id }
-                    }
-                }
-                .frame(maxHeight: 460)
-                .scrollIndicators(.never)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 7) {
+                BrandMark(size: 18)
+                Text("YaaKanban").font(.system(size: 12.5, weight: .bold))
+                Spacer(minLength: 0)
             }
-            HStack(spacing: 6) {
-                Button { open(nil) } label: { Label("主界面", systemImage: "macwindow") }
-                    .buttonStyle(PillButtonStyle())
-                Button { panel.toggle() } label: {
-                    Label(panel.isVisible ? "隐藏悬浮窗" : "显示悬浮窗", systemImage: "rectangle.on.rectangle")
-                }
-                .buttonStyle(PillButtonStyle()).help("⌥⌘K")
-                Spacer()
-                SettingsLink { Image(systemName: "gearshape").frame(width: 22, height: 22) }
-                    .buttonStyle(.plain).foregroundStyle(.secondary).help("设置")
-                IconButton(symbol: "power", help: "退出") { NSApp.terminate(nil) }
+            .padding(.horizontal, 8).padding(.top, 2).padding(.bottom, 4)
+            Text(summary).font(.system(size: 11)).foregroundStyle(.secondary)
+                .padding(.horizontal, 8).padding(.bottom, 4)
+            if let err = model.serverError {
+                Text(err).font(.caption).foregroundStyle(.red).padding(.horizontal, 8)
             }
+            Divider().padding(.vertical, 3)
+            MenuRow(symbol: "rectangle.on.rectangle", title: model.settings.showPanel ? "隐藏悬浮窗" : "显示悬浮窗",
+                    shortcut: "⌥⌘K") { panel.toggle() }
+            MenuRow(symbol: "macwindow", title: "主界面") { done { AppWindows.open(.main) } }
+            MenuRow(symbol: "gearshape", title: "设置…") { done { AppWindows.open(.settings) } }
+            Divider().padding(.vertical, 3)
+            MenuRow(symbol: "power", title: "退出 YaaKanban") { NSApp.terminate(nil) }
         }
-        .padding(12)
-        .frame(width: 380)
+        .padding(6)
+        .frame(width: 230)
     }
 
-    private func open(_ s: SessionState?) {
-        if let s { model.selection = s.id }
-        openWindow(id: "main")
-        NSApp.activate()
+    private var summary: String {
+        let parts = [("运行中", model.runningCount), ("待验收", model.reviewCount),
+                     ("需要你", model.attentionCount)].filter { $0.1 > 0 }.map { "\($0.0) \($0.1)" }
+        return parts.isEmpty ? "没有进行中的会话" : parts.joined(separator: " · ")
+    }
+
+    /// Closes the popover, then acts (a window opened behind it would be hidden by it).
+    private func done(_ action: @escaping () -> Void) {
+        NSApp.keyWindow?.close()
+        DispatchQueue.main.async(execute: action)
+    }
+}
+
+/// A menu-like row: icon, title, optional shortcut; highlighted on hover.
+struct MenuRow: View {
+    let symbol: String
+    let title: String
+    var shortcut: String?
+    var action: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: symbol).font(.system(size: 12)).frame(width: 16)
+                Text(title).font(.system(size: 12.5))
+                Spacer(minLength: 8)
+                if let shortcut { Text(shortcut).font(.system(size: 11)).foregroundStyle(hover ? .white.opacity(0.8) : .secondary) }
+            }
+            .foregroundStyle(hover ? .white : .primary)
+            .padding(.horizontal, 8).frame(height: 24)
+            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(hover ? Color.accentColor : .clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hover = $0 }
     }
 }
 
@@ -102,12 +136,13 @@ struct EmptyBoard: View {
     }
 }
 
-/// Floating panel content, at its natural height; the borderless window resizes to fit it.
+/// Floating panel content, at its natural size; the borderless window resizes to fit it. Snapped to
+/// a side it is a `SidebarRail` instead, narrow unless hovered or unfolded.
 struct FloatingPanelView: View {
     @Environment(AppModel.self) private var model
     var onHide: () -> Void = {}
-    /// Natural content height, reported on every layout change so the window can follow it.
-    var onHeight: (CGFloat) -> Void = { _ in }
+    /// Natural content size, reported on every layout change so the window can follow it.
+    var onSize: (CGSize) -> Void = { _ in }
     /// Room the window has on its screen; the list gives way so the panel never runs off it.
     var room: PanelRoom?
     @State private var expanded: String?
@@ -116,14 +151,98 @@ struct FloatingPanelView: View {
     @State private var chrome: CGFloat = 0
     /// List height when a resize drag began.
     @State private var dragStart: CGFloat?
+    @State private var widthStart: CGFloat?
+    /// Where the list's bottom is in the scroll view, to fade the bottom edge while more is below.
+    @State private var listBottom: CGFloat = 0
+    /// Until when the list may grow past the height set by hand: a new card (or sub-agent) just
+    /// arrived, and it should be seen whole rather than land under the bottom edge.
+    @State private var growUntil: Date?
 
     static let minList: CGFloat = 120
     static let maxList: CGFloat = 1400
+    static let minWidth: CGFloat = 300
+    static let maxWidth: CGFloat = 720
 
     var body: some View {
+        panel
+            // Pinned to the top and to the docked side however big the window is at the moment:
+            // the content is laid out at the width it is heading for, and the window edge slides
+            // over it, so it is in place and clickable from the first frame.
+            // minHeight 0: content taller than the window (mid-resize) overflows at the bottom
+            // instead of growing the frame, which the window would center, pushing the header up.
+            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: anchor)
+            .clipped()
+    }
+
+    /// Docked to a side and neither hovered nor unfolded.
+    private var folded: Bool {
+        room?.snapshotFolded == true || (room?.dock != nil && !model.settings.sidebarExpanded && room?.peek != true)
+    }
+
+    private var anchor: Alignment {
+        switch room?.dock {
+        case .left: .topLeading
+        case .right: .topTrailing
+        case nil: .top
+        }
+    }
+
+    private var panel: some View {
         @Bindable var settings = model.settings
-        VStack(alignment: .leading, spacing: 10) {
-            BoardHeader {
+        let folded = self.folded
+        return VStack(alignment: .leading, spacing: 10) {
+            if folded, let edge = room?.dock {
+                RailHeader(edge: edge) { settings.sidebarExpanded = true }
+            } else {
+                header
+            }
+            list
+        }
+        // Folded, the sides match the gap between cards.
+        .padding(.horizontal, folded ? Rail.inset : 10).padding(.top, 10)
+        .padding(.bottom, folded ? Rail.inset : settings.panelCollapsed || model.activeSessions.isEmpty ? 10 : 0)
+        .environment(\.railExtra, folded ? settings.panelWidth - Rail.width : nil)
+        .frame(width: folded ? Rail.width : settings.panelWidth, alignment: .top)
+        .fixedSize(horizontal: false, vertical: true)
+        .overlay(alignment: widthGripSide) { if !folded { widthGrip } }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+            chrome = size.height - (listShown ? shownList : 0)
+            onSize(size)
+        }
+    }
+
+    /// The side edge that sets the width: the one away from the docked side.
+    private var widthGripSide: Alignment { room?.dock == .right ? .leading : .trailing }
+
+    private var widthGrip: some View {
+        @Bindable var settings = model.settings
+        let sign: CGFloat = room?.dock == .right ? -1 : 1
+        return EdgeGrip(axis: .horizontal) { delta in
+            room?.resizing = delta != nil
+            guard let delta else { widthStart = nil; return }
+            let start = widthStart ?? settings.panelWidth
+            widthStart = start
+            settings.panelWidth = min(Self.maxWidth, max(Self.minWidth, (start + sign * delta).rounded()))
+        }
+        .frame(width: 6)
+        .frame(maxHeight: .infinity)
+    }
+
+    private var header: some View {
+        @Bindable var settings = model.settings
+        return BoardHeader {
+                if let edge = room?.dock {
+                    if room?.peek == true && !settings.sidebarExpanded {
+                        IconButton(symbol: "pin", help: "固定展开") {
+                            settings.sidebarExpanded = true
+                            room?.peek = false
+                        }
+                    } else {
+                        IconButton(symbol: edge == .right ? "chevron.right.2" : "chevron.left.2", help: "收进侧边栏") {
+                            settings.sidebarExpanded = false
+                        }
+                    }
+                }
                 IconButton(symbol: "macwindow", help: "主界面") { AppWindows.open(.main) }
                 IconButton(symbol: "gearshape", help: "设置") { AppWindows.open(.settings) }
                 IconButton(symbol: settings.panelCollapsed ? "chevron.down" : "chevron.up",
@@ -132,6 +251,10 @@ struct FloatingPanelView: View {
                 }
                 IconButton(symbol: "xmark", help: "隐藏（⌥⌘K）", action: onHide)
             }
+    }
+
+    @ViewBuilder private var list: some View {
+        @Bindable var settings = model.settings
             if !settings.panelCollapsed {
                 if model.activeSessions.isEmpty {
                     EmptyBoard().transition(.opacity)
@@ -140,31 +263,58 @@ struct FloatingPanelView: View {
                         BoardList(expanded: expanded) { s in
                             withAnimation(.spring(duration: 0.3, bounce: 0.15)) { expanded = expanded == s.id ? nil : s.id }
                         }
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { grow(to: $0) }
+                        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .scrollView).maxY } action: { listBottom = $0 }
                     }
                     .scrollIndicators(.never)
                     .frame(height: shownList)
+                    // More below the bottom edge: it fades out instead of being cut.
+                    .mask {
+                        VStack(spacing: 0) {
+                            Color.black
+                            LinearGradient(colors: [.black, .black.opacity(moreBelow ? 0 : 1)], startPoint: .top, endPoint: .bottom)
+                                .frame(height: 28)
+                        }
+                        .animation(.easeOut(duration: 0.15), value: moreBelow)
+                    }
+                    .onChange(of: cardKeys) { old, new in
+                        if !new.isSubset(of: old) { growUntil = .now.addingTimeInterval(2) }
+                    }
                     .transition(.opacity)
-                    ResizeGrip { delta in
-                        if delta == nil { dragStart = nil; return }
-                        let start = dragStart ?? shownList
-                        dragStart = start
-                        settings.panelListHeight = min(Self.maxList, max(Self.minList, start + delta!))
+                    // Folded, the bottom is an edge like the sides; the height is set unfolded.
+                    if !folded {
+                        ResizeGrip { delta in
+                            if delta == nil { dragStart = nil; return }
+                            let start = dragStart ?? shownList
+                            dragStart = start
+                            settings.panelListHeight = min(Self.maxList, max(Self.minList, start + delta!))
+                        }
                     }
                 }
             }
+    }
+
+    private var moreBelow: Bool { listBottom > shownList + 1 }
+
+    /// Cards and sub-agents on the board; one appearing lets the list grow to show it.
+    private var cardKeys: Set<String> {
+        var keys = Set<String>()
+        for s in model.activeSessions {
+            keys.insert(s.id)
+            for c in model.subagents(of: s.id) { keys.insert(c.id) }
+            for a in s.subagents { keys.insert(s.id + "/" + a.id) }
         }
-        .padding(.horizontal, 10).padding(.top, 10)
-        .padding(.bottom, settings.panelCollapsed || model.activeSessions.isEmpty ? 10 : 0)
-        .frame(width: 340, alignment: .top)
-        .fixedSize(horizontal: false, vertical: true)
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
-            chrome = h - (listShown ? shownList : 0)
-            onHeight(h)
+        return keys
+    }
+
+    /// The list's natural height changed. The panel follows it, up to the height set by hand,
+    /// except just after something new arrived: then that height grows so the new card is seen.
+    private func grow(to h: CGFloat) {
+        let settings = model.settings
+        if let until = growUntil, until > .now, h > settings.panelListHeight {
+            settings.panelListHeight = min(Self.maxList, h)
         }
-        // Top-aligned however tall the window is at the moment: while it catches up with the
-        // content, the default (centering) would shift the top edge up and down.
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        listHeight = h
     }
 
     private var listShown: Bool { !model.settings.panelCollapsed && !model.activeSessions.isEmpty }
@@ -179,6 +329,16 @@ struct FloatingPanelView: View {
 @MainActor @Observable
 final class PanelRoom {
     var height: CGFloat = .infinity
+    /// Screen edge the panel is snapped to, if a side.
+    var dock: DockEdge?
+    /// The folded rail is shown unfolded while the pointer is over it.
+    var peek = false
+    /// The width grip is being dragged: resize at once instead of sliding.
+    var resizing = false
+    /// Snapshots render the rail folded whatever the user pinned.
+    var snapshotFolded = false
+
+    init(dock: DockEdge? = nil, peek: Bool = false) { self.dock = dock; self.peek = peek }
 }
 
 /// Bottom handle that sets the list height. AppKit-backed so the drag does not move the
@@ -191,32 +351,49 @@ struct ResizeGrip: View {
     var body: some View {
         Capsule().fill(.primary.opacity(hover ? 0.35 : 0.15)).frame(width: 36, height: 4)
             .frame(maxWidth: .infinity).frame(height: 14)
-            .overlay(GripTracker(onDrag: onDrag))
+            .overlay(GripTracker(axis: .vertical, onDrag: onDrag))
             .onHover { hover = $0 }
             .animation(.easeOut(duration: 0.12), value: hover)
             .help("拖动调整高度")
     }
 }
 
+/// Invisible strip along the panel's side edge that sets its width.
+struct EdgeGrip: View {
+    let axis: Axis
+    /// Drag distance (right is positive); nil when the drag ends.
+    var onDrag: (CGFloat?) -> Void
+
+    var body: some View {
+        GripTracker(axis: axis, onDrag: onDrag).help("拖动调整宽度")
+    }
+}
+
 private struct GripTracker: NSViewRepresentable {
+    let axis: Axis
     var onDrag: (CGFloat?) -> Void
 
     func makeNSView(context: Context) -> TrackerView { TrackerView() }
-    func updateNSView(_ v: TrackerView, context: Context) { v.onDrag = onDrag }
+    func updateNSView(_ v: TrackerView, context: Context) { v.axis = axis; v.onDrag = onDrag }
 
     final class TrackerView: NSView {
+        var axis = Axis.vertical
         var onDrag: (CGFloat?) -> Void = { _ in }
-        private var startY: CGFloat?
+        private var start: NSPoint?
 
         override var mouseDownCanMoveWindow: Bool { false }
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-        override func resetCursorRects() { addCursorRect(bounds, cursor: .resizeUpDown) }
-        override func mouseDown(with e: NSEvent) { startY = NSEvent.mouseLocation.y }
-        override func mouseDragged(with e: NSEvent) {
-            guard let startY else { return }
-            onDrag(startY - NSEvent.mouseLocation.y)
+        override func resetCursorRects() {
+            addCursorRect(bounds, cursor: axis == .vertical ? .resizeUpDown : .resizeLeftRight)
         }
-        override func mouseUp(with e: NSEvent) { startY = nil; onDrag(nil) }
+        override func mouseDown(with e: NSEvent) { start = NSEvent.mouseLocation }
+        override func mouseDragged(with e: NSEvent) {
+            guard let start else { return }
+            let p = NSEvent.mouseLocation
+            // Down is positive for the vertical grip, right for the horizontal one.
+            onDrag(axis == .vertical ? start.y - p.y : p.x - start.x)
+        }
+        override func mouseUp(with e: NSEvent) { start = nil; onDrag(nil) }
     }
 }
 
@@ -326,59 +503,143 @@ struct SettingsView: View {
     @State private var refresh = 0
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
+    static let size = NSSize(width: 500, height: 640)
+
     var body: some View {
         @Bindable var settings = model.settings
         Form {
-            Section("Agent 接入") {
+            Section { AboutHeader() }
+            Section {
                 ForEach(Integrations.all, id: \.agent) { i in
                     let status = i.status(home: Paths.home(), yaak: Self.yaak)
-                    HStack {
-                        Text(i.agent.displayName)
-                        Spacer()
-                        Text(statusLabel(status)).foregroundStyle(status == .installed ? .green : .secondary).font(.caption)
-                        if status == .outdated {
-                            Button("更新") { apply(i, install: true) }
+                    LabeledContent {
+                        HStack(spacing: 8) {
+                            StatusBadge(status: status)
+                            if status == .outdated {
+                                Button("更新") { apply(i, install: true) }.buttonStyle(.borderedProminent)
+                            }
+                            if status == .installed || status == .outdated {
+                                Button("卸载") { apply(i, install: false) }
+                            } else if status == .notInstalled {
+                                Button("安装") { apply(i, install: true) }.buttonStyle(.borderedProminent)
+                            }
                         }
-                        if status == .installed || status == .outdated {
-                            Button("卸载") { apply(i, install: false) }
-                        } else if status == .notInstalled {
-                            Button("安装") { apply(i, install: true) }
+                        .controlSize(.small)
+                    } label: {
+                        HStack(spacing: 8) {
+                            AgentLogo(agent: i.agent, size: 16)
+                                .frame(width: 22, height: 22)
+                                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.06)))
+                            Text(i.agent.displayName)
                         }
                     }
                 }
                 .id(refresh)
-                if let m = integrationMessage { Text(m).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
+            } header: {
+                Text("Agent 接入")
+            } footer: {
+                Text(integrationMessage ?? "安装后，agent 通过 hook 把会话状态和审批请求发给 YaaKanban。")
+                    .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             Section("提醒") {
-                LabeledContent("卡住阈值") { Stepper("\(Int(settings.stuckMinutes)) 分钟", value: $settings.stuckMinutes, in: 1...60) }
-                LabeledContent("审批等待") { Stepper("\(Int(settings.approvalTimeout)) 秒", value: $settings.approvalTimeout, in: 5...25) }
-                Toggle("Wave 在前台时不发系统通知", isOn: $settings.suppressWhenWaveFrontmost)
-            }
-            Section("悬浮窗") {
-                LabeledContent("已完成会话显示") { Stepper("\(Int(settings.idleVisibleMinutes)) 分钟", value: $settings.idleVisibleMinutes, in: 0...240, step: 5) }
-                Slider(value: $settings.panelOpacity, in: 0.4...1) { Text("透明度") }
-                    .onChange(of: settings.panelOpacity) { panel.applyOpacity() }
-                Text("⌥⌘K 显示 / 隐藏").font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Wave Terminal") {
-                Toggle("跳转时切换到对应标签页", isOn: $settings.waveTabSwitching)
-                Text("需要在 系统设置 › 隐私与安全性 › 辅助功能 里允许 YaaKanban。第一次跳转时会弹出请求。")
-                    .font(.caption).foregroundStyle(.secondary)
+                LabeledContent {
+                    Stepper("\(Int(settings.stuckMinutes)) 分钟", value: $settings.stuckMinutes, in: 1...60)
+                } label: { SettingLabel("卡住阈值", symbol: "hourglass", tint: .orange) }
+                LabeledContent {
+                    Stepper("\(Int(settings.approvalTimeout)) 秒", value: $settings.approvalTimeout, in: 5...25)
+                } label: { SettingLabel("审批等待", symbol: "hand.raised.fill", tint: .red) }
+                Toggle(isOn: $settings.suppressWhenWaveFrontmost) {
+                    SettingLabel("Wave 在前台时不发系统通知", symbol: "bell.slash.fill", tint: .gray)
+                }
             }
             Section {
-                Toggle("登录时启动", isOn: $launchAtLogin)
+                LabeledContent {
+                    Picker("", selection: $settings.idleVisibleMinutes) {
+                        ForEach(Preferences.retentionChoices, id: \.self) { Text(Self.duration($0)).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().fixedSize()
+                    .onChange(of: settings.idleVisibleMinutes) {
+                        settings.staleAfterMinutes = min(settings.staleAfterMinutes, settings.idleVisibleMinutes - 1)
+                    }
+                } label: { SettingLabel("已验收会话保留", symbol: "checkmark.circle.fill", tint: .green) }
+                Toggle(isOn: $settings.flashEnabled) {
+                    SettingLabel("需要输入时闪烁", symbol: "light.beacon.max.fill", tint: .red)
+                }
+                if settings.flashEnabled {
+                    LabeledContent {
+                        Stepper("\(Int(settings.flashAfterSeconds)) 秒未点击", value: $settings.flashAfterSeconds, in: 5...600, step: 5)
+                    } label: { Text("开始闪烁").padding(.leading, 30) }
+                }
+                Toggle(isOn: $settings.staleTintEnabled) {
+                    SettingLabel("看过未跟进的会话变蓝", symbol: "drop.fill", tint: .blue)
+                }
+                if settings.staleTintEnabled {
+                    LabeledContent {
+                        Stepper("结束 \(Self.duration(settings.staleAfterMinutes)) 后", value: $settings.staleAfterMinutes,
+                                in: 1...max(1, settings.idleVisibleMinutes - 1), step: settings.staleAfterMinutes < 60 ? 5 : 15)
+                    } label: { Text("开始变蓝").padding(.leading, 30) }
+                    LabeledContent("最蓝") {
+                        Text("结束 \(Self.duration(settings.stalePeakMinutes)) 后").foregroundStyle(.secondary)
+                    }
+                    .padding(.leading, 30)
+                }
+            } header: {
+                Text("会话提醒")
+            } footer: {
+                Text("已验收、之后没再运行的会话：从「开始变蓝」起逐渐变蓝，在它与「已验收会话保留」的正中最蓝，到保留时长结束时褪回灰色并离开悬浮窗。时间从会话结束或你最后一次点开它算起，再点开一次就重新计时。")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Section("悬浮窗") {
+                LabeledContent {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.panelOpacity, in: 0.4...1).frame(width: 150)
+                            .onChange(of: settings.panelOpacity) { panel.applyOpacity() }
+                        Text("\(Int(settings.panelOpacity * 100))%").monospacedDigit().foregroundStyle(.secondary)
+                            .frame(width: 36, alignment: .trailing)
+                    }
+                } label: { SettingLabel("透明度", symbol: "circle.lefthalf.filled", tint: .indigo) }
+                LabeledContent {
+                    Text("⌥⌘K").font(.system(size: 12, weight: .medium)).padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.primary.opacity(0.08)))
+                } label: { SettingLabel("显示 / 隐藏", symbol: "command", tint: .blue) }
+            }
+            Section {
+                Toggle(isOn: $settings.waveTabSwitching) {
+                    SettingLabel("跳转时切换到对应标签页", symbol: "rectangle.stack.fill", tint: .teal)
+                }
+            } header: {
+                Text("Wave Terminal")
+            } footer: {
+                Text("需要在 系统设置 › 隐私与安全性 › 辅助功能 里允许 YaaKanban。第一次跳转时会弹出请求。")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Section("通用") {
+                Toggle(isOn: $launchAtLogin) { SettingLabel("登录时启动", symbol: "power", tint: .gray) }
                     .onChange(of: launchAtLogin) { _, on in
                         do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } }
                         catch { integrationMessage = "登录项设置失败：\(error.localizedDescription)" }
                     }
             }
+            Section("关于") {
+                LabeledContent("版本", value: AboutHeader.version)
+                LabeledContent("许可证", value: "GPL-3.0")
+                LabeledContent("源代码") { Link("github.com/ArtrixTech/YaaKanban", destination: AboutHeader.repo) }
+                LabeledContent("问题反馈") { Link("提交 Issue", destination: AboutHeader.repo.appendingPathComponent("issues")) }
+                Text("© 2026 Artrix · 以 GPL-3.0 开源发布").font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
         }
         .formStyle(.grouped)
-        .frame(width: 480, height: 560)
+        .frame(width: Self.size.width, height: Self.size.height)
     }
 
-    private func statusLabel(_ s: IntegrationStatus) -> String {
-        switch s { case .installed: "已安装"; case .outdated: "需更新"; case .notInstalled: "未安装"; case .notDetected: "未检测到" }
+    static func duration(_ minutes: Double) -> String {
+        let m = Int(minutes)
+        if m < 60 { return "\(m) 分钟" }
+        return m % 60 == 0 ? "\(m / 60) 小时" : "\(m / 60) 小时 \(m % 60) 分"
     }
 
     static var yaak: String { Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/yaak").path }
@@ -391,5 +652,61 @@ struct SettingsView: View {
             integrationMessage = "\(i.agent.displayName)：\(error)"
         }
         refresh += 1
+    }
+}
+
+/// Top of the settings window: logo, name, version, one-line pitch.
+struct AboutHeader: View {
+    static let repo = URL(string: "https://github.com/ArtrixTech/YaaKanban")!
+    static var version: String {
+        let info = Bundle.main.infoDictionary
+        guard let v = info?["CFBundleShortVersionString"] as? String else { return "开发版" }
+        return "\(v) (\(info?["CFBundleVersion"] as? String ?? "?"))"
+    }
+
+    var body: some View {
+        VStack(spacing: 6) {
+            BrandMark(size: 64).shadow(color: .black.opacity(0.15), radius: 6, y: 2)
+            Text("YaaKanban").font(.system(size: 20, weight: .bold))
+            Text("版本 \(Self.version)").font(.caption).foregroundStyle(.secondary)
+            Text("盯着你的 coding agent：完成、卡住、需要你时第一时间知道。")
+                .font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+}
+
+/// Settings row label in the System Settings style: white symbol on a tinted rounded square.
+struct SettingLabel: View {
+    let title: String
+    let symbol: String
+    let tint: Color
+    init(_ title: String, symbol: String, tint: Color) { self.title = title; self.symbol = symbol; self.tint = tint }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
+                .frame(width: 22, height: 22)
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(tint.gradient))
+            Text(title)
+        }
+    }
+}
+
+/// Integration status as a small colored capsule.
+struct StatusBadge: View {
+    let status: IntegrationStatus
+
+    var body: some View {
+        let (text, color): (String, Color) = switch status {
+        case .installed: ("已安装", .green)
+        case .outdated: ("需更新", .orange)
+        case .notInstalled: ("未安装", .secondary)
+        case .notDetected: ("未检测到", .secondary)
+        }
+        Text(text).font(.system(size: 11, weight: .medium)).foregroundStyle(color)
+            .padding(.horizontal, 7).padding(.vertical, 2)
+            .background(Capsule().fill(color.opacity(0.12)))
     }
 }

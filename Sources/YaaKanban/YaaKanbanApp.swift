@@ -43,10 +43,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         if model.selection == nil { model.selection = model.activeSessions.first?.id }
         let views: [(String, AnyView, NSSize)] = [
-            ("panel", AnyView(FloatingPanelView().environment(model)), NSSize(width: 340, height: 300)),
-            ("menu", AnyView(MenuContent(panel: panel).environment(model)), NSSize(width: 380, height: 420)),
+            ("panel", AnyView(FloatingPanelView().environment(model)), NSSize(width: model.settings.panelWidth, height: 300)),
+            ("rail", AnyView(FloatingPanelView(room: { let r = PanelRoom(dock: .right); r.snapshotFolded = true; return r }()).environment(model)), NSSize(width: Rail.width, height: 600)),
+            ("rail-wide", AnyView(FloatingPanelView(room: PanelRoom(dock: .right, peek: true)).environment(model)),
+             NSSize(width: model.settings.panelWidth, height: 600)),
+            ("menu", AnyView(MenuContent(panel: panel).environment(model)), NSSize(width: 230, height: 200)),
             ("main", AnyView(MainWindow().environment(model)), NSSize(width: 1000, height: 640)),
-            ("settings", AnyView(SettingsView(panel: panel).environment(model)), NSSize(width: 480, height: 560)),
+            ("settings", AnyView(SettingsView(panel: panel).environment(model)), SettingsView.size),
         ]
         for (name, view, size) in views {
             let window = NSWindow(contentRect: NSRect(origin: NSPoint(x: -10000, y: -10000), size: size),
@@ -66,7 +69,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) { model.stop() }
 }
 
-/// Menu-bar icon: tinted by the most urgent state, with a count of sessions waiting on the user.
+/// Menu-bar icon: the logo's three bars in outline, a dot when something is going on (tinted by
+/// the most urgent state), and a count of sessions waiting on the user.
 struct MenuBarLabel: View {
     @Environment(AppModel.self) private var model
 
@@ -79,30 +83,33 @@ struct MenuBarLabel: View {
         let color: NSColor? = model.hasNeedsInput ? .systemRed
             : model.hasStuck ? .systemOrange
             : model.reviewCount > 0 ? .systemGreen : nil
-        let symbol = NSImage(systemSymbolName: running ? "square.stack.3d.up.fill" : "square.stack.3d.up",
-                             accessibilityDescription: "YaaKanban")!
-            .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))!
         let text = count > 0 ? "\(count)" as NSString : nil
-        let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold),
-                                                    .foregroundColor: color ?? NSColor.black]
-        let textSize = text?.size(withAttributes: attrs) ?? .zero
-        let size = NSSize(width: symbol.size.width + (text == nil ? 0 : textSize.width + 3), height: 18)
-        let img = NSImage(size: size, flipped: false) { _ in
-            let y = (18 - symbol.size.height) / 2
-            if let color {
-                let tinted = symbol.copy() as! NSImage
-                tinted.lockFocus()
-                color.set()
-                NSRect(origin: .zero, size: tinted.size).fill(using: .sourceAtop)
-                tinted.unlockFocus()
-                tinted.draw(at: NSPoint(x: 0, y: y), from: .zero, operation: .sourceOver, fraction: 1)
-            } else {
-                symbol.draw(at: NSPoint(x: 0, y: y), from: .zero, operation: .sourceOver, fraction: 1)
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
+        let textSize = text?.size(withAttributes: [.font: font]) ?? .zero
+        let mark: CGFloat = 16
+        let size = NSSize(width: mark + (text == nil ? 0 : textSize.width + 3), height: 18)
+        let img = NSImage(size: size, flipped: true) { _ in
+            // Drawn in labelColor when tinted (no template then), so it still follows the menu bar.
+            let ink = NSColor.labelColor
+            ink.setFill()
+            // The logo's columns on a 16 pt grid: full, two-thirds and one-third height.
+            let top: CGFloat = 2.5, full: CGFloat = 13, w: CGFloat = 3.6
+            for (i, h) in [full, full * 0.66, full * 0.38].enumerated() {
+                let x = 1 + CGFloat(i) * 5.2
+                NSBezierPath(roundedRect: NSRect(x: x, y: top, width: w, height: h), xRadius: 1.4, yRadius: 1.4).fill()
             }
-            text?.draw(at: NSPoint(x: symbol.size.width + 3, y: (18 - textSize.height) / 2), withAttributes: attrs)
+            if running || color != nil {
+                (color ?? ink).setFill()
+                // Under the short column, its bottom on the long one's, as in the logo.
+                NSBezierPath(ovalIn: NSRect(x: 1 + 2 * 5.2 + w / 2 - 2.1, y: top + full - 4.2, width: 4.2, height: 4.2)).fill()
+            }
+            if let text {
+                text.draw(at: NSPoint(x: mark + 3, y: (18 - textSize.height) / 2),
+                          withAttributes: [.font: font, .foregroundColor: color ?? ink])
+            }
             return true
         }
-        // Template (auto light/dark) when nothing is urgent.
+        // Template (auto light/dark) when nothing is tinted.
         img.isTemplate = color == nil
         return img
     }

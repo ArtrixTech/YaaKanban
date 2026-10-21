@@ -549,6 +549,28 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
     }
 }
 
+@Suite struct SubagentLinks {
+    private func file(_ text: String) throws -> URL {
+        let u = FileManager.default.temporaryDirectory.appendingPathComponent("yaak-link-\(UUID().uuidString).jsonl")
+        try text.write(to: u, atomically: true, encoding: .utf8)
+        return u
+    }
+
+    @Test func readsPiParentFromHeader() throws {
+        let u = try file(#"{"type":"session","version":3,"id":"c","cwd":"/x","parentSession":"/s/parent.jsonl"}"# + "\n" +
+                         #"{"type":"model_change","id":"1"}"# + "\n")
+        defer { try? FileManager.default.removeItem(at: u) }
+        #expect(SubagentLink.parentSession(transcript: u) == "/s/parent.jsonl")
+    }
+
+    @Test func topLevelSessionHasNoParent() throws {
+        let u = try file(#"{"type":"session","version":3,"id":"p","cwd":"/x"}"# + "\n")
+        defer { try? FileManager.default.removeItem(at: u) }
+        #expect(SubagentLink.parentSession(transcript: u) == nil)
+        #expect(SubagentLink.parentSession(transcript: u.appendingPathExtension("missing")) == nil)
+    }
+}
+
 @Suite struct Dismissal {
     let t0 = Date(timeIntervalSince1970: 1_000)
     private func ev(_ k: AgentEvent.Kind, _ dt: TimeInterval) -> AgentEvent {
@@ -579,5 +601,78 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(s.dismissedAt != nil)
         s = SessionReducer.apply(ev(.statusSnapshot(.running), 6), to: s)
         #expect(s.dismissedAt == nil)
+    }
+}
+
+@Suite struct AttentionTests {
+    private func waiting() -> SessionState {
+        fold([
+            claude("UserPromptSubmit", ["prompt": .string("go")]),
+            claude("Notification", ["message": .string("Claude needs your permission"),
+                                    "notification_type": .string("permission_prompt")], at: 10),
+        ])
+    }
+
+    @Test func flashesAfterThirtySecondsUnlessClicked() {
+        let s = waiting()
+        #expect(s.status == .needsInput)
+        #expect(s.needsInputSince == t0.addingTimeInterval(10))
+        #expect(!Attention.flashes(s, acknowledged: nil, now: t0.addingTimeInterval(39)))
+        #expect(Attention.flashes(s, acknowledged: nil, now: t0.addingTimeInterval(41)))
+        // Clicked after it started waiting: no flash. Clicked before: still flashes.
+        #expect(!Attention.flashes(s, acknowledged: t0.addingTimeInterval(20), now: t0.addingTimeInterval(60)))
+        #expect(Attention.flashes(s, acknowledged: t0.addingTimeInterval(5), now: t0.addingTimeInterval(60)))
+    }
+
+    @Test func waitingSinceClearsWhenItMovesOn() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("next")], at: 50)], into: waiting())
+        #expect(s.status == .running)
+        #expect(s.needsInputSince == nil)
+    }
+
+    @Test func staleBlueRisesToTheMiddleThenFades() {
+        var s = fold([claude("UserPromptSubmit", ["prompt": .string("go")]), claude("Stop", at: 1)])
+        s.unreadSince = nil  // reviewed
+        #expect(s.display == .done)
+        let end = s.lastEventAt, linger: TimeInterval = 8 * 3600
+        func at(_ m: Double) -> Double { Attention.staleness(s, linger: linger, now: end.addingTimeInterval(m * 60)) }
+        #expect(at(5) == 0)
+        #expect(at(10) == 0)
+        #expect(at(60) > 0 && at(60) < at(120))
+        #expect(abs(at(245) - 1) < 1e-9)  // (10 + 480) / 2 minutes
+        #expect(at(400) < at(300))
+        #expect(at(480) == 0)
+        // Not yet reviewed: green "to review", not blue.
+        s.unreadSince = end
+        #expect(Attention.staleness(s, linger: linger, now: end.addingTimeInterval(245 * 60)) == 0)
+    }
+
+    @Test func thresholdsFollowTheSettings() {
+        #expect(!Attention.flashes(waiting(), acknowledged: nil, now: t0.addingTimeInterval(50), after: 60))
+        #expect(Attention.flashes(waiting(), acknowledged: nil, now: t0.addingTimeInterval(71), after: 60))
+        var s = fold([claude("UserPromptSubmit", ["prompt": .string("go")]), claude("Stop", at: 1)])
+        s.unreadSince = nil
+        let end = s.lastEventAt
+        func at(_ m: Double) -> Double { Attention.staleness(s, linger: 120 * 60, now: end.addingTimeInterval(m * 60), after: 30 * 60) }
+        #expect(at(20) == 0)
+        #expect(abs(at(75) - 1) < 1e-9)  // (30 + 120) / 2
+        #expect(at(120) == 0)
+        // Turning blue no earlier than the card leaves: never blue.
+        #expect(Attention.staleness(s, linger: 30 * 60, now: end.addingTimeInterval(20 * 60), after: 30 * 60) == 0)
+    }
+
+    @Test func lookingAgainRestartsTheBlueClock() {
+        var s = fold([claude("UserPromptSubmit", ["prompt": .string("go")]), claude("Stop", at: 1)])
+        s.unreadSince = nil
+        let end = s.lastEventAt, linger: TimeInterval = 8 * 3600
+        #expect(Attention.staleness(s, linger: linger, now: end.addingTimeInterval(245 * 60)) > 0.99)
+        // Opened again at the peak: back to plain, and the curve runs from then.
+        s.reviewedAt = end.addingTimeInterval(245 * 60)
+        #expect(s.quietSince == s.reviewedAt)
+        #expect(Attention.staleness(s, linger: linger, now: end.addingTimeInterval(250 * 60)) == 0)
+        #expect(abs(Attention.staleness(s, linger: linger, now: end.addingTimeInterval(490 * 60)) - 1) < 1e-9)
+        // A look before the last event does not move it back.
+        s.reviewedAt = end.addingTimeInterval(-60)
+        #expect(s.quietSince == end)
     }
 }

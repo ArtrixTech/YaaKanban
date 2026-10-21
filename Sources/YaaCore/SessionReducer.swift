@@ -14,6 +14,12 @@ public enum SessionReducer {
             let started = s.status == .running && old.status != .running && old.status != .stuck
             if newTurn || wants || started { s.dismissedAt = nil }
         }
+        // Waiting on the user: since when, kept while it goes on waiting.
+        if s.status == .needsInput {
+            if existing?.status != .needsInput || s.needsInputSince == nil { s.needsInputSince = e.at }
+        } else {
+            s.needsInputSince = nil
+        }
         return s
     }
 
@@ -175,6 +181,10 @@ public enum Alert: Equatable, Sendable {
     case needsInput(String)
     case done(String?)
     case stuck(String)
+}
+
+extension Alert {
+    public var isDone: Bool { if case .done = self { true } else { false } }
 }
 
 public enum Alerts {
