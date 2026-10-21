@@ -33,8 +33,17 @@ func selfPath() -> String {
 /// Agents whose permission hook can take a decision from the app.
 let approvalEvents: [AgentKind: String] = [.claudeCode: "PermissionRequest", .opencode: "permission"]
 
+/// Hooks must return within ~100 ms: reading stdin and sending to the app share one budget from
+/// process start. Whatever misses it is dropped (stdin) or spooled (the send).
+let hookStarted = Date()
+let hookStdinBudget: TimeInterval = 0.06
+let hookBudget: TimeInterval = 0.09
+let hookStdinLimit = 16 << 20
+
 func runHook(agent: AgentKind, event: String) -> Never {
-    let stdin = isatty(0) == 0 ? FileHandle.standardInput.readDataToEndOfFile() : Data()
+    let stdin = isatty(0) == 0
+        ? UnixSocket.readAll(0, deadline: hookStarted + hookStdinBudget, limit: hookStdinLimit) : Data()
+    let sendBy = hookStarted + hookBudget
     // Trim large strings (Edit's originalFile, Write content) so the socket line stays small.
     var payload = Wire.trim(JSONValue.parse(stdin) ?? .object([:]))
     let pid = env["YAAK_AGENT_PID"].flatMap(Int32.init) ?? ProcessUtil.hookOwner()
@@ -55,7 +64,7 @@ func runHook(agent: AgentKind, event: String) -> Never {
     if wantsDecision {
         let wait = TimeInterval(Integrations.approvalTimeout + 5)
         let req = WireRequest(kind: .permission, envelope: envelope, timeout: wait)
-        let r = UnixSocket.send(Wire.encode(req), to: paths.socket.path, replyTimeout: wait)
+        let r = UnixSocket.send(Wire.encode(req), to: paths.socket.path, deadline: sendBy, replyTimeout: wait)
         if r.sent {
             if let d = r.reply.flatMap({ Wire.decode(WireReply.self, $0) })?.decision { print(decisionOutput(agent, d)) }
             exit(0)
@@ -68,7 +77,7 @@ func runHook(agent: AgentKind, event: String) -> Never {
     }
 
     let req = WireRequest(kind: .event, envelope: envelope)
-    if !UnixSocket.send(Wire.encode(req), to: paths.socket.path).sent {
+    if !UnixSocket.send(Wire.encode(req), to: paths.socket.path, deadline: sendBy).sent {
         try? Wire.spool(req, paths: paths)
     }
     exit(0)

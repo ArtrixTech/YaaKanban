@@ -4,9 +4,10 @@ import YaaCore
 /// Edits hook files shaped like Claude's: `{"hooks": {Event: [{matcher?, hooks: [{type, command, timeout}]}]}}`.
 /// Codex uses the same shape. Our entries are recognised by command (`HookCommand.isOurs`). An existing entry
 /// of ours is updated in place and new ones are appended, so index-keyed trust (Codex) of other hooks is preserved.
+/// With `keepIndexes`, install never removes anything either: surplus entries of ours are re-pointed, not dropped.
 enum ClaudeShapedHooks {
     static func edit(_ root: inout [String: Any], events: [(name: String, timeout: Int)], command: (String) -> String,
-                     install: Bool, marker: [String: Any]) {
+                     install: Bool, marker: [String: Any], keepIndexes: Bool = false) {
         var hooks = root["hooks"] as? [String: Any] ?? [:]
         let wanted = install ? Dictionary(uniqueKeysWithValues: events.map { e -> (String, [String: Any]) in
             var entry: [String: Any] = ["type": "command", "command": command(e.name), "timeout": e.timeout]
@@ -18,15 +19,25 @@ enum ClaudeShapedHooks {
             guard var groups = groups as? [[String: Any]] else { continue }
             groups = groups.compactMap { g in
                 var g = g
-                let inner = (g["hooks"] as? [[String: Any]] ?? []).compactMap { h -> [String: Any]? in
+                let original = g["hooks"] as? [[String: Any]] ?? []
+                let inner = original.compactMap { h -> [String: Any]? in
                     guard HookCommand.isOurs(h["command"] as? String ?? "") else { return h }
                     // Keep the first entry of ours where it is; drop duplicates and unwanted ones.
-                    guard let entry = wanted[event], !placed.contains(event) else { return nil }
-                    placed.insert(event)
-                    return entry
+                    if let entry = wanted[event], !placed.contains(event) {
+                        placed.insert(event)
+                        return entry
+                    }
+                    // Removing would shift every later entry's index; point it at this yaak instead.
+                    if install && keepIndexes {
+                        var h = wanted[event] ?? h
+                        h["command"] = command(event)
+                        return h
+                    }
+                    return nil
                 }
-                if inner.isEmpty && g["hooks"] != nil { return nil }
-                g["hooks"] = inner
+                // Drop a group only when we emptied it; a foreign empty group stays put.
+                if inner.isEmpty && !original.isEmpty { return nil }
+                if g["hooks"] != nil { g["hooks"] = inner }
                 return g
             }
             hooks[event] = groups.isEmpty ? nil : groups
@@ -114,7 +125,7 @@ public struct CodexIntegration: Integration {
     public func plan(install: Bool, home: URL, yaak: String) throws -> [FileChange] {
         try JSONFile.plan(file(home)) { root in
             ClaudeShapedHooks.edit(&root, events: Self.events, command: { HookCommand.make(yaak: yaak, agent: agent, event: $0) },
-                                   install: install, marker: [:])
+                                   install: install, marker: [:], keepIndexes: true)
         }
     }
 }

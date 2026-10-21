@@ -204,11 +204,10 @@ final class AppModel {
 
     // MARK: Permissions
 
-    /// `requestId` (from a notification) must match the request still pending, so a stale
-    /// notification can never approve a newer command.
-    func decide(_ key: String, _ decision: PermissionDecision, requestId: String? = nil) {
-        guard let pending = pendingReplies[key] else { return }
-        if let requestId, requestId != pending.requestId { return }
+    /// `requestId` is the request the user saw (panel or notification); it must match the one
+    /// still pending, so a stale button or notification can never approve a newer command.
+    func decide(_ key: String, _ decision: PermissionDecision, requestId: String) {
+        guard let pending = pendingReplies[key], pending.requestId == requestId else { return }
         pendingReplies[key] = nil
         pending.send(Wire.encode(WireReply(decision: decision)))
         notifier.withdraw(key: key)

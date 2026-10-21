@@ -58,9 +58,9 @@ struct PermissionButtons: View {
                     .background(.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 HStack(spacing: 6) {
-                    Button { model.decide(session.id, .allow) } label: { Label("允许一次", systemImage: "checkmark") }
+                    Button { model.decide(session.id, .allow, requestId: p.id) } label: { Label("允许一次", systemImage: "checkmark") }
                         .buttonStyle(PillButtonStyle(tint: .green, prominent: true))
-                    Button { model.decide(session.id, .deny) } label: { Label("拒绝", systemImage: "xmark") }
+                    Button { model.decide(session.id, .deny, requestId: p.id) } label: { Label("拒绝", systemImage: "xmark") }
                         .buttonStyle(PillButtonStyle(tint: .red))
                     Spacer()
                 }

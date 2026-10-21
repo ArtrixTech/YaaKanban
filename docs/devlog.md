@@ -1,8 +1,22 @@
 # Devlog
 
-## feat(board): drop project groups; hand-set height sticks; width changes keep the top
+## fix(hooks): bound hook time, bind approvals to the shown request, keep Codex indexes
 
 `pending` | 2026-10-21
+
+- **Changes**:
+  - Hook deadline: `yaak hook` reads stdin via `UnixSocket.readAll` (poll, 60 ms from process start, 16 MiB cap) instead of `readDataToEndOfFile`, and `UnixSocket.send` takes a `deadline` (90 ms for hooks) enforced per write via SO_SNDTIMEO. Missed sends are spooled. The server now drops lines without a trailing newline, so a line cut off at the deadline is never both ingested and spooled.
+  - Approvals: `AppModel.decide` requires `requestId`; the panel buttons pass the id of the request they show. Before, a nil id skipped the check, so a button rendered for request A could approve a newer request B.
+  - Codex: `ClaudeShapedHooks.edit(keepIndexes:)`. On Codex install, surplus entries of ours are re-pointed at the current yaak rather than dropped, and groups that were already empty stay. Dropping them shifted the index of every later hook, breaking Codex index-keyed trust. Uninstall still removes ours.
+- **Reason**: housekeeping audit (gpt-6-astra, high) findings: hooks could block an agent indefinitely; panel approval not bound to a request; Codex reinstall could shift indexes.
+- **User feedback**: "用gpt-6-astra（high）审计当前代码实现，做housekeeping…" / "按照建议修复"
+- **Process**: new tests `sendGivesUpAtDeadline`, `readAllStopsAtDeadlineAndLimit`, `serverIgnoresUnterminatedLine`, `codexReinstallNeverDropsEntries`; the last fails on the old `JSONHooks.swift` (baseline). Real binary with stdin left open: exits 0 in 66 ms and spools (temp `YAAK_HOME`). Independent review found the cut-off-newline double delivery, fixed here.
+- **Result**: `make test` 69/69. Not installed or checked live.
+- **Notes**: Known trade-offs: parsing/encoding a large payload after the read is outside the budget; events that miss the deadline while the app is slow are only replayed on next app start; re-pointed duplicate Codex entries still fire twice. Remaining audit items (spool delete-before-persist, swallowed SQLite errors, unchecked Int conversions, etc.) are not addressed.
+
+## feat(board): drop project groups; hand-set height sticks; width changes keep the top
+
+`4c6fd08` | 2026-10-21
 
 - **Changes**:
   - Board: `Board.ordered` replaces `Board.groups` and `BoardGroup`. Order is status tier, then manual order, then start time. There is no project clustering and no group header, and every card shows its project name. Context-menu moves step card by card.

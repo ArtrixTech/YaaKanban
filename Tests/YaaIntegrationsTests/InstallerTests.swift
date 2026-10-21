@@ -100,6 +100,38 @@ private func json(_ url: URL) throws -> [String: Any] {
         #expect(((after[1]["hooks"] as! [[String: Any]])[0]["command"] as? String) == "user-hook")
     }
 
+    /// Duplicates of ours and empty groups must not be dropped on Codex reinstall: that would shift
+    /// the indexes of the foreign hooks after them.
+    @Test func codexReinstallNeverDropsEntries() throws {
+        let home = try tempHome()
+        let f = home.appendingPathComponent(".codex/hooks.json")
+        let old = "'/Old/yaak' hook codex"
+        try """
+        {"hooks":{
+          "Stop":[{"hooks":[{"type":"command","command":"\(old) Stop"},{"type":"command","command":"\(old) Stop"},
+                            {"type":"command","command":"a"}]},
+                  {"hooks":[{"type":"command","command":"\(old) Stop"}]},
+                  {"hooks":[]},
+                  {"hooks":[{"type":"command","command":"b"}]}],
+          "SessionEnd":[{"hooks":[{"type":"command","command":"\(old) SessionEnd"}]},
+                        {"hooks":[{"type":"command","command":"c"}]}]}}
+        """.write(to: f, atomically: true, encoding: .utf8)
+
+        try Installer.apply(try CodexIntegration().plan(install: true, home: home, yaak: yaak))
+        let hooks = try json(f)["hooks"] as! [String: Any]
+        let cmds = { (e: String) in (hooks[e] as! [[String: Any]]).map { ($0["hooks"] as! [[String: Any]]).map { $0["command"] as! String } } }
+        let new = "'\(yaak)' hook codex"
+        #expect(cmds("Stop") == [["\(new) Stop", "\(new) Stop", "a"], ["\(new) Stop"], [], ["b"]])
+        #expect(cmds("SessionEnd") == [["\(new) SessionEnd"], ["c"]])
+        #expect(try CodexIntegration().plan(install: true, home: home, yaak: yaak).isEmpty)
+
+        // Uninstall removes ours; the user re-trusts what moved.
+        try Installer.apply(try CodexIntegration().plan(install: false, home: home, yaak: yaak))
+        let back = try json(f)["hooks"] as! [String: Any]
+        #expect((back["Stop"] as! [[String: Any]]).count == 3)
+        #expect(!HookCommand.isOurs(try String(contentsOf: f, encoding: .utf8)))
+    }
+
     @Test func symlinkedConfigIsEditedInPlace() throws {
         let home = try tempHome()
         let real = home.appendingPathComponent("dotfiles-settings.json")
