@@ -183,8 +183,8 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
 
     /// Resizes to the content, keeping the edges it is snapped to (the top or bottom of the screen,
     /// and the side it is docked to) in place, and always inside the screen's usable area. Content
-    /// coming and going grows or shrinks it about its middle; the user resizing or folding the list
-    /// moves only the bottom edge. A change of width (folding or unfolding) slides the panel edge;
+    /// coming and going grows or shrinks it about its middle; the user resizing or folding the list,
+    /// or a change of width, moves only the bottom edge. A change of width (folding or unfolding) slides the panel edge;
     /// height alone follows at once.
     private func fit(_ size: CGSize) {
         lastSize = size
@@ -195,8 +195,10 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         let v0 = panel.screen?.visibleFrame
         let pinBottom = v0.map { f.minY - $0.minY < Self.snapDistance } ?? false
         let pinTop = v0.map { $0.maxY - f.maxY < Self.snapDistance } ?? false
+        // Unfolding or widening rewraps the cards; the top stays so they do not move up or down.
+        let widthChanged = abs(current.width - w) >= 1 || room.resizing
         if pinBottom {
-        } else if pinTop || CACurrentMediaTime() < room.topHeldUntil {
+        } else if pinTop || widthChanged || CACurrentMediaTime() < room.topHeldUntil {
             f.origin.y = f.maxY - h
         } else {
             f.origin.y = (f.midY - h / 2).rounded()

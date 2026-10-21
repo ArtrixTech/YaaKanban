@@ -420,21 +420,21 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         return x
     }
 
-    @Test func startOrderAndGrouping() {
+    private func ids(_ l: [SessionState], _ order: [String] = []) -> [String] {
+        Board.ordered(l, manualOrder: order).map(\.sessionId)
+    }
+
+    @Test func startOrderNoGrouping() {
         let list = [s("c", "/p/B", 3), s("a", "/p/A", 1), s("b", "/p/B", 2), s("d", "/p/A", 4)]
-        let g = Board.groups(list, manualOrder: [])
-        #expect(g.map(\.name) == ["A", "B"])
-        #expect(g[0].sessions.map(\.sessionId) == ["a", "d"])
-        #expect(g[1].sessions.map(\.sessionId) == ["b", "c"])
+        #expect(ids(list) == ["a", "b", "c", "d"])
     }
 
     @Test func manualOrderWinsAndNewcomersAppend() {
         let list = [s("a", "/A", 1), s("b", "/B", 2), s("c", "/C", 3)]
-        let flat = Board.groups(list, manualOrder: []).flatMap { $0.sessions.map(\.id) }
+        let flat = Board.ordered(list, manualOrder: []).map(\.id)
         let order = Board.move(["claude-code:c"], before: "claude-code:a", board: flat, manualOrder: ["claude-code:gone"])
         #expect(order == ["claude-code:c", "claude-code:a", "claude-code:b", "claude-code:gone"])
-        let g = Board.groups(list + [s("n", "/N", 0)], manualOrder: order)
-        #expect(g.map(\.name) == ["C", "A", "B", "N"])
+        #expect(ids(list + [s("n", "/N", 0)], order) == ["c", "a", "b", "n"])
         #expect(Board.move(["claude-code:c"], before: nil, board: flat, manualOrder: []).last == "claude-code:c")
     }
 
@@ -444,26 +444,10 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         var d = s("d", "/D", 0); d.status = .idle
         var a = s("a", "/A", 3); a.status = .needsInput
         var r2 = s("r2", "/V", 4); r2.status = .running
-        let g = Board.groups([r, v, d, a, r2], manualOrder: [])
-        // V's reviewed card and running card are in different tiers: no group pulls a calmer card up.
-        #expect(g.flatMap { $0.sessions.map(\.sessionId) } == ["a", "v", "r2", "r", "d"])
-        // V ends the review tier and opens the running one, so its two cards still sit together.
-        #expect(g.map(\.name) == ["A", "V", "R", "D"])
-        #expect(g[1].sessions.map(\.sessionId) == ["v", "r2"])
+        #expect(ids([r, v, d, a, r2]) == ["a", "v", "r", "r2", "d"])
         // Manual order still decides within a tier.
         var r3 = s("r3", "/R3", 5); r3.status = .running
-        #expect(Board.groups([r, r3], manualOrder: ["claude-code:r3"]).map(\.name) == ["R3", "R"])
-    }
-
-    @Test func strictPriorityAcrossProjects() {
-        var a1 = s("a1", "/A", 0); a1.status = .needsInput
-        var a2 = s("a2", "/A", 1); a2.status = .idle  // reviewed
-        var b1 = s("b1", "/B", 2); b1.status = .idle; b1.unreadSince = t0
-        var a3 = s("a3", "/A", 3); a3.status = .needsInput
-        let g = Board.groups([a1, a2, b1, a3], manualOrder: [])
-        #expect(g.flatMap { $0.sessions.map(\.sessionId) } == ["a1", "a3", "b1", "a2"])
-        #expect(g.map(\.name) == ["A", "B", "A"])
-        #expect(Set(g.map(\.id)).count == 3)
+        #expect(ids([r, r3], ["claude-code:r3"]) == ["r3", "r"])
     }
 
     @Test func groupFollowsStartDirNotCd() {

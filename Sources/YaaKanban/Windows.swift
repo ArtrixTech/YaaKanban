@@ -279,11 +279,16 @@ struct FloatingPanelView: View {
                     // Folded, the bottom is an edge like the sides; the height is set unfolded.
                     if !folded {
                         ResizeGrip { delta in
-                            if delta == nil { dragStart = nil; return }
                             room?.holdTop()
+                            guard let delta else {
+                                // Let go at the minimum: back to following the content.
+                                dragStart = nil
+                                if (settings.panelListHeight ?? .infinity) <= Self.minList { settings.panelListHeight = nil }
+                                return
+                            }
                             let start = dragStart ?? shownList
                             dragStart = start
-                            settings.panelListHeight = min(Self.maxList, max(Self.minList, start + delta!))
+                            settings.panelListHeight = min(Self.maxList, max(Self.minList, start + delta))
                         }
                     }
                 }
@@ -292,19 +297,15 @@ struct FloatingPanelView: View {
 
     private var moreBelow: Bool { listBottom > shownList + 1 }
 
-    /// The list's natural height changed. The panel follows it both ways: more content grows the
-    /// height set by hand so nothing lands out of sight, less content shrinks the panel with it.
-    private func grow(to h: CGFloat) {
-        let settings = model.settings
-        if h > settings.panelListHeight { settings.panelListHeight = min(Self.maxList, h) }
-        listHeight = h
-    }
+    /// The list's natural height changed. Without a height set by hand the panel follows it both
+    /// ways; with one, the panel keeps it and the list scrolls.
+    private func grow(to h: CGFloat) { listHeight = h }
 
     private var listShown: Bool { !model.settings.panelCollapsed && !model.activeSessions.isEmpty }
 
     private var shownList: CGFloat {
         let fits = room.map { max(Self.minList, $0.height - chrome) } ?? .infinity
-        return min(listHeight, model.settings.panelListHeight, fits)
+        return min(model.settings.panelListHeight ?? min(listHeight, Self.maxList), fits)
     }
 }
 
@@ -418,7 +419,7 @@ struct MainWindow: View {
         @Bindable var model = model
         NavigationSplitView {
             List(selection: $model.selection) {
-                section("活跃", model.board.flatMap(\.sessions))
+                section("活跃", model.board)
                 section("历史", model.allSessions.filter { s in !model.activeSessions.contains { $0.id == s.id } })
             }
             .searchable(text: $query, placement: .sidebar, prompt: "项目 / prompt")

@@ -48,7 +48,6 @@ struct NarrowSessionCard: View {
     @Environment(AppModel.self) private var model
     let session: SessionState
     let expanded: Bool
-    let grouped: Bool
     let extra: CGFloat
     /// Full card height, if known.
     let height: CGFloat?
@@ -84,7 +83,7 @@ struct NarrowSessionCard: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .background(alignment: .topLeading) {
             if width > 0 {
-                SessionCard(session: session, expanded: expanded, grouped: grouped)
+                SessionCard(session: session, expanded: expanded)
                     .environment(\.railExtra, nil)
                     .frame(width: width + extra)
                     .fixedSize(horizontal: false, vertical: true)
@@ -141,9 +140,9 @@ struct NarrowSessionCard: View {
         }
     }
 
-    private var project: String? { grouped ? nil : session.projectName }
+    private var project: String? { session.projectName }
 
-    /// Empty (and left out by `FitStack`) when the group header names the project.
+    /// Empty (and left out by `FitStack`) when the session has no project.
     @ViewBuilder private var projectLabel: some View {
         if let p = project {
             Text(p).font(.system(size: 9.5, weight: .medium)).foregroundStyle(.tertiary).lineLimit(1)

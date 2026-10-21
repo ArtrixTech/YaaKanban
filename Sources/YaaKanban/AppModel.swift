@@ -66,34 +66,22 @@ final class AppModel {
 
     var allSessions: [SessionState] { sorted(Array(sessions.values)) }
 
-    /// Active sessions as the boards show them: start order or the user's, grouped by project.
-    var board: [BoardGroup] { Board.groups(activeSessions, manualOrder: settings.manualOrder) }
+    /// Active sessions as the boards show them: most urgent first, then the user's order or start order.
+    var board: [SessionState] { Board.ordered(activeSessions, manualOrder: settings.manualOrder) }
 
-    /// Moves sessions (a card, or a whole group) before `target`, or to the end.
+    /// Moves sessions before `target`, or to the end.
     func move(_ ids: [String], before target: String?) {
-        let flat = board.flatMap { $0.sessions.map(\.id) }
-        settings.manualOrder = Board.move(ids, before: target, board: flat, manualOrder: settings.manualOrder)
+        settings.manualOrder = Board.move(ids, before: target, board: board.map(\.id), manualOrder: settings.manualOrder)
     }
 
-    /// Context-menu moves: -1 up, +1 down, nil to the top. A whole group moves among groups;
-    /// a card inside a group moves among its siblings (grouping would undo anything else).
+    /// Context-menu moves: -1 up, +1 down, nil to the top.
     func step(_ ids: [String], by delta: Int?) {
-        let groups = board
-        guard let gi = groups.firstIndex(where: { $0.sessions.contains { ids.contains($0.id) } }) else { return }
-        let members = groups[gi].sessions.map(\.id)
-        let wholeGroup = Set(members) == Set(ids)
-        let units: [[String]] = wholeGroup ? groups.map { $0.sessions.map(\.id) } : members.map { [$0] }
-        guard let i = units.firstIndex(where: { $0.contains(ids[0]) }) else { return }
+        let flat = board.map(\.id)
+        guard let first = ids.first, let i = flat.firstIndex(of: first) else { return }
         let j = delta.map { i + $0 } ?? 0
-        guard j != i, units.indices.contains(j) else { return }
-        // Moving down: land before the unit after the one we pass.
-        let target: String? = j < i ? units[j].first : (units.indices.contains(j + 1) ? units[j + 1].first : nil)
-        if !wholeGroup, target == nil {
-            // Last within its group: before whatever follows the group, if anything.
-            move(ids, before: groups.indices.contains(gi + 1) ? groups[gi + 1].sessions.first?.id : nil)
-        } else {
-            move(ids, before: target)
-        }
+        guard j != i, flat.indices.contains(j) else { return }
+        // Moving down: land before the card after the one we pass.
+        move(ids, before: j < i ? flat[j] : (flat.indices.contains(j + 1) ? flat[j + 1] : nil))
     }
 
     /// Sessions the user has not ended; counts and badges ignore the rest.

@@ -75,8 +75,6 @@ struct SessionCard: View {
     @Environment(AppModel.self) private var model
     let session: SessionState
     var expanded = false
-    /// Inside a project group, whose header already names the project.
-    var grouped = false
     var onExpand: () -> Void = {}
     @State private var hover = false
 
@@ -102,7 +100,7 @@ struct SessionCard: View {
                 // 2: agent, project, status, stats.
                 HStack(spacing: 5) {
                     AgentLogo(agent: session.agent, size: 12)
-                    if !grouped, let p = session.projectName {
+                    if let p = session.projectName {
                         Text(p).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
                     }
                     StatusPill(status: st)
@@ -295,7 +293,7 @@ struct CodeBlock: View {
     }
 }
 
-/// Up / down / top for a card or a whole group.
+/// Up / down / top for a card.
 struct MoveMenu: View {
     @Environment(AppModel.self) private var model
     let ids: [String]
@@ -314,8 +312,7 @@ enum DragIds {
     }
 }
 
-/// The board: one list of full-width cards, most urgent first. Cards of one project that sit together
-/// get a header line above them instead of a box, so every card has the same width.
+/// The board: one list of full-width cards, most urgent first.
 struct BoardList: View {
     @Environment(AppModel.self) private var model
     @Environment(\.railExtra) private var railExtra
@@ -327,52 +324,19 @@ struct BoardList: View {
     @State private var dropTarget: String?
 
     var body: some View {
-        // Flat, so a card keeps its identity when it moves into or out of a group.
         VStack(spacing: 8) {
-            ForEach(items) { item in
-                switch item {
-                case let .header(g):
-                    GroupHeader(group: g)
-                        .draggable(DragIds.encode(g.sessions.map(\.id)))
-                        .dropDestination(for: String.self) { items, _ in drop(items, before: g.sessions.first?.id) }
-                            isTargeted: { dropTarget = $0 ? g.id : (dropTarget == g.id ? nil : dropTarget) }
-                        .overlay(alignment: .top) { dropLine(g.id) }
-                        // Closer to its cards than to the card above.
-                        .padding(.top, 4).padding(.bottom, -3)
-                        .transition(.opacity)
-                case let .card(s, grouped):
-                    card(s, grouped: grouped)
-                }
-            }
+            ForEach(model.board) { card($0) }
         }
-        .animation(.snappy, value: items.map(\.id))
+        .animation(.snappy, value: model.board.map(\.id))
     }
 
-    private enum Item: Identifiable {
-        case header(BoardGroup)
-        case card(SessionState, grouped: Bool)
-        var id: String {
-            switch self {
-            case let .header(g): "h:" + g.id
-            case let .card(s, _): s.id
-            }
-        }
-    }
-
-    private var items: [Item] {
-        model.board.flatMap { g -> [Item] in
-            let grouped = g.sessions.count > 1
-            return (grouped ? [.header(g)] : []) + g.sessions.map { .card($0, grouped: grouped) }
-        }
-    }
-
-    private func card(_ s: SessionState, grouped: Bool) -> some View {
+    private func card(_ s: SessionState) -> some View {
         Group {
             if let extra = railExtra {
-                NarrowSessionCard(session: s, expanded: expanded == s.id, grouped: grouped, extra: extra,
+                NarrowSessionCard(session: s, expanded: expanded == s.id, extra: extra,
                                   height: heights[s.id]) { h in if heights[s.id] != h { heights[s.id] = h } }
             } else {
-                SessionCard(session: s, expanded: expanded == s.id, grouped: grouped) { onExpand(s) }
+                SessionCard(session: s, expanded: expanded == s.id) { onExpand(s) }
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
                         if heights[s.id] != h { heights[s.id] = h }
                     }
@@ -399,38 +363,6 @@ struct BoardList: View {
         if dropTarget == id {
             Capsule().fill(Color.accentColor).frame(height: 3).offset(y: -5).padding(.horizontal, 6)
                 .transition(.opacity)
-        }
-    }
-}
-
-struct GroupHeader: View {
-    @Environment(\.railExtra) private var railExtra
-    let group: BoardGroup
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "folder.fill").font(.system(size: 10)).foregroundStyle(.secondary)
-            Text(group.name).font(.system(size: 11.5, weight: .bold)).lineLimit(1)
-            Text("\(group.sessions.count)").font(.system(size: 10, weight: .semibold).monospacedDigit())
-                .padding(.horizontal, 5).padding(.vertical, 1)
-                .background(.primary.opacity(0.08), in: Capsule()).foregroundStyle(.secondary)
-                .fixedSize()
-            Rectangle().fill(.primary.opacity(0.12)).frame(height: 1).frame(minWidth: 8)
-            if railExtra == nil { trailing }
-        }
-        .padding(.horizontal, 4)
-        .contentShape(Rectangle())
-        .contextMenu { MoveMenu(ids: group.sessions.map(\.id)) }
-        .help(railExtra == nil ? "拖动整组排序" : group.name)
-    }
-
-    @ViewBuilder private var trailing: some View {
-        HStack(spacing: 6) {
-            HStack(spacing: -4) {
-                ForEach(Array(Set(group.sessions.map(\.agent))).sorted { $0.rawValue < $1.rawValue }, id: \.self) {
-                    AgentLogo(agent: $0, size: 11)
-                }
-            }
-            Image(systemName: "line.3.horizontal").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
         }
     }
 }

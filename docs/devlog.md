@@ -1,8 +1,19 @@
 # Devlog
 
+## feat(board): drop project groups; hand-set height sticks; width changes keep the top
+
+`pending` | 2026-10-21
+
+- **Changes**:
+  - Board: `Board.ordered` replaces `Board.groups` and `BoardGroup`. Order is status tier, then manual order, then start time. There is no project clustering and no group header, and every card shows its project name. Context-menu moves step card by card.
+  - Height: dragging the resize grip sets `panelListHeight` (new key `panelListHeightManual`). The panel then keeps that height whatever the content, and the list scrolls. Letting go at the minimum clears it, and the list follows its content again.
+  - Position: a width change (unfolding the rail, the width grip) keeps the panel's top edge. Before, the panel re-centred on its middle as the cards rewrapped, so they moved up or down.
+- **Reason**: "去掉项目分组概念。另外，高度需要优先保持用户手动调整后的，除非用户手动拉到最低才回到自动" / "横向展开的时候item的高度位置不变化"
+- **Result**: `make test` 65/65. Installed. Not checked live.
+
 ## fix(panel): height follows the content both ways, growing about its middle
 
-`pending` | 2026-10-20
+`65b00d3` | 2026-10-20
 
 - **Changes**:
   - The list grows whenever its content is taller than the height set by hand. Before, it grew only within 2 s of a new card or sub-agent id appearing. It shrinks with the content as before.

@@ -21,8 +21,9 @@ final class Preferences {
     var panelCollapsed: Bool { didSet { d.set(panelCollapsed, forKey: "panelCollapsed") } }
     /// Snapped to a side, the panel folds into a rail unless the user unfolded it.
     var sidebarExpanded: Bool { didSet { d.set(sidebarExpanded, forKey: "sidebarExpanded") } }
-    /// Height of the floating panel's list, set with its resize grip; the list is shorter when its content is.
-    var panelListHeight: CGFloat { didSet { d.set(Double(panelListHeight), forKey: "panelListHeight") } }
+    /// Height of the floating panel's list set with its resize grip, kept whatever the content; nil
+    /// (the grip dragged all the way up) lets the list follow its content.
+    var panelListHeight: CGFloat? { didSet { d.set(panelListHeight.map(Double.init), forKey: "panelListHeightManual") } }
     /// Width of the unfolded floating panel, set by dragging its side edge.
     var panelWidth: CGFloat { didSet { d.set(Double(panelWidth), forKey: "panelWidth") } }
     /// Session ids in the order the user arranged them (see `Board`).
@@ -50,7 +51,7 @@ final class Preferences {
         showPanel = d.bool(forKey: "showPanel")
         panelCollapsed = d.bool(forKey: "panelCollapsed")
         sidebarExpanded = d.bool(forKey: "sidebarExpanded")
-        panelListHeight = d.object(forKey: "panelListHeight") == nil ? 560 : CGFloat(d.double(forKey: "panelListHeight"))
+        panelListHeight = d.object(forKey: "panelListHeightManual") == nil ? nil : CGFloat(d.double(forKey: "panelListHeightManual"))
         panelWidth = d.object(forKey: "panelWidth") == nil ? 340 : CGFloat(d.double(forKey: "panelWidth"))
         manualOrder = d.stringArray(forKey: "manualOrder") ?? []
         suppressWhenWaveFrontmost = d.bool(forKey: "suppressWhenWaveFrontmost")
