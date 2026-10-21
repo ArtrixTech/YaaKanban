@@ -208,9 +208,6 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var usage: Usage?
     /// Set when the user ends the session in the panel; it stays in history but leaves the boards.
     public var dismissedAt: Date?
-    /// Set when the session ended because its process died or its terminal app quit (a crash),
-    /// not because the agent exited: such cards stay on the boards so the work can be resumed.
-    public var interruptedAt: Date?
     /// Key of the session that spawned this one as a sub-agent (pi runs them as sessions of their own).
     public var parentId: String?
 
@@ -282,18 +279,12 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     /// How long an ended session keeps its Wave token, so it can be resumed in its tab.
     public static let waveTokenTTL: TimeInterval = 24 * 3600
 
-    /// A clean exit may still turn out to be a crash for this long (the terminal app quits after
-    /// its agents got their hangup).
-    public static let interruptGrace: TimeInterval = 60
-
     /// The Wave token is a live credential: kept while the ended session may still be resumed.
-    /// Dropped once the user ended it on the board, when it exited cleanly, or `waveTokenTTL`
-    /// after its last event (clicking the card does not extend it).
+    /// Dropped once the user ended it on the board, or `waveTokenTTL` after its last event
+    /// (clicking the card does not extend it).
     public func dropsWaveToken(now: Date) -> Bool {
         guard status == .ended else { return false }
-        if dismissedAt != nil { return true }
-        let quiet = now.timeIntervalSince(lastEventAt)
-        return quiet > (interruptedAt == nil ? Self.interruptGrace : Self.waveTokenTTL)
+        return dismissedAt != nil || now.timeIntervalSince(lastEventAt) > Self.waveTokenTTL
     }
 }
 

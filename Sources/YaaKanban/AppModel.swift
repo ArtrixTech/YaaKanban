@@ -33,7 +33,7 @@ final class AppModel {
 
     // MARK: Derived views
 
-    /// Active sessions for the floating panel; idle and interrupted ones only for a while (24 h by default).
+    /// Active sessions for the floating panel; idle and ended ones only for a while (24 h by default).
     /// Sub-agents of a session on the board show inside its card instead.
     var activeSessions: [SessionState] {
         let now = Date()
@@ -52,11 +52,17 @@ final class AppModel {
     private func isLive(_ s: SessionState, now: Date) -> Bool {
         if s.dismissedAt != nil { return false }
         switch s.status {
-        // A clean exit leaves; a crash (process died, terminal quit) lingers like a reviewed
-        // card so the work can be resumed.
+        // However it ended (an exit, or a terminal crash that looks just like one), the conversation
+        // lingers like a reviewed card so it can be resumed, unless the same process went on with a
+        // new session (`/clear`, `/new`).
         case .ended:
-            return s.interruptedAt != nil && s.parentId == nil
-                && now.timeIntervalSince(s.quietSince) < settings.idleVisibleSeconds
+            if s.parentId != nil || now.timeIntervalSince(s.quietSince) >= settings.idleVisibleSeconds { return false }
+            // One process may host sibling sessions (OpenCode, the Codex app): only a top-level
+            // session started after this one's last event replaced it.
+            guard let pid = s.agentPid else { return true }
+            return !sessions.values.contains {
+                $0.agentPid == pid && $0.id != s.id && $0.parentId == nil && $0.startedAt >= s.lastEventAt
+            }
         // Unreviewed results stay until looked at; reviewed ones fade out after a while.
         // A sub-agent's result is its parent's business, so it only lingers briefly.
         case .idle:
@@ -140,12 +146,6 @@ final class AppModel {
             self?.handleNotificationAction(key: key, requestId: requestId, action: action)
         }
         notifier.requestAuthorization()
-
-        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didTerminateApplicationNotification,
-                                                          object: nil, queue: .main) { [weak self] n in
-            let id = (n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier
-            Task { @MainActor in if let id { self?.terminalQuit(bundleId: id) } }
-        }
 
         timers.append(Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
@@ -275,21 +275,6 @@ final class AppModel {
         }
     }
 
-    /// A terminal app quit (often a crash): its agents got a hangup and reported a clean exit just
-    /// before. Those sessions were interrupted, not finished.
-    private func terminalQuit(bundleId: String) {
-        let now = Date()
-        for s in sessions.values where s.status == .ended && s.interruptedAt == nil
-            && TerminalJumper.bundleId(of: s.terminal) == bundleId
-            && now.timeIntervalSince(s.lastEventAt) < SessionState.interruptGrace {
-            update(s.id, alert: false) { s in
-                guard var s else { return nil }
-                s.interruptedAt = now
-                return s
-            }
-        }
-    }
-
     private func scan() {
         for ev in scanner.scan() {
             // Alert on unhooked sessions we already know (hooks alert for the rest); the first
@@ -396,7 +381,23 @@ final class AppModel {
         if let p = sessions[key]?.parentId, sessions[p] != nil { return jump(p) }
         markRead(key)
         guard let s = sessions[key] else { return }
-        if Self.isGone(s) { jumper.resume(s) } else { jumper.jump(to: s) }
+        guard Self.isGone(s) else { jumper.jump(to: s); return }
+        switch Self.askReopen(s) {
+        case .alertFirstButtonReturn: jumper.resume(s)
+        case .alertSecondButtonReturn: jumper.copyResume(s)
+        default: break
+        }
+    }
+
+    private static func askReopen(_ s: SessionState) -> NSApplication.ModalResponse {
+        let alert = NSAlert()
+        alert.messageText = "\(s.agent.displayName) 进程已不在"
+        alert.informativeText = "是否在原终端重新打开这个会话？"
+        alert.addButton(withTitle: "重新打开")
+        alert.addButton(withTitle: "复制恢复命令")
+        alert.addButton(withTitle: "取消")
+        NSApp.activate(ignoringOtherApps: true)
+        return alert.runModal()
     }
 
     /// The agent is no longer running this session: it ended, or its process died (a crashed terminal).

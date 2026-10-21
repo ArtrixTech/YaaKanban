@@ -1,8 +1,29 @@
 # Devlog
 
-## fix(board): only interrupted sessions stay on the panel
+## fix(board): keep every finished session until its retention ends
 
 `pending` | 2026-10-21
+
+- **Changes**:
+  - Removed `interruptedAt`, `interruptGrace`, `AppModel.terminalQuit` (NSWorkspace didTerminate observer) and `TerminalJumper.bundleId(of:)`.
+  - `isLive`: `ended` lingers like a reviewed idle card (`idleVisibleSeconds`, 24 h default) again. The a1e9ea5 rule is back: a card hides when a top-level session on the same pid started at or after its last event (`/clear`, `/new`).
+  - `StuckDetector`: a dead process no longer ends an idle session. A needs-input session whose process died goes back to idle (the wait is dropped, `unreadSince` set). Running sessions with a dead pid still go `stuck` ("进程已退出").
+  - `dropsWaveToken`: ended + (dismissed or 24 h quiet). The 60 s clean-exit grace is gone.
+  - Clicking a gone session (ended, or pid dead) shows an NSAlert: 重新打开 (resume in original terminal) / 复制恢复命令 / 取消.
+- **Reason**: f600089 review:
+  - Codex, Cursor, OpenCode and unhooked Claude never send SessionEnd. A plain Ctrl-D became "interrupted" through the dead pid.
+  - The Wave-crash rule depended on SessionEnd arriving before didTerminate, which was never established.
+  - The user's model: a conversation stays in their head whether or not its process lives. Don't judge crashes; check the process only when clicked.
+- **User feedback**: "无论对应进程是否被关掉，对应对话的记忆仍然活跃在用户心里面。进程在不在和yaak管理里面是否把它标记为ended没关系。" "不需要判断崩溃，只需要确认对应进程是否在就行。不在了但仍然idle就点击然后提示进程不在了是否重新打开。" The user chose: any SessionEnd is kept for 24 h like idle.
+- **Process**:
+  - Checked pi 1.x: `session_shutdown.reason` is `"quit"` for both Ctrl+D and SIGHUP, so the reason cannot separate a crash from an exit.
+  - The 15:49 Wave crash sessions in `history.sqlite` were all `ended` by a clean SessionEnd.
+- **Result**: `make test` passes (74). Today's crash cards are back on the panel (they are within 24 h).
+- **Notes**: Stored rows with an `interruptedAt` key decode fine (unknown keys are ignored).
+
+## fix(board): only interrupted sessions stay on the panel
+
+`f600089` | 2026-10-21
 
 - **Changes**:
   - New `SessionState.interruptedAt`. It is set in two cases:

@@ -154,13 +154,6 @@ struct TerminalJumper {
         guard let id = termProgramIds[p] else { return nil }
         return NSRunningApplication.runningApplications(withBundleIdentifier: id).first
     }
-
-    /// The app a session's terminal belongs to, from what its hooks recorded.
-    static func bundleId(of t: TerminalContext?) -> String? {
-        guard let t else { return nil }
-        if t.isWave { return waveBundleId }
-        return t.termProgram.flatMap { termProgramIds[$0] }
-    }
 }
 
 /// Editor windows through Accessibility: the one titled with the project, or Cursor's Agents window

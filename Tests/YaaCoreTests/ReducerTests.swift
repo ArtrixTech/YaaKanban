@@ -199,7 +199,8 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(out?.stuckReason == "进程已退出")
         var idle = running(pid: 7)
         idle.status = .idle
-        #expect(StuckDetector.evaluate(idle, now: t0, config: cfg, isAlive: { _ in false })?.status == .ended)
+        // A finished turn stays idle: the conversation is still there to reopen.
+        #expect(StuckDetector.evaluate(idle, now: t0, config: cfg, isAlive: { _ in false }) == nil)
     }
 
     @Test func unhookedSessionsSkipSilence() {
@@ -325,28 +326,25 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         // Looking at the card later does not extend it.
         s.reviewedAt = late
         #expect(Store.persistable(s, now: late).terminal?.waveJWT == nil)
-        // A clean exit keeps it only for the crash grace; an interruption for the whole TTL.
-        s.reviewedAt = nil
-        let grace = t0.addingTimeInterval(SessionState.interruptGrace + 1)
-        #expect(Store.persistable(s, now: grace).terminal?.waveJWT == nil)
-        s.interruptedAt = t0
-        #expect(Store.persistable(s, now: grace).terminal?.waveJWT == "secret")
         // Ended by the user on the board: dropped at once.
         s.dismissedAt = t0
         #expect(Store.persistable(s, now: t0).terminal?.waveJWT == nil)
     }
 
-    @Test func deadProcessMarksInterruptedAndTheAgentClearsIt() {
+    @Test func deadProcessLeavesFinishedSessionsAndDropsDeadWaits() {
         var s = SessionState(agent: .claudeCode, sessionId: "x", at: t0)
         s.agentPid = 42
+        // Idle or ended: the card stays what it was; clicking it offers to reopen.
+        #expect(StuckDetector.evaluate(s, now: t0, config: StuckConfig(), isAlive: { _ in false }) == nil)
+        s.status = .ended
+        #expect(StuckDetector.evaluate(s, now: t0, config: StuckConfig(), isAlive: { _ in false }) == nil)
+        // Waiting on the user with nobody left to answer: back to idle.
+        s.status = .needsInput
+        s.needsInputMessage = "Bash: ls"
+        s.needsInputSince = t0
         let out = StuckDetector.evaluate(s, now: t0, config: StuckConfig(), isAlive: { _ in false })!
-        #expect(out.status == .ended && out.interruptedAt == t0)
-        // A late clean exit from the spool is a clean exit.
-        let ended = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "x", at: t0, kind: .sessionEnd), to: out)
-        #expect(ended.interruptedAt == nil)
-        // Resumed: the session goes on and is no longer interrupted.
-        let back = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "x", at: t0, kind: .sessionStart), to: out)
-        #expect(back.status != .ended && back.interruptedAt == nil)
+        #expect(out.status == .idle && out.needsInputMessage == nil && out.needsInputSince == nil && out.unreadSince == t0)
+        #expect(StuckDetector.evaluate(s, now: t0, config: StuckConfig(), isAlive: { _ in true }) == nil)
     }
 
     @Test func resumeCommandPerAgent() {
