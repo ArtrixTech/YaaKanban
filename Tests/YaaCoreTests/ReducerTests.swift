@@ -325,9 +325,28 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         // Looking at the card later does not extend it.
         s.reviewedAt = late
         #expect(Store.persistable(s, now: late).terminal?.waveJWT == nil)
+        // A clean exit keeps it only for the crash grace; an interruption for the whole TTL.
+        s.reviewedAt = nil
+        let grace = t0.addingTimeInterval(SessionState.interruptGrace + 1)
+        #expect(Store.persistable(s, now: grace).terminal?.waveJWT == nil)
+        s.interruptedAt = t0
+        #expect(Store.persistable(s, now: grace).terminal?.waveJWT == "secret")
         // Ended by the user on the board: dropped at once.
         s.dismissedAt = t0
         #expect(Store.persistable(s, now: t0).terminal?.waveJWT == nil)
+    }
+
+    @Test func deadProcessMarksInterruptedAndTheAgentClearsIt() {
+        var s = SessionState(agent: .claudeCode, sessionId: "x", at: t0)
+        s.agentPid = 42
+        let out = StuckDetector.evaluate(s, now: t0, config: StuckConfig(), isAlive: { _ in false })!
+        #expect(out.status == .ended && out.interruptedAt == t0)
+        // A late clean exit from the spool is a clean exit.
+        let ended = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "x", at: t0, kind: .sessionEnd), to: out)
+        #expect(ended.interruptedAt == nil)
+        // Resumed: the session goes on and is no longer interrupted.
+        let back = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "x", at: t0, kind: .sessionStart), to: out)
+        #expect(back.status != .ended && back.interruptedAt == nil)
     }
 
     @Test func resumeCommandPerAgent() {

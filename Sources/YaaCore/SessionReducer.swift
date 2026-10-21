@@ -14,6 +14,8 @@ public enum SessionReducer {
             let started = s.status == .running && old.status != .running && old.status != .stuck
             if newTurn || wants || started { s.dismissedAt = nil }
         }
+        // An interruption is undone by the agent itself: a clean exit, or the session going on.
+        if case .sessionEnd = e.kind { s.interruptedAt = nil } else if s.status != .ended { s.interruptedAt = nil }
         // Waiting on the user: since when, kept while it goes on waiting.
         if s.status == .needsInput {
             if existing?.status != .needsInput || s.needsInputSince == nil { s.needsInputSince = e.at }

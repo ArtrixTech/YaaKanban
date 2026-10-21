@@ -144,14 +144,22 @@ struct TerminalJumper {
         NSPasteboard.general.setString(text, forType: .string)
     }
 
+    static let termProgramIds: [String: String] = [
+        "iTerm.app": "com.googlecode.iterm2", "Apple_Terminal": "com.apple.Terminal",
+        "ghostty": "com.mitchellh.ghostty", "WezTerm": "com.github.wez.wezterm", "vscode": "com.microsoft.VSCode", "cursor": "com.todesktop.230313mzl4w4u92",
+        "waveterm": waveBundleId,
+    ]
+
     static func app(forTermProgram p: String) -> NSRunningApplication? {
-        let ids: [String: String] = [
-            "iTerm.app": "com.googlecode.iterm2", "Apple_Terminal": "com.apple.Terminal",
-            "ghostty": "com.mitchellh.ghostty", "WezTerm": "com.github.wez.wezterm", "vscode": "com.microsoft.VSCode", "cursor": "com.todesktop.230313mzl4w4u92",
-            "waveterm": waveBundleId,
-        ]
-        guard let id = ids[p] else { return nil }
+        guard let id = termProgramIds[p] else { return nil }
         return NSRunningApplication.runningApplications(withBundleIdentifier: id).first
+    }
+
+    /// The app a session's terminal belongs to, from what its hooks recorded.
+    static func bundleId(of t: TerminalContext?) -> String? {
+        guard let t else { return nil }
+        if t.isWave { return waveBundleId }
+        return t.termProgram.flatMap { termProgramIds[$0] }
     }
 }
 

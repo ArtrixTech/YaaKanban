@@ -1,8 +1,28 @@
 # Devlog
 
-## feat(board): keep ended sessions and resume them in their terminal
+## fix(board): only interrupted sessions stay on the panel
 
 `pending` | 2026-10-21
+
+- **Changes**:
+  - New `SessionState.interruptedAt`. It is set in two cases:
+    - `StuckDetector` sees an idle or needs-input session's process die without SessionEnd.
+    - `AppModel.terminalQuit` (`NSWorkspace.didTerminateApplicationNotification`) sees the terminal app of a session that ended within `interruptGrace` (60 s) quit.
+  - The reducer clears it on SessionEnd, and whenever the session leaves `ended`.
+  - `isLive`: an ended card shows only when it is interrupted. The pid-superseded rule is removed.
+  - Wave JWT for a clean exit: dropped after the 60 s grace, not 24 h.
+  - `TerminalJumper.bundleId(of:)` and `termProgramIds` were factored out.
+- **Reason**: a1e9ea5 showed every ended session (15 cards, mostly normal `/exit`), which the user did not want. A Wave crash makes agents send a clean SessionEnd on SIGHUP. What tells it apart is the terminal app quitting right after: sessions ended at 15:49:03–07, and Wave was back at 15:49:14.
+- **User feedback**: "已结束的卡片现在会显示在悬浮窗 这是预期外的。"
+- **Result**: `make test` passes (74).
+- **Notes**:
+  - Older sessions have no `interruptedAt`, so today's crash cards stay hidden. They can still be resumed from the main window.
+  - Not verified live: that NSWorkspace posts didTerminate for a Wave crash or force quit (AppKit documents it for any app exit).
+
+
+## feat(board): keep ended sessions and resume them in their terminal
+
+`a1e9ea5` | 2026-10-21
 
 - **Changes**:
   - `AppModel.isLive`: `ended` cards linger like reviewed idle ones (`idleVisibleSeconds`, 24 h default). They hide when they are sub-agents, or when a top-level session with the same `agentPid` started at or after their last event (`/clear`, `/new`).

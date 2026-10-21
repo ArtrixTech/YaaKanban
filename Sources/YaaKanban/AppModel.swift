@@ -33,7 +33,7 @@ final class AppModel {
 
     // MARK: Derived views
 
-    /// Active sessions for the floating panel; idle and ended ones only for a while (24 h by default).
+    /// Active sessions for the floating panel; idle and interrupted ones only for a while (24 h by default).
     /// Sub-agents of a session on the board show inside its card instead.
     var activeSessions: [SessionState] {
         let now = Date()
@@ -52,16 +52,11 @@ final class AppModel {
     private func isLive(_ s: SessionState, now: Date) -> Bool {
         if s.dismissedAt != nil { return false }
         switch s.status {
-        // An ended session lingers like a reviewed one so it can be resumed (e.g. after its
-        // terminal crashed), unless the same process went on with a new session (`/clear`, `/new`).
+        // A clean exit leaves; a crash (process died, terminal quit) lingers like a reviewed
+        // card so the work can be resumed.
         case .ended:
-            if s.parentId != nil || now.timeIntervalSince(s.quietSince) >= settings.idleVisibleSeconds { return false }
-            // One process may host sibling sessions (OpenCode, the Codex app): only a top-level
-            // session started after this one's last event replaced it.
-            guard let pid = s.agentPid else { return true }
-            return !sessions.values.contains {
-                $0.agentPid == pid && $0.id != s.id && $0.parentId == nil && $0.startedAt >= s.lastEventAt
-            }
+            return s.interruptedAt != nil && s.parentId == nil
+                && now.timeIntervalSince(s.quietSince) < settings.idleVisibleSeconds
         // Unreviewed results stay until looked at; reviewed ones fade out after a while.
         // A sub-agent's result is its parent's business, so it only lingers briefly.
         case .idle:
@@ -145,6 +140,12 @@ final class AppModel {
             self?.handleNotificationAction(key: key, requestId: requestId, action: action)
         }
         notifier.requestAuthorization()
+
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didTerminateApplicationNotification,
+                                                          object: nil, queue: .main) { [weak self] n in
+            let id = (n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier
+            Task { @MainActor in if let id { self?.terminalQuit(bundleId: id) } }
+        }
 
         timers.append(Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
@@ -270,6 +271,21 @@ final class AppModel {
                     return out
                 }
                 return StuckDetector.evaluate(s, now: now, config: cfg, isAlive: ProcessUtil.isAlive)
+            }
+        }
+    }
+
+    /// A terminal app quit (often a crash): its agents got a hangup and reported a clean exit just
+    /// before. Those sessions were interrupted, not finished.
+    private func terminalQuit(bundleId: String) {
+        let now = Date()
+        for s in sessions.values where s.status == .ended && s.interruptedAt == nil
+            && TerminalJumper.bundleId(of: s.terminal) == bundleId
+            && now.timeIntervalSince(s.lastEventAt) < SessionState.interruptGrace {
+            update(s.id, alert: false) { s in
+                guard var s else { return nil }
+                s.interruptedAt = now
+                return s
             }
         }
     }

@@ -28,6 +28,7 @@ public enum StuckDetector {
         case .idle, .needsInput:
             guard processGone else { return nil }
             out.status = .ended
+            out.interruptedAt = now
             out.pendingPermission = nil
             return out
         case .running, .stuck:
