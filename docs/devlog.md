@@ -1,8 +1,23 @@
 # Devlog
 
-## fix(hooks): bound hook time, bind approvals to the shown request, keep Codex indexes
+## feat(pi): session titles from /name or an auto title; ended cards show ended
 
 `pending` | 2026-10-21
+
+- **Changes**:
+  - New `AgentEvent.Kind.titleChanged` (yaak schema event `title`) sets `peek.title`; handled like a snapshot, so it neither counts as activity nor revives a dismissed card.
+  - pi extension: forwards `pi.getSessionName()` on `session_start` and every `session_info_changed`. On the first typed prompt of an unnamed session (not `/…`, not extension input), fires a non-awaited `ctx.modelRegistry.streamSimple` call on the session's model (no reasoning, 64 tokens, 30 s timeout) and `pi.setSessionName()`s the result unless the user named it meanwhile.
+  - Settings › "pi 兼容性" › "自动生成会话标题", default on. Stored as the absence of `<YAAK_HOME>/pi-auto-title-off` (`Paths.piAutoTitleOff`) so the extension can read it; the extension resolves YAAK_HOME the same way `Paths` does.
+  - `SessionState.display`: an idle session the user ended shows `.ended`, not `.done` ("已验收").
+- **Reason**: pi 1.3.0 never names sessions itself (only `/name`, `--name`, `setSessionName`); our extension also never forwarded the name, so cards fell back to the first prompt. Ending a finished card cleared `unreadSince` and so read as reviewed.
+- **User feedback**: "pi里面现在似乎不会自动拿到标题…" → "1和2都做，2放到设置里面关于pi的兼容性可选项。默认开。" / "如果是待验收状态，点了x之后（悬浮窗）依然会回到已验收而不是结束状态"
+- **Process**: checked pi's session-manager/agent-session source (setSessionName emits session_info_changed to extensions; session_info is buffered until the file is first flushed). Ran the generated extension under bun with a stubbed pi/ctx and temp HOME/YAAK_HOME: one model call, `/name x` skipped, quotes and trailing 。 stripped, `title` event spooled; with the off file no call. New tests `piNameBecomesTitleWithoutCountingAsActivity`, `endedFinishedSessionShowsEndedNotReviewed`.
+- **Result**: `make test` 71/71. Needs `yaak install --agent pi` (or 更新 in settings) to take effect; not run against a real pi model.
+- **Notes**: The title call runs alongside the first turn and is billed to the user's pi provider. Existing named sessions get their title on the next session_start. The toggle is read at each session's first prompt, so it applies without reinstalling.
+
+## fix(hooks): bound hook time, bind approvals to the shown request, keep Codex indexes
+
+`a75c263` | 2026-10-21
 
 - **Changes**:
   - Hook deadline: `yaak hook` reads stdin via `UnixSocket.readAll` (poll, 60 ms from process start, 16 MiB cap) instead of `readDataToEndOfFile`, and `UnixSocket.send` takes a `deadline` (90 ms for hooks) enforced per write via SO_SNDTIMEO. Missed sends are spooled. The server now drops lines without a trailing newline, so a line cut off at the deadline is never both ingested and spooled.

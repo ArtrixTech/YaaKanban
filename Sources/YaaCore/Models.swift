@@ -114,6 +114,8 @@ public struct AgentEvent: Equatable, Sendable {
         /// Status reported by a session file. Drives sessions without hooks; for hooked ones only an
         /// `.idle` newer than the last hook event counts (an interrupt fires no Stop hook).
         case statusSnapshot(SessionStatus)
+        /// The agent's own name for the session (pi's `/name` or an auto title); nil clears it.
+        case titleChanged(String?)
     }
 
     public var agent: AgentKind
@@ -247,7 +249,8 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
         case .running: .running
         case .needsInput: .needsInput
         case .stuck: .stuck
-        case .idle: unreadSince == nil ? .done : .review
+        // Ended from the panel: finished as far as the user is concerned, not merely reviewed.
+        case .idle: dismissedAt != nil ? .ended : unreadSince == nil ? .done : .review
         case .ended: .ended
         }
     }

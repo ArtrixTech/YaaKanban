@@ -137,6 +137,7 @@ public enum Normalizer {
         case "input_answered": return [ev(.inputAnswered)]
         case "turn_end": return [ev(.turnEnd(lastMessage: p["message"]?.string))]
         case "session_end": return [ev(.sessionEnd)]
+        case "title": return [ev(.titleChanged(p["title"]?.string))]
         default: return []
         }
     }

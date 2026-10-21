@@ -45,6 +45,13 @@ public enum SessionReducer {
             s.status = status
             return s
         }
+        // Metadata, not activity: it must not reset the stuck clock or bring a dismissed card back.
+        if case .titleChanged(let title) = e.kind {
+            var peek = s.peek ?? TranscriptPeek()
+            peek.title = title.flatMap { TranscriptPeek.clip($0) }
+            s.peek = peek == TranscriptPeek() ? nil : peek
+            return s
+        }
         s.lastEventAt = max(s.lastEventAt, e.at)
         if let v = e.cwd { s.cwd = v }
         if let v = e.transcriptPath { s.transcriptPath = v }
@@ -134,7 +141,7 @@ public enum SessionReducer {
                 s.tools[i].endedAt = e.at
             }
 
-        case .statusSnapshot:
+        case .statusSnapshot, .titleChanged:
             break
         }
         return s

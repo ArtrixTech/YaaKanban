@@ -21,6 +21,9 @@ public struct Paths: Sendable {
     public var socket: URL { base.appendingPathComponent("yaak.sock") }
     public var spool: URL { base.appendingPathComponent("spool") }
     public var database: URL { base.appendingPathComponent("history.sqlite") }
+    /// Present when the user turned off pi auto titles; the pi extension checks it on each new session.
+    public var piAutoTitleOff: URL { base.appendingPathComponent(Self.piAutoTitleOffName) }
+    public static let piAutoTitleOffName = "pi-auto-title-off"
 }
 
 /// One line of JSON from the CLI to the app.

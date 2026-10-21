@@ -140,6 +140,18 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(done.status == .idle)
         #expect(done.turns.last?.lastMessage == "done")
     }
+
+    @Test func piNameBecomesTitleWithoutCountingAsActivity() {
+        let s = fold([pi("prompt", ["prompt": .string("fix the login bug please")])])
+        #expect(s.title == "fix the login bug please")
+        let named = fold([pi("title", ["title": .string("Login fix")], at: 400)], into: s)
+        #expect(named.title == "Login fix")
+        #expect(named.lastEventAt == s.lastEventAt)
+        #expect(named.status == .running)
+        let cleared = fold([pi("title", ["title": .null], at: 401)], into: named)
+        #expect(cleared.title == "fix the login bug please")
+        #expect(cleared.peek == nil)
+    }
 }
 
 @Suite struct Stuck {
@@ -599,6 +611,18 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(s.dismissedAt != nil)
         s = SessionReducer.apply(ev(.statusSnapshot(.running), 6), to: s)
         #expect(s.dismissedAt == nil)
+    }
+
+    @Test func endedFinishedSessionShowsEndedNotReviewed() {
+        var s = SessionReducer.apply(ev(.promptSubmitted("go"), 0), to: nil)
+        s = SessionReducer.apply(ev(.turnEnd(lastMessage: "ok"), 1), to: s)
+        #expect(s.display == .review)
+        s.dismissedAt = t0
+        s.unreadSince = nil
+        #expect(s.display == .ended)
+        // A title arriving later does not bring it back.
+        s = SessionReducer.apply(ev(.titleChanged("Named"), 2), to: s)
+        #expect(s.dismissedAt != nil && s.display == .ended)
     }
 }
 

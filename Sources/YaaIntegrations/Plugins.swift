@@ -123,6 +123,9 @@ public struct PiIntegration: PluginFileIntegration {
         """
         \(PluginSource.marker) — `yaak uninstall --agent pi` removes this file.
         import { spawn } from "node:child_process"
+        import { existsSync } from "node:fs"
+        import { homedir } from "node:os"
+        import { join } from "node:path"
 
         const YAAK = \(PluginSource.jsString(yaak))
 
@@ -148,6 +151,29 @@ public struct PiIntegration: PluginFileIntegration {
           chain = chain.then(() => run(event, body))
         }
 
+        // pi names a session only through /name. Unless the user turned it off in YaaKanban's
+        // settings (which leaves this file behind), name an unnamed session after its first prompt.
+        const yaakHome = process.env.YAAK_HOME ?? join(homedir(), "Library/Application Support/YaaKanban")
+        const autoTitleOff = join(yaakHome, "\(Paths.piAutoTitleOffName)")
+        const TITLE_PROMPT = "Write a title of at most 6 words for a coding session that starts with the request below. " +
+          "Use the request's language. Reply with the title only, no quotes or punctuation at the end."
+
+        async function autoTitle(pi: any, ctx: any, prompt: string) {
+          try {
+            if (existsSync(autoTitleOff) || !ctx.model || pi.getSessionName()) return
+            const signal = AbortSignal.timeout(30000)
+            const reply = await ctx.modelRegistry.streamSimple(ctx.model, {
+              systemPrompt: TITLE_PROMPT,
+              messages: [{ role: "user", content: prompt.slice(0, 2000), timestamp: Date.now() }],
+            }, { maxTokens: 64, signal }).result()
+            if (reply?.stopReason === "error" || reply?.stopReason === "aborted") return
+            const text = (reply?.content ?? []).filter((b: any) => b?.type === "text").map((b: any) => b.text).join("")
+            const title = text.split("\\n").map((l: string) => l.trim()).find(Boolean)?.replace(/^["'“”「『]+|["'“”」』。.]+$/g, "")
+            // The user may have named it with /name meanwhile.
+            if (title && !pi.getSessionName()) pi.setSessionName(title.slice(0, 80))
+          } catch {}
+        }
+
         function lastText(messages: any[]): string | undefined {
           for (let i = (messages?.length ?? 0) - 1; i >= 0; i--) {
             const m = messages[i]
@@ -166,8 +192,23 @@ public struct PiIntegration: PluginFileIntegration {
             return { session_id: file ?? ctx?.sessionManager?.getSessionId?.() ?? String(process.pid),
                      transcript_path: file, cwd: process.cwd() }
           }
-          pi.on("session_start", async (_e: any, ctx: any) => send("session_start", base(ctx)))
-          pi.on("input", async (e: any, ctx: any) => { send("prompt", { ...base(ctx), prompt: e.text }); return { action: "continue" } })
+          let titled = false
+          const sendTitle = (ctx: any, name: string | undefined) => send("title", { ...base(ctx), title: name ?? null })
+          pi.on("session_start", async (_e: any, ctx: any) => {
+            send("session_start", base(ctx))
+            titled = !!pi.getSessionName()
+            if (titled) sendTitle(ctx, pi.getSessionName())
+          })
+          pi.on("session_info_changed", async (e: any, ctx: any) => { titled = true; sendTitle(ctx, e.name) })
+          pi.on("input", async (e: any, ctx: any) => {
+            send("prompt", { ...base(ctx), prompt: e.text })
+            // Titled once per session, from the first prompt the user typed; never awaited.
+            if (!titled && e.source !== "extension" && e.text?.trim() && !e.text.startsWith("/")) {
+              titled = true
+              void autoTitle(pi, ctx, e.text)
+            }
+            return { action: "continue" }
+          })
           pi.on("tool_execution_start", async (e: any, ctx: any) =>
             send("tool_start", { ...base(ctx), id: e.toolCallId, tool: e.toolName, input: e.args }))
           pi.on("tool_execution_end", async (e: any, ctx: any) =>

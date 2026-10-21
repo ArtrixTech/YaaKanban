@@ -605,6 +605,17 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            Section {
+                Toggle(isOn: $settings.piAutoTitle) {
+                    SettingLabel("自动生成会话标题", symbol: "character.cursor.ibeam", tint: .purple)
+                }
+            } header: {
+                Text("pi 兼容性")
+            } footer: {
+                Text("pi 只有 /name 才会给会话起名。开启后，未命名的会话会在第一条消息时用当前模型生成一个短标题（每个会话多一次很小的模型调用），并写入 pi 的会话名，/resume 里也能看到。需要安装或更新 pi 接入后生效。")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             Section("通用") {
                 Toggle(isOn: $launchAtLogin) { SettingLabel("登录时启动", symbol: "power", tint: .gray) }
                     .onChange(of: launchAtLogin) { _, on in

@@ -30,6 +30,18 @@ final class Preferences {
     var manualOrder: [String] { didSet { d.set(Array(manualOrder.prefix(500)), forKey: "manualOrder") } }
     var suppressWhenWaveFrontmost: Bool { didSet { d.set(suppressWhenWaveFrontmost, forKey: "suppressWhenWaveFrontmost") } }
     var waveTabSwitching: Bool { didSet { d.set(waveTabSwitching, forKey: "waveTabJump") } }
+    /// Lets the pi extension name unnamed sessions with the session's model. Kept as a file the
+    /// extension can see (`Paths.piAutoTitleOff`), not in UserDefaults.
+    var piAutoTitle: Bool {
+        didSet {
+            let off = Paths().piAutoTitleOff
+            if piAutoTitle { try? FileManager.default.removeItem(at: off) }
+            else {
+                try? FileManager.default.createDirectory(at: off.deletingLastPathComponent(), withIntermediateDirectories: true)
+                FileManager.default.createFile(atPath: off.path, contents: nil)
+            }
+        }
+    }
 
     init() {
         d.register(defaults: [
@@ -56,6 +68,7 @@ final class Preferences {
         manualOrder = d.stringArray(forKey: "manualOrder") ?? []
         suppressWhenWaveFrontmost = d.bool(forKey: "suppressWhenWaveFrontmost")
         waveTabSwitching = d.bool(forKey: "waveTabJump")
+        piAutoTitle = !FileManager.default.fileExists(atPath: Paths().piAutoTitleOff.path)
     }
 
     var stuckConfig: StuckConfig { StuckConfig(silence: stuckMinutes * 60, toolDuration: stuckMinutes * 60) }
