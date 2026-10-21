@@ -1,8 +1,20 @@
 # Devlog
 
-## fix(panel): readable over light backgrounds
+## feat(cards): opening a reviewed session restarts its blue clock
 
 `pending` | 2026-10-20
+
+- **Changes**:
+  - `SessionState.reviewedAt` is set each time the user opens a session (click, jump, "标记已验收").
+  - `quietSince`, the later of the last event and the last look, is what blue tint and retention now count from. Opening a blue card clears it, and it turns blue again only after "开始变蓝" has passed once more.
+  - The settings footer says the clock restarts on each look.
+- **Reason**: "验收很久没看变蓝的效果，需要加上，如果用户这次点进去了，重置计时器（这相当于用户明确看了但是没有继续给反馈）。"
+- **Process**: `markRead` used to stop at the first look, since it only cleared `unreadSince`. Now every look is recorded.
+- **Result**: `make test` 65/65 (new `lookingAgainRestartsTheBlueClock`). Installed.
+
+## fix(panel): readable over light backgrounds
+
+`a328e83` | 2026-10-20
 
 - **Changes**:
   - The floating panel lays its own window colour over the blur: 60% in Dark, 55% in Light. It follows appearance changes.

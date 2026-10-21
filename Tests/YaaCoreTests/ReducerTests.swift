@@ -660,4 +660,19 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         // Turning blue no earlier than the card leaves: never blue.
         #expect(Attention.staleness(s, linger: 30 * 60, now: end.addingTimeInterval(20 * 60), after: 30 * 60) == 0)
     }
+
+    @Test func lookingAgainRestartsTheBlueClock() {
+        var s = fold([claude("UserPromptSubmit", ["prompt": .string("go")]), claude("Stop", at: 1)])
+        s.unreadSince = nil
+        let end = s.lastEventAt, linger: TimeInterval = 8 * 3600
+        #expect(Attention.staleness(s, linger: linger, now: end.addingTimeInterval(245 * 60)) > 0.99)
+        // Opened again at the peak: back to plain, and the curve runs from then.
+        s.reviewedAt = end.addingTimeInterval(245 * 60)
+        #expect(s.quietSince == s.reviewedAt)
+        #expect(Attention.staleness(s, linger: linger, now: end.addingTimeInterval(250 * 60)) == 0)
+        #expect(abs(Attention.staleness(s, linger: linger, now: end.addingTimeInterval(490 * 60)) - 1) < 1e-9)
+        // A look before the last event does not move it back.
+        s.reviewedAt = end.addingTimeInterval(-60)
+        #expect(s.quietSince == end)
+    }
 }

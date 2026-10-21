@@ -198,6 +198,8 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var hooked: Bool
     /// Set when a turn finishes; cleared once the user looks at the session or sends a new prompt.
     public var unreadSince: Date?
+    /// When the user last opened the session. Looking again restarts the blue "left alone" clock.
+    public var reviewedAt: Date?
     /// What the transcript says, for sessions whose turns we did not see through hooks.
     public var peek: TranscriptPeek?
     /// Token and tool totals from the transcript, when it can be read.
@@ -252,6 +254,9 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
 
     /// The agent's latest reply, from hooks or the transcript.
     public var lastReply: String? { currentTurn?.lastMessage ?? peek?.lastReply }
+
+    /// Since when nothing has happened: the last event, or the user looking later.
+    public var quietSince: Date { max(lastEventAt, reviewedAt ?? lastEventAt) }
 }
 
 /// How a card asks for a second look, from how long it has been sitting.
@@ -270,12 +275,12 @@ public enum Attention {
         return now.timeIntervalSince(since) >= after
     }
 
-    /// 0 to 1: how blue a reviewed, finished turn is. Rises from `after` to the middle of
-    /// `after` and `linger` (when the card leaves the board), then falls back to 0.
+    /// 0 to 1: how blue a reviewed, finished turn is, counted from `quietSince`. Rises from `after`
+    /// to the middle of `after` and `linger` (when the card leaves the board), then falls back to 0.
     public static func staleness(_ s: SessionState, linger: TimeInterval, now: Date,
                                  after: TimeInterval = staleAfter) -> Double {
         guard s.display == .done, linger > after else { return 0 }
-        let t = now.timeIntervalSince(s.lastEventAt)
+        let t = now.timeIntervalSince(s.quietSince)
         let peak = (after + linger) / 2
         let x = t < peak ? (t - after) / (peak - after) : (linger - t) / (linger - peak)
         let c = min(1, max(0, x))

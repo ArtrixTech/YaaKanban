@@ -57,7 +57,7 @@ final class AppModel {
         // A sub-agent's result is its parent's business, so it only lingers briefly.
         case .idle:
             if s.parentId != nil { return now.timeIntervalSince(s.lastEventAt) < Self.subagentLinger }
-            return s.unreadSince != nil || now.timeIntervalSince(s.lastEventAt) < settings.idleVisibleSeconds
+            return s.unreadSince != nil || now.timeIntervalSince(s.quietSince) < settings.idleVisibleSeconds
         default: return true
         }
     }
@@ -355,12 +355,13 @@ final class AppModel {
 
     // MARK: User actions
 
-    /// The user looked at the result of a finished turn.
+    /// The user looked at the session: a finished turn counts as reviewed, and the clocks for
+    /// turning blue and leaving the board start again.
     func markRead(_ key: String) {
-        guard sessions[key]?.unreadSince != nil else { return }
         update(key, alert: false) { s in
             guard var s else { return nil }
             s.unreadSince = nil
+            s.reviewedAt = Date()
             return s
         }
     }
