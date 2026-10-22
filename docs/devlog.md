@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(panel): flash a finished turn left unreviewed at the Mac
+## fix(rail): flash slim cards like the full ones
 
 `pending` | 2026-10-22
+
+- **Changes**: the slim card used plain `.card`, so neither the waiting-on-you nor the review flash reached it; it now uses `sessionCard(_:hover:radius:stale:)` with radius 6 and `stale: false`. `SessionSurface`, `Flash` and `Stale` take the corner radius. Spec notes the slim rail flashes too.
+- **Reason**: 56a5e4e said both rails flash; only the folded (non-slim) rail did.
+- **User feedback**: "超窄版本还没有闪。"
+- **Process**: `make test`; `make install`.
+- **Result**: slim cards pulse in their status tint when the full card would.
+- **Notes**: the blue left-alone wash stays off on slim cards (color is only an accent there); pass `stale: true` to change that.
+
+## feat(panel): flash a finished turn left unreviewed at the Mac
+
+`56a5e4e` | 2026-10-22
 
 - **Changes**: `Attention.reviewFlashes(_:presentSince:now:after:)` (default `reviewFlashAfter` 10 min): a `.review` card flashes once `now - max(unreadSince, presentSince) >= after`, never while away. `AppModel.presentSince` (launch time, nil while `awaySince` is set, the absence's end in `endAway`). `SessionSurface` ticks and flashes `.review` cards with the existing `Flash` in the green tint (both the panel and the slim rail use it). Settings 会话提醒: toggle 待验收久未查看时闪烁 (on) + 1–60 min stepper; footer notes only time at the Mac counts. Test `unreviewedTurnFlashesAfterTenMinutesAtTheMac`. Spec updated.
 - **Reason**: a finished turn sitting green was easy to overlook while working on something else.

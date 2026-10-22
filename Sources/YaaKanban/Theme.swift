@@ -171,9 +171,10 @@ extension View {
 
 extension View {
     /// A session's card surface: `card`, plus a flash while it has waited on the user for a while
-    /// unclicked or sat unreviewed while the user is at the Mac, and a blue tint that comes and goes on a reviewed turn nobody followed up.
-    func sessionCard(_ session: SessionState, hover: Bool) -> some View {
-        modifier(SessionSurface(session: session, hover: hover))
+    /// unclicked or sat unreviewed while the user is at the Mac, and (unless `stale` is false) a blue
+    /// tint that comes and goes on a reviewed turn nobody followed up.
+    func sessionCard(_ session: SessionState, hover: Bool, radius: CGFloat = 12, stale: Bool = true) -> some View {
+        modifier(SessionSurface(session: session, hover: hover, radius: radius, stale: stale))
     }
 }
 
@@ -181,26 +182,28 @@ private struct SessionSurface: ViewModifier {
     @Environment(AppModel.self) private var model
     let session: SessionState
     let hover: Bool
+    let radius: CGFloat
+    let stale: Bool
 
     func body(content: Content) -> some View {
-        let st = session.display
+        let st = session.display, p = model.settings
+        let stale = stale && p.staleTintEnabled
         content
-            .card(st, hover: hover)
+            .card(st, hover: hover, radius: radius)
             .background {
                 // Only the sessions that can need it tick.
-                let p = model.settings
                 if (st == .needsInput && p.flashEnabled) || (st == .review && p.reviewFlashEnabled)
-                    || (st == .done && p.staleTintEnabled) {
+                    || (st == .done && stale) {
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
                         let flash = st == .needsInput ? Attention.flashes(
                             session, acknowledged: model.acknowledged[session.id], now: ctx.date, after: p.flashAfterSeconds)
                             : st == .review && Attention.reviewFlashes(
                                 session, presentSince: model.presentSince, now: ctx.date, after: p.reviewFlashMinutes * 60)
-                        let blue = st == .done ? Attention.staleness(
+                        let blue = st == .done && stale ? Attention.staleness(
                             session, linger: p.idleVisibleSeconds, now: ctx.date, after: p.staleAfterMinutes * 60) : 0
                         Color.clear
-                            .overlay { if flash { Flash(tint: st.tint) } }
-                            .overlay { if blue > 0 { Stale(amount: blue) } }
+                            .overlay { if flash { Flash(tint: st.tint, radius: radius) } }
+                            .overlay { if blue > 0 { Stale(amount: blue, radius: radius) } }
                             .allowsHitTesting(false)
                     }
                 }
@@ -211,9 +214,10 @@ private struct SessionSurface: ViewModifier {
 /// Pulsing tint and edge, under the content.
 private struct Flash: View {
     let tint: Color
+    let radius: CGFloat
     @State private var on = false
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         shape.fill(tint.opacity(on ? 0.28 : 0.04))
             .overlay(shape.strokeBorder(tint.opacity(on ? 0.9 : 0.3), lineWidth: 1.5))
             .onAppear { withAnimation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true)) { on = true } }
@@ -223,8 +227,9 @@ private struct Flash: View {
 /// Blue wash, from nothing to clearly blue at `amount` 1.
 private struct Stale: View {
     let amount: Double
+    let radius: CGFloat
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         shape.fill(Color.blue.opacity(0.16 * amount))
             .overlay(shape.strokeBorder(Color.blue.opacity(0.45 * amount), lineWidth: 1))
     }

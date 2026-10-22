@@ -136,7 +136,8 @@ struct NarrowSessionCard: View {
         .padding(.vertical, 5).padding(.horizontal, 1)
         .frame(maxWidth: .infinity)
         .frame(height: height ?? 60)
-        .card(st, hover: hover, radius: 6)
+        // Flashes like the full card; no blue wash, color stays an accent here.
+        .sessionCard(session, hover: hover, radius: 6, stale: false)
     }
 
     /// The card's clock in at most three characters: 42s, 7m, 2h, 3d.
