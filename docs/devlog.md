@@ -1,8 +1,18 @@
 # Devlog
 
-## fix(rail): flash slim cards like the full ones
+## feat(panel): show the leverage direction arrow on the panel
 
 `pending` | 2026-10-22
+
+- **Changes**: RecentFigures' unfolded branch puts the slim rail's direction arrow (up/level/down from `direction(trend)`) beside the 杠杆 caption; spec notes it.
+- **Reason**: the expanded panel showed the curve but not the at-a-glance direction.
+- **User feedback**: "需要给展开后的悬浮窗增加杠杆的趋势显示" / "趋势的意思是上中下箭头"
+- **Result**: arrow at 9 pt bold in the direction tint; figure width and `RecentFigures.height` unchanged.
+- **Notes**: placed by the caption, not the value, so a wide value (e.g. 12.3×) keeps its 70 pt column.
+
+## fix(rail): flash slim cards like the full ones
+
+`94e7bf3` | 2026-10-22
 
 - **Changes**: the slim card used plain `.card`, so neither the waiting-on-you nor the review flash reached it; it now uses `sessionCard(_:hover:radius:stale:)` with radius 6 and `stale: false`. `SessionSurface`, `Flash` and `Stale` take the corner radius. Spec notes the slim rail flashes too.
 - **Reason**: 56a5e4e said both rails flash; only the folded (non-slim) rail did.

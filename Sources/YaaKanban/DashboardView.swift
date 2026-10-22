@@ -812,7 +812,13 @@ struct RecentFigures: View {
                 } else {
                     HStack(alignment: .center, spacing: 0) {
                         VStack(alignment: .leading, spacing: 0) {
-                            caption("杠杆")
+                            // The same arrow as the slim rail's, beside the caption so the figure keeps its room.
+                            HStack(spacing: 3) {
+                                caption("杠杆")
+                                if let (symbol, tint) = Self.direction(trend) {
+                                    Image(systemName: symbol).font(.system(size: 9, weight: .bold)).foregroundStyle(tint)
+                                }
+                            }
                             value(leverage, size: 24)
                         }
                         .frame(width: 70, alignment: .leading)
