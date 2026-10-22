@@ -13,6 +13,9 @@ final class Preferences {
     /// A card waiting on the user flashes once it has waited this long unclicked.
     var flashEnabled: Bool { didSet { d.set(flashEnabled, forKey: "flashEnabled") } }
     var flashAfterSeconds: Double { didSet { d.set(flashAfterSeconds, forKey: "flashAfterSeconds") } }
+    /// A finished turn left unreviewed flashes once the user has been at the Mac this long without opening it.
+    var reviewFlashEnabled: Bool { didSet { d.set(reviewFlashEnabled, forKey: "reviewFlashEnabled") } }
+    var reviewFlashMinutes: Double { didSet { d.set(reviewFlashMinutes, forKey: "reviewFlashMinutes") } }
     /// A reviewed turn left alone turns blue from this long after it ended (see `Attention.staleness`).
     var staleTintEnabled: Bool { didSet { d.set(staleTintEnabled, forKey: "staleTintEnabled") } }
     var staleAfterMinutes: Double { didSet { d.set(staleAfterMinutes, forKey: "staleAfterMinutes") } }
@@ -54,6 +57,7 @@ final class Preferences {
         d.register(defaults: [
             "stuckMinutes": 5.0, "approvalTimeout": 20.0, "idleVisibleMinutes": 1440.0, "panelOpacity": 0.95,
             "flashEnabled": true, "flashAfterSeconds": Attention.flashAfter,
+            "reviewFlashEnabled": true, "reviewFlashMinutes": Attention.reviewFlashAfter / 60,
             "staleTintEnabled": true, "staleAfterMinutes": Attention.staleAfter / 60,
             "showPanel": true, "suppressWhenWaveFrontmost": true, "waveTabJump": true,
             "showRecentStats": true, "recentMinutes": 60.0,
@@ -65,6 +69,8 @@ final class Preferences {
         idleVisibleMinutes = Self.retentionChoices.min { abs($0 - stored) < abs($1 - stored) }!
         flashEnabled = d.bool(forKey: "flashEnabled")
         flashAfterSeconds = d.double(forKey: "flashAfterSeconds")
+        reviewFlashEnabled = d.bool(forKey: "reviewFlashEnabled")
+        reviewFlashMinutes = d.double(forKey: "reviewFlashMinutes")
         staleTintEnabled = d.bool(forKey: "staleTintEnabled")
         staleAfterMinutes = d.double(forKey: "staleAfterMinutes")
         panelOpacity = d.double(forKey: "panelOpacity")

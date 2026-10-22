@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(panel): add a time axis under the leverage trend
+## feat(panel): flash a finished turn left unreviewed at the Mac
 
 `pending` | 2026-10-22
+
+- **Changes**: `Attention.reviewFlashes(_:presentSince:now:after:)` (default `reviewFlashAfter` 10 min): a `.review` card flashes once `now - max(unreadSince, presentSince) >= after`, never while away. `AppModel.presentSince` (launch time, nil while `awaySince` is set, the absence's end in `endAway`). `SessionSurface` ticks and flashes `.review` cards with the existing `Flash` in the green tint (both the panel and the slim rail use it). Settings 会话提醒: toggle 待验收久未查看时闪烁 (on) + 1–60 min stepper; footer notes only time at the Mac counts. Test `unreviewedTurnFlashesAfterTenMinutesAtTheMac`. Spec updated.
+- **Reason**: a finished turn sitting green was easy to overlook while working on something else.
+- **User feedback**: "新加入一个功能，任务完成待验收之后，绿色如果很久没人点但人在电脑前工作（阈值10min）就开始闪动" / "功能设置里面可以关"
+- **Process**: `make test` (105 pass); `make install`.
+- **Result**: as above; opening the card (markRead clears `unreadSince`) stops it.
+- **Notes**: "at the Mac" reuses the activity tracker's away (no input 2 min, sleep); the clock restarts on return rather than pausing, so a short absence resets it. Not watched on a live 10-minute wait.
+
+## feat(panel): add a time axis under the leverage trend
+
+`8971c8c` | 2026-10-22
 
 - **Changes**: `TimeAxis` under the panel's `Sparkline`: round clock times (step from 5 min to 6 h, at most three, the first ≥ the line's first point, kept off its ends) at the same x as the curve, and 现在 at the right end; `Sparkline` takes the ticks' fractions and draws a faint vertical guide at each. `RecentFigures.ticks(end:span:slices:)` maps time to the line: its first point is one window after the report's start. The fade mask stays on the curve only, so labels on the left are not faded. Spec sentence extended.
 - **Reason**: the curve had no sense of when.

@@ -313,6 +313,17 @@ public enum Attention {
         return now.timeIntervalSince(since) >= after
     }
 
+    /// Default: a finished turn left unreviewed this long while the user is at the Mac flashes.
+    public static let reviewFlashAfter: TimeInterval = 10 * 60
+
+    /// Whether a finished, unreviewed turn should flash: the user has been at the Mac (`presentSince`,
+    /// nil while away) for `after` since it finished, without opening it. Time away does not count.
+    public static func reviewFlashes(_ s: SessionState, presentSince: Date?, now: Date,
+                                     after: TimeInterval = reviewFlashAfter) -> Bool {
+        guard s.display == .review, let since = s.unreadSince, let back = presentSince else { return false }
+        return now.timeIntervalSince(max(since, back)) >= after
+    }
+
     /// 0 to 1: how blue a reviewed, finished turn is, counted from `quietSince`. Rises from `after`
     /// to the middle of `after` and `linger` (when the card leaves the board), then falls back to 0.
     public static func staleness(_ s: SessionState, linger: TimeInterval, now: Date,

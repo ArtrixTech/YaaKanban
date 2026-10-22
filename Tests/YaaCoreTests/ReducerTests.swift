@@ -776,6 +776,24 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(Attention.flashes(s, acknowledged: t0.addingTimeInterval(5), now: t0.addingTimeInterval(60)))
     }
 
+    @Test func unreviewedTurnFlashesAfterTenMinutesAtTheMac() {
+        var s = fold([claude("UserPromptSubmit", ["prompt": .string("go")]), claude("Stop", at: 1)])
+        #expect(s.display == .review)
+        let end = s.lastEventAt
+        func at(_ m: Double, back: Date? = .distantPast) -> Bool {
+            Attention.reviewFlashes(s, presentSince: back, now: end.addingTimeInterval(m * 60))
+        }
+        #expect(!at(9))
+        #expect(at(11))
+        // Away now: no flash. Back 5 minutes ago: the clock starts again from then.
+        #expect(!at(30, back: nil))
+        #expect(!at(30, back: end.addingTimeInterval(25 * 60)))
+        #expect(at(36, back: end.addingTimeInterval(25 * 60)))
+        // Opened: reviewed, no flash.
+        s.unreadSince = nil
+        #expect(!at(30))
+    }
+
     @Test func waitingSinceClearsWhenItMovesOn() {
         let s = fold([claude("UserPromptSubmit", ["prompt": .string("next")], at: 50)], into: waiting())
         #expect(s.status == .running)

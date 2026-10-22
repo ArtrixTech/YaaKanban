@@ -615,6 +615,14 @@ struct SettingsView: View {
                         Stepper("\(Int(settings.flashAfterSeconds)) 秒未点击", value: $settings.flashAfterSeconds, in: 5...600, step: 5)
                     } label: { Text("开始闪烁").padding(.leading, 30) }
                 }
+                Toggle(isOn: $settings.reviewFlashEnabled) {
+                    SettingLabel("待验收久未查看时闪烁", symbol: "light.beacon.max.fill", tint: .green)
+                }
+                if settings.reviewFlashEnabled {
+                    LabeledContent {
+                        Stepper("在电脑前 \(Int(settings.reviewFlashMinutes)) 分钟未查看", value: $settings.reviewFlashMinutes, in: 1...60)
+                    } label: { Text("开始闪烁").padding(.leading, 30) }
+                }
                 Toggle(isOn: $settings.staleTintEnabled) {
                     SettingLabel("看过未跟进的会话变蓝", symbol: "drop.fill", tint: .blue)
                 }
@@ -631,7 +639,7 @@ struct SettingsView: View {
             } header: {
                 Text("会话提醒")
             } footer: {
-                Text("已验收、之后没再运行的会话：从「开始变蓝」起逐渐变蓝，在它与「已验收会话保留」的正中最蓝，到保留时长结束时褪回灰色并离开悬浮窗。时间从会话结束或你最后一次点开它算起，再点开一次就重新计时。")
+                Text("待验收闪烁只计你在电脑前的时间（2 分钟无键鼠操作或睡眠算离开）。已验收、之后没再运行的会话：从「开始变蓝」起逐渐变蓝，在它与「已验收会话保留」的正中最蓝，到保留时长结束时褪回灰色并离开悬浮窗。时间从会话结束或你最后一次点开它算起，再点开一次就重新计时。")
                     .font(.caption).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }

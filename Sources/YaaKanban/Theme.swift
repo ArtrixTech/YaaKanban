@@ -171,7 +171,7 @@ extension View {
 
 extension View {
     /// A session's card surface: `card`, plus a flash while it has waited on the user for a while
-    /// unclicked, and a blue tint that comes and goes on a reviewed turn nobody followed up.
+    /// unclicked or sat unreviewed while the user is at the Mac, and a blue tint that comes and goes on a reviewed turn nobody followed up.
     func sessionCard(_ session: SessionState, hover: Bool) -> some View {
         modifier(SessionSurface(session: session, hover: hover))
     }
@@ -189,10 +189,13 @@ private struct SessionSurface: ViewModifier {
             .background {
                 // Only the sessions that can need it tick.
                 let p = model.settings
-                if (st == .needsInput && p.flashEnabled) || (st == .done && p.staleTintEnabled) {
+                if (st == .needsInput && p.flashEnabled) || (st == .review && p.reviewFlashEnabled)
+                    || (st == .done && p.staleTintEnabled) {
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                        let flash = st == .needsInput && Attention.flashes(
+                        let flash = st == .needsInput ? Attention.flashes(
                             session, acknowledged: model.acknowledged[session.id], now: ctx.date, after: p.flashAfterSeconds)
+                            : st == .review && Attention.reviewFlashes(
+                                session, presentSince: model.presentSince, now: ctx.date, after: p.reviewFlashMinutes * 60)
                         let blue = st == .done ? Attention.staleness(
                             session, linger: p.idleVisibleSeconds, now: ctx.date, after: p.staleAfterMinutes * 60) : 0
                         Color.clear

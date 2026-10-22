@@ -372,7 +372,9 @@ final class AppModel {
     /// Bumped on each recorded row, so the efficiency views redraw.
     private(set) var activityVersion = 0
     /// The user has been away (no input for `awayAfter`, or the Mac asleep) since then.
-    private(set) var awaySince: Date?
+    private(set) var awaySince: Date? { didSet { if awaySince != nil { presentSince = nil } } }
+    /// The user has been at the Mac since then (launch, or the end of the last absence); nil while away.
+    private(set) var presentSince: Date? = Date()
     /// Activity before this was rebuilt from the session history: running time and turns only.
     private(set) var recordedSince: Date?
     static let awayAfter: TimeInterval = 120
@@ -475,6 +477,7 @@ final class AppModel {
     private func endAway(at end: Date) {
         guard let since = awaySince else { return }
         awaySince = nil
+        presentSince = end
         store?.deleteMeta(Self.awayKey)
         if end > since { record([ActivityRow(at: since, session: "", kind: .away, value: end.timeIntervalSince(since))]) }
     }
