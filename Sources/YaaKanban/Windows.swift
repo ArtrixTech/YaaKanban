@@ -64,15 +64,7 @@ struct MenuContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 7) {
-                BrandMark(size: 18)
-                Text("YaaKanban").font(.system(size: 12.5, weight: .bold))
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 8).padding(.top, 2).padding(.bottom, 4)
-            Text(summary).font(.system(size: 11)).foregroundStyle(.secondary)
-                .padding(.horizontal, 8).padding(.bottom, 4)
-            TodayFigures().padding(.horizontal, 8).padding(.bottom, 2)
+            MenuHeader(summary: summary) { done { AppWindows.open(.main) } }
             if let err = model.serverError {
                 Text(err).font(.caption).foregroundStyle(.red).padding(.horizontal, 8)
             }
@@ -98,6 +90,34 @@ struct MenuContent: View {
     private func done(_ action: @escaping () -> Void) {
         NSApp.keyWindow?.close()
         DispatchQueue.main.async(execute: action)
+    }
+}
+
+/// Top of the menu popover: mark, name, counts and today's figures, all one button to the main window.
+struct MenuHeader: View {
+    let summary: String
+    var action: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 7) {
+                    BrandMark(size: 18)
+                    Text("YaaKanban").font(.system(size: 12.5, weight: .bold))
+                    Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+                Text(summary).font(.system(size: 11)).foregroundStyle(.secondary)
+                TodayFigures()
+            }
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(hover ? 0.06 : 0)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hover = $0 }
+        .help("打开主界面")
     }
 }
 
@@ -195,6 +215,7 @@ struct FloatingPanelView: View {
                 RailHeader(edge: edge) { settings.sidebarExpanded = true }
             } else {
                 header
+                if settings.showRecentStats { RecentFigures() }
             }
             list
         }
@@ -597,6 +618,14 @@ struct SettingsView: View {
                     Text("⌥⌘K").font(.system(size: 12, weight: .medium)).padding(.horizontal, 7).padding(.vertical, 2)
                         .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.primary.opacity(0.08)))
                 } label: { SettingLabel("显示 / 隐藏", symbol: "command", tint: .blue) }
+                Toggle(isOn: $settings.showRecentStats) {
+                    SettingLabel("顶部显示近期统计", symbol: "chart.bar.fill", tint: .orange)
+                }
+                if settings.showRecentStats {
+                    Picker(selection: $settings.recentMinutes) {
+                        ForEach(Preferences.recentChoices, id: \.self) { Text(Self.duration($0)).tag($0) }
+                    } label: { Text("统计最近").padding(.leading, 30) }
+                }
                 Toggle(isOn: $settings.slimRail) {
                     VStack(alignment: .leading, spacing: 2) {
                         SettingLabel("超窄侧边栏（实验性）", symbol: "sidebar.right", tint: .teal)

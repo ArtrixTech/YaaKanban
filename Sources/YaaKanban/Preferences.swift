@@ -28,6 +28,9 @@ final class Preferences {
     var panelListHeight: CGFloat? { didSet { d.set(panelListHeight.map(Double.init), forKey: "panelListHeightManual") } }
     /// Width of the unfolded floating panel, set by dragging its side edge.
     var panelWidth: CGFloat { didSet { d.set(Double(panelWidth), forKey: "panelWidth") } }
+    /// The floating panel's strip of figures for the last `recentMinutes`, under its header.
+    var showRecentStats: Bool { didSet { d.set(showRecentStats, forKey: "showRecentStats") } }
+    var recentMinutes: Double { didSet { d.set(recentMinutes, forKey: "recentMinutes") } }
     /// Session ids in the order the user arranged them (see `Board`).
     var manualOrder: [String] { didSet { d.set(Array(manualOrder.prefix(500)), forKey: "manualOrder") } }
     var suppressWhenWaveFrontmost: Bool { didSet { d.set(suppressWhenWaveFrontmost, forKey: "suppressWhenWaveFrontmost") } }
@@ -51,6 +54,7 @@ final class Preferences {
             "flashEnabled": true, "flashAfterSeconds": Attention.flashAfter,
             "staleTintEnabled": true, "staleAfterMinutes": Attention.staleAfter / 60,
             "showPanel": true, "suppressWhenWaveFrontmost": true, "waveTabJump": true,
+            "showRecentStats": true, "recentMinutes": 60.0,
         ])
         stuckMinutes = d.double(forKey: "stuckMinutes")
         approvalTimeout = d.double(forKey: "approvalTimeout")
@@ -68,6 +72,9 @@ final class Preferences {
         slimRail = d.bool(forKey: "slimRail")
         panelListHeight = d.object(forKey: "panelListHeightManual") == nil ? nil : CGFloat(d.double(forKey: "panelListHeightManual"))
         panelWidth = d.object(forKey: "panelWidth") == nil ? 340 : CGFloat(d.double(forKey: "panelWidth"))
+        showRecentStats = d.bool(forKey: "showRecentStats")
+        let recent = d.double(forKey: "recentMinutes")
+        recentMinutes = Self.recentChoices.min { abs($0 - recent) < abs($1 - recent) }!
         manualOrder = d.stringArray(forKey: "manualOrder") ?? []
         suppressWhenWaveFrontmost = d.bool(forKey: "suppressWhenWaveFrontmost")
         waveTabSwitching = d.bool(forKey: "waveTabJump")
@@ -78,6 +85,8 @@ final class Preferences {
     /// How long reviewed sessions stay on the board, in minutes: 4, 8, 12 or 24 hours.
     static let retentionChoices: [Double] = [240, 480, 720, 1440]
     var idleVisibleSeconds: TimeInterval { idleVisibleMinutes * 60 }
+    /// Windows the panel's recent figures can cover, in minutes.
+    static let recentChoices: [Double] = [15, 30, 60, 120, 240]
     /// When a reviewed turn is bluest: halfway between turning blue and leaving the board.
     var stalePeakMinutes: Double { (staleAfterMinutes + idleVisibleMinutes) / 2 }
 }

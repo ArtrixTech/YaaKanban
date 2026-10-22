@@ -1,8 +1,19 @@
 # Devlog
 
+## feat(metrics): show recent figures on the panel, open main from the menu
+
+`pending` | 2026-10-22
+
+- **Changes**: `QuickFigures` (agent 工时, 杠杆, 回复, 轮; one-bucket report) replaces the popover's three numbers; `TodayFigures` and new `RecentFigures` wrap it. Floating panel shows `RecentFigures` under its header (not in the folded rail); `Preferences.showRecentStats` (default on) and `recentMinutes` (15/30/60/120/240, default 60), set in 设置 › 悬浮窗. `MenuHeader`: logo, name with a chevron, counts and today's figures are one button to the main window. Overview headline 全员等你 → 回复速度 (median, P90 in note); bottleneck becomes the tile 全部停工, replacing the 回复延迟 tile; summary says how fast you reply. Menu snapshot 230×230. Spec revised.
+- **Reason**: the user wants live recent stats at a glance, a one-click way from the popover to the main window, and found 全员等你 unclear.
+- **User feedback**: "用户需要实时查看最近的统计，悬浮窗上（指任务悬浮窗顶部）要有最近1h的统计（时间窗口可调，统计显示可关闭）……首页"全员等你"请去掉 听不明白 换成别的。……菜单栏悬浮窗顶部区域（logo、数据区域）做成点击跳转到主界面。logo右侧要有主界面的小箭头。"
+- **Process**: `make test` 97 passed; snapshots of panel, menu, dashboard checked by eye.
+- **Result**: panel strip reads e.g. 近1时 22分 · 0.9× · 2分34秒 · 1 轮.
+- **Notes**: the rolling window ends on the next whole minute and redraws every 30 s, so `AppModel.report`'s cache (keyed by range) holds between redraws. 回复速度 delta hidden when either period is partly rebuilt (no reply data there).
+
 ## feat(metrics): read the overview as you and your agents
 
-`pending` | 2026-10-21
+`7c760f7` | 2026-10-21
 
 - **Changes**: `ActivityReport` adds `agentTime` / `agentTimeAway` (running session-time, and the part while away, from the sweep), `leverage` ((agentTime − agentTimeAway) ÷ activeTime), `longestRun` (longest running segment), `turnsBySession`. `DashboardView`: headline is Agent 总工时, 杠杆, 全员等你, 完成轮数; new `Highlights` row (最卖力, 最长连跑, 最忙的时候, 你不在时) and `AgentMix` (军团构成: running time per agent kind); 平均同时在跑 moves to the tiles; summary sentence leads with your time vs the agents'; `slotLabel` shared by the chart readout and 最忙的时候. Spec revised.
 - **Reason**: figures read as machine stats; the user wants to see how they and their agents did today.

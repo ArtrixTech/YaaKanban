@@ -107,7 +107,8 @@ struct DashboardView: View {
         }
         if r.agentTimeAway >= 60 { s += "；你不在时它们又干了 \(duration(r.agentTimeAway))" }
         if !r.allRebuilt {
-            s += r.bottleneck >= 60 ? "；有 \(duration(r.bottleneck)) 所有 agent 都停下来等你" : "；几乎没让 agent 全停下来等你"
+            if let m = r.replyMedian { s += "；agent 找你时，你一般 \(duration(m)) 内回复" }
+            if r.bottleneck >= 60 { s += "，有 \(duration(r.bottleneck)) 所有 agent 都停着等你" }
         }
         return s + "；完成 \(r.turns) 轮。"
     }
@@ -118,9 +119,9 @@ struct DashboardView: View {
             Tile(title: "平均同时在跑", symbol: "square.stack.3d.up", value: String(format: "%.1f 个", r.parallelAverage),
                  caption: "有 agent 在跑时 · 最多 \(r.parallelPeak) 个",
                  delta: Delta(r.parallelAverage, prev?.parallelAverage, better: .up, vs: vs) { String(format: "%.1f", $0) })
-            Tile(title: "回复延迟", symbol: "timer", value: r.replyMedian.map(duration) ?? "–",
-                 caption: r.replyP90.map { "中位 · P90 \(duration($0)) · \(r.replies.count) 次" } ?? "还没有回复",
-                 delta: comparesWaits(r, prev) ? Delta(r.replyMedian, prev?.replyMedian, better: .down, vs: vs, fmt: duration) : nil)
+            Tile(title: "全部停工", symbol: "pause.circle", value: r.allRebuilt ? "–" : duration(r.bottleneck),
+                 caption: "所有 agent 都在等你、没有一个在跑",
+                 delta: comparesWaits(r, prev) ? Delta(r.bottleneck, prev?.bottleneck, better: .down, vs: vs, fmt: duration) : nil)
             Tile(title: "Agent 利用率", symbol: "gauge.with.dots.needle.67percent",
                  value: r.utilization.map(percent) ?? "–", caption: "在跑 ÷（在跑 + 等你）",
                  delta: comparesWaits(r, prev) ? Delta(r.utilization, prev?.utilization, better: .up, vs: vs, fmt: percent) : nil)
@@ -199,7 +200,6 @@ private struct Headline: View {
     let vs: String
 
     var body: some View {
-        let bottleneck = { (x: ActivityReport?) in x.flatMap { $0.allRebuilt ? nil : $0.bottleneck } }
         let waits = comparesWaits(r, prev)
         HStack(spacing: 12) {
             Figure(title: "Agent 总工时", value: duration(r.agentTime),
@@ -208,8 +208,9 @@ private struct Headline: View {
             Figure(title: "杠杆", value: r.leverage.map { String(format: "%.1f×", $0) } ?? "–",
                    note: "你在场的每小时，agent 干了几小时",
                    delta: waits ? Delta(r.leverage, prev?.leverage, better: .up, vs: vs) { String(format: "%.1f×", $0) } : nil)
-            Figure(title: "全员等你", value: bottleneck(r).map(duration) ?? "–", note: "有 agent 在等你、一个都没在跑",
-                   delta: waits ? Delta(bottleneck(r), bottleneck(prev), better: .down, vs: vs, fmt: duration) : nil)
+            Figure(title: "回复速度", value: r.replyMedian.map(duration) ?? "–",
+                   note: r.replyP90.map { "agent 等你回复的中位 · P90 \(duration($0))" } ?? "agent 等你回复要多久",
+                   delta: waits ? Delta(r.replyMedian, prev?.replyMedian, better: .down, vs: vs, fmt: duration) : nil)
             Figure(title: "完成轮数", value: "\(r.turns)",
                    note: r.perActiveHour(r.turns).map { String(format: "每活跃小时 %.1f 轮", $0) } ?? "agent 回完一次算一轮",
                    delta: Delta(Double(r.turns), prev.map { Double($0.turns) }, better: .up, vs: vs) { "\(Int($0))" })
@@ -721,30 +722,62 @@ private struct Track: View {
         }
     }
 }
-/// The menu popover's three numbers for today: average parallel, median reply, bottleneck.
-struct TodayFigures: View {
+/// A compact row of figures for a range: agent hours, leverage, reply speed, turns. The menu
+/// popover shows today; the floating panel, the last few minutes (`RecentFigures`).
+struct QuickFigures: View {
     @Environment(AppModel.self) private var model
+    let range: DateInterval
+    /// Leading label naming the range, where the context does not.
+    var title: String?
+    var help: String
 
     var body: some View {
         let _ = model.activityVersion
-        let now = Date()
-        let today = Calendar.current.startOfDay(for: now)
-        let r = model.report(DateInterval(start: today, end: Calendar.current.date(byAdding: .day, value: 1, to: today)!))
+        let r = model.report(range, buckets: 1)
         HStack(spacing: 0) {
-            figure(String(format: "%.1f", r.parallelAverage), "平均并行")
-            figure(r.replyMedian.map(duration) ?? "–", "回复中位")
-            figure(r.allRebuilt ? "–" : duration(r.bottleneck), "瓶颈")
+            if let title {
+                Text(title).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                    .fixedSize().padding(.leading, 9)
+            }
+            figure(duration(r.agentTime), "agent 工时")
+            figure(r.leverage.map { String(format: "%.1f×", $0) } ?? "–", "杠杆")
+            figure(r.replyMedian.map(duration) ?? "–", "回复")
+            figure("\(r.turns)", "轮")
         }
         .padding(.vertical, 6)
         .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(0.05)))
-        .help("今天，详见主界面「概览」")
+        .help(help)
     }
 
     private func figure(_ value: String, _ name: String) -> some View {
         VStack(spacing: 1) {
-            Text(value).font(.system(size: 14, weight: .semibold).monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
-            Text(name).font(.system(size: 10)).foregroundStyle(.secondary)
+            Text(value).font(.system(size: 13.5, weight: .semibold).monospacedDigit()).lineLimit(1).minimumScaleFactor(0.6)
+            Text(name).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+/// Today so far, for the menu popover.
+struct TodayFigures: View {
+    var body: some View {
+        let today = Calendar.current.startOfDay(for: Date())
+        QuickFigures(range: DateInterval(start: today, end: Calendar.current.date(byAdding: .day, value: 1, to: today)!),
+                     help: "今天，点击打开主界面「概览」")
+    }
+}
+
+/// The last `recentMinutes`, for the floating panel. The window moves by whole minutes so the
+/// report cache holds between redraws.
+struct RecentFigures: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { ctx in
+            let minutes = model.settings.recentMinutes
+            let end = Calendar.current.dateInterval(of: .minute, for: ctx.date)!.end
+            QuickFigures(range: DateInterval(start: end.addingTimeInterval(-minutes * 60), end: end),
+                         title: "近\(minutes < 60 ? "\(Int(minutes))分" : "\(Int(minutes / 60))时")", help: "最近 \(SettingsView.duration(minutes))，时长可在设置里调")
+        }
     }
 }
