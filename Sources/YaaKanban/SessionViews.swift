@@ -88,7 +88,7 @@ struct SessionCard: View {
                     StatusGlyph(status: st, size: 20)
                     Text(session.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
                     if model.isPinned(session.id) {
-                        Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(.secondary).help("已置顶")
+                        Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(Color(red: 1, green: 0.75, blue: 0)).help("已置顶")
                     }
                     Spacer(minLength: 4)
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in

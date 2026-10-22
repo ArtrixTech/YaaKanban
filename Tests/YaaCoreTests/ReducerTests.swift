@@ -141,6 +141,20 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(done.turns.last?.lastMessage == "done")
     }
 
+    @Test func replayedEventDoesNotReopenFinishedTurn() {
+        let tool: [String: JSONValue] = ["id": .string("t"), "tool": .string("bash"), "input": .object(["command": .string("ls")])]
+        let done = fold([pi("prompt", ["prompt": .string("hi")]), pi("tool_start", tool, at: 1),
+                         pi("tool_end", tool, at: 2), pi("turn_end", at: 5)])
+        // A spooled tool event from inside the turn, replayed after it ended.
+        let late = fold([pi("tool_start", ["id": .string("u"), "tool": .string("bash")], at: 3),
+                         pi("tool_end", ["id": .string("u"), "tool": .string("bash")], at: 4)], into: done)
+        #expect(late.status == .idle)
+        #expect(late.lastEventAt == done.lastEventAt)
+        // The next prompt still starts a new turn.
+        let next = fold([pi("prompt", ["prompt": .string("again")], at: 6)], into: late)
+        #expect(next.status == .running)
+    }
+
     @Test func piNameBecomesTitleWithoutCountingAsActivity() {
         let s = fold([pi("prompt", ["prompt": .string("fix the login bug please")])])
         #expect(s.title == "fix the login bug please")
@@ -167,6 +181,20 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
             s.tools = [ToolCall(id: "1", name: tool, summary: "", input: input, output: nil, isError: false, startedAt: t0.addingTimeInterval(at))]
         }
         return s
+    }
+
+    @Test func runningWithNothingAfterTurnEndIsFinished() {
+        var s = running(at: 10)
+        s.turns = [Turn(id: 1, prompt: "p", startedAt: t0, endedAt: t0.addingTimeInterval(10), toolCount: 0)]
+        let out = StuckDetector.evaluate(s, now: t0.addingTimeInterval(20), config: cfg, isAlive: { _ in true })
+        #expect(out?.status == .idle)
+        #expect(out?.unreadSince == t0.addingTimeInterval(10))
+        // Already looked at after it ended: reviewed.
+        s.reviewedAt = t0.addingTimeInterval(15)
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(20), config: cfg, isAlive: { _ in true })?.unreadSince == nil)
+        // A later event means the session really is running again.
+        s.lastEventAt = t0.addingTimeInterval(12)
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(20), config: cfg, isAlive: { _ in true }) == nil)
     }
 
     @Test func silence() {

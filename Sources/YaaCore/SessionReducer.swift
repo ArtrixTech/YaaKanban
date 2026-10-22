@@ -52,6 +52,9 @@ public enum SessionReducer {
             s.peek = peek == TranscriptPeek() ? nil : peek
             return s
         }
+        // An event from before the last turn ended (spooled while the app was busy or down, replayed
+        // at its next start) must not reopen the finished turn.
+        if let end = s.turns.last?.endedAt, e.at < end, s.status == .idle || s.status == .ended { return s }
         s.lastEventAt = max(s.lastEventAt, e.at)
         if let v = e.cwd { s.cwd = v }
         if let v = e.transcriptPath { s.transcriptPath = v }

@@ -36,6 +36,14 @@ public enum StuckDetector {
             out.needsInputSince = nil
             return out
         case .running, .stuck:
+            // Nothing happened after its turn ended: it is finished, whatever revived it (an old
+            // event replayed before the reducer ignored them).
+            if s.hooked, let end = s.turns.last?.endedAt, end >= s.lastEventAt, s.runningTools.isEmpty, s.subagents.isEmpty {
+                out.status = .idle
+                out.stuckReason = nil
+                out.unreadSince = (s.reviewedAt ?? .distantPast) >= end ? nil : end
+                return out
+            }
             let reason: String?
             if processGone {
                 reason = "进程已退出"

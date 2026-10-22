@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(board): pin sessions to the top and rename them
+## fix(reducer): keep replayed events from reopening a finished turn
 
 `pending` | 2026-10-22
+
+- **Changes**: `SessionReducer.reduce` ignores an event older than the last turn's `endedAt` when the session is idle/ended. `StuckDetector`: a hooked running/stuck session with nothing after its last turn ended (no running tools or subagents) goes back to idle (unread unless opened after it ended). Pin glyph is amber (#FFBF00). Tests `replayedEventDoesNotReopenFinishedTurn`, `runningWithNothingAfterTurnEndIsFinished`.
+- **Reason**: a pi session ("查询Kimi K3.1新信息") finished at 11:48:00 and was opened at 11:48:02; when `make install` relaunched the app at 11:50:44 a spooled tool event from inside the turn (a hook that missed its 90 ms send deadline) was replayed and `resume()` set it to running with `lastEventAt` unchanged; 10 min later it was flagged stuck.
+- **User feedback**: "这一条已经运行完了，但是还显示在运行"; "钉住的钉子需要显示为amber颜色"
+- **Process**: traced via `sessions.json` (turn `endedAt` = `lastEventAt`, status stuck) and `activity` lanes (review 11:48:00 → running 11:50:45, one second after app start). `make test` 102 passed; after install the session is idle, reviewed.
+- **Result**: late events no longer revive finished turns; already-revived sessions repair on the next tick.
+- **Notes**: the dropped late event loses its tool row; acceptable. Why the hook missed its deadline (app main thread busy?) is not established.
+
+## feat(board): pin sessions to the top and rename them
+
+`8f8b7e8` | 2026-10-22
 
 - **Changes**: `Preferences.pinned` (newest first, UserDefaults `pinnedSessions`); `Board.ordered(…, pinned:)` puts pinned sessions above every tier; `Board.keepsManualOrder`. `AppModel.togglePin`, `isPinned`, `rename` (NSAlert with a text field; empty clears); `remove` drops the pin. `SessionState.customName` wins in `title`. `MoveMenu(session:)`: 置顶/取消置顶, 上移/下移 only where manual order applies, 重命名…; now also in the rail's context menu; history list gets 重命名…. Card title shows `pin.fill` when pinned. Tests `pinnedSitAboveEveryStatus`, `customNameWinsTitle`. Spec revised.
 - **Reason**: 置顶 only moved a card to the top of its own status tier, and since b4e5e83 finished tiers ignore manual order, so it did nothing visible; no way to name a session.
