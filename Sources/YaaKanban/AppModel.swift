@@ -84,7 +84,14 @@ final class AppModel {
     var allSessions: [SessionState] { sorted(Array(sessions.values)) }
 
     /// Active sessions as the boards show them: most urgent first, then the user's order or start order.
-    var board: [SessionState] { Board.ordered(activeSessions, manualOrder: settings.manualOrder) }
+    var board: [SessionState] { Board.ordered(activeSessions, manualOrder: settings.manualOrder, pinned: settings.pinned) }
+
+    func isPinned(_ key: String) -> Bool { settings.pinned.contains(key) }
+
+    /// Pins a session above every status, or unpins it.
+    func togglePin(_ key: String) {
+        if isPinned(key) { settings.pinned.removeAll { $0 == key } } else { settings.pinned.insert(key, at: 0) }
+    }
 
     /// Moves sessions before `target`, or to the end.
     func move(_ ids: [String], before target: String?) {
@@ -619,7 +626,31 @@ final class AppModel {
         }
     }
 
+    /// Asks for a new name; an empty one goes back to the agent's title.
+    func rename(_ key: String) {
+        guard let s = sessions[key] else { return }
+        let alert = NSAlert()
+        if let icon = BrandMark.image { alert.icon = icon }
+        alert.messageText = "重命名会话"
+        alert.informativeText = "只改 YaaKanban 里显示的名字。留空则恢复为 agent 的标题。"
+        let field = NSTextField(string: s.customName ?? s.title)
+        field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
+        alert.accessoryView = field
+        alert.addButton(withTitle: "确定")
+        alert.addButton(withTitle: "取消")
+        alert.window.initialFirstResponder = field
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        update(key, alert: false) { s in
+            guard var s else { return nil }
+            s.customName = name.isEmpty ? nil : String(name.prefix(80))
+            return s
+        }
+    }
+
     func remove(_ key: String) {
+        settings.pinned.removeAll { $0 == key }
         sessions[key] = nil
         store?.delete(id: key)
     }

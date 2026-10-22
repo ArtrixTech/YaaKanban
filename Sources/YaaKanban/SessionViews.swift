@@ -87,6 +87,9 @@ struct SessionCard: View {
                 HStack(spacing: 7) {
                     StatusGlyph(status: st, size: 20)
                     Text(session.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                    if model.isPinned(session.id) {
+                        Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(.secondary).help("已置顶")
+                    }
                     Spacer(minLength: 4)
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
                         Text(session.clock(now: ctx.date))
@@ -130,7 +133,7 @@ struct SessionCard: View {
             Button("复制 cwd / session") { model.jumper.copyContext(session) }
             Button("复制恢复命令") { model.jumper.copyResume(session) }
             Divider()
-            MoveMenu(ids: [session.id])
+            MoveMenu(session: session)
             Divider()
             Button("结束（移出悬浮窗）") { model.dismiss(session.id) }
             Button("从列表删除", role: .destructive) { model.remove(session.id) }
@@ -294,14 +297,18 @@ struct CodeBlock: View {
     }
 }
 
-/// Up / down / top for a card.
+/// Pin, rename, and up / down for a card. Finished cards sort by freshness, so they only pin.
 struct MoveMenu: View {
     @Environment(AppModel.self) private var model
-    let ids: [String]
+    let session: SessionState
     var body: some View {
-        Button("上移") { withAnimation(.snappy) { model.step(ids, by: -1) } }
-        Button("下移") { withAnimation(.snappy) { model.step(ids, by: 1) } }
-        Button("置顶") { withAnimation(.snappy) { model.step(ids, by: nil) } }
+        let id = session.id, pinned = model.isPinned(id)
+        Button(pinned ? "取消置顶" : "置顶") { withAnimation(.snappy) { model.togglePin(id) } }
+        if !pinned, Board.keepsManualOrder(session.display) {
+            Button("上移") { withAnimation(.snappy) { model.step([id], by: -1) } }
+            Button("下移") { withAnimation(.snappy) { model.step([id], by: 1) } }
+        }
+        Button("重命名…") { model.rename(id) }
     }
 }
 

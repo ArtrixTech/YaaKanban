@@ -495,6 +495,7 @@ struct MainWindow: View {
                     .contextMenu {
                         if s.display == .review { Button("标记已验收") { model.markRead(s.id) } }
                         if s.dismissedAt != nil { Button("恢复到悬浮窗") { model.undismiss(s.id) } }
+                        Button("重命名…") { model.rename(s.id) }
                         Button("从历史删除", role: .destructive) { model.remove(s.id) }
                     }
                 }

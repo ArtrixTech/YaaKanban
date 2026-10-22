@@ -208,6 +208,8 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var usage: Usage?
     /// Set when the user ends the session in the panel; it stays in history but leaves the boards.
     public var dismissedAt: Date?
+    /// A name the user gave the session in YaaKanban; it wins over every other title.
+    public var customName: String?
     /// Key of the session that spawned this one as a sub-agent (pi runs them as sessions of their own).
     public var parentId: String?
 
@@ -225,8 +227,10 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
         self.hooked = false
     }
 
-    /// Short name: the agent's own title, else the first prompt's first line, else the project.
+    /// Short name: the user's name for it, else the agent's own title, else the first prompt's first
+    /// line, else the project.
     public var title: String {
+        if let n = customName, !n.isEmpty { return n }
         if let t = peek?.title, !t.isEmpty { return t }
         let first = turns.first { !$0.prompt.isEmpty }?.prompt ?? peek?.lastPrompt
         if let p = first.flatMap(Self.firstLine), !p.isEmpty { return p.count > 40 ? String(p.prefix(40)) + "…" : p }

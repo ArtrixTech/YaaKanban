@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(board): order finished sessions by freshness
+## feat(board): pin sessions to the top and rename them
 
 `pending` | 2026-10-22
+
+- **Changes**: `Preferences.pinned` (newest first, UserDefaults `pinnedSessions`); `Board.ordered(…, pinned:)` puts pinned sessions above every tier; `Board.keepsManualOrder`. `AppModel.togglePin`, `isPinned`, `rename` (NSAlert with a text field; empty clears); `remove` drops the pin. `SessionState.customName` wins in `title`. `MoveMenu(session:)`: 置顶/取消置顶, 上移/下移 only where manual order applies, 重命名…; now also in the rail's context menu; history list gets 重命名…. Card title shows `pin.fill` when pinned. Tests `pinnedSitAboveEveryStatus`, `customNameWinsTitle`. Spec revised.
+- **Reason**: 置顶 only moved a card to the top of its own status tier, and since b4e5e83 finished tiers ignore manual order, so it did nothing visible; no way to name a session.
+- **User feedback**: "悬浮窗菜单需要允许置顶，现在置顶没反应。另外还需要允许重命名session"
+- **Process**: `make test` 100 passed; `make install`.
+- **Result**: pinned cards stay on top regardless of status; renamed titles persist with the session JSON.
+- **Notes**: the custom name is not written back to the agent's transcript (/rename stays separate).
+
+## feat(board): order finished sessions by freshness
+
+`b4e5e83` | 2026-10-22
 
 - **Changes**: `Board.ordered` sorts the 待验收 and 已验收 tiers by `quietSince` (max of last event and `reviewedAt`, set on every click), newest first; manual drag order and start time now apply only to waiting and running tiers. Board tests use running sessions for start/manual order; new `finishedSessionsFreshestFirst`. Spec gains the ordering rule.
 - **Reason**: finished cards sat in start order, so the one just finished or just looked at could be buried.

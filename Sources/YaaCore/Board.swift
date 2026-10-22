@@ -1,6 +1,7 @@
 import Foundation
 
-/// Board layout: one list, most urgent first. Status decides the order. Finished sessions (to review,
+/// Board layout: one list. Pinned sessions come first, newest pin on top; then status, most urgent
+/// first, decides the order. Finished sessions (to review,
 /// reviewed) are freshest first: the latest of their last event and the user's last click. Within the
 /// other statuses, sessions the user placed keep their place and the rest follow by start time.
 public enum Board {
@@ -14,12 +15,22 @@ public enum Board {
         }
     }
 
-    public static func ordered(_ sessions: [SessionState], manualOrder: [String]) -> [SessionState] {
+    /// Whether the user can place sessions of this status by hand (finished ones sort by freshness).
+    public static func keepsManualOrder(_ s: DisplayStatus) -> Bool { tier(s) == tier(.running) || tier(s) == tier(.needsInput) }
+
+    public static func ordered(_ sessions: [SessionState], manualOrder: [String], pinned: [String] = []) -> [SessionState] {
         let pos = Dictionary(manualOrder.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
+        let pin = Dictionary(pinned.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
         return sessions.sorted { a, b in
+            switch (pin[a.id], pin[b.id]) {
+            case let (x?, y?): return x < y
+            case (_?, nil): return true
+            case (nil, _?): return false
+            case (nil, nil): break
+            }
             let ta = tier(a.display), tb = tier(b.display)
             if ta != tb { return ta < tb }
-            if ta != tier(.running), ta != tier(.needsInput) {
+            if !keepsManualOrder(a.display) {
                 let (fa, fb) = (a.quietSince, b.quietSince)
                 if fa != fb { return fa > fb }
                 return a.id < b.id

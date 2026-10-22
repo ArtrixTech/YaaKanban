@@ -525,6 +525,25 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(ids([seen, seen2, old]) == ["old", "seen2", "seen"])
     }
 
+    @Test func pinnedSitAboveEveryStatus() {
+        var w = s("w", "/W", 1); w.status = .needsInput
+        var f = s("f", "/F", 2); f.status = .idle
+        let r = s("r", "/R", 3)
+        #expect(ids([w, f, r]) == ["w", "r", "f"])
+        // Newest pin first, then the usual order.
+        #expect(Board.ordered([w, f, r], manualOrder: [], pinned: ["claude-code:r", "claude-code:f"]).map(\.sessionId) == ["r", "f", "w"])
+    }
+
+    @Test func customNameWinsTitle() {
+        var x = s("x", "/X", 0)
+        x.peek = TranscriptPeek(); x.peek?.title = "agent title"
+        #expect(x.title == "agent title")
+        x.customName = "我的名字"
+        #expect(x.title == "我的名字")
+        x.customName = ""
+        #expect(x.title == "agent title")
+    }
+
     @Test func groupFollowsStartDirNotCd() {
         let e = AgentEvent(agent: .claudeCode, sessionId: "x", at: t0, kind: .sessionStart, cwd: "/p/A")
         var st = SessionReducer.apply(e, to: nil)

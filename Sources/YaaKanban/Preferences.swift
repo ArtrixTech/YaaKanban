@@ -33,6 +33,8 @@ final class Preferences {
     var recentMinutes: Double { didSet { d.set(recentMinutes, forKey: "recentMinutes") } }
     /// Session ids in the order the user arranged them (see `Board`).
     var manualOrder: [String] { didSet { d.set(Array(manualOrder.prefix(500)), forKey: "manualOrder") } }
+    /// Pinned session ids, newest pin first; they sit above every status on the boards.
+    var pinned: [String] { didSet { d.set(Array(pinned.prefix(100)), forKey: "pinnedSessions") } }
     var suppressWhenWaveFrontmost: Bool { didSet { d.set(suppressWhenWaveFrontmost, forKey: "suppressWhenWaveFrontmost") } }
     var waveTabSwitching: Bool { didSet { d.set(waveTabSwitching, forKey: "waveTabJump") } }
     /// Lets the pi extension name unnamed sessions with the session's model. Kept as a file the
@@ -76,6 +78,7 @@ final class Preferences {
         let recent = d.double(forKey: "recentMinutes")
         recentMinutes = Self.recentChoices.min { abs($0 - recent) < abs($1 - recent) }!
         manualOrder = d.stringArray(forKey: "manualOrder") ?? []
+        pinned = d.stringArray(forKey: "pinnedSessions") ?? []
         suppressWhenWaveFrontmost = d.bool(forKey: "suppressWhenWaveFrontmost")
         waveTabSwitching = d.bool(forKey: "waveTabJump")
         piAutoTitle = !FileManager.default.fileExists(atPath: Paths().piAutoTitleOff.path)

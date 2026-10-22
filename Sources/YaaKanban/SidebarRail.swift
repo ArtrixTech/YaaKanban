@@ -105,6 +105,8 @@ struct NarrowSessionCard: View {
             Button("复制 cwd / session") { model.jumper.copyContext(session) }
             Button("复制恢复命令") { model.jumper.copyResume(session) }
             Divider()
+            MoveMenu(session: session)
+            Divider()
             Button("结束（移出悬浮窗）") { model.dismiss(session.id) }
         }
     }
