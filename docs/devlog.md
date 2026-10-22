@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(panel): chart the leverage trend, slim rail keeps leverage
+## fix(rail): keep the slim track's light vivid on glass
 
 `pending` | 2026-10-22
+
+- **Changes**: `SlimTrack` while running: the track is tinted (blue 0.22) instead of grey; the light is opaque through its middle (blue → light-blue core #9ED6FF → blue, fading only at its ends), 24 pt, with a blue glow (shadow r 2.5); masked only at the track's ends so the glow is not cut at the sides.
+- **Reason**: the light was mostly translucent blue, which on the panel's `NSGlassEffectView` mixed with the wallpaper and read as grey-blue.
+- **User feedback**: "超窄模式，活动agent的蓝色条，颜色没有做玻璃背景适配"
+- **Process**: `make install`; `yaak snapshot` (opaque background, not glass) shows the core and glow.
+- **Result**: as above. Not checked on the live glass panel in-session.
+- **Notes**: snapshots render without the glass surface, so glass-specific looks need a real screen check.
+
+## feat(panel): chart the leverage trend, slim rail keeps leverage
+
+`6f06cab` | 2026-10-22
 
 - **Changes**: `ActivityReport` gains `activeBuckets` / `presentAgentBuckets` (per-slice parts of leverage) and `rollingLeverage(window:)`. `RecentFigures` (height 40→52) computes one report of 47 slices of window/12 and takes its rolling leverage as a 36-point trend; the figure is the trend's last point. Unfolded: leverage as a 24 pt rounded hero, a `Sparkline` (smooth eased curve, green gradient with glow, fill down to the edge, dashed 1× line, latest point marked, gaps bridged) between it and 今日工时. Folded rail: leverage and "今日 x时". Slim rail: 杠杆, the number, and an arrow (up ≥ +10 %, down ≤ −10 % against one window back). Slim header uses `BrandGlyph`, the logo's columns and dot drawn in the text color without the tile. Test `rollingLeverageEndsAtTheWindowsLeverage`. Spec revised.
 - **Reason**: the slim header's logo had a dark tile; the user wanted leverage back in the slim rail and its trend in the panel.
