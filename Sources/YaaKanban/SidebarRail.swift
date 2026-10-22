@@ -249,9 +249,6 @@ struct NarrowSessionCard: View {
 private struct SlimTrack: View {
     let status: DisplayStatus
 
-    /// The light's hot middle, lighter than the tint so it glows instead of greying on the glass.
-    static let core = Color(red: 0.62, green: 0.84, blue: 1)
-
     var body: some View {
         let shape = Capsule()
         ZStack {
@@ -260,16 +257,14 @@ private struct SlimTrack: View {
             if status == .running {
                 GeometryReader { g in
                     let run = min(24, g.size.height * 0.45)
-                    // Opaque through its middle with a glow around it: the glass shows through
-                    // only at the ends, so the light keeps its color on any wallpaper.
+                    // Only the system tint, as everywhere else, so it follows the light or dark look
+                    // the glass picks; opaque through its middle, fading only at the ends.
                     shape.fill(LinearGradient(stops: [.init(color: status.tint.opacity(0), location: 0),
-                                                      .init(color: status.tint, location: 0.35),
-                                                      .init(color: Self.core, location: 0.62),
-                                                      .init(color: status.tint, location: 0.82),
+                                                      .init(color: status.tint, location: 0.4),
+                                                      .init(color: status.tint, location: 0.8),
                                                       .init(color: status.tint.opacity(0), location: 1)],
                                               startPoint: .top, endPoint: .bottom))
                         .frame(width: g.size.width, height: run)
-                        .shadow(color: status.tint.opacity(0.9), radius: 2.5)
                         .keyframeAnimator(initialValue: 0.0, repeating: true) { v, t in
                             v.offset(y: -run + t * (g.size.height + run))
                         } keyframes: { _ in
@@ -277,8 +272,7 @@ private struct SlimTrack: View {
                             LinearKeyframe(1.0, duration: 0.3)
                         }
                 }
-                // Cut at the track's ends, but leave room at the sides for the glow.
-                .mask(Rectangle().padding(.horizontal, -6))
+                .clipShape(shape)
             }
         }
         .frame(width: 2.5)

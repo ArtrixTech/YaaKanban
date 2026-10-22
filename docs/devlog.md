@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(rail): keep the slim track's light vivid on glass
+## fix(rail): draw the slim track's light in the system tint only
 
 `pending` | 2026-10-22
+
+- **Changes**: `SlimTrack`'s running light drops the fixed RGB core (#9ED6FF) and the shadow glow from 68402b4: a `status.tint` gradient, opaque from 40 % to 80 %, fading at its ends, clipped to the track; the track stays tint 0.22.
+- **Reason**: the panel's colors adapt because they are system colors (`.blue`, `.primary`) inside the `NSGlassEffectView` (a4c1571), which picks light or dark for the backdrop; a fixed RGB does not follow it.
+- **User feedback**: "我是说 原来颜色不是都做了自动适配吗 这个颜色咋没适配"
+- **Process**: `make install`.
+- **Result**: the slim track uses only adaptive colors, like the glyph and clock beside it.
+- **Notes**: don't put fixed RGB in panel content; `Sparkline`'s greens and `BrandGlyph`'s dot are fixed too (brand colors) and won't shift with the glass.
+
+## fix(rail): keep the slim track's light vivid on glass
+
+`68402b4` | 2026-10-22
 
 - **Changes**: `SlimTrack` while running: the track is tinted (blue 0.22) instead of grey; the light is opaque through its middle (blue → light-blue core #9ED6FF → blue, fading only at its ends), 24 pt, with a blue glow (shadow r 2.5); masked only at the track's ends so the glow is not cut at the sides.
 - **Reason**: the light was mostly translucent blue, which on the panel's `NSGlassEffectView` mixed with the wallpaper and read as grey-blue.
