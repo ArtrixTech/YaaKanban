@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(reducer): keep replayed events from reopening a finished turn
+## feat(panel): show leverage and today's hours, redo the slim rail
 
 `pending` | 2026-10-22
+
+- **Changes**: panel figures (`RecentFigures`) are now two: leverage over the recent window and today's agent hours (今日工时), folded or not; `QuickFigures` loses its `compact` mode (menu popover only). Slim rail 22→28 pt wide (inset 4): each card is a plain `card` with `StatusGlyph`, `AgentLogo`, a 2.5 pt `SlimTrack` (a light runs down it while running, tint while loud, faint otherwise) and a short clock (42s/7m/2h/3d). `FloatingPanelController.hotZone` extends the folded panel across the snap margin to the usable area's docked edge (+1 pt); global + local `mouseMoved` monitors start a peek there, and `checkPeek` keeps the peek while the pointer is in it. Spec, settings copy, Architecture updated.
+- **Reason**: an hour of summed agent time was not intuitive; the slim rail's solid color blocks looked rough and showed nothing; with an 8 pt margin a pointer pushed to the screen edge sat outside the window and never unfolded the rail.
+- **User feedback**: "一个杠杆，一个今日工作时长（缩成四个字）"; "如果现在是贴边状态，窗体和屏幕边缘还有缝隙，这里无法触发展开"; "对于在工作的项目要有动态，且现在颜色是整块，视觉上很粗糙，颜色应该还是点缀，也要显示一点信息"
+- **Process**: `make test` 102 passed; `yaak snapshot` checked rail-slim and panel renderings.
+- **Result**: as above. The edge trigger was not exercised with a real pointer in-session.
+- **Notes**: global `mouseMoved` monitors need no Accessibility permission; the handler returns at once unless folded and visible.
+
+## fix(reducer): keep replayed events from reopening a finished turn
+
+`6ba2103` | 2026-10-22
 
 - **Changes**: `SessionReducer.reduce` ignores an event older than the last turn's `endedAt` when the session is idle/ended. `StuckDetector`: a hooked running/stuck session with nothing after its last turn ended (no running tools or subagents) goes back to idle (unread unless opened after it ended). Pin glyph is amber (#FFBF00). Tests `replayedEventDoesNotReopenFinishedTurn`, `runningWithNothingAfterTurnEndIsFinished`.
 - **Reason**: a pi session ("查询Kimi K3.1新信息") finished at 11:48:00 and was opened at 11:48:02; when `make install` relaunched the app at 11:50:44 a spooled tool event from inside the turn (a hook that missed its 90 ms send deadline) was replayed and `resume()` set it to running with `lastEventAt` unchanged; 10 min later it was flagged stuck.

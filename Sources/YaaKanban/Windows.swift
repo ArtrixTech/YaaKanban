@@ -621,17 +621,17 @@ struct SettingsView: View {
                         .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.primary.opacity(0.08)))
                 } label: { SettingLabel("显示 / 隐藏", symbol: "command", tint: .blue) }
                 Toggle(isOn: $settings.showRecentStats) {
-                    SettingLabel("顶部显示近期统计", symbol: "chart.bar.fill", tint: .orange)
+                    SettingLabel("顶部显示杠杆和今日工时", symbol: "chart.bar.fill", tint: .orange)
                 }
                 if settings.showRecentStats {
                     Picker(selection: $settings.recentMinutes) {
                         ForEach(Preferences.recentChoices, id: \.self) { Text(Self.duration($0)).tag($0) }
-                    } label: { Text("统计最近").padding(.leading, 30) }
+                    } label: { Text("杠杆统计最近").padding(.leading, 30) }
                 }
                 Toggle(isOn: $settings.slimRail) {
                     VStack(alignment: .leading, spacing: 2) {
                         SettingLabel("超窄侧边栏（实验性）", symbol: "sidebar.right", tint: .teal)
-                        Text("吸附到屏幕左右边并收起后，变成一条细条，每个会话只显示状态色块，高度不变。鼠标移上去展开。")
+                        Text("吸附到屏幕左右边并收起后，变成一条细条，每个会话只显示状态、agent 和时间，运行中的有流光，高度不变。鼠标移上去（推到屏幕边也行）展开。")
                             .font(.system(size: 11)).foregroundStyle(.secondary).padding(.leading, 30)
                     }
                 }

@@ -723,12 +723,10 @@ private struct Track: View {
     }
 }
 /// A compact row of figures for a range: agent hours, leverage, reply speed, turns. The menu
-/// popover shows today; the floating panel, the last few minutes (`RecentFigures`). `compact`
-/// keeps the first two, for the folded rail.
+/// popover shows today.
 struct QuickFigures: View {
     @Environment(AppModel.self) private var model
     let range: DateInterval
-    var compact = false
     var help: String
 
     /// Fixed, so the panel's cards sit at the same height folded or not.
@@ -738,12 +736,10 @@ struct QuickFigures: View {
         let _ = model.activityVersion
         let r = model.report(range, buckets: 1)
         HStack(spacing: 0) {
-            figure(duration(r.agentTime), compact ? "工时" : "agent 工时")
+            figure(duration(r.agentTime), "agent 工时")
             figure(r.leverage.map { String(format: "%.1f×", $0) } ?? "–", "杠杆")
-            if !compact {
-                figure(r.replyMedian.map(duration) ?? "–", "回复")
-                figure("\(r.turns)", "轮")
-            }
+            figure(r.replyMedian.map(duration) ?? "–", "回复")
+            figure("\(r.turns)", "轮")
         }
         .frame(height: Self.height)
         .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(0.05)))
@@ -752,7 +748,7 @@ struct QuickFigures: View {
 
     private func figure(_ value: String, _ name: String) -> some View {
         VStack(spacing: 1) {
-            Text(value).font(.system(size: compact ? 12 : 13.5, weight: .semibold).monospacedDigit())
+            Text(value).font(.system(size: 13.5, weight: .semibold).monospacedDigit())
                 .lineLimit(1).minimumScaleFactor(0.6)
             Text(name).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
         }
@@ -769,8 +765,9 @@ struct TodayFigures: View {
     }
 }
 
-/// The last `recentMinutes`, for the floating panel. The window moves by whole minutes so the
-/// report cache holds between redraws. In the slim rail only its space is kept.
+/// The floating panel's two figures: leverage over the last `recentMinutes`, and today's agent
+/// hours. The recent window moves by whole minutes so the report cache holds between redraws. In
+/// the slim rail only its space is kept.
 struct RecentFigures: View {
     @Environment(AppModel.self) private var model
     var folded = false
@@ -781,11 +778,29 @@ struct RecentFigures: View {
             Color.clear.frame(height: QuickFigures.height)
         } else {
             TimelineView(.periodic(from: .now, by: 30)) { ctx in
+                let _ = model.activityVersion
                 let minutes = model.settings.recentMinutes
                 let end = Calendar.current.dateInterval(of: .minute, for: ctx.date)!.end
-                QuickFigures(range: DateInterval(start: end.addingTimeInterval(-minutes * 60), end: end), compact: folded,
-                             help: "最近 \(SettingsView.duration(minutes))，时长可在设置里调")
+                let recent = model.report(DateInterval(start: end.addingTimeInterval(-minutes * 60), end: end), buckets: 1)
+                let today = model.report(DateInterval(start: Calendar.current.startOfDay(for: ctx.date), end: end), buckets: 1)
+                HStack(spacing: 0) {
+                    figure(recent.leverage.map { String(format: "%.1f×", $0) } ?? "–", "杠杆",
+                           help: "最近 \(SettingsView.duration(minutes))，你在场的每小时 agent 干了几小时；时长可在设置里调")
+                    figure(duration(today.agentTime), "今日工时", help: "今天所有 agent 在跑的时间相加")
+                }
+                .frame(height: QuickFigures.height)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(0.05)))
             }
         }
+    }
+
+    private func figure(_ value: String, _ name: String, help: String) -> some View {
+        VStack(spacing: 1) {
+            Text(value).font(.system(size: folded ? 12 : 13.5, weight: .semibold).monospacedDigit())
+                .lineLimit(1).minimumScaleFactor(0.6)
+            Text(name).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+        .help(help)
     }
 }

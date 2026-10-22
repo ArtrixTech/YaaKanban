@@ -11,9 +11,9 @@ enum Rail {
     static let width: CGFloat = 120
     /// Side margin of the folded panel: the gap between cards.
     static let inset: CGFloat = 8
-    /// The slim rail (experimental): a strip of status colors.
-    static let slimWidth: CGFloat = 22
-    static let slimInset: CGFloat = 5
+    /// The slim rail (experimental): a strip of small cards, each status, agent and clock.
+    static let slimWidth: CGFloat = 28
+    static let slimInset: CGFloat = 4
 
     static func width(slim: Bool) -> CGFloat { slim ? slimWidth : width }
     static func inset(slim: Bool) -> CGFloat { slim ? slimInset : inset }
@@ -113,19 +113,39 @@ struct NarrowSessionCard: View {
 
     @ViewBuilder private func content(_ st: DisplayStatus) -> some View {
         if slim {
-            // Just the status: its color, the full card's height. Quiet ones stay faint.
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(st.isLoud || st == .running ? st.tint.opacity(hover ? 1 : 0.85) : Color.primary.opacity(hover ? 0.3 : 0.18))
-                .overlay {
-                    if st == .running, session.latestTool?.isRunning == true {
-                        RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(.white.opacity(0.5), lineWidth: 1)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: height ?? 60)
+            slimCard(st)
         } else {
             card(st)
         }
+    }
+
+    /// Slim: status, agent and clock stacked on a plain card, the status color only in its glyph
+    /// and a thin track between, which a light runs down while the agent works.
+    private func slimCard(_ st: DisplayStatus) -> some View {
+        VStack(spacing: 4) {
+            StatusGlyph(status: st, size: 16)
+            AgentLogo(agent: session.agent, size: 10).opacity(st == .done || st == .ended ? 0.5 : 0.85)
+            SlimTrack(status: st).frame(maxHeight: .infinity)
+            TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                Text(Self.shortClock(session, now: ctx.date))
+                    .font(.system(size: 8, weight: .medium).monospacedDigit())
+                    .foregroundStyle(st == .running ? AnyShapeStyle(st.tint) : AnyShapeStyle(.secondary))
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            }
+        }
+        .padding(.vertical, 5).padding(.horizontal, 1)
+        .frame(maxWidth: .infinity)
+        .frame(height: height ?? 60)
+        .card(st, hover: hover, radius: 6)
+    }
+
+    /// The card's clock in at most three characters: 42s, 7m, 2h, 3d.
+    static func shortClock(_ s: SessionState, now: Date) -> String {
+        let t = Int(now.timeIntervalSince(s.clockStart))
+        if t < 60 { return "\(max(t, 0))s" }
+        if t < 3600 { return "\(t / 60)m" }
+        if t < 86400 { return "\(t / 3600)h" }
+        return "\(t / 86400)d"
     }
 
     private func card(_ st: DisplayStatus) -> some View {
@@ -221,6 +241,36 @@ struct NarrowSessionCard: View {
         if let d = SubagentSlots.detail(session) { lines.append(d) }
         lines.append(AppModel.isGone(session) ? "点击在原终端恢复 \(session.agent.displayName)" : "点击跳转到 \(session.agent.displayName)")
         return lines.joined(separator: "\n")
+    }
+}
+
+/// The slim card's thin track: a light running down it while the agent works, the status color
+/// while it wants the user, faint once looked at.
+private struct SlimTrack: View {
+    let status: DisplayStatus
+
+    var body: some View {
+        let shape = Capsule()
+        shape.fill(status.isLoud ? status.tint.opacity(0.55) : Color.primary.opacity(0.08))
+            .overlay {
+                if status == .running {
+                    GeometryReader { g in
+                        let run = min(18, g.size.height * 0.4)
+                        LinearGradient(colors: [status.tint.opacity(0), status.tint, status.tint.opacity(0)],
+                                       startPoint: .top, endPoint: .bottom)
+                            .frame(height: run)
+                            .keyframeAnimator(initialValue: 0.0, repeating: true) { v, t in
+                                v.offset(y: -run + t * (g.size.height + run))
+                            } keyframes: { _ in
+                                CubicKeyframe(1.0, duration: 1.4)
+                                LinearKeyframe(1.0, duration: 0.3)
+                            }
+                    }
+                    .clipShape(shape)
+                }
+            }
+            .frame(width: 2.5)
+            .frame(minHeight: 0)
     }
 }
 

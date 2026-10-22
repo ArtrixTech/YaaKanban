@@ -152,6 +152,15 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
             MainActor.assumeIsolated { self?.updateRoom() }
         }
         applyOpacity()
+        // The gap between the folded rail and the screen edge is outside the window, so tracking
+        // misses a pointer pushed against the edge. Watch moves there too, ours and other apps'.
+        NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] _ in
+            MainActor.assumeIsolated { self?.edgeMoved() }
+        }
+        NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { [weak self] e in
+            self?.edgeMoved()
+            return e
+        }
     }
 
     var isVisible: Bool { panel.isVisible }
@@ -276,12 +285,33 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
 
     private var folded: Bool { room.dock != nil && !model.settings.sidebarExpanded }
 
+    /// Where the pointer counts as over the docked panel: the panel, widened across the snapping
+    /// margin to the edge of the usable area (the screen's, or the Dock's when it is on that side),
+    /// and a point past it, where a pointer pushed against the edge rests.
+    private var hotZone: NSRect {
+        let r = shown
+        guard let edge = room.dock, let v = panel.screen?.visibleFrame else { return r }
+        switch edge {
+        case .left: return NSRect(x: v.minX - 1, y: r.minY, width: r.maxX - v.minX + 1, height: r.height)
+        case .right: return NSRect(x: r.minX, y: r.minY, width: v.maxX - r.minX + 1, height: r.height)
+        }
+    }
+
+    /// A move outside the window, into the margin by the docked edge.
+    private func edgeMoved() {
+        guard folded, !room.peek, panel.isVisible, peekPending == nil else { return }
+        let p = NSEvent.mouseLocation
+        if hotZone.contains(p), !shown.contains(p) { pointerEntered() }
+    }
+
     /// Entering the rail unfolds it after a short dwell, so passing over it does nothing.
     private func pointerEntered() {
         peekPending?.cancel()
         guard folded, !room.peek else { return }
         let work = DispatchWorkItem { [weak self] in
-            guard let self, self.shown.contains(NSEvent.mouseLocation) else { return }
+            guard let self else { return }
+            self.peekPending = nil
+            guard self.hotZone.contains(NSEvent.mouseLocation) else { return }
             self.startPeek()
         }
         peekPending = work
@@ -302,7 +332,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
     private func checkPeek() {
         guard room.peek, folded else { return endPeek() }
         // Mid-slide the panel is still unfolding under the pointer; a held button is a drag.
-        guard slide == nil, !shown.contains(NSEvent.mouseLocation), NSEvent.pressedMouseButtons == 0 else { return }
+        guard slide == nil, !hotZone.contains(NSEvent.mouseLocation), NSEvent.pressedMouseButtons == 0 else { return }
         endPeek()
     }
 
