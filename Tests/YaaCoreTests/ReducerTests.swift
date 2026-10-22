@@ -730,6 +730,19 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(s.status == .ended && s.display == .done)
     }
 
+    @Test func sessionCountsAsStartedFromItsFirstMessage() {
+        var s = SessionReducer.apply(ev(.sessionStart, 0), to: nil)
+        #expect(s.isUnstarted)
+        // Exiting without a message: still nothing to show.
+        #expect(SessionReducer.apply(ev(.sessionEnd, 1), to: s).isUnstarted)
+        s = SessionReducer.apply(ev(.promptSubmitted("go"), 1), to: s)
+        #expect(!s.isUnstarted)
+        s = SessionReducer.apply(ev(.sessionEnd, 2), to: s)
+        #expect(!s.isUnstarted)
+        // Sessions known only from session files are not judged by hooks.
+        #expect(!SessionReducer.apply(ev(.statusSnapshot(.idle), 0), to: nil).isUnstarted)
+    }
+
     @Test func endedFinishedSessionShowsEndedNotReviewed() {
         var s = SessionReducer.apply(ev(.promptSubmitted("go"), 0), to: nil)
         s = SessionReducer.apply(ev(.turnEnd(lastMessage: "ok"), 1), to: s)

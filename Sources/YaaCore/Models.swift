@@ -258,6 +258,12 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
         }
     }
 
+    /// Opened but never used: hooks reported the session, yet no prompt or tool came before it went
+    /// quiet or exited. Such a session has nothing to show (a fresh `claude`/`pi` window, or `/new`).
+    public var isUnstarted: Bool {
+        hooked && turns.isEmpty && (status == .idle || status == .ended)
+    }
+
     /// The agent's latest reply, from hooks or the transcript.
     public var lastReply: String? { currentTurn?.lastMessage ?? peek?.lastReply }
 

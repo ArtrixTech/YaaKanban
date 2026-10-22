@@ -51,7 +51,8 @@ final class AppModel {
     }
 
     private func isLive(_ s: SessionState, now: Date) -> Bool {
-        if s.dismissedAt != nil { return false }
+        // A session joins the boards with its first message, so an unused one never lingers.
+        if s.dismissedAt != nil || s.isUnstarted { return false }
         switch s.status {
         // However it ended (an exit, or a terminal crash that looks just like one), the conversation
         // lingers like a reviewed card so it can be resumed, unless the same process went on with a
@@ -81,7 +82,7 @@ final class AppModel {
         s.parentId == nil && !isLive(s, now: Date()) ? .ended : s.display
     }
 
-    var allSessions: [SessionState] { sorted(Array(sessions.values)) }
+    var allSessions: [SessionState] { sorted(sessions.values.filter { !$0.isUnstarted }) }
 
     /// Active sessions as the boards show them: most urgent first, then the user's order or start order.
     var board: [SessionState] { Board.ordered(activeSessions, manualOrder: settings.manualOrder, pinned: settings.pinned) }

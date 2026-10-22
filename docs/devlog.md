@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(rail): draw the slim track's light in the system tint only
+## fix(panel): show a session only once it got its first message
 
 `pending` | 2026-10-22
+
+- **Changes**: `SessionState.isUnstarted` (hooked, no turns, idle or ended). `AppModel.isLive` and `allSessions` skip such sessions, so they are on neither the boards nor the history list. Test `sessionCountsAsStartedFromItsFirstMessage`. Spec updated.
+- **Reason**: SessionStart alone created a card; a `claude`/`pi` window closed without a message (or one whose SessionEnd never came) left a card with nothing in it for the retention period.
+- **User feedback**: "目前在打开了某个cc或者pi进程新对话之后就会有item显示在yaak，需要等发出第一条消息之后才显示，否则对应对话退出之后会一直显示在yaak不会消失"
+- **Process**: `make test` (105 pass); `make install`.
+- **Result**: a new session appears on its first prompt (or tool / permission / question, which also count as activity); unused ones never appear.
+- **Notes**: sessions known only from session files (not hooked) are unaffected. Resume keeps the session id, so a resumed session with past turns shows as before. Unstarted sessions are still stored, just not displayed.
+
+## fix(rail): draw the slim track's light in the system tint only
+
+`2eb0187` | 2026-10-22
 
 - **Changes**: `SlimTrack`'s running light drops the fixed RGB core (#9ED6FF) and the shadow glow from 68402b4: a `status.tint` gradient, opaque from 40 % to 80 %, fading at its ends, clipped to the track; the track stays tint 0.22.
 - **Reason**: the panel's colors adapt because they are system colors (`.blue`, `.primary`) inside the `NSGlassEffectView` (a4c1571), which picks light or dark for the backdrop; a fixed RGB does not follow it.
