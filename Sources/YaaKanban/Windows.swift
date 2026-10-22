@@ -57,6 +57,34 @@ struct BrandMark: View {
     }
 }
 
+/// The logo's mark without its tile, drawn in the text color so it reads on either appearance:
+/// three falling columns and the green dot under the last (`logo.svg`, its 38 × 36 content box).
+struct BrandGlyph: View {
+    var size: CGFloat
+
+    var body: some View {
+        let u = size / 38
+        HStack(alignment: .top, spacing: 4 * u) {
+            column(36, 0.95, u)
+            column(24, 0.75, u)
+            ZStack(alignment: .top) {
+                column(14, 0.55, u)
+                Circle().fill(LinearGradient(colors: [Color(red: 0.06, green: 0.73, blue: 0.51), Color(red: 0.29, green: 0.87, blue: 0.5)],
+                                             startPoint: .top, endPoint: .bottom))
+                    .frame(width: 10 * u, height: 10 * u)
+                    .offset(y: 26 * u)
+            }
+        }
+        .frame(width: 38 * u, height: 36 * u, alignment: .topLeading)
+        .accessibilityLabel("YaaKanban")
+    }
+
+    private func column(_ h: CGFloat, _ opacity: Double, _ u: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: 4 * u, style: .continuous).fill(Color.primary.opacity(opacity))
+            .frame(width: 10 * u, height: h * u)
+    }
+}
+
 /// Menu-bar popover: a few controls. The sessions live in the floating panel and the main window.
 struct MenuContent: View {
     @Environment(AppModel.self) private var model

@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(panel): show leverage and today's hours, redo the slim rail
+## feat(panel): chart the leverage trend, slim rail keeps leverage
 
 `pending` | 2026-10-22
+
+- **Changes**: `ActivityReport` gains `activeBuckets` / `presentAgentBuckets` (per-slice parts of leverage) and `rollingLeverage(window:)`. `RecentFigures` (height 40→52) computes one report of 47 slices of window/12 and takes its rolling leverage as a 36-point trend; the figure is the trend's last point. Unfolded: leverage as a 24 pt rounded hero, a `Sparkline` (smooth eased curve, green gradient with glow, fill down to the edge, dashed 1× line, latest point marked, gaps bridged) between it and 今日工时. Folded rail: leverage and "今日 x时". Slim rail: 杠杆, the number, and an arrow (up ≥ +10 %, down ≤ −10 % against one window back). Slim header uses `BrandGlyph`, the logo's columns and dot drawn in the text color without the tile. Test `rollingLeverageEndsAtTheWindowsLeverage`. Spec revised.
+- **Reason**: the slim header's logo had a dark tile; the user wanted leverage back in the slim rail and its trend in the panel.
+- **User feedback**: "超窄状态，logo换成无背景的版本，大小要合适。另外，数据还要显示，只显示杠杆。另外，悬浮窗的数据请对杠杆显示趋势（曲线）"; on the first chart: "太丑了。这块重做，要漂亮，有设计张力。"; on the first slim figure: "这个超窄模式的数据显示没法用"
+- **Process**: first chart (thin blue line beside the number, gaps broken) rejected; redone as the hero layout. Slim figure "1.8×" truncated to "…×" at 20 pt and a mini sparkline was an unreadable blob; replaced by number + arrow. `make test` 103 passed; checked via `yaak snapshot`.
+- **Result**: as above.
+- **Notes**: the trend report is cached like the others (minute-aligned end, 47 buckets key). Rolling points under 60 s of present time are nil.
+
+## feat(panel): show leverage and today's hours, redo the slim rail
+
+`31fc3be` | 2026-10-22
 
 - **Changes**: panel figures (`RecentFigures`) are now two: leverage over the recent window and today's agent hours (今日工时), folded or not; `QuickFigures` loses its `compact` mode (menu popover only). Slim rail 22→28 pt wide (inset 4): each card is a plain `card` with `StatusGlyph`, `AgentLogo`, a 2.5 pt `SlimTrack` (a light runs down it while running, tint while loud, faint otherwise) and a short clock (42s/7m/2h/3d). `FloatingPanelController.hotZone` extends the folded panel across the snap margin to the usable area's docked edge (+1 pt); global + local `mouseMoved` monitors start a peek there, and `checkPeek` keeps the peek while the pointer is in it. Spec, settings copy, Architecture updated.
 - **Reason**: an hour of summed agent time was not intuitive; the slim rail's solid color blocks looked rough and showed nothing; with an 8 pt margin a pointer pushed to the screen edge sat outside the window and never unfolded the rail.

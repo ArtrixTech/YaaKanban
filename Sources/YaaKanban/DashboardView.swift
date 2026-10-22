@@ -765,42 +765,158 @@ struct TodayFigures: View {
     }
 }
 
-/// The floating panel's two figures: leverage over the last `recentMinutes`, and today's agent
-/// hours. The recent window moves by whole minutes so the report cache holds between redraws. In
-/// the slim rail only its space is kept.
+/// The floating panel's figures: leverage over the last `recentMinutes` as the hero with its trend
+/// behind, and today's agent hours. The slim rail keeps only the leverage. Windows move by whole
+/// minutes so the report cache holds between redraws.
 struct RecentFigures: View {
     @Environment(AppModel.self) private var model
     var folded = false
     var slim = false
 
+    /// Fixed, so the panel's cards sit at the same height folded or not.
+    static let height: CGFloat = 52
+    /// Trend points, each the leverage of the `recentMinutes` up to it, a `trendStep`th of that apart.
+    static let trendPoints = 36, trendStep = 12
+
     var body: some View {
-        if slim {
-            Color.clear.frame(height: QuickFigures.height)
-        } else {
-            TimelineView(.periodic(from: .now, by: 30)) { ctx in
-                let _ = model.activityVersion
-                let minutes = model.settings.recentMinutes
-                let end = Calendar.current.dateInterval(of: .minute, for: ctx.date)!.end
-                let recent = model.report(DateInterval(start: end.addingTimeInterval(-minutes * 60), end: end), buckets: 1)
-                let today = model.report(DateInterval(start: Calendar.current.startOfDay(for: ctx.date), end: end), buckets: 1)
-                HStack(spacing: 0) {
-                    figure(recent.leverage.map { String(format: "%.1f×", $0) } ?? "–", "杠杆",
-                           help: "最近 \(SettingsView.duration(minutes))，你在场的每小时 agent 干了几小时；时长可在设置里调")
-                    figure(duration(today.agentTime), "今日工时", help: "今天所有 agent 在跑的时间相加")
+        TimelineView(.periodic(from: .now, by: 30)) { ctx in
+            let _ = model.activityVersion
+            let minutes = model.settings.recentMinutes
+            let end = Calendar.current.dateInterval(of: .minute, for: ctx.date)!.end
+            let slices = Self.trendPoints + Self.trendStep - 1
+            let span = minutes * 60 / Double(Self.trendStep) * Double(slices)
+            let trend = model.report(DateInterval(start: end.addingTimeInterval(-span), end: end), buckets: slices)
+                .rollingLeverage(window: Self.trendStep)
+            let leverage = trend.last ?? nil
+            let today = slim ? nil : model.report(DateInterval(start: Calendar.current.startOfDay(for: ctx.date), end: end), buckets: 1)
+            let help = "最近 \(SettingsView.duration(minutes))，你在场的每小时 agent 干了几小时；时长可在设置里调"
+            Group {
+                if slim {
+                    // 20 pt wide: the number alone, and an arrow for its trend instead of the chart.
+                    VStack(spacing: 2) {
+                        Text("杠杆").font(.system(size: 8, weight: .medium)).foregroundStyle(.secondary)
+                        Text(leverage.map { String(format: $0 < 10 ? "%.1f" : "%.0f", $0) } ?? "–")
+                            .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
+                            .lineLimit(1).minimumScaleFactor(0.5)
+                        if let (symbol, tint) = Self.direction(trend) {
+                            Image(systemName: symbol).font(.system(size: 8, weight: .bold)).foregroundStyle(tint)
+                        }
+                    }
+                    .padding(.horizontal, 1)
+                    .help(help)
+                } else if folded {
+                    VStack(spacing: 3) {
+                        value(leverage, size: 17).help(help)
+                        caption("今日 \(duration(today?.agentTime ?? 0))")
+                    }
+                } else {
+                    HStack(alignment: .center, spacing: 0) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            caption("杠杆")
+                            value(leverage, size: 24)
+                        }
+                        .frame(width: 70, alignment: .leading)
+                        .help(help)
+                        Sparkline(values: trend)
+                            .padding(.top, 9)
+                            .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.3)],
+                                                 startPoint: .leading, endPoint: .trailing))
+                            .help("杠杆走势：每点是到那时为止 \(SettingsView.duration(minutes)) 的杠杆，近 \(SettingsView.duration(span / 60))；虚线为 1×")
+                        VStack(alignment: .trailing, spacing: 2) {
+                            caption("今日工时")
+                            Text(duration(today?.agentTime ?? 0)).font(.system(size: 15, weight: .semibold, design: .rounded).monospacedDigit())
+                        }
+                        .frame(width: 64, alignment: .trailing)
+                        .help("今天所有 agent 在跑的时间相加")
+                        .padding(.leading, 8)
+                    }
+                    .padding(.leading, 12).padding(.trailing, 12)
                 }
-                .frame(height: QuickFigures.height)
-                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(0.05)))
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(height: Self.height)
+            .background(RecentFigures.plate(radius: slim ? 6 : 9))
         }
     }
 
-    private func figure(_ value: String, _ name: String, help: String) -> some View {
-        VStack(spacing: 1) {
-            Text(value).font(.system(size: folded ? 12 : 13.5, weight: .semibold).monospacedDigit())
-                .lineLimit(1).minimumScaleFactor(0.6)
-            Text(name).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+    /// Up or down when the leverage moved a tenth or more over the last window, else level.
+    static func direction(_ trend: [Double?]) -> (String, Color)? {
+        guard let now = trend.last ?? nil, trend.count > trendStep, let then = trend[trend.count - 1 - trendStep] else { return nil }
+        if now > then * 1.1 { return ("arrow.up.right", Sparkline.lime) }
+        if now < then * 0.9 { return ("arrow.down.right", .orange) }
+        return ("arrow.right", .secondary)
+    }
+
+    private func value(_ v: Double?, size: CGFloat) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 1) {
+            Text(v.map { String(format: "%.1f", $0) } ?? "–")
+                .font(.system(size: size, weight: .bold, design: .rounded).monospacedDigit())
+            if v != nil {
+                Text("×").font(.system(size: size * 0.6, weight: .semibold, design: .rounded)).foregroundStyle(.secondary)
+            }
         }
-        .frame(maxWidth: .infinity)
-        .help(help)
+        .lineLimit(1).minimumScaleFactor(0.6)
+    }
+
+    private func caption(_ s: String) -> some View {
+        Text(s).font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
+    }
+
+    static func plate(radius: CGFloat) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        return shape.fill(LinearGradient(colors: [Color.primary.opacity(0.07), Color.primary.opacity(0.03)],
+                                         startPoint: .top, endPoint: .bottom))
+            .overlay(shape.strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5))
+            .clipShape(shape)
+    }
+}
+
+/// The leverage trend: a smooth line from 0 up, filled down to the bottom edge, with a dashed 1×
+/// line and the latest point marked. Gaps (too little time on to count) are bridged; leading ones
+/// are left empty.
+struct Sparkline: View {
+    let values: [Double?]
+
+    static let green = Color(red: 0.06, green: 0.73, blue: 0.51), lime = Color(red: 0.29, green: 0.87, blue: 0.5)
+
+    var body: some View {
+        Canvas { ctx, size in
+            let known = values.enumerated().compactMap { i, v in v.map { (i, $0) } }
+            let top = max((known.map(\.1).max() ?? 0) * 1.2, 1.25)
+            let n = max(values.count - 1, 1)
+            func y(_ v: Double) -> CGFloat { 5 + (size.height - 5) * (1 - v / top) }
+            let points = known.map { CGPoint(x: (size.width - 6) * Double($0.0) / Double(n), y: y($0.1)) }
+
+            // 1×: the agents did as much as the user was there.
+            var unit = Path()
+            unit.move(to: CGPoint(x: 0, y: y(1))); unit.addLine(to: CGPoint(x: size.width, y: y(1)))
+            ctx.stroke(unit, with: .color(.primary.opacity(0.14)), style: StrokeStyle(lineWidth: 0.5, dash: [2, 3]))
+
+            guard let first = points.first, let last = points.last else { return }
+            // Each step eases out of one point and into the next, so it never overshoots.
+            var line = Path()
+            line.move(to: first)
+            for (a, b) in zip(points, points.dropFirst()) {
+                let mid = (a.x + b.x) / 2
+                line.addCurve(to: b, control1: CGPoint(x: mid, y: a.y), control2: CGPoint(x: mid, y: b.y))
+            }
+            var area = line
+            area.addLine(to: CGPoint(x: last.x, y: size.height)); area.addLine(to: CGPoint(x: first.x, y: size.height))
+            area.closeSubpath()
+
+            ctx.fill(area, with: .linearGradient(Gradient(colors: [Self.green.opacity(0.32), Self.green.opacity(0)]),
+                                                 startPoint: CGPoint(x: 0, y: points.map(\.y).min()!), endPoint: CGPoint(x: 0, y: size.height)))
+            let stroke = GraphicsContext.Shading.linearGradient(Gradient(colors: [Self.green, Self.lime]),
+                                                                startPoint: .zero, endPoint: CGPoint(x: size.width, y: 0))
+            var glow = ctx
+            glow.addFilter(.blur(radius: 3))
+            glow.opacity = 0.55
+            glow.stroke(line, with: stroke, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+            ctx.stroke(line, with: stroke, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+
+            ctx.fill(Path(ellipseIn: CGRect(x: last.x - 5, y: last.y - 5, width: 10, height: 10)), with: .color(Self.lime.opacity(0.22)))
+            ctx.fill(Path(ellipseIn: CGRect(x: last.x - 2.5, y: last.y - 2.5, width: 5, height: 5)), with: .color(Self.lime))
+        }
+        .accessibilityLabel("杠杆走势")
     }
 }

@@ -33,6 +33,9 @@ public struct ActivityReport: Sendable {
     public var parallelBuckets: [Double] = []
     /// Average sessions waiting on the user per slice, while the user was here.
     public var waitingBuckets: [Double] = []
+    /// Per slice, the user's present time with something on, and agent time in it: leverage's parts.
+    public var activeBuckets: [Double] = []
+    public var presentAgentBuckets: [Double] = []
     /// Running ÷ (running + waiting on the user), in session-time, while the user was here.
     public var utilization: Double?
     /// Time something waited on the user and nothing ran, while the user was here.
@@ -61,6 +64,17 @@ public struct ActivityReport: Sendable {
     public func perActiveHour(_ n: Int) -> Double? { activeTime >= 60 ? Double(n) / activeHours : nil }
     /// Agent hours per hour the user was on: how many agents' worth of work each of the user's hours drove.
     public var leverage: Double? { activeTime >= 60 ? (agentTime - agentTimeAway) / activeTime : nil }
+
+    /// Leverage over each run of `window` slices ending at a slice, nil where too little was on:
+    /// a trend whose last point is the leverage of the last `window` slices.
+    public func rollingLeverage(window: Int) -> [Double?] {
+        let w = max(window, 1)
+        return activeBuckets.indices.dropFirst(w - 1).map { i in
+            let r = (i - w + 1)...i
+            let active = activeBuckets[r].reduce(0, +)
+            return active >= 60 ? presentAgentBuckets[r].reduce(0, +) / active : nil
+        }
+    }
 
     /// Per session, time running and waiting on the user (away time taken out) in the range,
     /// busiest first.
@@ -174,6 +188,7 @@ public struct ActivityReport: Sendable {
         let n = cuts.count - 1
         var runSums = [Double](repeating: 0, count: max(n, 0))
         var waitSums = runSums
+        var activeSums = runSums, presentRunSums = runSums
         /// Spreads `count` over the slices t..<next covers. Steps by slice index: recomputing it
         /// from `a` can round down at an edge and never advance.
         func spread(_ count: Int, _ t: Date, _ next: Date, into sums: inout [Double]) {
@@ -209,7 +224,8 @@ public struct ActivityReport: Sendable {
                 }
                 if waiting > 0, awayDepth == 0 { spread(waiting, t, next, into: &waitSums) }
                 if awayDepth == 0 {
-                    if running > 0 || waiting > 0 { activeTime += dt }
+                    if running > 0 || waiting > 0 { activeTime += dt; spread(1, t, next, into: &activeSums) }
+                    if running > 0 { spread(running, t, next, into: &presentRunSums) }
                     if t >= measuredFrom {
                         runTime += Double(running) * dt
                         waitTime += Double(waiting) * dt
@@ -223,6 +239,8 @@ public struct ActivityReport: Sendable {
         let widths = (0..<max(n, 0)).map { cuts[$0 + 1] - cuts[$0] }
         parallelBuckets = zip(runSums, widths).map { $1 > 0 ? $0 / $1 : 0 }
         waitingBuckets = zip(waitSums, widths).map { $1 > 0 ? $0 / $1 : 0 }
+        activeBuckets = activeSums
+        presentAgentBuckets = presentRunSums
         utilization = runTime + waitTime > 0 ? runTime / (runTime + waitTime) : nil
     }
 

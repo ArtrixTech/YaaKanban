@@ -45,7 +45,7 @@ struct RailHeader: View {
     var body: some View {
         // Too narrow for the button: hovering unfolds it, and its header has the pin.
         if slim {
-            BrandMark(size: 12).frame(maxWidth: .infinity).frame(height: BoardHeaderHeight.value)
+            BrandGlyph(size: 17).frame(maxWidth: .infinity).frame(height: BoardHeaderHeight.value)
         } else {
             full
         }

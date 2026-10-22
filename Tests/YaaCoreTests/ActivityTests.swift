@@ -146,6 +146,23 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         #expect(r.turnsBySession == ["claude-code:b": 1])
     }
 
+    @Test func rollingLeverageEndsAtTheWindowsLeverage() {
+        // Same rows, 100 s slices: present 0–100 (a, b), 250–300 (a), away 100–250.
+        let rows = [lane("a", 0, .running), lane("a", 300, nil), lane("b", 0, .running), lane("b", 60, nil),
+                    ActivityRow(at: at(100), session: "", kind: .away, value: 150)]
+        let r = ActivityReport.compute(rows: rows, lanesBefore: [:], range: DateInterval(start: t0, duration: 400),
+                                       now: at(500), buckets: 4)
+        #expect(r.activeBuckets == [100, 0, 50, 0])
+        #expect(r.presentAgentBuckets == [160, 0, 50, 0])
+        let trend = r.rollingLeverage(window: 2)
+        #expect(trend.count == 3)
+        #expect(abs(trend[0]! - 1.6) < 1e-9)
+        // 50 s present is under a minute: no figure.
+        #expect(trend[1] == nil && trend[2] == nil)
+        // The whole range as one window is the report's own leverage.
+        #expect(abs(r.rollingLeverage(window: 4)[0]! - r.leverage!) < 1e-9)
+    }
+
     @Test func bucketsSpanTheWholeRange() {
         // Now halfway in: the buckets still split the full range, the later ones empty.
         let r = ActivityReport.compute(rows: [], lanesBefore: ["x": .running], range: DateInterval(start: t0, duration: 1000),
