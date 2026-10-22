@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(metrics): show recent figures on the panel, open main from the menu
+## fix(panel): keep recent figures in the folded rail, drop the range label
 
 `pending` | 2026-10-22
+
+- **Changes**: `RecentFigures` sits outside the header branch in `FloatingPanelView`, so it shows folded too: `compact` (工时, 杠杆) in the rail, an empty spacer of the same height in the slim rail. `QuickFigures` has a fixed `height` (40) and no `title`; the "近1时" label is gone. Spec revised.
+- **Reason**: with the strip only in the unfolded panel, cards jumped down by its height whenever the rail peeked or unfolded.
+- **User feedback**: "悬浮窗显示应在展开和折叠都有，避免item高度位置变化。另外，近1h可以去掉。"
+- **Process**: `make test` 97 passed; rail, rail-wide and rail-slim snapshots show the first card at the same y.
+- **Result**: cards stay put across fold, peek and slim.
+- **Notes**: the window is still set in settings (tooltip names it).
+
+## feat(metrics): show recent figures on the panel, open main from the menu
+
+`2020c34` | 2026-10-22
 
 - **Changes**: `QuickFigures` (agent 工时, 杠杆, 回复, 轮; one-bucket report) replaces the popover's three numbers; `TodayFigures` and new `RecentFigures` wrap it. Floating panel shows `RecentFigures` under its header (not in the folded rail); `Preferences.showRecentStats` (default on) and `recentMinutes` (15/30/60/120/240, default 60), set in 设置 › 悬浮窗. `MenuHeader`: logo, name with a chevron, counts and today's figures are one button to the main window. Overview headline 全员等你 → 回复速度 (median, P90 in note); bottleneck becomes the tile 全部停工, replacing the 回复延迟 tile; summary says how fast you reply. Menu snapshot 230×230. Spec revised.
 - **Reason**: the user wants live recent stats at a glance, a one-click way from the popover to the main window, and found 全员等你 unclear.

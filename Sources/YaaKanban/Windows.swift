@@ -215,8 +215,9 @@ struct FloatingPanelView: View {
                 RailHeader(edge: edge) { settings.sidebarExpanded = true }
             } else {
                 header
-                if settings.showRecentStats { RecentFigures() }
             }
+            // Folded too (narrower), so the cards keep their place when the rail unfolds.
+            if settings.showRecentStats { RecentFigures(folded: folded, slim: slim) }
             list
         }
         // Folded, the sides match the gap between cards.

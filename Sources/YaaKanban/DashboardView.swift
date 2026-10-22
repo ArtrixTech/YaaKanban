@@ -723,35 +723,37 @@ private struct Track: View {
     }
 }
 /// A compact row of figures for a range: agent hours, leverage, reply speed, turns. The menu
-/// popover shows today; the floating panel, the last few minutes (`RecentFigures`).
+/// popover shows today; the floating panel, the last few minutes (`RecentFigures`). `compact`
+/// keeps the first two, for the folded rail.
 struct QuickFigures: View {
     @Environment(AppModel.self) private var model
     let range: DateInterval
-    /// Leading label naming the range, where the context does not.
-    var title: String?
+    var compact = false
     var help: String
+
+    /// Fixed, so the panel's cards sit at the same height folded or not.
+    static let height: CGFloat = 40
 
     var body: some View {
         let _ = model.activityVersion
         let r = model.report(range, buckets: 1)
         HStack(spacing: 0) {
-            if let title {
-                Text(title).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
-                    .fixedSize().padding(.leading, 9)
-            }
-            figure(duration(r.agentTime), "agent 工时")
+            figure(duration(r.agentTime), compact ? "工时" : "agent 工时")
             figure(r.leverage.map { String(format: "%.1f×", $0) } ?? "–", "杠杆")
-            figure(r.replyMedian.map(duration) ?? "–", "回复")
-            figure("\(r.turns)", "轮")
+            if !compact {
+                figure(r.replyMedian.map(duration) ?? "–", "回复")
+                figure("\(r.turns)", "轮")
+            }
         }
-        .padding(.vertical, 6)
+        .frame(height: Self.height)
         .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(0.05)))
         .help(help)
     }
 
     private func figure(_ value: String, _ name: String) -> some View {
         VStack(spacing: 1) {
-            Text(value).font(.system(size: 13.5, weight: .semibold).monospacedDigit()).lineLimit(1).minimumScaleFactor(0.6)
+            Text(value).font(.system(size: compact ? 12 : 13.5, weight: .semibold).monospacedDigit())
+                .lineLimit(1).minimumScaleFactor(0.6)
             Text(name).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
         }
         .frame(maxWidth: .infinity)
@@ -768,16 +770,22 @@ struct TodayFigures: View {
 }
 
 /// The last `recentMinutes`, for the floating panel. The window moves by whole minutes so the
-/// report cache holds between redraws.
+/// report cache holds between redraws. In the slim rail only its space is kept.
 struct RecentFigures: View {
     @Environment(AppModel.self) private var model
+    var folded = false
+    var slim = false
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 30)) { ctx in
-            let minutes = model.settings.recentMinutes
-            let end = Calendar.current.dateInterval(of: .minute, for: ctx.date)!.end
-            QuickFigures(range: DateInterval(start: end.addingTimeInterval(-minutes * 60), end: end),
-                         title: "近\(minutes < 60 ? "\(Int(minutes))分" : "\(Int(minutes / 60))时")", help: "最近 \(SettingsView.duration(minutes))，时长可在设置里调")
+        if slim {
+            Color.clear.frame(height: QuickFigures.height)
+        } else {
+            TimelineView(.periodic(from: .now, by: 30)) { ctx in
+                let minutes = model.settings.recentMinutes
+                let end = Calendar.current.dateInterval(of: .minute, for: ctx.date)!.end
+                QuickFigures(range: DateInterval(start: end.addingTimeInterval(-minutes * 60), end: end), compact: folded,
+                             help: "最近 \(SettingsView.duration(minutes))，时长可在设置里调")
+            }
         }
     }
 }
