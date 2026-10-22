@@ -1,7 +1,8 @@
 import Foundation
 
-/// Board layout: one list, most urgent first. Status decides the order; within a status, sessions
-/// the user placed keep their place and the rest follow by start time.
+/// Board layout: one list, most urgent first. Status decides the order. Finished sessions (to review,
+/// reviewed) are freshest first: the latest of their last event and the user's last click. Within the
+/// other statuses, sessions the user placed keep their place and the rest follow by start time.
 public enum Board {
     /// Status tier, most urgent first: waiting on the user, to review, running, reviewed.
     public static func tier(_ s: DisplayStatus) -> Int {
@@ -18,6 +19,11 @@ public enum Board {
         return sessions.sorted { a, b in
             let ta = tier(a.display), tb = tier(b.display)
             if ta != tb { return ta < tb }
+            if ta != tier(.running), ta != tier(.needsInput) {
+                let (fa, fb) = (a.quietSince, b.quietSince)
+                if fa != fb { return fa > fb }
+                return a.id < b.id
+            }
             switch (pos[a.id], pos[b.id]) {
             case let (x?, y?): return x < y
             case (_?, nil): return true

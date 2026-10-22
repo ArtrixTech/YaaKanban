@@ -472,6 +472,7 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         var x = SessionState(agent: .claudeCode, sessionId: id, at: t0.addingTimeInterval(start))
         x.projectDir = dir
         x.cwd = dir + "/sub"
+        x.status = .running
         return x
     }
 
@@ -503,6 +504,25 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         // Manual order still decides within a tier.
         var r3 = s("r3", "/R3", 5); r3.status = .running
         #expect(ids([r, r3], ["claude-code:r3"]) == ["r3", "r"])
+    }
+
+    @Test func finishedSessionsFreshestFirst() {
+        func done(_ id: String, event: TimeInterval, click: TimeInterval?) -> SessionState {
+            var x = s(id, "/" + id, 0)
+            x.status = .idle
+            x.unreadSince = t0
+            x.lastEventAt = t0.addingTimeInterval(event)
+            x.reviewedAt = click.map { t0.addingTimeInterval($0) }
+            return x
+        }
+        let old = done("old", event: 10, click: nil)
+        let new = done("new", event: 20, click: nil)
+        let clicked = done("clicked", event: 5, click: 30)
+        // A click makes a session fresh again; manual order does not override freshness here.
+        #expect(ids([old, new, clicked], ["claude-code:old"]) == ["clicked", "new", "old"])
+        var seen = done("seen", event: 1, click: 40); seen.unreadSince = nil
+        var seen2 = done("seen2", event: 50, click: nil); seen2.unreadSince = nil
+        #expect(ids([seen, seen2, old]) == ["old", "seen2", "seen"])
     }
 
     @Test func groupFollowsStartDirNotCd() {

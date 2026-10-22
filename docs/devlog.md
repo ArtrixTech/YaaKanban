@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(panel): keep recent figures in the folded rail, drop the range label
+## feat(board): order finished sessions by freshness
 
 `pending` | 2026-10-22
+
+- **Changes**: `Board.ordered` sorts the 待验收 and 已验收 tiers by `quietSince` (max of last event and `reviewedAt`, set on every click), newest first; manual drag order and start time now apply only to waiting and running tiers. Board tests use running sessions for start/manual order; new `finishedSessionsFreshestFirst`. Spec gains the ordering rule.
+- **Reason**: finished cards sat in start order, so the one just finished or just looked at could be buried.
+- **User feedback**: "排序需要改变。在待验收的项目里面应该根据最近点击（新鲜程度）来排序。"
+- **Process**: `make test` 98 passed.
+- **Result**: the freshest finished card is on top of its tier; clicking a card brings it to the top of 已验收.
+- **Notes**: dragging within 待验收/已验收 no longer sticks (freshness wins); ties break by id.
+
+## fix(panel): keep recent figures in the folded rail, drop the range label
+
+`409136f` | 2026-10-22
 
 - **Changes**: `RecentFigures` sits outside the header branch in `FloatingPanelView`, so it shows folded too: `compact` (工时, 杠杆) in the rail, an empty spacer of the same height in the slim rail. `QuickFigures` has a fixed `height` (40) and no `title`; the "近1时" label is gone. Spec revised.
 - **Reason**: with the strip only in the unfolded panel, cards jumped down by its height whenever the rail peeked or unfolded.
