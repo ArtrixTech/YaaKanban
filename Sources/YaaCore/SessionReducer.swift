@@ -14,6 +14,12 @@ public enum SessionReducer {
             let started = s.status == .running && old.status != .running && old.status != .stuck
             if newTurn || wants || started { s.dismissedAt = nil }
         }
+        // Waiting on the user: since when, kept while it goes on waiting.
+        if s.status == .needsInput {
+            if existing?.status != .needsInput || s.needsInputSince == nil { s.needsInputSince = e.at }
+        } else {
+            s.needsInputSince = nil
+        }
         return s
     }
 
@@ -39,6 +45,16 @@ public enum SessionReducer {
             s.status = status
             return s
         }
+        // Metadata, not activity: it must not reset the stuck clock or bring a dismissed card back.
+        if case .titleChanged(let title) = e.kind {
+            var peek = s.peek ?? TranscriptPeek()
+            peek.title = title.flatMap { TranscriptPeek.clip($0) }
+            s.peek = peek == TranscriptPeek() ? nil : peek
+            return s
+        }
+        // An event from before the last turn ended (spooled while the app was busy or down, replayed
+        // at its next start) must not reopen the finished turn.
+        if let end = s.turns.last?.endedAt, e.at < end, s.status == .idle || s.status == .ended { return s }
         s.lastEventAt = max(s.lastEventAt, e.at)
         if let v = e.cwd { s.cwd = v }
         if let v = e.transcriptPath { s.transcriptPath = v }
@@ -128,7 +144,7 @@ public enum SessionReducer {
                 s.tools[i].endedAt = e.at
             }
 
-        case .statusSnapshot:
+        case .statusSnapshot, .titleChanged:
             break
         }
         return s
@@ -175,6 +191,10 @@ public enum Alert: Equatable, Sendable {
     case needsInput(String)
     case done(String?)
     case stuck(String)
+}
+
+extension Alert {
+    public var isDone: Bool { if case .done = self { true } else { false } }
 }
 
 public enum Alerts {

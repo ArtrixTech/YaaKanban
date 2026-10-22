@@ -6,6 +6,7 @@ import YaaCore
 @MainActor
 struct TerminalJumper {
     static let waveBundleId = "dev.commandline.waveterm"
+    static let codexBundleId = "com.openai.codex"
     let settings: Preferences
 
     enum Outcome { case activated(String), copied }
@@ -19,6 +20,15 @@ struct TerminalJumper {
         // The app the agent runs under: Cursor's own agent has no terminal at all, and an editor's
         // built-in terminal says TERM_PROGRAM=vscode whether it is VS Code or Cursor.
         if let app = s.agentPid.flatMap(Self.hostApp(of:)) ?? s.terminal?.termProgram.flatMap(Self.app(forTermProgram:)) {
+            if app.bundleIdentifier == Self.codexBundleId, let url = Self.codexThreadURL(s.sessionId) {
+                // The Codex app opens a thread from its own URL scheme (`codex://threads/<id>`).
+                if let bundle = app.bundleURL {
+                    NSWorkspace.shared.open([url], withApplicationAt: bundle, configuration: NSWorkspace.OpenConfiguration())
+                } else {
+                    NSWorkspace.shared.open(url)
+                }
+                return .activated(app.localizedName ?? "Codex")
+            }
             if Self.isEditor(app) {
                 // Raise the window that has the project (opening the folder would make a new editor
                 // window when the session lives in Cursor's separate Agents window).
@@ -32,6 +42,86 @@ struct TerminalJumper {
         }
         copyContext(s)
         return .copied
+    }
+
+    /// Continues a session whose agent is gone (ended, or its terminal crashed) in the terminal it
+    /// ran in: a new block in its Wave tab, a new Terminal/iTerm window. Elsewhere the terminal is
+    /// raised and the resume command copied.
+    /// `wave` lists Wave terminals to run in, best first: the session's own, then ones borrowed
+    /// from sessions in the same tab (Wave adds the block next to the token's). `waveFailed` runs
+    /// on the main thread when none of them could open the block.
+    @discardableResult
+    func resume(_ s: SessionState, wave: [TerminalContext] = [], waveFailed: @escaping @MainActor () -> Void = {}) -> Outcome {
+        // The Codex app keeps the thread; opening it is resuming it.
+        guard let t = s.terminal, t.termProgram != nil || t.isWave, let cmd = s.resumeCommand else {
+            if s.agent == .codex, s.terminal == nil, let url = Self.codexThreadURL(s.sessionId) {
+                NSWorkspace.shared.open(url)
+                return .activated("Codex")
+            }
+            // Unknown terminal: raise what we can, then leave the resume command to paste.
+            let outcome = jump(to: s)
+            copyResume(s)
+            return outcome
+        }
+        copyResume(s)
+        let cwd = s.cwd ?? s.projectDir
+        if t.isWave, let app = NSRunningApplication.runningApplications(withBundleIdentifier: Self.waveBundleId).first {
+            WaveAdapter(terminal: t, switchTabs: settings.waveTabSwitching)
+                .resume(cmd, cwd: cwd, app: app, runners: wave, failed: waveFailed)
+            return .activated("Wave")
+        }
+        let line = [cwd.map { "cd \(shellQuote($0))" }, cmd].compactMap { $0 }.joined(separator: " && ")
+        switch t.termProgram {
+        case "Apple_Terminal":
+            Self.osascript("tell application \"Terminal\"\nactivate\ndo script \(Self.appleString(line))\nend tell")
+            return .activated("Terminal")
+        case "iTerm.app":
+            Self.osascript("tell application \"iTerm\"\nactivate\nset w to (create window with default profile)\ntell current session of w to write text \(Self.appleString(line))\nend tell")
+            return .activated("iTerm")
+        default:
+            if let app = t.termProgram.flatMap(Self.app(forTermProgram:)) {
+                app.activate()
+                return .activated(app.localizedName ?? "")
+            }
+            return .copied
+        }
+    }
+
+    /// Whether `resume` runs the command itself; otherwise it only raises a terminal and copies it.
+    /// For Wave this also needs a working token, which only the caller knows.
+    static func runsResume(_ s: SessionState) -> Bool {
+        guard let t = s.terminal else { return s.agent == .codex && codexThreadURL(s.sessionId) != nil }
+        return s.resumeCommand != nil && (t.isWave || t.termProgram == "Apple_Terminal" || t.termProgram == "iTerm.app")
+    }
+
+    /// `cd <cwd>` and the resume command, for pasting into any terminal.
+    func copyResume(_ s: SessionState) {
+        guard let cmd = s.resumeCommand else { return copyContext(s) }
+        let text = [(s.cwd ?? s.projectDir).map { "cd \(shellQuote($0))" }, cmd].compactMap { $0 }.joined(separator: " && ")
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    static func appleString(_ s: String) -> String {
+        "\"" + s.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
+    }
+
+    /// Off the main thread: the first run may wait on the Automation permission prompt.
+    static func osascript(_ source: String) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+            p.arguments = ["-e", source]
+            p.standardOutput = FileHandle.nullDevice
+            p.standardError = FileHandle.nullDevice
+            try? p.run()
+        }
+    }
+
+    /// Codex thread ids are UUIDs; anything else is not put into a URL.
+    static func codexThreadURL(_ id: String) -> URL? {
+        guard !id.isEmpty, id.allSatisfy({ $0.isHexDigit || $0 == "-" }) else { return nil }
+        return URL(string: "codex://threads/\(id)")
     }
 
     /// First ancestor of the agent that is a regular app (a terminal or an editor).
@@ -65,13 +155,14 @@ struct TerminalJumper {
         NSPasteboard.general.setString(text, forType: .string)
     }
 
+    static let termProgramIds: [String: String] = [
+        "iTerm.app": "com.googlecode.iterm2", "Apple_Terminal": "com.apple.Terminal",
+        "ghostty": "com.mitchellh.ghostty", "WezTerm": "com.github.wez.wezterm", "vscode": "com.microsoft.VSCode", "cursor": "com.todesktop.230313mzl4w4u92",
+        "waveterm": waveBundleId,
+    ]
+
     static func app(forTermProgram p: String) -> NSRunningApplication? {
-        let ids: [String: String] = [
-            "iTerm.app": "com.googlecode.iterm2", "Apple_Terminal": "com.apple.Terminal",
-            "ghostty": "com.mitchellh.ghostty", "WezTerm": "com.github.wez.wezterm", "vscode": "com.microsoft.VSCode", "cursor": "com.todesktop.230313mzl4w4u92",
-            "waveterm": waveBundleId,
-        ]
-        guard let id = ids[p] else { return nil }
+        guard let id = termProgramIds[p] else { return nil }
         return NSRunningApplication.runningApplications(withBundleIdentifier: id).first
     }
 }
@@ -128,13 +219,55 @@ struct WaveAdapter {
         }
     }
 
+    /// Runs `cmd` in a new block of the session's tab (Wave places it next to the block the token
+    /// was issued for), then stays in a shell. A login shell gives the agent CLIs their PATH.
+    /// Each runner's token is tried in turn (a token's block may be closed). When none works the
+    /// user pastes the copied command instead, and `failed` says so.
+    func resume(_ cmd: String, cwd: String?, app: NSRunningApplication, runners: [TerminalContext],
+                failed: @escaping @MainActor () -> Void) {
+        app.activate()
+        if switchTabs, let tab = terminal.waveTabId, AXIsProcessTrusted() {
+            let pid = app.processIdentifier
+            let block = terminal.waveBlockId
+            DispatchQueue.global(qos: .userInitiated).async {
+                _ = WaveTabBar(pid: pid).press { WaveDB.place(ofBlock: block, tab: tab) }
+            }
+        }
+        let args = ["run"] + (cwd.map { ["--cwd", $0] } ?? []) + ["-c", Self.resumeScript(cmd)]
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard !runners.contains(where: { Self.runWaiting(args, as: $0) }) else { return }
+            DispatchQueue.main.async { MainActor.assumeIsolated { failed() } }
+        }
+    }
+
+    /// A `wsh run` block gets only a one-time `WAVETERM_SWAPTOKEN`; Wave's own rc files trade it
+    /// for the block's id, tab and JWT, but `-ilc` reads the user's rc instead. Trading it here
+    /// lets the resumed agent's hooks report its block, so its card can jump there again.
+    static func resumeScript(_ cmd: String) -> String {
+        let swap = "[ -n \"$WAVETERM_SWAPTOKEN\" ] && eval \"$(\"${WAVETERM_WSHBINDIR:-$HOME/Library/Application Support/waveterm/bin}/wsh\" token \"$WAVETERM_SWAPTOKEN\" zsh 2>/dev/null)\""
+        return "\(swap); \"$SHELL\" -ilc \(shellQuote(cmd)); exec \"$SHELL\" -il"
+    }
+
+    /// Runs `wsh` as `terminal` and reports whether it succeeded (bounded: a hung `wsh` counts as failed).
+    static func runWaiting(_ args: [String], as terminal: TerminalContext) -> Bool {
+        guard let p = process(args, as: terminal), (try? p.run()) != nil else { return false }
+        let deadline = Date().addingTimeInterval(5)
+        while p.isRunning, Date() < deadline { usleep(50_000) }
+        if p.isRunning { p.terminate(); return false }
+        return p.terminationStatus == 0
+    }
+
     func badge(on: Bool) {
         guard let block = terminal.waveBlockId else { return }
         run(on ? ["badge", "bell", "--color", "#f59e0b", "-b", block] : ["badge", "--clear", "-b", block])
     }
 
     private func run(_ args: [String]) {
-        guard let jwt = terminal.waveJWT, FileManager.default.isExecutableFile(atPath: Self.wsh) else { return }
+        try? Self.process(args, as: terminal)?.run()
+    }
+
+    private static func process(_ args: [String], as terminal: TerminalContext) -> Process? {
+        guard let jwt = terminal.waveJWT, FileManager.default.isExecutableFile(atPath: Self.wsh) else { return nil }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: Self.wsh)
         p.arguments = args
@@ -144,7 +277,7 @@ struct WaveAdapter {
         p.environment = env
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
-        try? p.run()
+        return p
     }
 }
 

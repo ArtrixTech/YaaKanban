@@ -114,6 +114,8 @@ public struct AgentEvent: Equatable, Sendable {
         /// Status reported by a session file. Drives sessions without hooks; for hooked ones only an
         /// `.idle` newer than the last hook event counts (an interrupt fires no Stop hook).
         case statusSnapshot(SessionStatus)
+        /// The agent's own name for the session (pi's `/name` or an auto title); nil clears it.
+        case titleChanged(String?)
     }
 
     public var agent: AgentKind
@@ -185,6 +187,8 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var status: SessionStatus
     public var stuckReason: String?
     public var needsInputMessage: String?
+    /// When it last started waiting on the user (`.needsInput`), for the reminder flash.
+    public var needsInputSince: Date?
     public var pendingPermission: PermissionRequest?
     public var startedAt: Date
     public var lastEventAt: Date
@@ -196,12 +200,18 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var hooked: Bool
     /// Set when a turn finishes; cleared once the user looks at the session or sends a new prompt.
     public var unreadSince: Date?
+    /// When the user last opened the session. Looking again restarts the blue "left alone" clock.
+    public var reviewedAt: Date?
     /// What the transcript says, for sessions whose turns we did not see through hooks.
     public var peek: TranscriptPeek?
     /// Token and tool totals from the transcript, when it can be read.
     public var usage: Usage?
     /// Set when the user ends the session in the panel; it stays in history but leaves the boards.
     public var dismissedAt: Date?
+    /// A name the user gave the session in YaaKanban; it wins over every other title.
+    public var customName: String?
+    /// Key of the session that spawned this one as a sub-agent (pi runs them as sessions of their own).
+    public var parentId: String?
 
     public static let toolHistoryLimit = 200
 
@@ -217,15 +227,17 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
         self.hooked = false
     }
 
-    /// Short name: the agent's own title, else the first prompt's first line, else the project.
+    /// Short name: the user's name for it, else the agent's own title, else the first prompt's first
+    /// line, else the project.
     public var title: String {
+        if let n = customName, !n.isEmpty { return n }
         if let t = peek?.title, !t.isEmpty { return t }
         let first = turns.first { !$0.prompt.isEmpty }?.prompt ?? peek?.lastPrompt
         if let p = first.flatMap(Self.firstLine), !p.isEmpty { return p.count > 40 ? String(p.prefix(40)) + "…" : p }
         return projectName ?? sessionId
     }
 
-    static func firstLine(_ s: String) -> String? {
+    public static func firstLine(_ s: String) -> String? {
         s.split(whereSeparator: \.isNewline).first.map { $0.trimmingCharacters(in: .whitespaces) }
     }
 
@@ -235,19 +247,94 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var latestTool: ToolCall? { tools.last }
     public var runningTools: [ToolCall] { tools.filter(\.isRunning) }
 
-    /// What the UI shows: `.idle` splits into "to review" and "done".
+    /// What the UI shows: `.idle` splits into "to review" and "done". The agent exiting is not the
+    /// end for the user: only ending it on the panel is (and, in the app, outliving the retention).
     public var display: DisplayStatus {
         switch status {
         case .running: .running
         case .needsInput: .needsInput
         case .stuck: .stuck
-        case .idle: unreadSince == nil ? .done : .review
-        case .ended: .ended
+        case .idle, .ended: dismissedAt != nil ? .ended : unreadSince == nil ? .done : .review
         }
+    }
+
+    /// Opened but never used: hooks reported the session, yet no prompt or tool came before it went
+    /// quiet or exited. Such a session has nothing to show (a fresh `claude`/`pi` window, or `/new`).
+    public var isUnstarted: Bool {
+        hooked && turns.isEmpty && (status == .idle || status == .ended)
     }
 
     /// The agent's latest reply, from hooks or the transcript.
     public var lastReply: String? { currentTurn?.lastMessage ?? peek?.lastReply }
+
+    /// Since when nothing has happened: the last event, or the user looking later.
+    public var quietSince: Date { max(lastEventAt, reviewedAt ?? lastEventAt) }
+
+    /// The shell command that continues this session in its own CLI, run from `cwd`.
+    public var resumeCommand: String? {
+        // The id comes from a hook payload: never let it read as a flag.
+        guard !sessionId.isEmpty, !sessionId.hasPrefix("-") else { return nil }
+        let id = shellQuote(sessionId)
+        switch agent {
+        case .claudeCode: return "claude --resume \(id)"
+        case .codex: return "codex resume \(id)"
+        case .cursor: return "cursor-agent --resume \(id)"
+        case .opencode: return "opencode --session \(id)"
+        // pi's session id is the session file path.
+        case .pi: return "pi --session \(id)"
+        }
+    }
+
+    /// How long an ended session keeps its Wave token, so it can be resumed in its tab.
+    public static let waveTokenTTL: TimeInterval = 24 * 3600
+
+    /// The Wave token is a live credential: kept while the session runs, and after it ended (or its
+    /// process went, `gone`) while it may still be resumed. Dropped once the user ended it on the
+    /// board, or `waveTokenTTL` after its last event (clicking the card does not extend it).
+    public func dropsWaveToken(now: Date, gone: Bool = false) -> Bool {
+        guard status == .ended || gone else { return false }
+        return dismissedAt != nil || now.timeIntervalSince(lastEventAt) > Self.waveTokenTTL
+    }
+}
+
+/// How a card asks for a second look, from how long it has been sitting.
+public enum Attention {
+    /// Defaults. Waiting on the user this long without being clicked: the card flashes.
+    public static let flashAfter: TimeInterval = 30
+    /// A reviewed turn with nothing after it starts turning blue after this long.
+    public static let staleAfter: TimeInterval = 10 * 60
+
+    /// Whether a session waiting on the user should flash: it has waited `after` since it
+    /// started waiting, and the user has not clicked it since.
+    public static func flashes(_ s: SessionState, acknowledged: Date?, now: Date,
+                               after: TimeInterval = flashAfter) -> Bool {
+        guard s.status == .needsInput, let since = s.needsInputSince else { return false }
+        if let a = acknowledged, a >= since { return false }
+        return now.timeIntervalSince(since) >= after
+    }
+
+    /// Default: a finished turn left unreviewed this long while the user is at the Mac flashes.
+    public static let reviewFlashAfter: TimeInterval = 10 * 60
+
+    /// Whether a finished, unreviewed turn should flash: the user has been at the Mac (`presentSince`,
+    /// nil while away) for `after` since it finished, without opening it. Time away does not count.
+    public static func reviewFlashes(_ s: SessionState, presentSince: Date?, now: Date,
+                                     after: TimeInterval = reviewFlashAfter) -> Bool {
+        guard s.display == .review, let since = s.unreadSince, let back = presentSince else { return false }
+        return now.timeIntervalSince(max(since, back)) >= after
+    }
+
+    /// 0 to 1: how blue a reviewed, finished turn is, counted from `quietSince`. Rises from `after`
+    /// to the middle of `after` and `linger` (when the card leaves the board), then falls back to 0.
+    public static func staleness(_ s: SessionState, linger: TimeInterval, now: Date,
+                                 after: TimeInterval = staleAfter) -> Double {
+        guard s.display == .done, linger > after else { return 0 }
+        let t = now.timeIntervalSince(s.quietSince)
+        let peak = (after + linger) / 2
+        let x = t < peak ? (t - after) / (peak - after) : (linger - t) / (linger - peak)
+        let c = min(1, max(0, x))
+        return sin(c * .pi / 2)  // visible soon after it starts, flat at the peak
+    }
 }
 
 public enum DisplayStatus: Sendable {

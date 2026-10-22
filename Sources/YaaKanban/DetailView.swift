@@ -8,7 +8,7 @@ struct SessionDetail: View {
     @State private var openTool: String?
 
     var body: some View {
-        let st = session.display
+        let st = model.display(session)
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 header(st)
@@ -75,8 +75,10 @@ struct SessionDetail: View {
                     if !session.hooked { meta("exclamationmark.circle", "未挂 hook").foregroundStyle(.orange) }
                 }
                 HStack(spacing: 6) {
-                    Button { model.jump(session.id) } label: { Label("跳转到终端", systemImage: "arrow.up.forward.app") }
-                        .buttonStyle(PillButtonStyle(tint: .accentColor, prominent: true))
+                    Button { model.jump(session.id) } label: {
+                        Label(AppModel.isGone(session) ? "在原终端恢复" : "跳转到终端", systemImage: "arrow.up.forward.app")
+                    }
+                    .buttonStyle(PillButtonStyle(tint: .accentColor, prominent: true))
                     Button { model.jumper.copyContext(session) } label: { Label("复制 cwd / session", systemImage: "doc.on.doc") }
                         .buttonStyle(PillButtonStyle())
                     Spacer()

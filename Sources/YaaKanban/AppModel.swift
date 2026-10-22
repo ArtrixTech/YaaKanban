@@ -28,55 +28,85 @@ final class AppModel {
     var serverError: String?
     /// Debug hook: render windows to PNGs (`yaak snapshot <dir>`), for verification without screen recording.
     @ObservationIgnored var onSnapshot: ((URL) -> Void)?
-    /// Session selected in the main window.
-    var selection: String?
+    /// Session selected in the main window, or `overview` (the home page).
+    var selection: String? = AppModel.overview
+    static let overview = "overview"
 
     // MARK: Derived views
 
-    /// Active sessions for the floating panel: not ended, and idle ones only for 30 min.
+    /// Active sessions for the floating panel; idle and ended ones only for a while (24 h by default).
+    /// Sub-agents of a session on the board show inside its card instead.
     var activeSessions: [SessionState] {
         let now = Date()
-        return sorted(sessions.values.filter { s in
-            if s.dismissedAt != nil { return false }
-            switch s.status {
-            case .ended: return false
-            // Unreviewed results stay until looked at; reviewed ones fade out after a while.
-            case .idle: return s.unreadSince != nil || now.timeIntervalSince(s.lastEventAt) < settings.idleVisibleSeconds
-            default: return true
+        let live = sessions.values.filter { isLive($0, now: now) }
+        let shown = Set(live.map(\.id))
+        return sorted(live.filter { s in s.parentId.map { !shown.contains($0) } ?? true })
+    }
+
+    /// Live sub-agent sessions of `key`, oldest first.
+    func subagents(of key: String) -> [SessionState] {
+        let now = Date()
+        return sessions.values.filter { $0.parentId == key && isLive($0, now: now) }
+            .sorted { $0.startedAt < $1.startedAt }
+    }
+
+    private func isLive(_ s: SessionState, now: Date) -> Bool {
+        // A session joins the boards with its first message, so an unused one never lingers.
+        if s.dismissedAt != nil || s.isUnstarted { return false }
+        switch s.status {
+        // However it ended (an exit, or a terminal crash that looks just like one), the conversation
+        // lingers like a reviewed card so it can be resumed, unless the same process went on with a
+        // new session (`/clear`, `/new`).
+        case .ended:
+            if s.parentId != nil || now.timeIntervalSince(s.quietSince) >= settings.idleVisibleSeconds { return false }
+            // One process may host sibling sessions (OpenCode, the Codex app): only a top-level
+            // session started after this one's last event replaced it.
+            guard let pid = s.agentPid else { return true }
+            return !sessions.values.contains {
+                $0.agentPid == pid && $0.id != s.id && $0.parentId == nil && $0.startedAt >= s.lastEventAt
             }
-        })
-    }
-
-    var allSessions: [SessionState] { sorted(Array(sessions.values)) }
-
-    /// Active sessions as the boards show them: start order or the user's, grouped by project.
-    var board: [BoardGroup] { Board.groups(activeSessions, manualOrder: settings.manualOrder) }
-
-    /// Moves sessions (a card, or a whole group) before `target`, or to the end.
-    func move(_ ids: [String], before target: String?) {
-        let flat = board.flatMap { $0.sessions.map(\.id) }
-        settings.manualOrder = Board.move(ids, before: target, board: flat, manualOrder: settings.manualOrder)
-    }
-
-    /// Context-menu moves: -1 up, +1 down, nil to the top. A whole group moves among groups;
-    /// a card inside a group moves among its siblings (grouping would undo anything else).
-    func step(_ ids: [String], by delta: Int?) {
-        let groups = board
-        guard let gi = groups.firstIndex(where: { $0.sessions.contains { ids.contains($0.id) } }) else { return }
-        let members = groups[gi].sessions.map(\.id)
-        let wholeGroup = Set(members) == Set(ids)
-        let units: [[String]] = wholeGroup ? groups.map { $0.sessions.map(\.id) } : members.map { [$0] }
-        guard let i = units.firstIndex(where: { $0.contains(ids[0]) }) else { return }
-        let j = delta.map { i + $0 } ?? 0
-        guard j != i, units.indices.contains(j) else { return }
-        // Moving down: land before the unit after the one we pass.
-        let target: String? = j < i ? units[j].first : (units.indices.contains(j + 1) ? units[j + 1].first : nil)
-        if !wholeGroup, target == nil {
-            // Last within its group: before whatever follows the group, if anything.
-            move(ids, before: groups.indices.contains(gi + 1) ? groups[gi + 1].sessions.first?.id : nil)
-        } else {
-            move(ids, before: target)
+        // Unreviewed results stay until looked at; reviewed ones fade out after a while.
+        // A sub-agent's result is its parent's business, so it only lingers briefly.
+        case .idle:
+            if s.parentId != nil { return now.timeIntervalSince(s.lastEventAt) < Self.subagentLinger }
+            return s.unreadSince != nil || now.timeIntervalSince(s.quietSince) < settings.idleVisibleSeconds
+        default: return true
         }
+    }
+
+    static let subagentLinger: TimeInterval = 60
+
+    /// A session's status as the user sees it: one that has left the boards (retention over, or
+    /// ended on the panel) is ended, whatever the agent did.
+    func display(_ s: SessionState) -> DisplayStatus {
+        s.parentId == nil && !isLive(s, now: Date()) ? .ended : s.display
+    }
+
+    var allSessions: [SessionState] { sorted(sessions.values.filter { !$0.isUnstarted }) }
+
+    /// Active sessions as the boards show them: most urgent first, then the user's order or start order.
+    var board: [SessionState] { Board.ordered(activeSessions, manualOrder: settings.manualOrder, pinned: settings.pinned) }
+
+    func isPinned(_ key: String) -> Bool { settings.pinned.contains(key) }
+
+    /// Pins a session above every status, or unpins it.
+    func togglePin(_ key: String) {
+        if isPinned(key) { settings.pinned.removeAll { $0 == key } } else { settings.pinned.insert(key, at: 0) }
+    }
+
+    /// Moves sessions before `target`, or to the end.
+    func move(_ ids: [String], before target: String?) {
+        settings.manualOrder = Board.move(ids, before: target, board: board.map(\.id), manualOrder: settings.manualOrder)
+    }
+
+    /// Context-menu moves: -1 up, +1 down, nil to the top.
+    func step(_ ids: [String], by delta: Int?) {
+        let flat = board.map(\.id)
+        guard let first = ids.first, let i = flat.firstIndex(of: first) else { return }
+        let j = delta.map { i + $0 } ?? 0
+        guard j != i, flat.indices.contains(j) else { return }
+        // Moving down: land before the card after the one we pass.
+        move(ids, before: j < i ? flat[j] : (flat.indices.contains(j + 1) ? flat[j + 1] : nil))
     }
 
     /// Sessions the user has not ended; counts and badges ignore the rest.
@@ -103,13 +133,19 @@ final class AppModel {
         do {
             let store = try Store(path: paths.database)
             store.purgeDetails()
-            for s in store.loadAll() { sessions[s.id] = s }
+            for s in store.loadAll() {
+                // Codex background calls recorded before they were filtered out.
+                if Normalizer.isCodexBackground(s.agent, transcriptPath: s.transcriptPath) { store.delete(id: s.id); continue }
+                sessions[s.id] = s
+            }
             self.store = store
         } catch {
             serverError = "History unavailable: \(error)"
         }
+        beginActivity()
         // Sessions that were live when the app quit may have ended meanwhile.
         tick()
+        syncLanes()
 
         do {
             try FileManager.default.createDirectory(at: paths.base, withIntermediateDirectories: true)
@@ -128,16 +164,25 @@ final class AppModel {
         }
         notifier.requestAuthorization()
 
-        timers.append(Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+        timers.append(Timer(timeInterval: 10, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         })
-        timers.append(Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+        timers.append(Timer(timeInterval: 5, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.scan() }
         })
+        // Common modes: keep going while a dialog or menu is open.
+        for t in timers { RunLoop.main.add(t, forMode: .common) }
         scan()
+
+        let ws = NSWorkspace.shared.notificationCenter
+        ws.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.awaySince = self?.awaySince ?? Date() }
+        }
     }
 
     func stop() {
+        endAway(at: Date())
+        store?.setMeta(Self.heartbeatKey, Date().timeIntervalSince1970)
         server?.stop()
         for (_, r) in pendingReplies { r.send(Wire.encode(WireReply(decision: nil))) }
     }
@@ -174,20 +219,25 @@ final class AppModel {
         for ev in Normalizer.normalize(env) {
             key = update(SessionState.key(ev.agent, ev.sessionId), alert: alert) { SessionReducer.apply(ev, to: $0) }
         }
+        if let key { linkParent(key) }
         return key
     }
 
     @discardableResult
     private func update(_ key: String, alert: Bool, _ f: (SessionState?) -> SessionState?) -> String {
         let old = sessions[key]
-        guard let new = f(old) else { return key }
+        guard var new = f(old) else { return key }
+        // A sub-agent's finished turn is reviewed through its parent.
+        if new.parentId != nil { new.unreadSince = nil }
         sessions[key] = new
         store?.save(new)
+        record(Activity.rows(old: old, new: new, now: Date()))
         if old?.pendingPermission?.awaitingDecision == true && new.pendingPermission?.awaitingDecision != true {
             pendingReplies.removeValue(forKey: key)?.send(Wire.encode(WireReply(decision: nil)))
             notifier.withdraw(key: key)
         }
-        if alert, new.dismissedAt == nil, let a = Alerts.between(old, new) { notifier.post(a, for: new, settings: settings) }
+        if alert, new.dismissedAt == nil, let a = Alerts.between(old, new),
+           new.parentId == nil || !a.isDone { notifier.post(a, for: new, settings: settings) }
         // The Wave badge stays on until the user has dealt with it, including reviewing a finished turn.
         if (old.map(Self.wantsUser) ?? false) != Self.wantsUser(new) { jumper.badge(new, on: Self.wantsUser(new)) }
         return key
@@ -195,11 +245,10 @@ final class AppModel {
 
     // MARK: Permissions
 
-    /// `requestId` (from a notification) must match the request still pending, so a stale
-    /// notification can never approve a newer command.
-    func decide(_ key: String, _ decision: PermissionDecision, requestId: String? = nil) {
-        guard let pending = pendingReplies[key] else { return }
-        if let requestId, requestId != pending.requestId { return }
+    /// `requestId` is the request the user saw (panel or notification); it must match the one
+    /// still pending, so a stale button or notification can never approve a newer command.
+    func decide(_ key: String, _ decision: PermissionDecision, requestId: String) {
+        guard let pending = pendingReplies[key], pending.requestId == requestId else { return }
         pendingReplies[key] = nil
         pending.send(Wire.encode(WireReply(decision: decision)))
         notifier.withdraw(key: key)
@@ -239,13 +288,22 @@ final class AppModel {
 
     private func tick() {
         let now = Date()
+        trackAway(now: now)
+        if now.timeIntervalSince(tokensFlushedAt) >= 60 { flushTokens() }
+        store?.setMeta(Self.heartbeatKey, now.timeIntervalSince1970)
         let cfg = settings.stuckConfig
         for key in Array(sessions.keys) {
             update(key, alert: true) { s in
                 guard let s else { return nil }
+                if s.terminal?.waveJWT != nil, s.dropsWaveToken(now: now, gone: Self.isGone(s)) {
+                    var out = s
+                    out.terminal?.waveJWT = nil
+                    return out
+                }
                 return StuckDetector.evaluate(s, now: now, config: cfg, isAlive: ProcessUtil.isAlive)
             }
         }
+        syncLanes()
     }
 
     private func scan() {
@@ -255,6 +313,7 @@ final class AppModel {
             let k = SessionState.key(ev.agent, ev.sessionId)
             update(k, alert: sessions[k].map { !$0.hooked } ?? false) { SessionReducer.apply(ev, to: $0) }
         }
+        for s in sessions.values where s.parentId == nil && s.status != .ended { linkParent(s.id) }
         // Titles for every live session; for unhooked ones also the latest prompt and reply.
         for s in activeSessions {
             var peek: TranscriptPeek?
@@ -308,21 +367,249 @@ final class AppModel {
         }
     }
 
-    // MARK: User actions
+    // MARK: Activity
 
-    /// The user looked at the result of a finished turn.
-    func markRead(_ key: String) {
-        guard sessions[key]?.unreadSince != nil else { return }
+    /// Bumped on each recorded row, so the efficiency views redraw.
+    private(set) var activityVersion = 0
+    /// The user has been away (no input for `awayAfter`, or the Mac asleep) since then.
+    private(set) var awaySince: Date? { didSet { if awaySince != nil { presentSince = nil } } }
+    /// The user has been at the Mac since then (launch, or the end of the last absence); nil while away.
+    private(set) var presentSince: Date? = Date()
+    /// Activity before this was rebuilt from the session history: running time and turns only.
+    private(set) var recordedSince: Date?
+    static let awayAfter: TimeInterval = 120
+    private static let heartbeatKey = "heartbeat"
+    private static let awayKey = "awaySince"
+    private static let recordedKey = "recordedSince"
+    /// Each session's lane as last recorded, so a tick can catch lanes the record missed.
+    @ObservationIgnored private var recordedLanes: [String: Lane] = [:]
+    /// Token use waiting to be written: one row per session per minute instead of one per scan.
+    @ObservationIgnored private var pendingTokens: [String: Double] = [:]
+    @ObservationIgnored private var tokensFlushedAt = Date()
+    @ObservationIgnored private var reports: [ReportKey: (version: Int, at: Date, report: ActivityReport)] = [:]
+    private struct ReportKey: Hashable { var range: DateInterval; var buckets: Int }
+
+    /// The session's lane, as the boards show it: one past its retention has left the lanes.
+    private func lane(_ s: SessionState?) -> Lane? {
+        guard let s, s.parentId == nil, s.dismissedAt == nil else { return nil }
+        return Lane(display(s))
+    }
+
+    private func record(_ rows: [ActivityRow]) {
+        guard let store else { return }
+        var rows = rows
+        rows.removeAll { r in
+            guard r.kind == .tokens else { return false }
+            pendingTokens[r.session, default: 0] += r.value
+            return true
+        }
+        guard !rows.isEmpty else { return }
+        for r in rows where r.kind == .lane { recordedLanes[r.session] = Lane(rawValue: r.text) }
+        // The heartbeat covers the rows just written, so lanes left open at a quit close after them.
+        store.record(rows, meta: [Self.heartbeatKey: Date().timeIntervalSince1970])
+        activityVersion += 1
+    }
+
+    private func flushTokens() {
+        tokensFlushedAt = Date()
+        guard !pendingTokens.isEmpty else { return }
+        let rows = pendingTokens.map { ActivityRow(at: tokensFlushedAt, session: $0.key, kind: .tokens, value: $0.value) }
+        pendingTokens = [:]
+        store?.record(rows)
+        activityVersion += 1
+    }
+
+    /// At launch, before the first tick: the time the app was not running counts as away, and
+    /// lanes still open then end when it stopped (nothing was watching after that). The first
+    /// launch also rebuilds what the session history knows of the time before.
+    private func beginActivity() {
+        guard let store else { return }
+        store.purgeActivity()
+        let now = Date()
+        if let since = store.meta(Self.recordedKey) {
+            recordedSince = Date(timeIntervalSince1970: since)
+        } else {
+            let since = store.firstActivity() ?? now
+            store.record(ActivityBackfill.rows(Array(sessions.values), before: since),
+                         meta: [Self.recordedKey: since.timeIntervalSince1970])
+            recordedSince = since
+        }
+        // Away when the app stopped (or was killed), else from the last sign of life.
+        let hb = store.meta(Self.heartbeatKey).map(Date.init(timeIntervalSince1970:))
+        let wasAway = store.meta(Self.awayKey).map(Date.init(timeIntervalSince1970:))
+        store.deleteMeta(Self.awayKey)
+        recordedLanes = store.lanes()
+        guard let hb, let from = [hb, wasAway ?? hb].min(), now.timeIntervalSince(hb) > 30 || wasAway != nil else { return }
+        var rows = [ActivityRow(at: from, session: "", kind: .away, value: now.timeIntervalSince(from))]
+        for id in recordedLanes.keys { rows.append(ActivityRow(at: hb, session: id, kind: .lane)) }
+        record(rows)
+    }
+
+    /// Lanes as they are now, where the record says otherwise: at launch, and on each tick for
+    /// sessions whose lane changed without a state change (retention running out).
+    private func syncLanes() {
+        let now = Date()
+        var rows: [ActivityRow] = []
+        for id in Set(recordedLanes.keys).union(sessions.keys) {
+            let l = lane(sessions[id])
+            if l != recordedLanes[id] { rows.append(ActivityRow(at: now, session: id, kind: .lane, text: l?.rawValue ?? "")) }
+        }
+        record(rows)
+    }
+
+    /// Away once there has been no mouse or keyboard input for `awayAfter`, counted from the last input.
+    private func trackAway(now: Date) {
+        let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
+        if idle >= Self.awayAfter {
+            beginAway(at: now.addingTimeInterval(-idle))
+        } else {
+            endAway(at: now.addingTimeInterval(-idle))
+        }
+    }
+
+    private func beginAway(at t: Date) {
+        guard awaySince == nil else { return }
+        awaySince = t
+        // Survives a crash or force quit, so that time still counts as away at the next launch.
+        store?.setMeta(Self.awayKey, t.timeIntervalSince1970)
+    }
+
+    private func endAway(at end: Date) {
+        guard let since = awaySince else { return }
+        awaySince = nil
+        presentSince = end
+        store?.deleteMeta(Self.awayKey)
+        if end > since { record([ActivityRow(at: since, session: "", kind: .away, value: end.timeIntervalSince(since))]) }
+    }
+
+    /// The report for `range`, computed again when something was recorded, at most every few
+    /// seconds (views ask on every redraw). A range already over is kept for minutes: only an
+    /// absence ending later still reaches into it.
+    func report(_ range: DateInterval, buckets: Int = 48, edges: [Date]? = nil) -> ActivityReport {
+        guard let store else { return ActivityReport(range: range) }
+        let now = Date()
+        let key = ReportKey(range: range, buckets: edges.map { $0.count - 1 } ?? buckets)
+        if let c = reports[key] {
+            let age = now.timeIntervalSince(c.at)
+            if range.end <= c.at ? age < 600 : (c.version == activityVersion || age < 5) && age < 30 { return c.report }
+        }
+        if reports.count > 24 { reports = [:] }
+        let r = ActivityReport.compute(rows: store.activity(from: range.start, to: min(range.end, now)),
+                                       lanesBefore: store.lanes(before: range.start), range: range, now: now,
+                                       awaySince: awaySince, recordedSince: recordedSince, buckets: buckets, edges: edges)
+        reports[key] = (activityVersion, now, r)
+        return r
+    }
+
+    var backlog: Backlog { Backlog(Array(sessions.values)) }
+
+    // MARK: Sub-agents
+
+    /// Transcripts already read for a parent link (the header is written once, at start).
+    @ObservationIgnored private var linkChecked: Set<String> = []
+
+    /// Links a sub-agent session to its parent, from the transcript header.
+    private func linkParent(_ key: String) {
+        guard !linkChecked.contains(key), let s = sessions[key], s.parentId == nil, s.agent == .pi,
+              let path = s.transcriptPath else { return }
+        let url = URL(fileURLWithPath: path)
+        // Not written yet: try again on the next event or scan.
+        guard FileManager.default.fileExists(atPath: path) else { return }
+        linkChecked.insert(key)
+        guard let parent = SubagentLink.parentSession(transcript: url) else { return }
+        let pk = SessionState.key(s.agent, parent)
+        guard pk != key else { return }
         update(key, alert: false) { s in
             guard var s else { return nil }
-            s.unreadSince = nil
+            s.parentId = pk
             return s
         }
     }
 
+    // MARK: User actions
+
+    /// The user looked at the session: a finished turn counts as reviewed, and the clocks for
+    /// turning blue and leaving the board start again.
+    func markRead(_ key: String) {
+        update(key, alert: false) { s in
+            guard var s else { return nil }
+            s.unreadSince = nil
+            s.reviewedAt = Date()
+            return s
+        }
+    }
+
+    /// When the user last clicked each card, so a session waiting on them stops flashing.
+    private(set) var acknowledged: [String: Date] = [:]
+
     func jump(_ key: String) {
+        acknowledged[key] = Date()
+        // A sub-agent has no window of its own; it runs inside its parent's.
+        if let p = sessions[key]?.parentId, sessions[p] != nil { return jump(p) }
         markRead(key)
-        if let s = sessions[key] { jumper.jump(to: s) }
+        guard let s = sessions[key] else { return }
+        record([ActivityRow(at: Date(), session: key, kind: .focus)])
+        guard Self.isGone(s) else { jumper.jump(to: s); return }
+        let runners = waveRunners(for: s)
+        let name = s.terminal?.termProgram.flatMap(TerminalJumper.app(forTermProgram:))?.localizedName ?? "终端"
+        let why: String? = s.terminal?.isWave == true && runners.isEmpty ? "Wave 的授权已过期"
+            : TerminalJumper.runsResume(s) ? nil
+            : s.terminal?.termProgram == "waveterm" ? "没有记下它在哪个 Wave 标签页" : "\(name)不接受外部输入命令"
+        switch Self.askReopen(s, cannotRun: why.map { ($0, name) }) {
+        case .alertFirstButtonReturn: jumper.resume(s, wave: runners) { Self.tellResumeFailed(s) }
+        case .alertSecondButtonReturn: jumper.copyResume(s)
+        default: break
+        }
+    }
+
+    /// Wave terminals that may still run commands in the session's tab, best first: its own token,
+    /// then other sessions in that tab, live ones (their block is surely open) before gone ones,
+    /// newest first. A token whose block was closed fails and the next is tried.
+    private func waveRunners(for s: SessionState) -> [TerminalContext] {
+        guard let t = s.terminal, t.isWave else { return [] }
+        let others = t.waveTabId.map { tab in
+            sessions.values.filter { $0.id != s.id && $0.terminal?.waveTabId == tab && $0.terminal?.waveJWT != nil }
+                .sorted { a, b in
+                    let (la, lb) = (!Self.isGone(a), !Self.isGone(b))
+                    return la != lb ? la : a.lastEventAt > b.lastEventAt
+                }
+                .compactMap(\.terminal)
+        } ?? []
+        var seen = Set<String>()
+        return ([t] + others).filter { $0.waveJWT.map { seen.insert($0).inserted } ?? false }
+    }
+
+    private static func tellResumeFailed(_ s: SessionState) {
+        let alert = NSAlert()
+        if let icon = BrandMark.image { alert.icon = icon }
+        alert.messageText = "没能在 Wave 里打开"
+        alert.informativeText = "原标签页或终端可能已关闭，Wave 的授权也可能已过期。恢复命令已复制，在 Wave 里新开一个终端粘贴即可继续 \(s.agent.displayName)。"
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
+    }
+
+    /// `cannotRun`: why the command can't be typed in for the user, and the terminal to go to.
+    private static func askReopen(_ s: SessionState, cannotRun: (why: String, app: String)?) -> NSApplication.ModalResponse {
+        let alert = NSAlert()
+        if let icon = BrandMark.image { alert.icon = icon }
+        alert.messageText = "\(s.agent.displayName) 进程已不在"
+        if let (why, app) = cannotRun {
+            // Nothing can type into that terminal: go there and paste.
+            alert.informativeText = "\(why)，无法自动打开。将切到\(app)并复制恢复命令，在原处新开一个终端粘贴即可继续。"
+            alert.addButton(withTitle: "切到\(app)并复制")
+        } else {
+            alert.informativeText = "是否在原终端重新打开这个会话？"
+            alert.addButton(withTitle: "重新打开")
+        }
+        alert.addButton(withTitle: "复制恢复命令")
+        alert.addButton(withTitle: "取消")
+        NSApp.activate(ignoringOtherApps: true)
+        return alert.runModal()
+    }
+
+    /// The agent is no longer running this session: it ended, or its process died (a crashed terminal).
+    static func isGone(_ s: SessionState) -> Bool {
+        s.status == .ended || s.agentPid.map { !ProcessUtil.isAlive($0) } ?? false
     }
 
     /// Ends a session on the boards: it stays in history and comes back if the agent needs the user.
@@ -343,7 +630,31 @@ final class AppModel {
         }
     }
 
+    /// Asks for a new name; an empty one goes back to the agent's title.
+    func rename(_ key: String) {
+        guard let s = sessions[key] else { return }
+        let alert = NSAlert()
+        if let icon = BrandMark.image { alert.icon = icon }
+        alert.messageText = "重命名会话"
+        alert.informativeText = "只改 YaaKanban 里显示的名字。留空则恢复为 agent 的标题。"
+        let field = NSTextField(string: s.customName ?? s.title)
+        field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
+        alert.accessoryView = field
+        alert.addButton(withTitle: "确定")
+        alert.addButton(withTitle: "取消")
+        alert.window.initialFirstResponder = field
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        update(key, alert: false) { s in
+            guard var s else { return nil }
+            s.customName = name.isEmpty ? nil : String(name.prefix(80))
+            return s
+        }
+    }
+
     func remove(_ key: String) {
+        settings.pinned.removeAll { $0 == key }
         sessions[key] = nil
         store?.delete(id: key)
     }

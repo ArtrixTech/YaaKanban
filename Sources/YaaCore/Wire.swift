@@ -21,6 +21,9 @@ public struct Paths: Sendable {
     public var socket: URL { base.appendingPathComponent("yaak.sock") }
     public var spool: URL { base.appendingPathComponent("spool") }
     public var database: URL { base.appendingPathComponent("history.sqlite") }
+    /// Present when the user turned off pi auto titles; the pi extension checks it on each new session.
+    public var piAutoTitleOff: URL { base.appendingPathComponent(Self.piAutoTitleOffName) }
+    public static let piAutoTitleOffName = "pi-auto-title-off"
 }
 
 /// One line of JSON from the CLI to the app.
@@ -112,31 +115,39 @@ public enum UnixSocket {
         setsockopt(fd, SOL_SOCKET, opt, &tv, socklen_t(MemoryLayout<timeval>.size))
     }
 
-    /// Connects, sends `data`, and optionally waits for one reply line. Returns nil when the
-    /// app is not listening (caller should spool) or no reply arrived in time.
-    public static func send(_ data: Data, to path: String, replyTimeout: TimeInterval? = nil) -> (sent: Bool, reply: Data?) {
+    /// Connects, sends `data` before `deadline`, and optionally waits for one reply line. `sent` is
+    /// false when the app is not listening or the whole line could not be written in time (caller
+    /// should spool; the server drops lines without their newline, so the app never sees it twice).
+    public static func send(_ data: Data, to path: String, deadline: Date = Date(timeIntervalSinceNow: 0.2),
+                            replyTimeout: TimeInterval? = nil) -> (sent: Bool, reply: Data?) {
         guard var addr = address(path) else { return (false, nil) }
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { return (false, nil) }
         defer { close(fd) }
         var one: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout<Int32>.size))
-        setTimeout(fd, 0.2, SO_SNDTIMEO)
         let ok = withUnsafePointer(to: &addr) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                 connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) == 0
             }
         }
-        guard ok, writeAll(fd, data) else { return (false, nil) }
+        guard ok, writeAll(fd, data, deadline: deadline) else { return (false, nil) }
         guard let replyTimeout else { return (true, nil) }
         setTimeout(fd, replyTimeout, SO_RCVTIMEO)
         return (true, readLine(fd))
     }
 
-    public static func writeAll(_ fd: Int32, _ data: Data) -> Bool {
+    /// Writes all of `data`; with a deadline, gives up once it passes (each write is bounded by
+    /// SO_SNDTIMEO set to the time left). Without one, blocks as the socket allows.
+    public static func writeAll(_ fd: Int32, _ data: Data, deadline: Date? = nil) -> Bool {
         data.withUnsafeBytes { raw -> Bool in
             var off = 0
             while off < raw.count {
+                if let deadline {
+                    let left = deadline.timeIntervalSinceNow
+                    if left <= 0 { return false }
+                    setTimeout(fd, max(left, 0.001), SO_SNDTIMEO) // 0 would mean "no timeout"
+                }
                 let n = write(fd, raw.baseAddress! + off, raw.count - off)
                 if n <= 0 { return false }
                 off += n
@@ -145,8 +156,26 @@ public enum UnixSocket {
         }
     }
 
-    /// Reads up to the first newline (or EOF). Caps at 4 MB.
-    public static func readLine(_ fd: Int32) -> Data? {
+    /// Reads `fd` to EOF, stopping at `deadline` or `limit` bytes. Returns what arrived.
+    public static func readAll(_ fd: Int32, deadline: Date, limit: Int) -> Data {
+        var out = Data()
+        var buf = [UInt8](repeating: 0, count: 64 * 1024)
+        while out.count < limit && deadline.timeIntervalSinceNow > 0 {
+            let left = Int32(max(0, min(deadline.timeIntervalSinceNow * 1000, 60_000)).rounded(.up))
+            var p = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+            let r = poll(&p, 1, left)
+            if r < 0 && errno == EINTR { continue }
+            if r <= 0 { break } // timed out or poll failed
+            let n = read(fd, &buf, min(buf.count, limit - out.count))
+            if n < 0 && errno == EINTR { continue }
+            if n <= 0 { break } // EOF or error
+            out.append(contentsOf: buf[0..<n])
+        }
+        return out
+    }
+
+    /// Reads up to the first newline (or EOF, unless `terminated`). Caps at 4 MB.
+    public static func readLine(_ fd: Int32, terminated: Bool = false) -> Data? {
         var out = Data()
         var buf = [UInt8](repeating: 0, count: 64 * 1024)
         while out.count < 4 << 20 {
@@ -155,7 +184,7 @@ public enum UnixSocket {
             out.append(contentsOf: buf[0..<n])
             if let i = out.firstIndex(of: 0x0A) { return out.prefix(upTo: i) }
         }
-        return out.isEmpty ? nil : out
+        return out.isEmpty || terminated ? nil : out
     }
 }
 
@@ -199,7 +228,8 @@ public final class SocketServer: @unchecked Sendable {
                 setsockopt(c, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout<Int32>.size))
                 DispatchQueue.global().async {
                     UnixSocket.setTimeout(c, 2, SO_RCVTIMEO)
-                    guard let line = UnixSocket.readLine(c) else { close(c); return }
+                    // A line cut short by the sender's deadline is spooled by the sender; ignore it here.
+                    guard let line = UnixSocket.readLine(c, terminated: true) else { close(c); return }
                     let once = OnceFlag()
                     handler(line) { reply in
                         guard once.claim() else { return }

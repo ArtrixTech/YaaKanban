@@ -140,6 +140,32 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(done.status == .idle)
         #expect(done.turns.last?.lastMessage == "done")
     }
+
+    @Test func replayedEventDoesNotReopenFinishedTurn() {
+        let tool: [String: JSONValue] = ["id": .string("t"), "tool": .string("bash"), "input": .object(["command": .string("ls")])]
+        let done = fold([pi("prompt", ["prompt": .string("hi")]), pi("tool_start", tool, at: 1),
+                         pi("tool_end", tool, at: 2), pi("turn_end", at: 5)])
+        // A spooled tool event from inside the turn, replayed after it ended.
+        let late = fold([pi("tool_start", ["id": .string("u"), "tool": .string("bash")], at: 3),
+                         pi("tool_end", ["id": .string("u"), "tool": .string("bash")], at: 4)], into: done)
+        #expect(late.status == .idle)
+        #expect(late.lastEventAt == done.lastEventAt)
+        // The next prompt still starts a new turn.
+        let next = fold([pi("prompt", ["prompt": .string("again")], at: 6)], into: late)
+        #expect(next.status == .running)
+    }
+
+    @Test func piNameBecomesTitleWithoutCountingAsActivity() {
+        let s = fold([pi("prompt", ["prompt": .string("fix the login bug please")])])
+        #expect(s.title == "fix the login bug please")
+        let named = fold([pi("title", ["title": .string("Login fix")], at: 400)], into: s)
+        #expect(named.title == "Login fix")
+        #expect(named.lastEventAt == s.lastEventAt)
+        #expect(named.status == .running)
+        let cleared = fold([pi("title", ["title": .null], at: 401)], into: named)
+        #expect(cleared.title == "fix the login bug please")
+        #expect(cleared.peek == nil)
+    }
 }
 
 @Suite struct Stuck {
@@ -155,6 +181,20 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
             s.tools = [ToolCall(id: "1", name: tool, summary: "", input: input, output: nil, isError: false, startedAt: t0.addingTimeInterval(at))]
         }
         return s
+    }
+
+    @Test func runningWithNothingAfterTurnEndIsFinished() {
+        var s = running(at: 10)
+        s.turns = [Turn(id: 1, prompt: "p", startedAt: t0, endedAt: t0.addingTimeInterval(10), toolCount: 0)]
+        let out = StuckDetector.evaluate(s, now: t0.addingTimeInterval(20), config: cfg, isAlive: { _ in true })
+        #expect(out?.status == .idle)
+        #expect(out?.unreadSince == t0.addingTimeInterval(10))
+        // Already looked at after it ended: reviewed.
+        s.reviewedAt = t0.addingTimeInterval(15)
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(20), config: cfg, isAlive: { _ in true })?.unreadSince == nil)
+        // A later event means the session really is running again.
+        s.lastEventAt = t0.addingTimeInterval(12)
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(20), config: cfg, isAlive: { _ in true }) == nil)
     }
 
     @Test func silence() {
@@ -187,7 +227,8 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(out?.stuckReason == "进程已退出")
         var idle = running(pid: 7)
         idle.status = .idle
-        #expect(StuckDetector.evaluate(idle, now: t0, config: cfg, isAlive: { _ in false })?.status == .ended)
+        // A finished turn stays idle: the conversation is still there to reopen.
+        #expect(StuckDetector.evaluate(idle, now: t0, config: cfg, isAlive: { _ in false }) == nil)
     }
 
     @Test func unhookedSessionsSkipSilence() {
@@ -303,10 +344,52 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
     @Test func storeDropsWaveTokenForEndedSessions() {
         var s = SessionState(agent: .claudeCode, sessionId: "x", at: t0)
         s.terminal = TerminalContext(waveBlockId: "b", waveJWT: "secret")
-        #expect(Store.persistable(s).terminal?.waveJWT == "secret")
+        #expect(Store.persistable(s, now: t0).terminal?.waveJWT == "secret")
+        // Ended (e.g. its terminal crashed): kept so it can be resumed in its tab, for a while.
         s.status = .ended
-        #expect(Store.persistable(s).terminal?.waveJWT == nil)
-        #expect(Store.persistable(s).terminal?.waveBlockId == "b")
+        #expect(Store.persistable(s, now: t0).terminal?.waveJWT == "secret")
+        let late = t0.addingTimeInterval(SessionState.waveTokenTTL + 1)
+        #expect(Store.persistable(s, now: late).terminal?.waveJWT == nil)
+        #expect(Store.persistable(s, now: late).terminal?.waveBlockId == "b")
+        // Looking at the card later does not extend it.
+        s.reviewedAt = late
+        #expect(Store.persistable(s, now: late).terminal?.waveJWT == nil)
+        // Idle with its process gone: the same 24 h, never forever; live ones keep it.
+        s.status = .idle
+        #expect(!s.dropsWaveToken(now: late))
+        #expect(s.dropsWaveToken(now: late, gone: true))
+        #expect(!s.dropsWaveToken(now: t0, gone: true))
+        s.status = .ended
+        // Ended by the user on the board: dropped at once.
+        s.dismissedAt = t0
+        #expect(Store.persistable(s, now: t0).terminal?.waveJWT == nil)
+    }
+
+    @Test func deadProcessLeavesFinishedSessionsAndDropsDeadWaits() {
+        var s = SessionState(agent: .claudeCode, sessionId: "x", at: t0)
+        s.agentPid = 42
+        // Idle or ended: the card stays what it was; clicking it offers to reopen.
+        #expect(StuckDetector.evaluate(s, now: t0, config: StuckConfig(), isAlive: { _ in false }) == nil)
+        s.status = .ended
+        #expect(StuckDetector.evaluate(s, now: t0, config: StuckConfig(), isAlive: { _ in false }) == nil)
+        // Waiting on the user with nobody left to answer: back to idle.
+        s.status = .needsInput
+        s.needsInputMessage = "Bash: ls"
+        s.needsInputSince = t0
+        let out = StuckDetector.evaluate(s, now: t0, config: StuckConfig(), isAlive: { _ in false })!
+        // No result came of it, so it is not waiting for review either.
+        #expect(out.status == .idle && out.needsInputMessage == nil && out.needsInputSince == nil && out.unreadSince == nil)
+        #expect(StuckDetector.evaluate(s, now: t0, config: StuckConfig(), isAlive: { _ in true }) == nil)
+    }
+
+    @Test func resumeCommandPerAgent() {
+        func cmd(_ a: AgentKind, _ id: String) -> String? { SessionState(agent: a, sessionId: id, at: t0).resumeCommand }
+        #expect(cmd(.claudeCode, "abc") == "claude --resume 'abc'")
+        #expect(cmd(.codex, "abc") == "codex resume 'abc'")
+        #expect(cmd(.opencode, "ses_1") == "opencode --session 'ses_1'")
+        #expect(cmd(.pi, "/s/it's.jsonl") == "pi --session '/s/it'\\''s.jsonl'")
+        #expect(cmd(.claudeCode, "") == nil)
+        #expect(cmd(.claudeCode, "--dangerously-skip-permissions") == nil)
     }
 }
 
@@ -417,24 +500,25 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         var x = SessionState(agent: .claudeCode, sessionId: id, at: t0.addingTimeInterval(start))
         x.projectDir = dir
         x.cwd = dir + "/sub"
+        x.status = .running
         return x
     }
 
-    @Test func startOrderAndGrouping() {
+    private func ids(_ l: [SessionState], _ order: [String] = []) -> [String] {
+        Board.ordered(l, manualOrder: order).map(\.sessionId)
+    }
+
+    @Test func startOrderNoGrouping() {
         let list = [s("c", "/p/B", 3), s("a", "/p/A", 1), s("b", "/p/B", 2), s("d", "/p/A", 4)]
-        let g = Board.groups(list, manualOrder: [])
-        #expect(g.map(\.name) == ["A", "B"])
-        #expect(g[0].sessions.map(\.sessionId) == ["a", "d"])
-        #expect(g[1].sessions.map(\.sessionId) == ["b", "c"])
+        #expect(ids(list) == ["a", "b", "c", "d"])
     }
 
     @Test func manualOrderWinsAndNewcomersAppend() {
         let list = [s("a", "/A", 1), s("b", "/B", 2), s("c", "/C", 3)]
-        let flat = Board.groups(list, manualOrder: []).flatMap { $0.sessions.map(\.id) }
+        let flat = Board.ordered(list, manualOrder: []).map(\.id)
         let order = Board.move(["claude-code:c"], before: "claude-code:a", board: flat, manualOrder: ["claude-code:gone"])
         #expect(order == ["claude-code:c", "claude-code:a", "claude-code:b", "claude-code:gone"])
-        let g = Board.groups(list + [s("n", "/N", 0)], manualOrder: order)
-        #expect(g.map(\.name) == ["C", "A", "B", "N"])
+        #expect(ids(list + [s("n", "/N", 0)], order) == ["c", "a", "b", "n"])
         #expect(Board.move(["claude-code:c"], before: nil, board: flat, manualOrder: []).last == "claude-code:c")
     }
 
@@ -444,12 +528,48 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         var d = s("d", "/D", 0); d.status = .idle
         var a = s("a", "/A", 3); a.status = .needsInput
         var r2 = s("r2", "/V", 4); r2.status = .running
-        let g = Board.groups([r, v, d, a, r2], manualOrder: [])
-        #expect(g.map(\.name) == ["A", "V", "R", "D"])
-        #expect(g[1].sessions.map(\.sessionId) == ["v", "r2"])
+        #expect(ids([r, v, d, a, r2]) == ["a", "v", "r", "r2", "d"])
         // Manual order still decides within a tier.
         var r3 = s("r3", "/R3", 5); r3.status = .running
-        #expect(Board.groups([r, r3], manualOrder: ["claude-code:r3"]).map(\.name) == ["R3", "R"])
+        #expect(ids([r, r3], ["claude-code:r3"]) == ["r3", "r"])
+    }
+
+    @Test func finishedSessionsFreshestFirst() {
+        func done(_ id: String, event: TimeInterval, click: TimeInterval?) -> SessionState {
+            var x = s(id, "/" + id, 0)
+            x.status = .idle
+            x.unreadSince = t0
+            x.lastEventAt = t0.addingTimeInterval(event)
+            x.reviewedAt = click.map { t0.addingTimeInterval($0) }
+            return x
+        }
+        let old = done("old", event: 10, click: nil)
+        let new = done("new", event: 20, click: nil)
+        let clicked = done("clicked", event: 5, click: 30)
+        // A click makes a session fresh again; manual order does not override freshness here.
+        #expect(ids([old, new, clicked], ["claude-code:old"]) == ["clicked", "new", "old"])
+        var seen = done("seen", event: 1, click: 40); seen.unreadSince = nil
+        var seen2 = done("seen2", event: 50, click: nil); seen2.unreadSince = nil
+        #expect(ids([seen, seen2, old]) == ["old", "seen2", "seen"])
+    }
+
+    @Test func pinnedSitAboveEveryStatus() {
+        var w = s("w", "/W", 1); w.status = .needsInput
+        var f = s("f", "/F", 2); f.status = .idle
+        let r = s("r", "/R", 3)
+        #expect(ids([w, f, r]) == ["w", "r", "f"])
+        // Newest pin first, then the usual order.
+        #expect(Board.ordered([w, f, r], manualOrder: [], pinned: ["claude-code:r", "claude-code:f"]).map(\.sessionId) == ["r", "f", "w"])
+    }
+
+    @Test func customNameWinsTitle() {
+        var x = s("x", "/X", 0)
+        x.peek = TranscriptPeek(); x.peek?.title = "agent title"
+        #expect(x.title == "agent title")
+        x.customName = "我的名字"
+        #expect(x.title == "我的名字")
+        x.customName = ""
+        #expect(x.title == "agent title")
     }
 
     @Test func groupFollowsStartDirNotCd() {
@@ -549,6 +669,28 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
     }
 }
 
+@Suite struct SubagentLinks {
+    private func file(_ text: String) throws -> URL {
+        let u = FileManager.default.temporaryDirectory.appendingPathComponent("yaak-link-\(UUID().uuidString).jsonl")
+        try text.write(to: u, atomically: true, encoding: .utf8)
+        return u
+    }
+
+    @Test func readsPiParentFromHeader() throws {
+        let u = try file(#"{"type":"session","version":3,"id":"c","cwd":"/x","parentSession":"/s/parent.jsonl"}"# + "\n" +
+                         #"{"type":"model_change","id":"1"}"# + "\n")
+        defer { try? FileManager.default.removeItem(at: u) }
+        #expect(SubagentLink.parentSession(transcript: u) == "/s/parent.jsonl")
+    }
+
+    @Test func topLevelSessionHasNoParent() throws {
+        let u = try file(#"{"type":"session","version":3,"id":"p","cwd":"/x"}"# + "\n")
+        defer { try? FileManager.default.removeItem(at: u) }
+        #expect(SubagentLink.parentSession(transcript: u) == nil)
+        #expect(SubagentLink.parentSession(transcript: u.appendingPathExtension("missing")) == nil)
+    }
+}
+
 @Suite struct Dismissal {
     let t0 = Date(timeIntervalSince1970: 1_000)
     private func ev(_ k: AgentEvent.Kind, _ dt: TimeInterval) -> AgentEvent {
@@ -579,5 +721,148 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(s.dismissedAt != nil)
         s = SessionReducer.apply(ev(.statusSnapshot(.running), 6), to: s)
         #expect(s.dismissedAt == nil)
+    }
+
+    @Test func agentExitIsNotTheEndForTheUser() {
+        var s = SessionReducer.apply(ev(.promptSubmitted("go"), 0), to: nil)
+        s = SessionReducer.apply(ev(.turnEnd(lastMessage: "ok"), 1), to: s)
+        s = SessionReducer.apply(ev(.sessionEnd, 2), to: s)
+        #expect(s.status == .ended && s.display == .done)
+    }
+
+    @Test func sessionCountsAsStartedFromItsFirstMessage() {
+        var s = SessionReducer.apply(ev(.sessionStart, 0), to: nil)
+        #expect(s.isUnstarted)
+        // Exiting without a message: still nothing to show.
+        #expect(SessionReducer.apply(ev(.sessionEnd, 1), to: s).isUnstarted)
+        s = SessionReducer.apply(ev(.promptSubmitted("go"), 1), to: s)
+        #expect(!s.isUnstarted)
+        s = SessionReducer.apply(ev(.sessionEnd, 2), to: s)
+        #expect(!s.isUnstarted)
+        // Sessions known only from session files are not judged by hooks.
+        #expect(!SessionReducer.apply(ev(.statusSnapshot(.idle), 0), to: nil).isUnstarted)
+    }
+
+    @Test func endedFinishedSessionShowsEndedNotReviewed() {
+        var s = SessionReducer.apply(ev(.promptSubmitted("go"), 0), to: nil)
+        s = SessionReducer.apply(ev(.turnEnd(lastMessage: "ok"), 1), to: s)
+        #expect(s.display == .review)
+        s.dismissedAt = t0
+        s.unreadSince = nil
+        #expect(s.display == .ended)
+        // A title arriving later does not bring it back.
+        s = SessionReducer.apply(ev(.titleChanged("Named"), 2), to: s)
+        #expect(s.dismissedAt != nil && s.display == .ended)
+    }
+}
+
+@Suite struct AttentionTests {
+    private func waiting() -> SessionState {
+        fold([
+            claude("UserPromptSubmit", ["prompt": .string("go")]),
+            claude("Notification", ["message": .string("Claude needs your permission"),
+                                    "notification_type": .string("permission_prompt")], at: 10),
+        ])
+    }
+
+    @Test func flashesAfterThirtySecondsUnlessClicked() {
+        let s = waiting()
+        #expect(s.status == .needsInput)
+        #expect(s.needsInputSince == t0.addingTimeInterval(10))
+        #expect(!Attention.flashes(s, acknowledged: nil, now: t0.addingTimeInterval(39)))
+        #expect(Attention.flashes(s, acknowledged: nil, now: t0.addingTimeInterval(41)))
+        // Clicked after it started waiting: no flash. Clicked before: still flashes.
+        #expect(!Attention.flashes(s, acknowledged: t0.addingTimeInterval(20), now: t0.addingTimeInterval(60)))
+        #expect(Attention.flashes(s, acknowledged: t0.addingTimeInterval(5), now: t0.addingTimeInterval(60)))
+    }
+
+    @Test func unreviewedTurnFlashesAfterTenMinutesAtTheMac() {
+        var s = fold([claude("UserPromptSubmit", ["prompt": .string("go")]), claude("Stop", at: 1)])
+        #expect(s.display == .review)
+        let end = s.lastEventAt
+        func at(_ m: Double, back: Date? = .distantPast) -> Bool {
+            Attention.reviewFlashes(s, presentSince: back, now: end.addingTimeInterval(m * 60))
+        }
+        #expect(!at(9))
+        #expect(at(11))
+        // Away now: no flash. Back 5 minutes ago: the clock starts again from then.
+        #expect(!at(30, back: nil))
+        #expect(!at(30, back: end.addingTimeInterval(25 * 60)))
+        #expect(at(36, back: end.addingTimeInterval(25 * 60)))
+        // Opened: reviewed, no flash.
+        s.unreadSince = nil
+        #expect(!at(30))
+    }
+
+    @Test func waitingSinceClearsWhenItMovesOn() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("next")], at: 50)], into: waiting())
+        #expect(s.status == .running)
+        #expect(s.needsInputSince == nil)
+    }
+
+    @Test func staleBlueRisesToTheMiddleThenFades() {
+        var s = fold([claude("UserPromptSubmit", ["prompt": .string("go")]), claude("Stop", at: 1)])
+        s.unreadSince = nil  // reviewed
+        #expect(s.display == .done)
+        let end = s.lastEventAt, linger: TimeInterval = 8 * 3600
+        func at(_ m: Double) -> Double { Attention.staleness(s, linger: linger, now: end.addingTimeInterval(m * 60)) }
+        #expect(at(5) == 0)
+        #expect(at(10) == 0)
+        #expect(at(60) > 0 && at(60) < at(120))
+        #expect(abs(at(245) - 1) < 1e-9)  // (10 + 480) / 2 minutes
+        #expect(at(400) < at(300))
+        #expect(at(480) == 0)
+        // Not yet reviewed: green "to review", not blue.
+        s.unreadSince = end
+        #expect(Attention.staleness(s, linger: linger, now: end.addingTimeInterval(245 * 60)) == 0)
+    }
+
+    @Test func thresholdsFollowTheSettings() {
+        #expect(!Attention.flashes(waiting(), acknowledged: nil, now: t0.addingTimeInterval(50), after: 60))
+        #expect(Attention.flashes(waiting(), acknowledged: nil, now: t0.addingTimeInterval(71), after: 60))
+        var s = fold([claude("UserPromptSubmit", ["prompt": .string("go")]), claude("Stop", at: 1)])
+        s.unreadSince = nil
+        let end = s.lastEventAt
+        func at(_ m: Double) -> Double { Attention.staleness(s, linger: 120 * 60, now: end.addingTimeInterval(m * 60), after: 30 * 60) }
+        #expect(at(20) == 0)
+        #expect(abs(at(75) - 1) < 1e-9)  // (30 + 120) / 2
+        #expect(at(120) == 0)
+        // Turning blue no earlier than the card leaves: never blue.
+        #expect(Attention.staleness(s, linger: 30 * 60, now: end.addingTimeInterval(20 * 60), after: 30 * 60) == 0)
+    }
+
+    @Test func lookingAgainRestartsTheBlueClock() {
+        var s = fold([claude("UserPromptSubmit", ["prompt": .string("go")]), claude("Stop", at: 1)])
+        s.unreadSince = nil
+        let end = s.lastEventAt, linger: TimeInterval = 8 * 3600
+        #expect(Attention.staleness(s, linger: linger, now: end.addingTimeInterval(245 * 60)) > 0.99)
+        // Opened again at the peak: back to plain, and the curve runs from then.
+        s.reviewedAt = end.addingTimeInterval(245 * 60)
+        #expect(s.quietSince == s.reviewedAt)
+        #expect(Attention.staleness(s, linger: linger, now: end.addingTimeInterval(250 * 60)) == 0)
+        #expect(abs(Attention.staleness(s, linger: linger, now: end.addingTimeInterval(490 * 60)) - 1) < 1e-9)
+        // A look before the last event does not move it back.
+        s.reviewedAt = end.addingTimeInterval(-60)
+        #expect(s.quietSince == end)
+    }
+}
+
+@Suite struct CodexBackground {
+    private func codex(_ event: String, path: JSONValue?) -> HookEnvelope {
+        var p: [String: JSONValue] = ["session_id": .string("01a15cf0-c3fc"), "hook_event_name": .string(event),
+                                      "prompt": .string("app-generated request")]
+        if let path { p["transcript_path"] = path }
+        return HookEnvelope(agent: .codex, event: event, receivedAt: t0, payload: .object(p))
+    }
+
+    @Test func threadsWithoutRolloutAreIgnored() {
+        #expect(Normalizer.normalize(codex("UserPromptSubmit", path: nil)).isEmpty)
+        #expect(Normalizer.normalize(codex("SessionStart", path: .null)).isEmpty)
+        #expect(Normalizer.normalize(codex("Stop", path: .string(""))).isEmpty)
+        #expect(Normalizer.normalize(codex("UserPromptSubmit", path: .string("/r/rollout.jsonl"))).count == 1)
+        // Claude Code is not affected.
+        let claude = HookEnvelope(agent: .claudeCode, event: "UserPromptSubmit", receivedAt: t0,
+                                  payload: .object(["session_id": .string("c"), "prompt": .string("hi")]))
+        #expect(Normalizer.normalize(claude).count == 1)
     }
 }

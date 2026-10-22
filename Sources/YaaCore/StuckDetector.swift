@@ -16,21 +16,34 @@ public enum StuckDetector {
     /// Tools that legitimately wait for a long time.
     static let waitingTools: Set<String> = ["monitor", "bashoutput", "wait", "sleep", "schedulewakeup", "task", "agent"]
 
-    /// Returns the state with `stuck`/`ended` applied, or nil when nothing changes.
+    /// Returns the state with `stuck` applied (or a dead wait dropped), or nil when nothing changes.
     public static func evaluate(_ s: SessionState, now: Date, config: StuckConfig,
                                 isAlive: (Int32) -> Bool) -> SessionState? {
         var out = s
         let processGone = s.agentPid.map { !isAlive($0) } ?? false
 
         switch s.status {
-        case .ended:
+        // A finished session stays what it was when its process goes: the conversation is still
+        // the user's work, and clicking the card offers to reopen it.
+        case .ended, .idle:
             return nil
-        case .idle, .needsInput:
+        case .needsInput:
+            // Nobody is left to receive the answer.
             guard processGone else { return nil }
-            out.status = .ended
+            out.status = .idle
             out.pendingPermission = nil
+            out.needsInputMessage = nil
+            out.needsInputSince = nil
             return out
         case .running, .stuck:
+            // Nothing happened after its turn ended: it is finished, whatever revived it (an old
+            // event replayed before the reducer ignored them).
+            if s.hooked, let end = s.turns.last?.endedAt, end >= s.lastEventAt, s.runningTools.isEmpty, s.subagents.isEmpty {
+                out.status = .idle
+                out.stuckReason = nil
+                out.unreadSince = (s.reviewedAt ?? .distantPast) >= end ? nil : end
+                return out
+            }
             let reason: String?
             if processGone {
                 reason = "进程已退出"

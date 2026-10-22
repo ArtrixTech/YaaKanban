@@ -90,3 +90,18 @@ public struct TranscriptPeek: Codable, Equatable, Sendable {
         return t.count > textLimit ? String(t.prefix(textLimit)) + "…" : t
     }
 }
+
+/// Sub-agents that run as sessions of their own name their parent in the transcript's header line
+/// (pi: `{"type":"session",…,"parentSession":"<parent transcript>"}`).
+public enum SubagentLink {
+    /// The parent's session id, or nil when the header has none (or is not written yet).
+    public static func parentSession(transcript url: URL) -> String? {
+        guard let h = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? h.close() }
+        guard let head = try? h.read(upToCount: 4096),
+              let line = head.split(separator: UInt8(ascii: "\n"), maxSplits: 1).first,
+              let j = JSONValue.parse(Data(line)), j["type"]?.string == "session" else { return nil }
+        return j["parentSession"]?.string
+    }
+}
+
