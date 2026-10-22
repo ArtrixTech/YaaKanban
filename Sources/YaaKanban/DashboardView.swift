@@ -817,11 +817,15 @@ struct RecentFigures: View {
                         }
                         .frame(width: 70, alignment: .leading)
                         .help(help)
-                        Sparkline(values: trend)
-                            .padding(.top, 9)
-                            .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.3)],
-                                                 startPoint: .leading, endPoint: .trailing))
-                            .help("杠杆走势：每点是到那时为止 \(SettingsView.duration(minutes)) 的杠杆，近 \(SettingsView.duration(span / 60))；虚线为 1×")
+                        let ticks = Self.ticks(end: end, span: span, slices: slices)
+                        VStack(spacing: 1) {
+                            Sparkline(values: trend, ticks: ticks.map(\.at))
+                                .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.3)],
+                                                     startPoint: .leading, endPoint: .trailing))
+                            TimeAxis(ticks: ticks)
+                        }
+                        .padding(.top, 6).padding(.bottom, 3)
+                        .help("杠杆走势：每点是到那时为止 \(SettingsView.duration(minutes)) 的杠杆，近 \(SettingsView.duration(span / 60))；虚线为 1×")
                         VStack(alignment: .trailing, spacing: 2) {
                             caption("今日工时")
                             Text(duration(today?.agentTime ?? 0)).font(.system(size: 15, weight: .semibold, design: .rounded).monospacedDigit())
@@ -838,6 +842,31 @@ struct RecentFigures: View {
             .background(RecentFigures.plate(radius: slim ? 6 : 9))
         }
     }
+
+    /// Round clock times under the trend, as fractions along it: the first point (a window after
+    /// the report's start) is 0, now is 1. At most three, kept clear of the ends.
+    static func ticks(end: Date, span: TimeInterval, slices: Int) -> [TimeAxis.Tick] {
+        let slice = span / Double(slices)
+        let first = end.addingTimeInterval(-span + slice * Double(trendStep))
+        let length = end.timeIntervalSince(first)
+        let step = [5.0, 10, 15, 30, 60, 120, 180, 240, 360].map { $0 * 60 }.first { length / $0 <= 3 } ?? 720 * 60
+        // Steps divide a day, so multiples of them from local midnight land on round times.
+        let midnight = Calendar.current.startOfDay(for: end)
+        var t = midnight.addingTimeInterval((first.timeIntervalSince(midnight) / step).rounded(.up) * step)
+        var out: [TimeAxis.Tick] = []
+        while t < end {
+            let at = t.timeIntervalSince(first) / length
+            if at > 0.1 && at < 0.75 { out.append(.init(at: at, label: timeFormat.string(from: t))) }
+            t.addTimeInterval(step)
+        }
+        return out
+    }
+
+    private static let timeFormat: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
 
     /// Up or down when the leverage moved a tenth or more over the last window, else level.
     static func direction(_ trend: [Double?]) -> (String, Color)? {
@@ -876,8 +905,12 @@ struct RecentFigures: View {
 /// are left empty.
 struct Sparkline: View {
     let values: [Double?]
+    /// Fractions along the line where `TimeAxis` labels a time: a faint guide each.
+    var ticks: [Double] = []
 
     static let green = Color(red: 0.06, green: 0.73, blue: 0.51), lime = Color(red: 0.29, green: 0.87, blue: 0.5)
+    /// Room right of the latest point for its dot; `TimeAxis` maps time the same way.
+    static let endInset: CGFloat = 6
 
     var body: some View {
         Canvas { ctx, size in
@@ -885,7 +918,12 @@ struct Sparkline: View {
             let top = max((known.map(\.1).max() ?? 0) * 1.2, 1.25)
             let n = max(values.count - 1, 1)
             func y(_ v: Double) -> CGFloat { 5 + (size.height - 5) * (1 - v / top) }
-            let points = known.map { CGPoint(x: (size.width - 6) * Double($0.0) / Double(n), y: y($0.1)) }
+            let points = known.map { CGPoint(x: (size.width - Self.endInset) * Double($0.0) / Double(n), y: y($0.1)) }
+
+            for at in ticks {
+                let x = (size.width - Self.endInset) * at
+                ctx.fill(Path(CGRect(x: x - 0.25, y: 3, width: 0.5, height: size.height - 3)), with: .color(.primary.opacity(0.08)))
+            }
 
             // 1×: the agents did as much as the user was there.
             var unit = Path()
@@ -918,5 +956,31 @@ struct Sparkline: View {
             ctx.fill(Path(ellipseIn: CGRect(x: last.x - 2.5, y: last.y - 2.5, width: 5, height: 5)), with: .color(Self.lime))
         }
         .accessibilityLabel("杠杆走势")
+    }
+}
+
+/// Clock times under the `Sparkline`, at the same x as its points, with 现在 at its right end.
+struct TimeAxis: View {
+    struct Tick: Equatable { let at: Double; let label: String }
+    let ticks: [Tick]
+
+    var body: some View {
+        GeometryReader { g in
+            let width = g.size.width - Sparkline.endInset
+            ZStack(alignment: .topLeading) {
+                ForEach(ticks, id: \.label) { t in
+                    label(t.label).position(x: width * t.at, y: g.size.height / 2)
+                }
+                label("现在").frame(width: g.size.width, alignment: .trailing)
+                    .position(x: g.size.width / 2, y: g.size.height / 2)
+            }
+        }
+        .frame(height: 9)
+        .accessibilityHidden(true)
+    }
+
+    private func label(_ s: String) -> some View {
+        Text(s).font(.system(size: 7.5, weight: .medium, design: .rounded).monospacedDigit())
+            .foregroundStyle(.tertiary).fixedSize()
     }
 }

@@ -1,13 +1,24 @@
 # Devlog
 
-## fix(panel): show a session only once it got its first message
+## feat(panel): add a time axis under the leverage trend
 
 `pending` | 2026-10-22
+
+- **Changes**: `TimeAxis` under the panel's `Sparkline`: round clock times (step from 5 min to 6 h, at most three, the first ≥ the line's first point, kept off its ends) at the same x as the curve, and 现在 at the right end; `Sparkline` takes the ticks' fractions and draws a faint vertical guide at each. `RecentFigures.ticks(end:span:slices:)` maps time to the line: its first point is one window after the report's start. The fade mask stays on the curve only, so labels on the left are not faded. Spec sentence extended.
+- **Reason**: the curve had no sense of when.
+- **User feedback**: "还需要在悬浮窗的杠杆graph的位置增加时间刻度"
+- **Process**: `make build`, `make install`; `yaak snapshot` panel.png shows 16:00, 17:00, 现在 under the curve with guides.
+- **Result**: as above.
+- **Notes**: `Sparkline.endInset` (6) is shared by the curve and the axis; change both together. Labels use `.tertiary`, adaptive on glass.
+
+## fix(panel): show a session only once it got its first message
+
+`e8429f5` | 2026-10-22
 
 - **Changes**: `SessionState.isUnstarted` (hooked, no turns, idle or ended). `AppModel.isLive` and `allSessions` skip such sessions, so they are on neither the boards nor the history list. Test `sessionCountsAsStartedFromItsFirstMessage`. Spec updated.
 - **Reason**: SessionStart alone created a card; a `claude`/`pi` window closed without a message (or one whose SessionEnd never came) left a card with nothing in it for the retention period.
 - **User feedback**: "目前在打开了某个cc或者pi进程新对话之后就会有item显示在yaak，需要等发出第一条消息之后才显示，否则对应对话退出之后会一直显示在yaak不会消失"
-- **Process**: `make test` (105 pass); `make install`.
+- **Process**: `make test` (104 pass); `make install`.
 - **Result**: a new session appears on its first prompt (or tool / permission / question, which also count as activity); unused ones never appear.
 - **Notes**: sessions known only from session files (not hooked) are unaffected. Resume keeps the session id, so a resumed session with past turns shows as before. Unstarted sessions are still stored, just not displayed.
 
