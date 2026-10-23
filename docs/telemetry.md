@@ -43,7 +43,7 @@ On Aptabase's side: it looks up country and region from the sender's IP and stor
 counts a daily user as a salted hash of IP and User-Agent (`macOS/<major> <lang>`); it does not
 store the IP itself.
 
-The build reads the App Key from `Info.plist` (`YaakAptabaseAppKey`, like `A-EU-…`; the region
-part picks the host), committed in `Resources/Info.plist`; `YAAK_APTABASE_APP_KEY` replaces it
+The build reads the App Key from `Info.plist` (`YaakAptabaseAppKey`, like `A-US-…`; the region
+part picks the host), committed in `Resources/Info.plist` (YaaKanban's app is in the US region); `YAAK_APTABASE_APP_KEY` replaces it
 at bundle time (an empty value there is ignored). A bundle whose App Key is empty sends nothing.
 Aptabase answers 200 even for an unknown key; its body then carries an `error`.

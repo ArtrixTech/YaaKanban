@@ -195,12 +195,12 @@ private let env = TelemetryEnvironment(app: "0.1.0", build: "1", os: "15", arch:
     }
 }
 
-/// Release bundles copy `Resources/Info.plist`; a key there must name a region the app can send to.
+/// Release bundles copy `Resources/Info.plist`; its key must name a region the app can send to.
 @Test func shippedInfoPlistAppKeyIsUsable() throws {
     let plist = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("Resources/Info.plist")
     let info = try #require(NSDictionary(contentsOf: plist))
     let key = try #require(info[Telemetry.appKeyKey] as? String)
-    #expect(key.isEmpty || AptabaseEvent.ingestURL(appKey: key) != nil)
+    #expect(AptabaseEvent.ingestURL(appKey: key)?.host == "us.aptabase.com")
 }

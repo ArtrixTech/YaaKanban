@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(telemetry): send daily reports to Aptabase instead of TelemetryDeck
+## feat(telemetry): ship the Aptabase App Key in Info.plist
 
 `pending` | 2026-10-23
+
+- **Changes**: `Resources/Info.plist` `YaakAptabaseAppKey` = `A-US-6250643896` (US region, us.aptabase.com). Plist test now requires the shipped key to resolve to the US host. docs/telemetry.md names the region.
+- **Reason**: release builds sent nothing while the key was empty.
+- **User feedback**: "为啥选eu" → chose US and sent the key.
+- **Process**: curl of a `daily` event (isDebug true, `day` = `curl-test`) to us.aptabase.com with the key → 200 `{}` (an unknown key returns `{"error":"Application not found…"}`), so the key is live. `make test` passes.
+- **Result**: telemetry is fully configured; opted-in release builds report to Aptabase US.
+- **Notes**: the App Key is public by design (shipped in every client). The curl test event shows under Debug in the dashboard, not Release. Changing region likely means a new app and key (not verified).
+
+## feat(telemetry): send daily reports to Aptabase instead of TelemetryDeck
+
+`0c2e3a2` | 2026-10-23
 
 - **Changes**: `YaaCore/TelemetryDeck.swift` → `YaaCore/Aptabase.swift`: `AptabaseEvent` maps a `TelemetryReport` to one `daily` event (ingest `/api/v0/events`, header `App-Key`, body = array, dates `yyyy-MM-dd'T'HH:mm:ss'Z'` UTC, session id = start second × 10⁸ + random, one per report); system props carry version/build/macOS major/language/debug; props are strings without a prefix (`day`, `schema`, `arch`, `install` = SHA-256 of the install id, `integration.*`, `setting.*`, `count.*` bucketed, `figure.*`). Host from the key's region (`A-EU-…` → eu, `A-US-…` → us; others need `YaakTelemetryIngestURL`). Info.plist key `YaakAptabaseAppKey` (empty until the key is in), `bundle.sh` reads `YAAK_APTABASE_APP_KEY`. Reporter sends at most 25 events, sets a User-Agent like the SDK. Consent/settings text, `yaak telemetry status`, spec §6, Architecture, docs/telemetry.md say Aptabase.
 - **Reason**: TelemetryDeck's free plan indexes "between once an hour and once a day"; after ~6 h nothing had shown up and its namespace status endpoint answered 404. Aptabase's dashboard is real time, has an EU region and is open source (server AGPL, SDKs MIT); free tier 20k events/month.
