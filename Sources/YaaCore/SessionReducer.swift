@@ -128,6 +128,7 @@ public enum SessionReducer {
         case .sessionEnd:
             endRunningTools(&s, at: e.at)
             s.subagents.removeAll()
+            s.backgroundTasks = nil
             s.status = .ended
             s.unreadSince = nil
             clearAttention(&s)
@@ -143,6 +144,13 @@ public enum SessionReducer {
             for i in s.tools.indices where s.tools[i].isRunning && s.tools[i].subagentId == id {
                 s.tools[i].endedAt = e.at
             }
+
+        case .backgroundStart(let id):
+            if !(s.backgroundTasks ?? []).contains(id) { s.backgroundTasks = (s.backgroundTasks ?? []) + [id] }
+
+        case .backgroundEnd(let id):
+            s.backgroundTasks?.removeAll { $0 == id }
+            if s.backgroundTasks?.isEmpty == true { s.backgroundTasks = nil }
 
         case .statusSnapshot, .titleChanged:
             break
@@ -165,8 +173,19 @@ public enum SessionReducer {
 
     private static func endTurn(_ s: inout SessionState, at: Date, lastMessage: String?) {
         if let i = s.turns.indices.last {
-            s.turns[i].endedAt = at
+            // Held for a background agent, a later idle notice must not move the turn's end.
+            if !s.awaitsBackground || s.turns[i].endedAt == nil { s.turns[i].endedAt = at }
             if let lastMessage { s.turns[i].lastMessage = lastMessage }
+        }
+        // The main agent stopped but a background agent is still out: the work is not done.
+        // Its notification starts a new turn, and that turn's stop finishes the session.
+        if s.awaitsBackground {
+            for i in s.tools.indices where s.tools[i].isRunning && s.tools[i].subagentId == nil { s.tools[i].endedAt = at }
+            // What is still waiting on the user now belongs to a background agent's tool; keep it.
+            if s.status == .needsInput, s.runningTools.contains(where: { $0.subagentId != nil }) { return }
+            clearAttention(&s)
+            s.status = .running
+            return
         }
         endRunningTools(&s, at: at)
         s.subagents.removeAll()

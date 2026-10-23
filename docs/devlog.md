@@ -1,8 +1,19 @@
 # Devlog
 
+## feat(claude): keep a turn running while background agents are out
+
+`pending` | 2026-10-23
+
+- **Changes**: Normalizer emits `.backgroundStart` on a main-agent `Agent`/`Task` PostToolUse whose response has `isAsync` + `agentId`, or a SendMessage with `resumedAgentId` (Claude Code only), and `.backgroundEnd` for each `<task-id>` in a `<task-notification>` prompt. `SessionState.backgroundTasks` (optional, old rows decode). `endTurn` with tasks out: stamps the turn's end once, ends main-agent tools, keeps `.running`, no `unreadSince`; a background agent's pending permission/question is kept. `StuckDetector`'s "nothing after turn end" rule skips such sessions unless the process is gone; silence applies even with a started sub-agent. SessionEnd clears them. Setting 等待背景 agent（测试）(on); off drops launches in `AppModel.ingest` and `forgetBackgroundTasks()` clears the held ones. Suite `ClaudeBackgroundAgents`. Spec updated.
+- **Reason**: each background agent's result arrives as a new prompt; the main agent's reply to it fired Stop, so the card went 待验收 and notified done while other agents were still running.
+- **User feedback**: "某个背景agent返回，主agent回复完毕的时候会提示done待审查，但实际上还在等其他agent结束" / "这个加入测试功能，支持claudecode背景agent探测，默认打开。"
+- **Process**: history.sqlite (read-only): session c26ad093 turn 2 is a `<task-notification>` prompt whose reply says it is still waiting, yet ended 待验收. Live probe in this session: notification arrives as UserPromptSubmit mid-turn; `subagents` stayed empty for the async agent and its `tool_input` has no `run_in_background` (only the response's `isAsync`). Adversarial review found: exited process → stuck forever; held Stop wiped a sub-agent's permission; SubagentStart without SubagentStop disabled the silence fallback; resumed agents untracked. All fixed, each with a test that fails when its fix is removed (ablation). `make test` (115 pass), `make build`.
+- **Result**: the session finishes only after the last background agent's notification turn stops.
+- **Notes**: background Bash tasks are not tracked (dev servers may never report). A lost notification shows as stuck (silence), not as running forever. Known gaps: a held session is `.running`, so replayed old events are not dropped by the stale guard; a prompt typed while held shows running, not 待验收. Nested agents' own async launches are ignored (they notify their parent agent). A held Esc interrupt stays running until the agents report.
+
 ## feat(panel): show the leverage direction arrow on the panel
 
-`pending` | 2026-10-22
+`aeada89` | 2026-10-22
 
 - **Changes**: RecentFigures' unfolded branch puts the slim rail's direction arrow (up/level/down from `direction(trend)`) beside the 杠杆 caption; spec notes it.
 - **Reason**: the expanded panel showed the curve but not the at-a-glance direction.

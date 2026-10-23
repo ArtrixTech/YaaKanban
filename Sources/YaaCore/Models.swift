@@ -111,6 +111,10 @@ public struct AgentEvent: Equatable, Sendable {
         case sessionEnd
         case subagentStart(id: String, type: String?)
         case subagentStop(id: String)
+        /// Claude Code launched a background agent; the main agent may stop before it returns.
+        case backgroundStart(id: String)
+        /// A background agent reported back (its `<task-notification>`).
+        case backgroundEnd(id: String)
         /// Status reported by a session file. Drives sessions without hooks; for hooked ones only an
         /// `.idle` newer than the last hook event counts (an interrupt fires no Stop hook).
         case statusSnapshot(SessionStatus)
@@ -212,6 +216,9 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var customName: String?
     /// Key of the session that spawned this one as a sub-agent (pi runs them as sessions of their own).
     public var parentId: String?
+    /// Background agents launched and not yet reported back; while any is out, a stopped turn
+    /// is not finished. Optional so sessions stored before it decode.
+    public var backgroundTasks: [String]?
 
     public static let toolHistoryLimit = 200
 
@@ -246,6 +253,7 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var currentTurn: Turn? { turns.last }
     public var latestTool: ToolCall? { tools.last }
     public var runningTools: [ToolCall] { tools.filter(\.isRunning) }
+    public var awaitsBackground: Bool { !(backgroundTasks ?? []).isEmpty }
 
     /// What the UI shows: `.idle` splits into "to review" and "done". The agent exiting is not the
     /// end for the user: only ending it on the panel is (and, in the app, outliving the retention).
