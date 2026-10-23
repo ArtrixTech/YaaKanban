@@ -26,6 +26,8 @@ final class Preferences {
     var sidebarExpanded: Bool { didSet { d.set(sidebarExpanded, forKey: "sidebarExpanded") } }
     /// Experimental: the folded rail is a thin strip of status colors, each card's block as tall as the card.
     var slimRail: Bool { didSet { d.set(slimRail, forKey: "slimRail") } }
+    /// Experimental: a Claude Code turn that stops with background agents still out stays running.
+    var claudeBackgroundAgents: Bool { didSet { d.set(claudeBackgroundAgents, forKey: "claudeBackgroundAgents") } }
     /// Height of the floating panel's list set with its resize grip, kept whatever the content; nil
     /// (the grip dragged all the way up) lets the list follow its content.
     var panelListHeight: CGFloat? { didSet { d.set(panelListHeight.map(Double.init), forKey: "panelListHeightManual") } }
@@ -60,7 +62,7 @@ final class Preferences {
             "reviewFlashEnabled": true, "reviewFlashMinutes": Attention.reviewFlashAfter / 60,
             "staleTintEnabled": true, "staleAfterMinutes": Attention.staleAfter / 60,
             "showPanel": true, "suppressWhenWaveFrontmost": true, "waveTabJump": true,
-            "showRecentStats": true, "recentMinutes": 60.0,
+            "showRecentStats": true, "recentMinutes": 60.0, "claudeBackgroundAgents": true,
         ])
         stuckMinutes = d.double(forKey: "stuckMinutes")
         approvalTimeout = d.double(forKey: "approvalTimeout")
@@ -78,6 +80,7 @@ final class Preferences {
         panelCollapsed = d.bool(forKey: "panelCollapsed")
         sidebarExpanded = d.bool(forKey: "sidebarExpanded")
         slimRail = d.bool(forKey: "slimRail")
+        claudeBackgroundAgents = d.bool(forKey: "claudeBackgroundAgents")
         panelListHeight = d.object(forKey: "panelListHeightManual") == nil ? nil : CGFloat(d.double(forKey: "panelListHeightManual"))
         panelWidth = d.object(forKey: "panelWidth") == nil ? 340 : CGFloat(d.double(forKey: "panelWidth"))
         showRecentStats = d.bool(forKey: "showRecentStats")

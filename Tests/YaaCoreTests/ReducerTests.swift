@@ -866,3 +866,119 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(Normalizer.normalize(claude).count == 1)
     }
 }
+
+@Suite struct ClaudeBackgroundAgents {
+    private func launch(_ id: String, at: TimeInterval) -> HookEnvelope {
+        claude("PostToolUse", ["tool_name": .string("Agent"), "tool_use_id": .string("t-\(id)"),
+                               "tool_response": .object(["isAsync": .bool(true), "agentId": .string(id)])], at: at)
+    }
+
+    private func notify(_ id: String, at: TimeInterval) -> HookEnvelope {
+        claude("UserPromptSubmit", ["prompt": .string("<task-notification>\n<task-id>\(id)</task-id>\n<status>completed</status>\n</task-notification>")], at: at)
+    }
+
+    @Test func stopWaitsForTheLastBackgroundAgent() {
+        let launched = fold([
+            claude("UserPromptSubmit", ["prompt": .string("research both")]),
+            launch("a1", at: 1),
+            launch("a2", at: 2),
+        ])
+        #expect(launched.backgroundTasks == ["a1", "a2"])
+
+        // The main agent says "waiting on them" and stops.
+        let stopped = fold([claude("Stop", ["last_assistant_message": .string("Waiting.")], at: 3)], into: launched)
+        #expect(stopped.status == .running)
+        #expect(stopped.unreadSince == nil)
+        #expect(stopped.turns.last?.endedAt == t0.addingTimeInterval(3))
+        #expect(Alerts.between(launched, stopped) == nil)
+
+        // The first one reports back; the main agent handles it and stops again.
+        let first = fold([notify("a1", at: 10), claude("Stop", at: 12)], into: stopped)
+        #expect(first.turns.count == 2)
+        #expect(first.backgroundTasks == ["a2"])
+        #expect(first.status == .running)
+        #expect(Alerts.between(stopped, first) == nil)
+
+        // The last one: now the turn is done.
+        let beforeLast = fold([notify("a2", at: 20)], into: first)
+        let done = fold([claude("Stop", ["last_assistant_message": .string("All in.")], at: 22)], into: beforeLast)
+        #expect(done.backgroundTasks == nil)
+        #expect(done.status == .idle)
+        #expect(done.unreadSince == t0.addingTimeInterval(22))
+        #expect(Alerts.between(beforeLast, done) == .done("All in."))
+    }
+
+    @Test func heldTurnIsNotFinishedByTheStuckCheck() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1), claude("Stop", at: 2)])
+        let cfg = StuckConfig()
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(10), config: cfg, isAlive: { _ in true }) == nil)
+        // A lost notification still surfaces, as silence.
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: cfg, isAlive: { _ in true })?.status == .stuck)
+        // Forgetting it (setting turned off) lets the check finish the session.
+        var forgot = s
+        forgot.backgroundTasks = nil
+        #expect(StuckDetector.evaluate(forgot, now: t0.addingTimeInterval(10), config: cfg, isAlive: { _ in true })?.status == .idle)
+    }
+
+    @Test func idleNoticeKeepsTheHeldTurnsEnd() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1), claude("Stop", at: 2),
+                      claude("Notification", ["notification_type": .string("idle_prompt")], at: 62)])
+        #expect(s.status == .running)
+        #expect(s.turns.last?.endedAt == t0.addingTimeInterval(2))
+    }
+
+    @Test func onlyTheMainAgentsAsyncLaunchesCount() {
+        let sync = claude("PostToolUse", ["tool_name": .string("Agent"), "tool_use_id": .string("t"),
+                                          "tool_response": .object(["agentId": .string("a0"), "content": .string("ok")])])
+        let nested = claude("PostToolUse", ["agent_id": .string("a1"), "tool_name": .string("Agent"), "tool_use_id": .string("t2"),
+                                            "tool_response": .object(["isAsync": .bool(true), "agentId": .string("a3")])])
+        #expect(fold([claude("UserPromptSubmit", ["prompt": .string("x")]), sync, nested]).backgroundTasks == nil)
+    }
+
+    @Test func sessionEndForgetsThem() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1), claude("SessionEnd", at: 2)])
+        #expect(s.backgroundTasks == nil)
+        #expect(s.status == .ended)
+    }
+
+    @Test func exitedProcessFinishesAHeldSession() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1), claude("Stop", at: 2)])
+        let out = StuckDetector.evaluate(s, now: t0.addingTimeInterval(10), config: StuckConfig(), isAlive: { _ in false })
+        #expect(out?.status == .idle)
+    }
+
+    @Test func silenceAppliesWithAStartedBackgroundAgent() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1),
+                      claude("SubagentStart", ["agent_id": .string("a1")], at: 1), claude("Stop", at: 2)])
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: StuckConfig(), isAlive: { _ in true })?.status == .stuck)
+    }
+
+    @Test func stopKeepsABackgroundAgentsPermission() {
+        let input: JSONValue = .object(["command": .string("rm -rf x")])
+        let s = fold([
+            claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1),
+            claude("PreToolUse", ["agent_id": .string("a1"), "tool_name": .string("Bash"), "tool_use_id": .string("b1"),
+                                  "tool_input": input], at: 2),
+            claude("PermissionRequest", ["agent_id": .string("a1"), "tool_name": .string("Bash"), "tool_input": input,
+                                         Normalizer.awaitingKey: .bool(true)], at: 3),
+            claude("Stop", at: 4),
+        ])
+        #expect(s.status == .needsInput)
+        #expect(s.pendingPermission?.awaitingDecision == true)
+    }
+
+    @Test func resumedAgentIsWaitedForAgain() {
+        let resume = claude("PostToolUse", ["tool_name": .string("SendMessage"), "tool_use_id": .string("m"),
+                                            "tool_response": .object(["success": .bool(true), "resumedAgentId": .string("a1")])], at: 30)
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1), notify("a1", at: 20), resume,
+                      claude("Stop", at: 31)])
+        #expect(s.backgroundTasks == ["a1"])
+        #expect(s.status == .running)
+    }
+
+    @Test func notificationNamesEveryTask() {
+        let p = "<task-notification>\n<task-id>a1</task-id>\n</task-notification>\n<task-notification>\n<task-id>b2</task-id>\n</task-notification>"
+        #expect(Normalizer.notifiedTasks(p) == ["a1", "b2"])
+        #expect(Normalizer.notifiedTasks("see <task-id>a1</task-id>").isEmpty)
+    }
+}

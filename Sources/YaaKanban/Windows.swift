@@ -673,6 +673,18 @@ struct SettingsView: View {
                 }
             }
             Section {
+                Toggle(isOn: $settings.claudeBackgroundAgents) {
+                    SettingLabel("等待背景 agent（测试）", symbol: "person.2.wave.2.fill", tint: .orange)
+                }
+                .onChange(of: settings.claudeBackgroundAgents) { _, on in if !on { model.forgetBackgroundTasks() } }
+            } header: {
+                Text("Claude Code 兼容性")
+            } footer: {
+                Text("主 agent 回复完但还有背景 agent 没返回时，会话保持运行中，等最后一个背景 agent 返回、主 agent 处理完它的结果后才算待验收。关闭后，主 agent 每次回复完都算待验收。")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Section {
                 Toggle(isOn: $settings.waveTabSwitching) {
                     SettingLabel("跳转时切换到对应标签页", symbol: "rectangle.stack.fill", tint: .teal)
                 }

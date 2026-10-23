@@ -37,7 +37,9 @@ public enum Normalizer {
 
         switch p["hook_event_name"]?.string ?? env.event {
         case "SessionStart": return [ev(.sessionStart)]
-        case "UserPromptSubmit": return [ev(.promptSubmitted(p["prompt"]?.string ?? ""))]
+        case "UserPromptSubmit":
+            let prompt = p["prompt"]?.string ?? ""
+            return [ev(.promptSubmitted(prompt))] + notifiedTasks(prompt).map { ev(.backgroundEnd(id: $0)) }
         case "PreToolUse":
             var out = [ev(.toolStart(id: toolId, name: tool, input: input))]
             if askTools.contains(tool.lowercased()) { out.append(ev(.needsInput(askText(input)))) }
@@ -47,7 +49,13 @@ public enum Normalizer {
             let failed = p["hook_event_name"]?.string == "PostToolUseFailure"
                 || resp?["is_error"]?.bool == true || p["error"] != nil
             let text = resp.map(\.text) ?? p["error"]?.string
-            return [ev(.toolEnd(id: toolId, name: tool, output: text, isError: failed))]
+            var out = [ev(.toolEnd(id: toolId, name: tool, output: text, isError: failed))]
+            // Only the main agent's: a sub-agent's own background children report to it, not to us.
+            // A resumed agent (SendMessage) notifies again under the same id.
+            if env.agent == .claudeCode, subagent == nil, let id = backgroundLaunch(tool, resp) {
+                out.append(ev(.backgroundStart(id: id)))
+            }
+            return out
         case "PermissionRequest":
             // Claude routes AskUserQuestion through the permission flow; it is a question, not an approval.
             if askTools.contains(tool.lowercased()) { return [ev(.needsInput(askText(input)))] }
@@ -82,6 +90,23 @@ public enum Normalizer {
     /// and its sub-agents, always have one.
     public static func isCodexBackground(_ agent: AgentKind, transcriptPath: String?) -> Bool {
         agent == .codex && (transcriptPath ?? "").isEmpty
+    }
+
+    static func backgroundLaunch(_ tool: String, _ resp: JSONValue?) -> String? {
+        switch tool.lowercased() {
+        case "agent", "task": return resp?["isAsync"]?.bool == true ? resp?["agentId"]?.string : nil
+        case "sendmessage": return resp?["success"]?.bool == true ? resp?["resumedAgentId"]?.string : nil
+        default: return nil
+        }
+    }
+
+    /// Claude Code tells the main agent a background task stopped by sending it a prompt that
+    /// starts with `<task-notification>`; returns the task ids it names.
+    static func notifiedTasks(_ prompt: String) -> [String] {
+        guard prompt.hasPrefix("<task-notification>") else { return [] }
+        return prompt.components(separatedBy: "<task-id>").dropFirst().compactMap { part in
+            part.range(of: "</task-id>").map { String(part[..<$0.lowerBound]).trimmingCharacters(in: .whitespaces) }
+        }
     }
 
     // MARK: Cursor
