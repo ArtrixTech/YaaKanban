@@ -11,6 +11,10 @@ extension AgentKind {
         case .pi: "p.circle"
         case .hermes: "h.circle"
         case .deepseek: "fish"
+        case .qwen: "q.circle"
+        case .droid: "d.circle"
+        case .copilot: "airplane"
+        case .gemini: "sparkle"
         }
     }
 }

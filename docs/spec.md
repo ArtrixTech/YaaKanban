@@ -25,7 +25,11 @@ Decisions below were agreed with the user on 2026-10-20 (grilling session).
   - pi: `~/.pi/agent/extensions/yaakanban.ts`.
   - Hermes: `hooks:` in `~/.hermes/config.yaml`, edited line by line; each item and each key we add carries `# yaakanban`.
   - DeepSeek dsh: through the official `@deepseek-ai/dsh-hooks-claude-code` bridge. `~/.dsh/yaakanban/` holds a Claude-shaped `hooks.json` and a local bundle the user adds per profile (`dsh plugin --profile <p> add file:<bundle>`).
-- Authorization: where an agent asks the user to approve hooks, status shows 待授权 with steps, Settings has 重新检查, and cards of that agent show a warning. Rechecked on launch, on demand and every 60 s. Exact checks: Codex (recompute the `/hooks` trust hash against `config.toml`), Hermes (`shell-hooks-allowlist.json` or auto-accept), dsh (a profile depends on the bundle). Folder-trust and similar caveats are shown as notes.
+  - Qwen Code: `~/.qwen/settings.json` hooks; PermissionRequest is answered from the app.
+  - Factory Droid: `~/.factory/hooks.json` (or legacy `hooks/hooks.json`); an event only `settings.json` `hooks` defines gets ours there, since the hooks file would hide it.
+  - Copilot CLI: `~/.copilot/hooks/yaak.json`, owned by YaaKanban; permissionRequest is answered from the app.
+  - Gemini CLI: `~/.gemini/settings.json` hooks (timeouts in ms).
+- Authorization: where an agent asks the user to approve hooks, status shows 待授权 with steps, Settings has 重新检查, and cards of that agent show a warning. Rechecked on launch, on demand and every 60 s. Exact checks: Codex (recompute the `/hooks` trust hash against `config.toml`), Hermes (`shell-hooks-allowlist.json` or auto-accept), dsh (a profile depends on the bundle), Qwen (`disableAllHooks`), Droid (`hooksDisabled`), Gemini (`hooksConfig.enabled` / `disabled`). Folder-trust and similar caveats are shown as notes.
 - Hook path: the app keeps `~/.local/share/yaakanban/bin/yaak` linked to its bundled `yaak`, and hooks call that link, so moving or updating the app does not change hook commands (or Codex trust hashes).
 - Dry run masks values of secret-looking keys (token, key, password, auth…).
 - Installer safety: back up every file before writing (`.yaak.bak`), `--dry-run` prints the change, tests use a temp HOME.

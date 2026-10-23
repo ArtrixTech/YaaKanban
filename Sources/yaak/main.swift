@@ -31,7 +31,8 @@ func selfPath() -> String {
 // MARK: hook
 
 /// Agents whose permission hook can take a decision from the app.
-let approvalEvents: [AgentKind: String] = [.claudeCode: "PermissionRequest", .opencode: "permission"]
+let approvalEvents: [AgentKind: String] = [.claudeCode: "PermissionRequest", .qwen: "PermissionRequest",
+                                           .copilot: "permissionRequest", .opencode: "permission"]
 
 /// Hooks must return within ~100 ms: reading stdin and sending to the app share one budget from
 /// process start. Whatever misses it is dropped (stdin) or spooled (the send).
@@ -48,7 +49,7 @@ func runHook(agent: AgentKind, event: String) -> Never {
     var payload = Wire.trim(JSONValue.parse(stdin) ?? .object([:]))
     let pid = env["YAAK_AGENT_PID"].flatMap(Int32.init) ?? ProcessUtil.hookOwner()
     // Questions (AskUserQuestion) also arrive as permission requests; never hold those up.
-    let tool = (payload["tool_name"] ?? payload["tool"])?.string?.lowercased() ?? ""
+    let tool = (payload["tool_name"] ?? payload["toolName"] ?? payload["tool"])?.string?.lowercased() ?? ""
     let wantsDecision = approvalEvents[agent] == event && !Normalizer.askTools.contains(tool)
 
     if wantsDecision, case .object(var o) = payload {
@@ -85,10 +86,14 @@ func runHook(agent: AgentKind, event: String) -> Never {
 
 func decisionOutput(_ agent: AgentKind, _ d: PermissionDecision) -> String {
     switch agent {
-    case .claudeCode:
+    case .claudeCode, .qwen:
         var decision: [String: Any] = ["behavior": d.rawValue]
         if d == .deny { decision["message"] = "Denied from YaaKanban" }
         let out: [String: Any] = ["hookSpecificOutput": ["hookEventName": "PermissionRequest", "decision": decision]]
+        return String(decoding: try! JSONSerialization.data(withJSONObject: out), as: UTF8.self)
+    case .copilot:
+        var out: [String: Any] = ["behavior": d.rawValue]
+        if d == .deny { out["message"] = "Denied from YaaKanban" }
         return String(decoding: try! JSONSerialization.data(withJSONObject: out), as: UTF8.self)
     default:
         return d.rawValue

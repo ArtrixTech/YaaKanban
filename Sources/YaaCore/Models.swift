@@ -8,6 +8,10 @@ public enum AgentKind: String, Codable, CaseIterable, Sendable {
     case pi
     case hermes
     case deepseek
+    case qwen
+    case droid
+    case copilot
+    case gemini
 
     public var displayName: String {
         switch self {
@@ -18,6 +22,10 @@ public enum AgentKind: String, Codable, CaseIterable, Sendable {
         case .pi: return "pi"
         case .hermes: return "Hermes"
         case .deepseek: return "DeepSeek"
+        case .qwen: return "Qwen Code"
+        case .droid: return "Droid"
+        case .copilot: return "Copilot CLI"
+        case .gemini: return "Gemini CLI"
         }
     }
 }
@@ -297,6 +305,10 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
         case .hermes: return "hermes --resume \(id)"
         // dsh resumes sessions from its web UI, not the command line.
         case .deepseek: return nil
+        case .qwen: return "qwen --resume \(id)"
+        case .droid: return "droid --resume \(id)"
+        case .copilot: return "copilot --resume \(id)"
+        case .gemini: return "gemini --resume \(id)"
         }
     }
 

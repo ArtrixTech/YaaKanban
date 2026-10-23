@@ -388,6 +388,8 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(cmd(.codex, "abc") == "codex resume 'abc'")
         #expect(cmd(.opencode, "ses_1") == "opencode --session 'ses_1'")
         #expect(cmd(.pi, "/s/it's.jsonl") == "pi --session '/s/it'\\''s.jsonl'")
+        #expect(cmd(.gemini, "abc") == "gemini --resume 'abc'")
+        #expect(cmd(.copilot, "abc") == "copilot --resume 'abc'")
         #expect(cmd(.claudeCode, "") == nil)
         #expect(cmd(.claudeCode, "--dangerously-skip-permissions") == nil)
     }
@@ -1020,5 +1022,79 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         var e = hermes("pre_llm_call")
         if case .object(var o) = e.payload { o["session_id"] = .string(""); e.payload = .object(o) }
         #expect(Normalizer.normalize(e).isEmpty)
+    }
+}
+
+/// Gemini CLI and Copilot CLI are renamed into the Claude schema.
+@Suite struct RenamedSchemas {
+    private func env(_ agent: AgentKind, _ event: String, _ p: [String: JSONValue], at: TimeInterval = 0) -> HookEnvelope {
+        HookEnvelope(agent: agent, event: event, receivedAt: t0.addingTimeInterval(at), payload: .object(p))
+    }
+    private func gemini(_ event: String, _ fields: [String: JSONValue] = [:], at: TimeInterval = 0) -> HookEnvelope {
+        var p: [String: JSONValue] = ["session_id": .string("g1"), "cwd": .string("/tmp/proj"), "hook_event_name": .string(event)]
+        p.merge(fields) { $1 }
+        return env(.gemini, event, p, at: at)
+    }
+    private func copilot(_ event: String, _ fields: [String: JSONValue] = [:], at: TimeInterval = 0) -> HookEnvelope {
+        var p: [String: JSONValue] = ["sessionId": .string("c1"), "cwd": .string("/tmp/proj"), "timestamp": .number(1)]
+        p.merge(fields) { $1 }
+        return env(.copilot, event, p, at: at)
+    }
+
+    @Test func geminiTurn() {
+        let input: JSONValue = .object(["command": .string("ls")])
+        let s = fold([
+            gemini("SessionStart", ["source": .string("startup")]),
+            gemini("BeforeAgent", ["prompt": .string("list files")], at: 1),
+            gemini("BeforeTool", ["tool_name": .string("run_shell_command"), "tool_input": input], at: 2),
+            gemini("AfterTool", ["tool_name": .string("run_shell_command"), "tool_input": input,
+                                 "tool_response": .object(["llmContent": .string("a b"), "returnDisplay": .string("a b")])], at: 3),
+            gemini("AfterAgent", ["prompt": .string("list files"), "prompt_response": .string("Two files.")], at: 4),
+        ])
+        #expect(s.title == "list files")
+        #expect(s.latestTool?.isRunning == false && s.latestTool?.output == "a b" && s.latestTool?.isError == false)
+        #expect(s.status == .idle && s.lastReply == "Two files.")
+
+        let failed = fold([
+            gemini("BeforeTool", ["tool_name": .string("read_file"), "tool_input": input]),
+            gemini("AfterTool", ["tool_name": .string("read_file"), "tool_input": input,
+                                 "tool_response": .object(["llmContent": .object(["text": .string("x")]),
+                                                           "error": .object(["message": .string("no such file")])])], at: 1),
+        ])
+        #expect(failed.latestTool?.isError == true && failed.latestTool?.isRunning == false)
+
+        let asked = fold([gemini("Notification", ["notification_type": .string("ToolPermission"),
+                                                  "message": .string("Allow run_shell_command?")], at: 5)], into: s)
+        #expect(asked.status == .needsInput)
+    }
+
+    @Test func copilotTurnAndPermission() {
+        let args: JSONValue = .string(#"{"command":"rm -rf build"}"#)
+        let s = fold([
+            copilot("sessionStart", ["source": .string("new")]),
+            copilot("userPromptSubmitted", ["prompt": .string("clean up")], at: 1),
+            copilot("preToolUse", ["toolName": .string("bash"), "toolArgs": args], at: 2),
+            copilot("permissionRequest", ["toolName": .string("bash"), "toolArgs": args, Normalizer.awaitingKey: .bool(true)], at: 3),
+        ])
+        #expect(s.title == "clean up")
+        #expect(s.status == .needsInput && s.pendingPermission?.awaitingDecision == true)
+        #expect(s.needsInputMessage == "bash: rm -rf build")
+
+        let done = fold([
+            copilot("postToolUse", ["toolName": .string("bash"), "toolArgs": args,
+                                    "toolResult": .object(["resultType": .string("success"), "textResultForLlm": .string("ok")])], at: 4),
+            copilot("agentStop", ["transcriptPath": .string("/tmp/t.jsonl"), "stopReason": .string("end_turn")], at: 5),
+        ], into: s)
+        #expect(done.pendingPermission == nil)
+        #expect(done.latestTool?.isRunning == false && done.latestTool?.output == "ok")
+        #expect(done.status == .idle)
+
+        let failed = fold([
+            copilot("preToolUse", ["toolName": .string("bash"), "toolArgs": args]),
+            copilot("postToolUse", ["toolName": .string("bash"), "toolArgs": args,
+                                    "toolResult": .object(["resultType": .string("failure"), "textResultForLlm": .string("boom")])], at: 1),
+        ])
+        #expect(failed.latestTool?.isError == true && failed.latestTool?.output == "boom")
+        #expect(Normalizer.normalize(copilot("sessionEnd", ["sessionId": .null])).isEmpty)
     }
 }

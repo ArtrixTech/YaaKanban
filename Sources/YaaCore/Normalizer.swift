@@ -2,8 +2,8 @@ import Foundation
 
 /// Turns a raw hook envelope into agent-neutral events.
 ///
-/// Claude Code, Codex and DeepSeek dsh (through its Claude hooks bridge) share the Claude hook
-/// schema. Cursor and Hermes have their own. OpenCode and pi
+/// Claude Code, Codex, DeepSeek dsh (through its Claude hooks bridge), Qwen Code and Droid share the
+/// Claude hook schema; Gemini CLI and Copilot CLI are renamed into it. Cursor and Hermes have their own. OpenCode and pi
 /// run YaaKanban's own plugin, which emits the "yaak" schema (see `Plugins.swift`).
 public enum Normalizer {
     /// Payload key the CLI adds when it is blocking on a permission decision.
@@ -14,7 +14,9 @@ public enum Normalizer {
 
     public static func normalize(_ env: HookEnvelope) -> [AgentEvent] {
         switch env.agent {
-        case .claudeCode, .codex, .deepseek: return claudeSchema(env)
+        case .claudeCode, .codex, .deepseek, .qwen, .droid: return claudeSchema(env)
+        case .gemini: return claudeSchema(geminiAsClaude(env))
+        case .copilot: return claudeSchema(copilotAsClaude(env))
         case .hermes: return hermesSchema(env)
         case .cursor: return cursorSchema(env)
         case .opencode, .pi: return yaakSchema(env)
@@ -109,6 +111,61 @@ public enum Normalizer {
         return prompt.components(separatedBy: "<task-id>").dropFirst().compactMap { part in
             part.range(of: "</task-id>").map { String(part[..<$0.lowerBound]).trimmingCharacters(in: .whitespaces) }
         }
+    }
+
+    // MARK: Gemini CLI / Copilot CLI (renamed into the Claude schema)
+
+    /// Gemini's events carry Claude's fields under its own event names.
+    static func geminiAsClaude(_ env: HookEnvelope) -> HookEnvelope {
+        guard var o = env.payload.object else { return env }
+        let names = ["BeforeAgent": "UserPromptSubmit", "BeforeTool": "PreToolUse", "AfterTool": "PostToolUse",
+                     "AfterAgent": "Stop"]
+        let event = o["hook_event_name"]?.string ?? env.event
+        o["hook_event_name"] = .string(names[event] ?? event)
+        switch event {
+        case "AfterTool":
+            // tool_response is {llmContent, returnDisplay, error?}; returnDisplay may be a diff object.
+            let r = o["tool_response"]
+            if let err = r?["error"], err != .null { o["error"] = err["message"] ?? .string(err.text) }
+            o["tool_response"] = r?["llmContent"]?.string.map(JSONValue.string) ?? r?["returnDisplay"] ?? r?["llmContent"]
+        case "AfterAgent":
+            o["last_assistant_message"] = o["prompt_response"]
+        case "Notification":
+            // The only type today is ToolPermission: the user is being asked to confirm a tool.
+            o["notification_type"] = .string("permission_prompt")
+        default: break
+        }
+        var e = env
+        e.payload = .object(o)
+        return e
+    }
+
+    /// Copilot's camelCase hooks: `sessionId`, `toolName`, `toolArgs` (a JSON string), `toolResult`.
+    static func copilotAsClaude(_ env: HookEnvelope) -> HookEnvelope {
+        guard var o = env.payload.object else { return env }
+        let names = ["sessionStart": "SessionStart", "sessionEnd": "SessionEnd", "userPromptSubmitted": "UserPromptSubmit",
+                     "preToolUse": "PreToolUse", "postToolUse": "PostToolUse", "postToolUseFailure": "PostToolUseFailure",
+                     "permissionRequest": "PermissionRequest", "agentStop": "Stop", "notification": "Notification"]
+        let event = o["hook_event_name"]?.string ?? env.event
+        o["hook_event_name"] = .string(names[event] ?? event)
+        for (camel, snake) in [("sessionId", "session_id"), ("transcriptPath", "transcript_path"), ("toolName", "tool_name"),
+                               ("toolUseId", "tool_use_id"), ("toolCallId", "tool_use_id"),
+                               ("notificationType", "notification_type"), ("workingDirectory", "cwd")] where o[snake] == nil {
+            o[snake] = o[camel]
+        }
+        if o["tool_input"] == nil, let args = o["toolArgs"] {
+            o["tool_input"] = args.string.flatMap { JSONValue.parse(Data($0.utf8)) } ?? args
+        }
+        if o["tool_response"] == nil, let r = o["toolResult"] {
+            o["tool_response"] = r["textResultForLlm"] ?? r
+            if ["failure", "error", "denied", "rejected"].contains(r["resultType"]?.string ?? "") {
+                o["hook_event_name"] = .string("PostToolUseFailure")
+            }
+        }
+        if case .object(let err)? = o["error"] { o["error"] = err["message"] ?? .string("error") }
+        var e = env
+        e.payload = .object(o)
+        return e
     }
 
     // MARK: Cursor

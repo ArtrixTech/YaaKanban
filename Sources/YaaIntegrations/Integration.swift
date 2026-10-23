@@ -44,7 +44,9 @@ extension Integration {
     /// `.needsAuthorization` while the agent waits for the user to approve the hooks.
     public func status(home: URL, yaak: String) -> IntegrationStatus {
         let s = status(home: home)
-        guard s == .installed, let plan = try? plan(install: true, home: home, yaak: yaak) else { return s }
+        guard s == .installed else { return s }
+        // A config we can no longer edit (comments added, layout refused): updating shows why.
+        guard let plan = try? plan(install: true, home: home, yaak: yaak) else { return .outdated }
         if !plan.allSatisfy(\.isNoop) { return .outdated }
         return pendingSteps(home: home).isEmpty ? s : .needsAuthorization
     }
@@ -53,7 +55,8 @@ extension Integration {
 public enum Integrations {
     public static let all: [any Integration] = [ClaudeIntegration(), CodexIntegration(), CursorIntegration(),
                                                 OpenCodeIntegration(), PiIntegration(), HermesIntegration(),
-                                                DeepSeekIntegration()]
+                                                DeepSeekIntegration(), QwenIntegration(), DroidIntegration(),
+                                                CopilotIntegration(), GeminiIntegration()]
 
     public static func named(_ agent: AgentKind) -> (any Integration)? { all.first { $0.agent == agent } }
 

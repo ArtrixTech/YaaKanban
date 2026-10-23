@@ -466,3 +466,170 @@ private func json(_ url: URL) throws -> [String: Any] {
     }
 
 }
+
+@Suite struct ClaudeCompatibleTests {
+    private func home(_ dirs: [String]) throws -> URL {
+        let u = FileManager.default.temporaryDirectory.appendingPathComponent("yaak-compat-\(UUID().uuidString)")
+        for d in dirs { try FileManager.default.createDirectory(at: u.appendingPathComponent(d), withIntermediateDirectories: true) }
+        return u
+    }
+    private func write(_ s: String, _ url: URL) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try s.write(to: url, atomically: true, encoding: .utf8)
+    }
+    private func ours(_ hooks: [String: Any], _ event: String) -> [[String: Any]] {
+        (hooks[event] as? [[String: Any]] ?? []).flatMap { $0["hooks"] as? [[String: Any]] ?? [] }
+            .filter { HookCommand.isOurs($0["command"] as? String ?? "") }
+    }
+    private func roundTrip(_ i: any Integration, _ h: URL, _ files: [URL]) throws {
+        let before = files.map(Installer.read)
+        try Installer.apply(try i.plan(install: true, home: h, yaak: yaak))
+        #expect(i.status(home: h, yaak: yaak) == .installed)
+        #expect(try i.plan(install: true, home: h, yaak: yaak).isEmpty)
+        try Installer.apply(try i.plan(install: false, home: h, yaak: yaak))
+        #expect(i.status(home: h) == .notInstalled)
+        for (f, b) in zip(files, before) {
+            let a = Installer.read(f)
+            if let b, let a, let jb = try? JSONSerialization.jsonObject(with: Data(b.utf8)),
+               let ja = try? JSONSerialization.jsonObject(with: Data(a.utf8)) {
+                #expect(NSDictionary(dictionary: jb as! [String: Any]).isEqual(to: ja as! [String: Any]), "\(f.lastPathComponent)")
+            } else {
+                #expect(a == nil || b != nil, "\(f.lastPathComponent) left behind")
+            }
+        }
+    }
+
+    @Test func qwen() throws {
+        let h = try home([".qwen"])
+        let f = h.appendingPathComponent(".qwen/settings.json")
+        try write(#"{"model":{"name":"qwen3"},"hooks":{"Stop":[{"hooks":[{"type":"command","command":"other"}]}]}}"#, f)
+        let i = QwenIntegration()
+        try Installer.apply(try i.plan(install: true, home: h, yaak: yaak))
+        let hooks = try json(f)["hooks"] as! [String: Any]
+        #expect(ours(hooks, "PermissionRequest").first?["timeout"] as? Int == Integrations.approvalTimeout + 10)
+        #expect(ours(hooks, "Stop").first?["_yaakanban"] == nil)
+        #expect(i.status(home: h, yaak: yaak) == .installed)
+
+        var root = try json(f); root["disableAllHooks"] = true
+        try write(try JSONFile.render(root), f)
+        #expect(i.status(home: h, yaak: yaak) == .needsAuthorization)
+        root["disableAllHooks"] = nil
+        try write(try JSONFile.render(root), f)
+        try Installer.apply(try i.plan(install: false, home: h, yaak: yaak))
+        try roundTrip(i, h, [f])
+        #expect(((try json(f)["hooks"] as! [String: Any])["Stop"] as! [[String: Any]]).count == 1)
+    }
+
+    @Test func gemini() throws {
+        let h = try home([".gemini"])
+        let f = h.appendingPathComponent(".gemini/settings.json")
+        try write(#"{"security":{"auth":{"selectedType":"oauth-personal"}}}"#, f)
+        let i = GeminiIntegration()
+        try roundTrip(i, h, [f])
+        try Installer.apply(try i.plan(install: true, home: h, yaak: yaak))
+        let hooks = try json(f)["hooks"] as! [String: Any]
+        #expect(Set(hooks.keys) == Set(GeminiIntegration.events.map(\.name)))
+        #expect(ours(hooks, "BeforeTool").first?["timeout"] as? Int == 5000)
+        #expect(ours(hooks, "BeforeTool").first?["name"] as? String == "yaakanban")
+        // Gemini denies the call on exit codes other than 0 and 1, e.g. 127 for a missing yaak.
+        #expect(ours(hooks, "BeforeTool").first?["command"] as? String == "'\(yaak)' hook gemini BeforeTool || true")
+
+        for cfg in [#"{"enabled":false}"#, #"{"disabled":["yaakanban"]}"#] {
+            var root = try json(f)
+            root["hooksConfig"] = try JSONSerialization.jsonObject(with: Data(cfg.utf8))
+            try write(try JSONFile.render(root), f)
+            #expect(i.status(home: h, yaak: yaak) == .needsAuthorization, "\(cfg)")
+            #expect(!i.pendingSteps(home: h).isEmpty)
+        }
+        var root = try json(f); root["hooksConfig"] = ["disabled": ["other-hook"]]
+        try write(try JSONFile.render(root), f)
+        #expect(i.status(home: h, yaak: yaak) == .installed)
+
+        // Comments (JSONC) make the file uneditable: say so instead of reporting it healthy.
+        try write("// mine\n" + (Installer.read(f) ?? ""), f)
+        #expect(i.status(home: h, yaak: yaak) == .outdated)
+    }
+
+    @Test func droidCreatesHooksFile() throws {
+        let h = try home([".factory"])
+        let i = DroidIntegration()
+        let hooksFile = h.appendingPathComponent(".factory/hooks.json")
+        let settings = h.appendingPathComponent(".factory/settings.json")
+        try write(#"{"model":"claude"}"#, settings)
+        try Installer.apply(try i.plan(install: true, home: h, yaak: yaak))
+        let root = try json(hooksFile)
+        #expect(root["hooks"] == nil && ours(root, "PreToolUse").count == 1)
+        #expect(try json(settings)["hooks"] == nil)
+        #expect(i.status(home: h, yaak: yaak) == .installed)
+
+        var r = root; r["hooksDisabled"] = true
+        try write(try JSONFile.render(r), hooksFile)
+        #expect(i.status(home: h, yaak: yaak) == .needsAuthorization)
+        try Installer.apply(try i.plan(install: false, home: h, yaak: yaak))
+        #expect(try json(hooksFile)["hooksDisabled"] as? Bool == true)
+        #expect(i.status(home: h) == .notInstalled)
+
+        // A hooks file we emptied is removed: Droid would otherwise prefer it over the legacy file.
+        try FileManager.default.removeItem(at: hooksFile)
+        try Installer.apply(try i.plan(install: true, home: h, yaak: yaak))
+        try Installer.apply(try i.plan(install: false, home: h, yaak: yaak))
+        #expect(!FileManager.default.fileExists(atPath: hooksFile.path))
+        try write("{}", hooksFile)
+        #expect(try i.plan(install: false, home: h, yaak: yaak).isEmpty)
+    }
+
+    /// Droid merges settings.json hooks per event with the hooks file winning, so an event only
+    /// settings.json defines must get ours there, or ours would hide the user's.
+    @Test func droidSplitsEventsBetweenFiles() throws {
+        let h = try home([".factory"])
+        let i = DroidIntegration()
+        let hooksFile = h.appendingPathComponent(".factory/hooks.json")
+        let settings = h.appendingPathComponent(".factory/settings.json")
+        try write(#"{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"guard"}]}]}"#, hooksFile)
+        try write(#"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"say done"}]}],"PreToolUse":[{"hooks":[{"type":"command","command":"hidden"}]}]}}"#, settings)
+        try roundTrip(i, h, [hooksFile, settings])
+        try Installer.apply(try i.plan(install: true, home: h, yaak: yaak))
+        let file = try json(hooksFile), sHooks = try json(settings)["hooks"] as! [String: Any]
+        #expect(ours(file, "PreToolUse").count == 1 && ours(sHooks, "PreToolUse").isEmpty)
+        #expect(ours(file, "Stop").isEmpty && ours(sHooks, "Stop").count == 1)
+        #expect(ours(file, "SessionStart").count == 1)
+
+        // Only settings.json hooks and no hooks file: everything goes there, no hooks.json appears.
+        let h2 = try home([".factory"])
+        let s2 = h2.appendingPathComponent(".factory/settings.json")
+        try write(#"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"say done"}]}]}}"#, s2)
+        try roundTrip(i, h2, [s2])
+        try Installer.apply(try i.plan(install: true, home: h2, yaak: yaak))
+        #expect(!FileManager.default.fileExists(atPath: h2.appendingPathComponent(".factory/hooks.json").path))
+        #expect(ours(try json(s2)["hooks"] as! [String: Any], "SessionStart").count == 1)
+
+        // Legacy hooks/hooks.json is used when hooks.json is absent.
+        let h3 = try home([".factory/hooks"])
+        let legacy = h3.appendingPathComponent(".factory/hooks/hooks.json")
+        try write(#"{"Stop":[{"hooks":[{"type":"command","command":"x"}]}]}"#, legacy)
+        try roundTrip(i, h3, [legacy])
+        try Installer.apply(try i.plan(install: true, home: h3, yaak: yaak))
+        #expect(ours(try json(legacy), "Stop").count == 1)
+        #expect(!FileManager.default.fileExists(atPath: h3.appendingPathComponent(".factory/hooks.json").path))
+    }
+
+    @Test func copilot() throws {
+        let h = try home([".copilot"])
+        let i = CopilotIntegration()
+        let f = h.appendingPathComponent(".copilot/hooks/yaak.json")
+        try Installer.apply(try i.plan(install: true, home: h, yaak: yaak))
+        let root = try json(f)
+        #expect(root["version"] as? Int == 1)
+        let hooks = root["hooks"] as! [String: Any]
+        let pre = (hooks["preToolUse"] as! [[String: Any]])[0]
+        #expect(pre["bash"] as? String == "'\(yaak)' hook copilot preToolUse || true")
+        #expect(((hooks["permissionRequest"] as! [[String: Any]])[0]["timeoutSec"] as? Int) == Integrations.approvalTimeout + 10)
+        #expect(i.status(home: h, yaak: yaak) == .installed)
+        #expect(i.status(home: h, yaak: "/other/yaak") == .outdated)
+        try Installer.apply(try i.plan(install: false, home: h, yaak: yaak))
+        #expect(!FileManager.default.fileExists(atPath: f.path))
+
+        try write(#"{"version":1,"hooks":{}}"#, f)
+        #expect(throws: IntegrationError.self) { try i.plan(install: true, home: h, yaak: yaak) }
+    }
+}

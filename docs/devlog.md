@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(integrations): add hook authorization checks, Hermes and DeepSeek
+## feat(integrations): add Qwen, Droid, Copilot and Gemini hooks
 
 `pending` | 2026-10-23
+
+- **Changes**: AgentKinds `qwen`, `droid`, `copilot`, `gemini` (names, resume `<cli> --resume`, tint, symbol; no bundled logos yet). `ClaudeCompatible.swift`: `QwenIntegration` (`~/.qwen/settings.json`, PermissionRequest awaited, pending on `disableAllHooks`), `GeminiIntegration` (`~/.gemini/settings.json`, ms timeouts, named `yaakanban`, `|| true`, pending on `hooksConfig.enabled=false` / `disabled`, folder-trust note), `DroidIntegration` (hooks.json → legacy hooks/hooks.json → settings.json `hooks`; per-event placement so a settings-only event is not hidden; emptied hooks file deleted; pending on `hooksDisabled`; folder-trust note). `Copilot.swift`: owned `~/.copilot/hooks/yaak.json`, camelCase events, `bash … || true`, `timeoutSec`. Normalizer: qwen/droid use `claudeSchema`; `geminiAsClaude` and `copilotAsClaude` rename into it (toolArgs JSON string parsed, toolResult resultType failure → PostToolUseFailure). yaak: approval for qwen (Claude decision format) and copilot (`{behavior, message}`); tool lookup reads `toolName`. `status(home:yaak:)` reports 需更新 when an installed config can no longer be planned (e.g. JSONC comments). README table, spec §3, Architecture.
+- **Reason**: batch 2 of the harness rollout agreed with the user.
+- **User feedback**: "1-6都做。还要做deepseek harness/zcode/kimi code/omp（ohmypi）" / "2按照你的推荐" / "完整实现。" / "继续"
+- **Process**: Gemini and Qwen read from source (hookRegistry, hookRunner, settingsSchema, types.ts); Droid from binary strings (loadHooks merge `{...settings, ...hooksFile}`, `hooksDisabled`, events/payload); Copilot from earlier research (runtime is compressed native). Smoke: `yaak hook` for each agent under a temp HOME exits 0 in ~20 ms and spools. Adversarial review (temp HOMEs, 139 tests with its probes) found and fixed: Gemini turns exit 127 (missing yaak) into deny → `|| true`; status said installed when the plan throws on a commented settings file; Droid uninstall left `{}` hooks.json that would shadow the legacy file. `make test` (134 pass).
+- **Result**: Qwen, Droid, Copilot and Gemini installable; Qwen and Copilot permission prompts answerable from the app.
+- **Notes**: Known limits: a tool denied in the terminal (Copilot, also Claude) fires no post hook, so the card stays 需要输入 until the turn ends — clearing on the next PreToolUse would drop a parallel call's real request. Gemini/Droid interrupts emit no turn end (Droid: `idle_prompt` only, ignored within 1 s of the last event). Settings files with comments (JSONC, allowed by Gemini/Qwen/Droid) are refused. Copilot `disableAllHooks`/`disabledHooks` and `COPILOT_HOME` are not checked; Copilot payload field names and decision output are from the SDK types, not verified against the runtime.
+
+## feat(integrations): add hook authorization checks, Hermes and DeepSeek
+
+`248ced6` | 2026-10-23
 
 - **Changes**: `IntegrationStatus.needsAuthorization` + `pendingSteps(home:)`; Settings badge 待授权, steps, 重新检查; menu row; card warning; `AppModel.checkIntegrations()` on launch and every 60 s. Codex: `CodexTrust` recomputes the `/hooks` trust hash per handler and reads `[hooks.state."…"]` / `[features] hooks` from config.toml (untrusted/modified/disabled). Hermes: `HermesIntegration` edits `hooks:` in config.yaml line by line (`# yaakanban` tags; `hooks: {}` reopened and restored), consent from `shell-hooks-allowlist.json` or `hooks_auto_accept`; `hermesSchema` normalizer; resume `hermes --resume`. DeepSeek: `DeepSeekIntegration` writes `~/.dsh/yaakanban/hooks.json` + a local bundle (bridge + protocol deps at the installed dsh version), pending until a profile depends on it. `StableYaak` link `~/.local/share/yaakanban/bin/yaak` used by the app and by `yaak install` from the .app. Dry-run redacts secret-looking values. Spec §3, Architecture updated.
 - **Reason**: support more harnesses and guide the user through each one's hook approval (Codex runs only hooks trusted in /hooks; Hermes asks per hook).
