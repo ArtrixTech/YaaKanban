@@ -4,7 +4,8 @@ import Foundation
 /// A daily report as a TelemetryDeck signal (their ingest API v2, as their Swift SDK sends it).
 /// Payload values are strings, so counts go as buckets like the figures do.
 public struct TelemetryDeckSignal: Codable, Equatable, Sendable {
-    public static let ingestURL = URL(string: "https://nom.telemetrydeck.com/v2/")!
+    /// The organization's namespace endpoint; TelemetryDeck asks namespaced organizations to use it.
+    public static let ingestURL = URL(string: "https://nom.telemetrydeck.com/v2/namespace/com.yaakanban/")!
     public static let type = "Yaak.daily"
 
     public var receivedAt: Date

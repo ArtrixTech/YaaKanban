@@ -81,7 +81,7 @@ final class TelemetryReporter {
         guard !signals.isEmpty else { return }
         var req = URLRequest(url: ingestURL, timeoutInterval: 15)
         req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
         req.httpBody = TelemetryDeckSignal.body(signals)
         Self.session.dataTask(with: req).resume()
     }

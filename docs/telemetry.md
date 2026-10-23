@@ -30,13 +30,14 @@ names, titles, tokens, credentials.
 
 ## Where it goes
 
-Reports go to [TelemetryDeck](https://telemetrydeck.com) (`nom.telemetrydeck.com`), one signal
-per report, type `Yaak.daily`. The fields above become string tags: `Yaak.day`, `Yaak.schema`,
-`Yaak.integration.<agent>`, `Yaak.setting.<name>` (`on`/`off`), `Yaak.count.<event>`,
-`Yaak.figure.<name>`, plus TelemetryDeck's own names for version, build, macOS, architecture and
-language. `install_id` is not sent as is: the signal's user is its SHA-256, which TelemetryDeck
+Reports go to [TelemetryDeck](https://telemetrydeck.com) (`nom.telemetrydeck.com`, namespace
+`com.yaakanban`), one signal per report, type `Yaak.daily`. The fields above become string tags:
+`Yaak.day`, `Yaak.schema`, `Yaak.integration.<agent>`, `Yaak.setting.<name>` (`on`/`off`),
+`Yaak.count.<event>`, `Yaak.figure.<name>`, plus TelemetryDeck's own names for version, build,
+macOS, architecture and language. `install_id` is not sent as is: the signal's user is its SHA-256, which TelemetryDeck
 salts and hashes again; it stores no IP address. Settings › 查看 shows the signal itself.
 
 The build reads the App ID from `Info.plist` (`YaakTelemetryDeckAppID`), committed in
 `Resources/Info.plist`; `YAAK_TELEMETRYDECK_APP_ID` replaces it at bundle time (an empty value
-there is ignored). A bundle whose App ID is empty sends nothing.
+there is ignored). A bundle whose App ID is empty sends nothing. On the free plan TelemetryDeck
+indexes new events between hourly and daily, so the dashboard lags behind.

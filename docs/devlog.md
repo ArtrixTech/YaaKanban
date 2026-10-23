@@ -1,5 +1,16 @@
 # Devlog
 
+## fix(telemetry): send to the organization's TelemetryDeck namespace
+
+`pending` | 2026-10-23
+
+- **Changes**: ingest URL `https://nom.telemetrydeck.com/v2/namespace/com.yaakanban/` (was `/v2/`); `Content-Type: application/json; charset=utf-8`. docs/telemetry.md names the namespace and the free-plan indexing lag.
+- **Reason**: TelemetryDeck's v2 docs ask organizations with a namespace to use the namespace endpoint (all organizations have one since July 2026); `/v2/` answers 200 even for a random App ID, so its 200 proves nothing.
+- **User feedback**: dashboard showed 0 events; "test mode在哪" / "再查查文档核对一下".
+- **Process**: via the dashboard (opencli): Test Mode is the "+ Test Mode" chip on Explore › Recent Events (not top left as the docs say); org namespace `com.yaakanban`; Namespace Status: unpaid orgs are processed round robin, "between once an hour and once a day", so 0 is expected for now. curl to the namespace endpoint → 200. `make test` 129 pass; debug bundle with temp HOME/YAAK_HOME sent a seeded day through the new URL.
+- **Result**: events go to the namespace TelemetryDeck documents; arrival still to be seen once the free tier indexes them.
+- **Notes**: real-time ingestion needs a paid plan. Ingest v3 exists (flat events, namespace required); v2 stays available.
+
 ## feat(telemetry): ship the TelemetryDeck App ID in Info.plist
 
 `203e3c3` | 2026-10-23
