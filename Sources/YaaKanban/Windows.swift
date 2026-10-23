@@ -740,8 +740,8 @@ struct SettingsView: View {
                 Text("隐私与反馈")
             } footer: {
                 Text(model.telemetry.doNotTrack ? "已设置 DO_NOT_TRACK，不会发送统计。"
-                     : model.telemetry.appID == nil ? "这个版本没有配置统计服务，不会发送任何数据。"
-                     : "默认关闭。开启后每天向 TelemetryDeck 发送一份匿名统计：版本、系统、接入状态，以及功能使用次数和会话数的粗略区间；不含 prompt、代码、路径、项目或会话名。命令行：yaak telemetry status|on|off。")
+                     : !model.telemetry.available ? "这个版本没有配置统计服务，不会发送任何数据。"
+                     : "默认关闭。开启后每天向 Aptabase 发送一份匿名统计：版本、系统、接入状态，以及功能使用次数和会话数的粗略区间；不含 prompt、代码、路径、项目或会话名。命令行：yaak telemetry status|on|off。")
                     .font(.caption).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }

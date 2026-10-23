@@ -114,29 +114,55 @@ private let env = TelemetryEnvironment(app: "0.1.0", build: "1", os: "15", arch:
         #expect(TelemetryFigures(sessions: [a, b], day: day) == TelemetryFigures())
     }
 
-    /// The TelemetryDeck signal carries the report flattened into string tags and nothing else:
-    /// the install id only hashed, counts bucketed.
-    @Test func telemetryDeckSignal() throws {
+    /// The Aptabase event carries the report flattened into string props and nothing else:
+    /// the install id only hashed, counts bucketed, in a shape Aptabase's ingest accepts.
+    @Test func aptabaseEvent() throws {
         var f = TelemetryFigures()
         f.sessions = [.claudeCode: 3]
         f.agentHours = 4.2
         let r = Telemetry.makeReport(installId: "e617184b-ea01-4296-a57c-3a770a5f8ef8", day: "2026-10-22", env: env,
                                      integrations: [.claudeCode: "installed"], settings: [.slimRail: true],
                                      counts: ["jump_wave": 7], figures: f)
-        let sig = TelemetryDeckSignal(report: r, appID: "APP", at: Date(timeIntervalSince1970: 0), testMode: true)
-        #expect(sig.clientUser.count == 64 && sig.clientUser != r.installId)
-        #expect(sig.payload["Yaak.count.jump_wave"] == "6-20")
-        #expect(sig.payload["Yaak.figure.sessions.claude-code"] == "2-5")
-        #expect(sig.payload["Yaak.setting.slim_rail"] == "on")
-        #expect(sig.payload["Yaak.integration.claude-code"] == "installed")
-        #expect(sig.payload["Yaak.day"] == "2026-10-22")
-        #expect(sig.payload["TelemetryDeck.AppInfo.version"] == "0.1.0")
-        let body = TelemetryDeckSignal.body([sig])
+        let at = Date(timeIntervalSince1970: 1_800_000_000)
+        let e = AptabaseEvent(report: r, at: at, debug: true)
+        #expect(e.props["install"]?.count == 64 && e.props["install"] != r.installId)
+        #expect(e.props["count.jump_wave"] == "6-20")
+        #expect(e.props["figure.sessions.claude-code"] == "2-5")
+        #expect(e.props["setting.slim_rail"] == "on")
+        #expect(e.props["integration.claude-code"] == "installed")
+        #expect(e.props["day"] == "2026-10-22")
+        #expect(e.systemProps.appVersion == "0.1.0" && e.systemProps.osName == "macOS" && e.systemProps.isDebug)
+        // Aptabase drops events whose session id does not start at the event's second, give or take.
+        #expect(UInt64(e.sessionId).map { $0 / 100_000_000 } == 1_800_000_000)
+        let body = AptabaseEvent.body([e])
         #expect(!String(decoding: body, as: UTF8.self).contains(r.installId))
         let arr = try #require(JSONSerialization.jsonObject(with: body) as? [[String: Any]])
-        #expect(Set(arr[0].keys) == ["receivedAt", "appID", "clientUser", "sessionID", "type", "payload", "isTestMode"])
-        #expect(arr[0]["receivedAt"] as? String == "1970-01-01T00:00:00+0000")
-        #expect(arr[0]["type"] as? String == "Yaak.daily" && arr[0]["isTestMode"] as? String == "true")
+        #expect(Set(arr[0].keys) == ["timestamp", "sessionId", "eventName", "systemProps", "props"])
+        #expect(arr[0]["timestamp"] as? String == "2027-01-15T08:00:00Z")
+        #expect(arr[0]["eventName"] as? String == "daily")
+        let sys = try #require(arr[0]["systemProps"] as? [String: Any])
+        #expect(sys["isDebug"] as? Bool == true && (sys["sdkVersion"] as? String)?.isEmpty == false)
+    }
+
+    /// Aptabase rejects prop keys over 40 characters; the longest come from every agent and event.
+    @Test func aptabasePropKeysFit() {
+        var f = TelemetryFigures()
+        for a in AgentKind.allCases { f.sessions[a] = 1; f.turns[a] = 1 }
+        let r = Telemetry.makeReport(installId: "x", day: "2026-10-22", env: env,
+                                     integrations: Dictionary(uniqueKeysWithValues: AgentKind.allCases.map { ($0, "installed") }),
+                                     settings: Dictionary(uniqueKeysWithValues: TelemetrySetting.allCases.map { ($0, true) }),
+                                     counts: Dictionary(uniqueKeysWithValues: TelemetryEvent.allCases.map { ($0.rawValue, 1) }),
+                                     figures: f)
+        let keys = AptabaseEvent(report: r).props.keys
+        #expect(keys.allSatisfy { $0.count <= AptabaseEvent.maxKey }, "\(keys.filter { $0.count > AptabaseEvent.maxKey })")
+    }
+
+    @Test func aptabaseRegions() {
+        #expect(AptabaseEvent.ingestURL(appKey: "A-EU-1234567890")?.host == "eu.aptabase.com")
+        #expect(AptabaseEvent.ingestURL(appKey: "A-US-1234567890")?.absoluteString == "https://us.aptabase.com/api/v0/events")
+        #expect(AptabaseEvent.ingestURL(appKey: "A-SH-1234567890") == nil)
+        #expect(AptabaseEvent.ingestURL(appKey: "EF0ED3E0-A85B-4574-8D60-09E5DD6D9B2B") == nil)
+        #expect(AptabaseEvent.ingestURL(appKey: "") == nil)
     }
 
     @Test func buckets() {
@@ -169,12 +195,12 @@ private let env = TelemetryEnvironment(app: "0.1.0", build: "1", os: "15", arch:
     }
 }
 
-/// Release bundles copy `Resources/Info.plist`; without an App ID they would never ask or send.
-@Test func shippedInfoPlistHasTelemetryDeckAppID() throws {
+/// Release bundles copy `Resources/Info.plist`; a key there must name a region the app can send to.
+@Test func shippedInfoPlistAppKeyIsUsable() throws {
     let plist = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("Resources/Info.plist")
     let info = try #require(NSDictionary(contentsOf: plist))
-    let id = try #require(info[Telemetry.appIDKey] as? String)
-    #expect(UUID(uuidString: id) != nil)
+    let key = try #require(info[Telemetry.appKeyKey] as? String)
+    #expect(key.isEmpty || AptabaseEvent.ingestURL(appKey: key) != nil)
 }

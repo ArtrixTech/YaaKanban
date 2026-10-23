@@ -1,8 +1,20 @@
 # Devlog
 
-## fix(telemetry): send to the organization's TelemetryDeck namespace
+## feat(telemetry): send daily reports to Aptabase instead of TelemetryDeck
 
 `pending` | 2026-10-23
+
+- **Changes**: `YaaCore/TelemetryDeck.swift` → `YaaCore/Aptabase.swift`: `AptabaseEvent` maps a `TelemetryReport` to one `daily` event (ingest `/api/v0/events`, header `App-Key`, body = array, dates `yyyy-MM-dd'T'HH:mm:ss'Z'` UTC, session id = start second × 10⁸ + random, one per report); system props carry version/build/macOS major/language/debug; props are strings without a prefix (`day`, `schema`, `arch`, `install` = SHA-256 of the install id, `integration.*`, `setting.*`, `count.*` bucketed, `figure.*`). Host from the key's region (`A-EU-…` → eu, `A-US-…` → us; others need `YaakTelemetryIngestURL`). Info.plist key `YaakAptabaseAppKey` (empty until the key is in), `bundle.sh` reads `YAAK_APTABASE_APP_KEY`. Reporter sends at most 25 events, sets a User-Agent like the SDK. Consent/settings text, `yaak telemetry status`, spec §6, Architecture, docs/telemetry.md say Aptabase.
+- **Reason**: TelemetryDeck's free plan indexes "between once an hour and once a day"; after ~6 h nothing had shown up and its namespace status endpoint answered 404. Aptabase's dashboard is real time, has an EU region and is open source (server AGPL, SDKs MIT); free tier 20k events/month.
+- **User feedback**: "还有没有别的平台 tmtdeck感觉很草台班子 你搜一下" → "先换aptabase".
+- **Process**: request format from aptabase-swift (EventDispatcher/Event.swift) and server validation from aptabase/aptabase (`EventBody.IsValid`: timestamp within the last day, ≤10 min ahead; numeric session id started ≤7 days ago; prop keys ≤40 chars; ≤25 events per request; invalid events dropped with 200). Tests: event shape and props, key lengths over every agent/setting/event, regions, shipped plist key usable if set. `make test` 131 pass. curl of the event shape to eu/us with an unknown key → 200 `{"error":"Application not found…"}`, so path and headers are accepted.
+- **Result**: telemetry needs only an Aptabase App Key in Info.plist.
+- **Notes**: not yet sent with a real key. Aptabase's daily user is a salted hash of IP and User-Agent (session id only caches it), so same-day reports from one network and macOS/locale count as one user; retention comes from the `install` prop. It stores country/region from the IP (now in the docs and consent text). Backlog days carry the send time (server rejects events > 1 day old); `day` is the covered day. Release builds send nothing until the App Key is in Info.plist.
+- **Review**: adversarial review: no drop/misattribution found; fixed the IP/country wording, the devlog hash note, and the footer/`yaak telemetry status` saying configured for a key with no known region. The TelemetryDeck version is in history at d6f4d4a.
+
+## fix(telemetry): send to the organization's TelemetryDeck namespace
+
+`d6f4d4a` | 2026-10-23
 
 - **Changes**: ingest URL `https://nom.telemetrydeck.com/v2/namespace/com.yaakanban/` (was `/v2/`); `Content-Type: application/json; charset=utf-8`. docs/telemetry.md names the namespace and the free-plan indexing lag.
 - **Reason**: TelemetryDeck's v2 docs ask organizations with a namespace to use the namespace endpoint (all organizations have one since July 2026); `/v2/` answers 200 even for a random App ID, so its 200 proves nothing.

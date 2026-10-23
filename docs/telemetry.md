@@ -7,7 +7,7 @@ in the app's environment keeps it off, and `yaak telemetry on` refuses under it.
 
 Settings › 查看 shows today's report so far, with setup and settings as of now (a report carries
 them as at send time). `yaak telemetry status` shows the
-state, install id and whether this build has a TelemetryDeck App ID. Turning it off deletes the unsent counts.
+state, install id and whether this build has an Aptabase App Key. Turning it off deletes the unsent counts.
 
 ## Fields (schema 1)
 
@@ -30,14 +30,20 @@ names, titles, tokens, credentials.
 
 ## Where it goes
 
-Reports go to [TelemetryDeck](https://telemetrydeck.com) (`nom.telemetrydeck.com`, namespace
-`com.yaakanban`), one signal per report, type `Yaak.daily`. The fields above become string tags:
-`Yaak.day`, `Yaak.schema`, `Yaak.integration.<agent>`, `Yaak.setting.<name>` (`on`/`off`),
-`Yaak.count.<event>`, `Yaak.figure.<name>`, plus TelemetryDeck's own names for version, build,
-macOS, architecture and language. `install_id` is not sent as is: the signal's user is its SHA-256, which TelemetryDeck
-salts and hashes again; it stores no IP address. Settings › 查看 shows the signal itself.
+Reports go to [Aptabase](https://aptabase.com) (EU region, `eu.aptabase.com`), one event per
+report, named `daily`. Version, build, macOS and language travel as Aptabase's system props; the
+fields above become string props: `day`, `schema`, `arch`, `integration.<agent>`,
+`setting.<name>` (`on`/`off`), `count.<event>`, `figure.<name>`. `install_id` is not sent as is:
+the `install` prop is its SHA-256, so days from one install can be linked without the id itself.
+Each report is its own session, timestamped when it is sent (Aptabase refuses events over a day
+old), so a backlog day shows up under the send date; `day` says which day it covers. Debug builds
+send as debug data (the dashboard's Debug/Release switch). Settings › 查看 shows the event itself.
 
-The build reads the App ID from `Info.plist` (`YaakTelemetryDeckAppID`), committed in
-`Resources/Info.plist`; `YAAK_TELEMETRYDECK_APP_ID` replaces it at bundle time (an empty value
-there is ignored). A bundle whose App ID is empty sends nothing. On the free plan TelemetryDeck
-indexes new events between hourly and daily, so the dashboard lags behind.
+On Aptabase's side: it looks up country and region from the sender's IP and stores those, and
+counts a daily user as a salted hash of IP and User-Agent (`macOS/<major> <lang>`); it does not
+store the IP itself.
+
+The build reads the App Key from `Info.plist` (`YaakAptabaseAppKey`, like `A-EU-…`; the region
+part picks the host), committed in `Resources/Info.plist`; `YAAK_APTABASE_APP_KEY` replaces it
+at bundle time (an empty value there is ignored). A bundle whose App Key is empty sends nothing.
+Aptabase answers 200 even for an unknown key; its body then carries an `error`.

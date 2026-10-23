@@ -5,7 +5,7 @@ import ServiceManagement
 import YaaCore
 import YaaIntegrations
 
-/// Sends the opt-in daily reports to TelemetryDeck (spec §6). Counts go to the ledger file as they
+/// Sends the opt-in daily reports to Aptabase (spec §6). Counts go to the ledger file as they
 /// happen; once a local day is over its report is built and sent once, whether or not the send
 /// succeeds.
 @MainActor @Observable
@@ -14,10 +14,10 @@ final class TelemetryReporter {
     /// Mirrors the ledger (which `yaak telemetry` may change too) for the settings toggle.
     private(set) var enabled: Bool
     private(set) var installId: String?
-    /// TelemetryDeck App ID from Info.plist; nil means this build cannot send.
-    let appID: String?
+    /// Aptabase App Key from Info.plist; nil means this build cannot send.
+    let appKey: String?
     let doNotTrack: Bool
-    private let ingestURL: URL
+    private let ingestURL: URL?
     /// Builds the report for a finished day from its counts.
     @ObservationIgnored var build: ((_ day: String, _ counts: [String: Int], _ installId: String) -> TelemetryReport?)?
     /// The day already marked in the ledger by this launch.
@@ -27,12 +27,12 @@ final class TelemetryReporter {
 
     init(paths: Paths, bundle: Bundle = .main, env: [String: String] = ProcessInfo.processInfo.environment) {
         url = paths.telemetry
-        // Defaults overrides, for trying an App ID or a local capture server without rebuilding.
-        let raw = UserDefaults.standard.string(forKey: Telemetry.appIDKey)
-            ?? bundle.object(forInfoDictionaryKey: Telemetry.appIDKey) as? String ?? ""
-        appID = raw.isEmpty ? nil : raw
+        // Defaults overrides, for trying an App Key or a local capture server without rebuilding.
+        let raw = UserDefaults.standard.string(forKey: Telemetry.appKeyKey)
+            ?? bundle.object(forInfoDictionaryKey: Telemetry.appKeyKey) as? String ?? ""
+        appKey = raw.isEmpty ? nil : raw
         ingestURL = UserDefaults.standard.string(forKey: "YaakTelemetryIngestURL").flatMap(URL.init(string:))
-            ?? TelemetryDeckSignal.ingestURL
+            ?? AptabaseEvent.ingestURL(appKey: raw)
         doNotTrack = Telemetry.doNotTrack(env)
         let l = TelemetryLedger.load(url)
         enabled = l.enabled
@@ -40,7 +40,7 @@ final class TelemetryReporter {
     }
 
     /// This build has somewhere to send to, and the user's environment does not forbid it.
-    var available: Bool { appID != nil && !doNotTrack }
+    var available: Bool { appKey != nil && ingestURL != nil && !doNotTrack }
     var isOn: Bool { enabled && available }
 
     func set(enabled on: Bool) {
@@ -76,22 +76,27 @@ final class TelemetryReporter {
             id = l.installId
             l.sent(through: last)
         }
-        guard let id, let appID else { return }
-        let signals = due.compactMap { d in build?(d.day, d.counts, id).map { signal($0, appID: appID) } }
-        guard !signals.isEmpty else { return }
+        guard let id, let appKey, let ingestURL else { return }
+        // At most 7 days are pending, well under Aptabase's batch limit; keep the newest regardless.
+        let events = due.compactMap { d in build?(d.day, d.counts, id).map(event) }.suffix(AptabaseEvent.maxBatch)
+        guard let first = events.first else { return }
         var req = URLRequest(url: ingestURL, timeoutInterval: 15)
         req.httpMethod = "POST"
-        req.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
-        req.httpBody = TelemetryDeckSignal.body(signals)
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(appKey, forHTTPHeaderField: "App-Key")
+        // As the SDK sends it; Aptabase hashes it into the day's anonymous user.
+        let sys = first.systemProps
+        req.setValue("\(sys.osName)/\(sys.osVersion) \(sys.locale)", forHTTPHeaderField: "User-Agent")
+        req.httpBody = AptabaseEvent.body(Array(events))
         Self.session.dataTask(with: req).resume()
     }
 
-    /// Debug builds mark their signals as test data (TelemetryDeck's Test Mode).
-    private func signal(_ r: TelemetryReport, appID: String) -> TelemetryDeckSignal {
+    /// Debug builds mark their events as debug data (Aptabase's Debug/Release switch).
+    private func event(_ r: TelemetryReport) -> AptabaseEvent {
         #if DEBUG
-        TelemetryDeckSignal(report: r, appID: appID, testMode: true)
+        AptabaseEvent(report: r, debug: true)
         #else
-        TelemetryDeckSignal(report: r, appID: appID)
+        AptabaseEvent(report: r)
         #endif
     }
 
@@ -100,7 +105,7 @@ final class TelemetryReporter {
         let l = TelemetryLedger.load(url)
         let day = Telemetry.dayKey(Date())
         guard let r = build?(day, l.days[day] ?? [:], l.installId ?? "—") else { return "" }
-        return String(decoding: TelemetryDeckSignal.body([signal(r, appID: appID ?? "—")], pretty: true), as: UTF8.self)
+        return String(decoding: AptabaseEvent.body([event(r)], pretty: true), as: UTF8.self)
     }
 
     private func apply(_ l: TelemetryLedger) {
@@ -115,7 +120,7 @@ final class TelemetryReporter {
         let alert = NSAlert()
         if let icon = BrandMark.image { alert.icon = icon }
         alert.messageText = "帮助改进 YaaKanban？"
-        alert.informativeText = "开启后，YaaKanban 每天向 TelemetryDeck 发送一份匿名使用统计：版本、系统、已接入哪些 agent、各功能的使用次数，以及会话数等粗略区间。不含 prompt、代码、路径、项目或会话名。随时可在 设置 › 隐私与反馈 关闭，或查看将要发送的内容。"
+        alert.informativeText = "开启后，YaaKanban 每天向 Aptabase 发送一份匿名使用统计：版本、系统、已接入哪些 agent、各功能的使用次数，以及会话数等粗略区间。不含 prompt、代码、路径、项目或会话名；Aptabase 会按 IP 记下国家和地区，但不保存 IP。随时可在 设置 › 隐私与反馈 关闭，或查看将要发送的内容。"
         alert.addButton(withTitle: "开启")
         alert.addButton(withTitle: "不用了")
         NSApp.activate(ignoringOtherApps: true)
