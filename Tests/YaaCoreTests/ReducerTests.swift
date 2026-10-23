@@ -202,12 +202,12 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(299), config: cfg, isAlive: { _ in true }) == nil)
         let out = StuckDetector.evaluate(s, now: t0.addingTimeInterval(301), config: cfg, isAlive: { _ in true })
         #expect(out?.status == .stuck)
-        #expect(Alerts.between(s, out!) == .stuck("5 分钟无新事件"))
+        #expect(Alerts.between(s, out!) == .stuck("No new events for 5 min"))
     }
 
     @Test func longTool() {
         let out = StuckDetector.evaluate(running(tool: "Bash"), now: t0.addingTimeInterval(400), config: cfg, isAlive: { _ in true })
-        #expect(out?.stuckReason == "Bash 已运行 6 分钟")
+        #expect(out?.stuckReason == "Bash has been running for 6 min")
     }
 
     @Test func backgroundToolIsNotStuck() {
@@ -224,7 +224,7 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
 
     @Test func deadProcess() {
         let out = StuckDetector.evaluate(running(pid: 7), now: t0.addingTimeInterval(1), config: cfg, isAlive: { _ in false })
-        #expect(out?.stuckReason == "进程已退出")
+        #expect(out?.stuckReason == "Process exited")
         var idle = running(pid: 7)
         idle.status = .idle
         // A finished turn stays idle: the conversation is still there to reopen.
@@ -486,7 +486,7 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         ])
         #expect(s.status == .needsInput)
         #expect(s.pendingPermission == nil)
-        #expect(s.needsInputMessage == "TEC 驱动选哪种？（共 2 个问题）")
+        #expect(s.needsInputMessage == "TEC 驱动选哪种？ (2 questions)")
     }
 
     @Test func genericNoticeStillFlagsOtherwise() {

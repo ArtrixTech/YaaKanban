@@ -4,12 +4,12 @@ import YaaCore
 extension DisplayStatus {
     var label: String {
         switch self {
-        case .needsInput: "需要输入"
-        case .stuck: "可能卡住"
-        case .review: "待验收"
-        case .running: "运行中"
-        case .done: "已验收"
-        case .ended: "已结束"
+        case .needsInput: String(localized: "Needs input")
+        case .stuck: String(localized: "Maybe stuck")
+        case .review: String(localized: "To review")
+        case .running: String(localized: "Running")
+        case .done: String(localized: "Reviewed")
+        case .ended: String(localized: "Ended")
         }
     }
 

@@ -22,7 +22,7 @@ public struct DeepSeekIntegration: Integration {
 
     public func isDetected(home: URL) -> Bool { FileManager.default.fileExists(atPath: home.appendingPathComponent(".dsh").path) }
     public func isInstalled(home: URL) -> Bool { JSONFile.containsOurs(hooksFile(home)) }
-    public var postInstallNote: String? { "dsh 的 hook 是实验性接口：没有审批、会话结束事件，也没有 transcript。" }
+    public var postInstallNote: String? { String(localized: "dsh hooks are an experimental interface: no approvals, no session-end event, and no transcript.") }
 
     public func plan(install: Bool, home: URL, yaak: String) throws -> [FileChange] {
         // Deleting the bundle under a profile that depends on it would break that profile's installs.
@@ -57,9 +57,9 @@ public struct DeepSeekIntegration: Integration {
 
     public func pendingSteps(home: URL) -> [String] {
         guard isInstalled(home: home), Self.profilesWithBundle(home: home).isEmpty else { return [] }
-        return ["在终端里运行：dsh plugin --profile web add file:\(bundle(home).path)",
-                "用别的 profile 就把 web 换成它的名字（headless、acp…）；每个要用的 profile 都加一次。",
-                "重启 dsh，回到这里点「重新检查」。"]
+        return [String(localized: "In a terminal, run: dsh plugin --profile web add file:\(bundle(home).path)"),
+                String(localized: "For another profile, replace web with its name (headless, acp…); add it once for each profile you use."),
+                String(localized: "Restart dsh, then come back and click “Recheck”.")]
     }
 
     static func packageJSON(version: String) -> String {

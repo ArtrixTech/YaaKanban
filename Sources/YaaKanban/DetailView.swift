@@ -21,22 +21,22 @@ struct SessionDetail: View {
                     }
                 }
                 if st != .review, let last = session.lastReply {
-                    Section(title: "最后回复", symbol: "text.bubble") {
+                    Section(title: String(localized: "Last reply"), symbol: "text.bubble") {
                         Text(last).textSelection(.enabled).font(.system(size: 12.5))
                     }
                 }
                 if let recap = session.peek?.recap {
-                    Section(title: "会话概要", symbol: "text.quote") {
+                    Section(title: String(localized: "Session summary"), symbol: "text.quote") {
                         Text(recap).textSelection(.enabled).font(.system(size: 12.5)).foregroundStyle(.secondary)
                     }
                 }
                 if let u = session.usage {
-                    Section(title: "用量", symbol: "chart.bar", trailing: "合计 \(compactCount(u.total)) token") {
+                    Section(title: String(localized: "Usage"), symbol: "chart.bar", trailing: String(localized: "\(compactCount(u.total)) tokens total")) {
                         UsageGrid(usage: u)
                     }
                 }
                 if !session.subagents.isEmpty {
-                    Section(title: "子 agent", symbol: "person.2") {
+                    Section(title: String(localized: "Subagents"), symbol: "person.2") {
                         ForEach(session.subagents, id: \.id) { a in
                             HStack { Text(a.type ?? "agent"); Spacer(); Text(relative(a.startedAt)).foregroundStyle(.secondary) }
                                 .font(.system(size: 12))
@@ -72,17 +72,17 @@ struct SessionDetail: View {
                     if let cwd = session.cwd { meta("arrow.turn.down.right", (cwd as NSString).abbreviatingWithTildeInPath) }
                     if let pid = session.agentPid { meta("number", "pid \(pid)") }
                     if session.terminal?.isWave == true { meta("terminal", "Wave") }
-                    if !session.hooked { meta("exclamationmark.circle", "未挂 hook").foregroundStyle(.orange) }
+                    if !session.hooked { meta("exclamationmark.circle", String(localized: "No hooks")).foregroundStyle(.orange) }
                 }
                 HStack(spacing: 6) {
                     Button { model.jump(session.id) } label: {
-                        Label(AppModel.isGone(session) ? "在原终端恢复" : "跳转到终端", systemImage: "arrow.up.forward.app")
+                        Label(AppModel.isGone(session) ? "Resume in original terminal" : "Jump to terminal", systemImage: "arrow.up.forward.app")
                     }
                     .buttonStyle(PillButtonStyle(tint: .accentColor, prominent: true))
-                    Button { model.jumper.copyContext(session) } label: { Label("复制 cwd / session", systemImage: "doc.on.doc") }
+                    Button { model.jumper.copyContext(session) } label: { Label("Copy cwd / session", systemImage: "doc.on.doc") }
                         .buttonStyle(PillButtonStyle())
                     Spacer()
-                    Button(role: .destructive) { model.remove(session.id) } label: { Label("删除", systemImage: "trash") }
+                    Button(role: .destructive) { model.remove(session.id) } label: { Label("Delete", systemImage: "trash") }
                         .buttonStyle(PillButtonStyle(tint: .red))
                 }
                 .padding(.top, 2)
@@ -100,13 +100,13 @@ struct SessionDetail: View {
     /// The result of a finished turn, with the one action that matters: accept it.
     private var reviewBanner: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("这一轮跑完了，等你验收", systemImage: "checkmark.seal.fill")
+            Label("This turn is done and waiting for your review", systemImage: "checkmark.seal.fill")
                 .font(.system(size: 13, weight: .semibold)).foregroundStyle(.green)
             if let last = session.lastReply {
                 Text(last).font(.system(size: 12.5)).textSelection(.enabled)
             }
             HStack(spacing: 6) {
-                Button { model.jump(session.id) } label: { Label("去查看", systemImage: "arrow.up.forward.app") }
+                Button { model.jump(session.id) } label: { Label("Go to it", systemImage: "arrow.up.forward.app") }
                     .buttonStyle(PillButtonStyle(tint: .green, prominent: true))
             }
         }
@@ -117,15 +117,15 @@ struct SessionDetail: View {
     }
 
     private var turns: some View {
-        Section(title: "轮次", symbol: "arrow.triangle.2.circlepath") {
-            if session.turns.isEmpty { Text("暂无").foregroundStyle(.secondary).font(.system(size: 12)) }
+        Section(title: String(localized: "Turns"), symbol: "arrow.triangle.2.circlepath") {
+            if session.turns.isEmpty { Text("None yet").foregroundStyle(.secondary).font(.system(size: 12)) }
             ForEach(session.turns.reversed()) { t in
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("#\(t.id)").font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundStyle(.tertiary)
                         .frame(width: 28, alignment: .trailing)
-                    Text(t.prompt.isEmpty ? "（无 prompt）" : t.prompt).font(.system(size: 12.5)).lineLimit(2)
+                    Text(t.prompt.isEmpty ? String(localized: "(no prompt)") : t.prompt).font(.system(size: 12.5)).lineLimit(2)
                     Spacer()
-                    Text("\(t.toolCount) 工具 · \(relative(t.startedAt, now: t.endedAt ?? Date()))")
+                    Text("\(t.toolCount) tools · \(relative(t.startedAt, now: t.endedAt ?? Date()))")
                         .font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary)
                 }
             }
@@ -133,15 +133,15 @@ struct SessionDetail: View {
     }
 
     private var tools: some View {
-        Section(title: "工具调用", symbol: "wrench.and.screwdriver", trailing: "最近 \(session.tools.count) 次") {
-            if session.tools.isEmpty { Text("暂无").foregroundStyle(.secondary).font(.system(size: 12)) }
+        Section(title: String(localized: "Tool calls"), symbol: "wrench.and.screwdriver", trailing: String(localized: "Last \(session.tools.count)")) {
+            if session.tools.isEmpty { Text("None yet").foregroundStyle(.secondary).font(.system(size: 12)) }
             ForEach(session.tools.reversed()) { t in
                 VStack(alignment: .leading, spacing: 6) {
                     Button { withAnimation(.snappy) { openTool = openTool == t.id ? nil : t.id } } label: {
                         HStack {
                             ToolLine(tool: t)
                             Spacer()
-                            if t.subagentId != nil { Text("子 agent").font(.system(size: 10)).foregroundStyle(.purple) }
+                            if t.subagentId != nil { Text("subagent").font(.system(size: 10)).foregroundStyle(.purple) }
                             Text(t.startedAt, style: .time).font(.system(size: 10.5)).foregroundStyle(.tertiary)
                             Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
                                 .rotationEffect(.degrees(openTool == t.id ? 90 : 0))
@@ -151,8 +151,8 @@ struct SessionDetail: View {
                     }
                     .buttonStyle(.plain)
                     if openTool == t.id {
-                        CodeBlock(title: "输入", text: t.input)
-                        if let o = t.output { CodeBlock(title: "输出", text: o) }
+                        CodeBlock(title: String(localized: "Input"), text: t.input)
+                        if let o = t.output { CodeBlock(title: String(localized: "Output"), text: o) }
                     }
                 }
             }

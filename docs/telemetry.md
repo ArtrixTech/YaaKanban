@@ -1,11 +1,11 @@
 # Telemetry
 
-Off by default. When you turn it on (the one-time prompt, 设置 › 隐私与反馈, or
+Off by default. When you turn it on (the one-time prompt, Settings › Privacy and feedback, or
 `yaak telemetry on`), the app sends **one report per local day it ran**, after that day ends. A
 failed send is dropped, not retried; at most the last 7 unsent days are kept. `DO_NOT_TRACK=1`
 in the app's environment keeps it off, and `yaak telemetry on` refuses under it. Only the app sends; `yaak` and agent hooks never use the network.
 
-Settings › 查看 shows today's report so far, with setup and settings as of now (a report carries
+Settings › View shows today's report so far, with setup and settings as of now (a report carries
 them as at send time). `yaak telemetry status` shows the
 state, install id and whether this build has an Aptabase App Key. Turning it off deletes the unsent counts.
 
@@ -37,7 +37,7 @@ fields above become string props: `day`, `schema`, `arch`, `integration.<agent>`
 the `install` prop is its SHA-256, so days from one install can be linked without the id itself.
 Each report is its own session, timestamped when it is sent (Aptabase refuses events over a day
 old), so a backlog day shows up under the send date; `day` says which day it covers. Debug builds
-send as debug data (the dashboard's Debug/Release switch). Settings › 查看 shows the event itself.
+send as debug data (the dashboard's Debug/Release switch). Settings › View shows the event itself.
 
 On Aptabase's side: it looks up country and region from the sender's IP and stores those, and
 counts a daily user as a salted hash of IP and User-Agent (`macOS/<major> <lang>`); it does not

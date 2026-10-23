@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(claude): keep a turn running while a background shell is out
+## feat(i18n): localize the app UI with English source and zh-Hans
 
 `pending` | 2026-10-24
+
+- **Changes**: every user-visible UI string is now an English key (SwiftUI literals, `String(localized:)` elsewhere) with zh-Hans in `Resources/zh-Hans.lproj/Localizable.strings` (351 keys) + `InfoPlist.strings`; `en.lproj`; Info.plist `CFBundleDevelopmentRegion` en, `CFBundleLocalizations` en/zh-Hans; `bundle.sh` copies `*.lproj`. `make l10n` + `scripts/l10n-check.py`: clean build with `-emit-localized-strings`, fails on missing/unused keys and placeholder mismatches. Consent prompt drops the sentence on Aptabase's IP-based country/region. Fragment-built sentences (install message, 前一/后一 天/周/月, durations, summary) rewritten whole; lists via `.formatted(.list(type: .and))`. Tests now expect English. Spec §5 records the language decision.
+- **Reason**: user asked for i18n; follows the macOS language (per-app language works).
+- **User feedback**: "Aptabase 会按 IP 记下国家和地区，但不保存 IP。这句话去掉。另外，项目做好i18n。"
+- **Process**: 4 forked agents converted file groups, parts merged (one conflict: "Turns" → 轮次). Adversarial review: added 3 missed English fallbacks (SessionReducer/Normalizer). Verified: `make l10n` 351/351, `make test` 165 pass, built bundle resolves zh-Hans / en tables, `yaak` (Contents/Helpers) still prints English.
+- **Result**: app shows Chinese on a zh system, English elsewhere.
+- **Notes**: `String(localized: c ? "a" : "b")` is not extracted (write the ternary outside); keys never have positional specifiers, only translations. Without Xcode there is no xcstrings compiler, hence `.strings`. Stored `stuckReason`/`needsInputMessage` keep the language they were made in; switching language while a session is stuck re-sends one stuck alert. zh list join is "A、B和C".
+
+## fix(claude): keep a turn running while a background shell is out
+
+`5339742` | 2026-10-24
 
 - **Changes**: `Normalizer.backgroundLaunch` also returns a main-agent tool response's `backgroundTaskId` (Bash run in / moved to the background), skipped when `backgroundEndsWithFinalResponse` is set; `backgroundStop` turns a successful TaskStop/KillShell (`task_id`, `shell_id`) into `.backgroundEnd`. Reuses the existing hold (`backgroundTasks`, setting 等待背景 agent（测试）). 3 tests in `ClaudeBackgroundAgents`. Spec line extended.
 - **Reason**: a background shell's Stop ended the turn as 待验收 while the main agent was still waiting for it.

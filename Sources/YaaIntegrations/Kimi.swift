@@ -10,7 +10,7 @@ public struct KimiIntegration: Integration {
     public let agent = AgentKind.kimi
     public init() {}
     public var postInstallNote: String? {
-        "Kimi Code 的 hook 不能代答权限请求：卡片会显示在等你，但要回终端里批准。改过 KIMI_CODE_HOME 的话，hook 装不到那里。"
+        String(localized: "Kimi Code hooks can't answer permission requests: the card shows it's waiting on you, but you approve in the terminal. If you changed KIMI_CODE_HOME, the hooks aren't installed there.")
     }
 
     static let events = ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",

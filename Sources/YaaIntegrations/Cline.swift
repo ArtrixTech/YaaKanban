@@ -8,7 +8,7 @@ public struct ClineIntegration: Integration {
     public let agent = AgentKind.cline
     public init() {}
     public var postInstallNote: String? {
-        "Cline 在 VS Code 里的 hook 受「Enable Hooks」开关控制（默认开）。Cline 没有权限请求 hook，批准仍在 Cline 里做。VS Code 里任务出错不会触发 hook，卡片要等卡住检测才结束。"
+        String(localized: "Cline's hooks in VS Code follow its “Enable Hooks” switch (on by default). Cline has no permission-request hook, so approvals still happen in Cline. A task that errors in VS Code fires no hook, so its card ends only when stuck detection kicks in.")
     }
 
     static let events = ["TaskStart", "TaskResume", "UserPromptSubmit", "PreToolUse", "PostToolUse",

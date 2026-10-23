@@ -7,7 +7,7 @@ import YaaCore
 public struct KiroIntegration: Integration {
     public let agent = AgentKind.kiro
     public init() {}
-    public var postInstallNote: String? { "Kiro CLI 在没信任过的工作区里不运行 hook：第一次在某个项目里打开 kiro-cli 时选择信任。" }
+    public var postInstallNote: String? { String(localized: "Kiro CLI runs no hooks in untrusted workspaces: choose to trust the workspace the first time you open kiro-cli in a project.") }
 
     static let events = ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "SessionEnd"]
 
@@ -21,8 +21,8 @@ public struct KiroIntegration: Integration {
               let value = root["chat.agentEngine"] ?? (root["chat"] as? [String: Any])?["agentEngine"] else { return [] }
         let engine = "\(value)"
         guard engine.lowercased() != "v3" else { return [] }
-        return ["Kiro CLI 用的是 \(engine) 引擎（~/.kiro/settings/cli.json 的 chat.agentEngine），只有 V3 引擎读取 ~/.kiro/hooks。",
-                "运行 kiro-cli settings chat.agentEngine v3（或启动时加 --v3），再回到这里点「重新检查」。"]
+        return [String(localized: "Kiro CLI uses the \(engine) engine (chat.agentEngine in ~/.kiro/settings/cli.json); only the V3 engine reads ~/.kiro/hooks."),
+                String(localized: "Run kiro-cli settings chat.agentEngine v3 (or start it with --v3), then come back and click “Recheck”.")]
     }
 
     func source(yaak: String) throws -> String {

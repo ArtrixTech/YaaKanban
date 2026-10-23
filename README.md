@@ -19,7 +19,7 @@ needs your input.
 Everything stays on your machine. The only exception is opt-in, anonymous daily usage
 statistics, off by default; [docs/telemetry.md](docs/telemetry.md) lists every field.
 
-Found a bug or have an idea? Menu → 反馈… opens a prefilled GitHub issue; `yaak doctor` prints
+Found a bug or have an idea? Menu → Feedback… (反馈…) opens a prefilled GitHub issue; `yaak doctor` prints
 the same diagnostics.
 
 ## Requirements
@@ -33,7 +33,7 @@ make test      # run the test suite
 make install   # build, copy to ~/Applications, link the yaak CLI to ~/.local/bin, launch
 ```
 
-Then open Settings → Agent 接入 and install the hooks for the agents you use, or from the
+Then open Settings → Agent integrations and install the hooks for the agents you use, or from the
 command line:
 
 ```sh

@@ -2,15 +2,35 @@ import SwiftUI
 import YaaCore
 
 extension Period {
-    var label: String { switch self { case .day: "日"; case .week: "周"; case .month: "月" } }
+    var label: String {
+        switch self {
+        case .day: String(localized: "Day")
+        case .week: String(localized: "Week")
+        case .month: String(localized: "Month")
+        }
+    }
     /// "this" one, said of the current period.
-    var current: String { switch self { case .day: "今天"; case .week: "本周"; case .month: "本月" } }
+    var current: String {
+        switch self {
+        case .day: String(localized: "Today")
+        case .week: String(localized: "This week")
+        case .month: String(localized: "This month")
+        }
+    }
     /// The one before, so far (while the current one runs) or in full.
     func previous(soFar: Bool) -> String {
         switch self {
-        case .day: soFar ? "昨天同期" : "前一天"
-        case .week: soFar ? "上周同期" : "前一周"
-        case .month: soFar ? "上月同期" : "前一月"
+        case .day: soFar ? String(localized: "yesterday so far") : String(localized: "the day before")
+        case .week: soFar ? String(localized: "last week so far") : String(localized: "the week before")
+        case .month: soFar ? String(localized: "last month so far") : String(localized: "the month before")
+        }
+    }
+    /// The step buttons' help.
+    func step(forward: Bool) -> String {
+        switch self {
+        case .day: forward ? String(localized: "Next day") : String(localized: "Previous day")
+        case .week: forward ? String(localized: "Next week") : String(localized: "Previous week")
+        case .month: forward ? String(localized: "Next month") : String(localized: "Previous month")
         }
     }
 
@@ -72,11 +92,11 @@ struct DashboardView: View {
     }
     private func header(_ p: Periods) -> some View {
         HStack(spacing: 8) {
-            Text("概览").font(.system(size: 20, weight: .bold))
+            Text("Overview").font(.system(size: 20, weight: .bold))
             Spacer()
-            IconButton(symbol: "chevron.left", help: period.previous(soFar: false)) { back += 1 }
+            IconButton(symbol: "chevron.left", help: period.step(forward: false)) { back += 1 }
             Text(period.rangeLabel(p)).font(.system(size: 12.5, weight: .medium)).monospacedDigit().frame(minWidth: 130)
-            IconButton(symbol: "chevron.right", help: "后一\(period == .day ? "天" : period == .week ? "周" : "月")") {
+            IconButton(symbol: "chevron.right", help: period.step(forward: true)) {
                 back = max(0, back - 1)
             }
             .disabled(back == 0).opacity(back == 0 ? 0.3 : 1)
@@ -89,50 +109,57 @@ struct DashboardView: View {
     }
 
     private func rebuiltNote(_ r: ActivityReport, _ until: Date) -> some View {
-        Label(r.allRebuilt ? "这段时间在开始记录之前，只从会话历史还原了运行时段和轮数；等待、回复、离开和 token 没有数据。"
-              : "\(until.formatted(.dateTime.month().day().hour().minute())) 之前从会话历史还原，只有运行时段和轮数。",
+        Label(r.allRebuilt ? "This stretch predates recording: only run times and turns were rebuilt from session history; waits, replies, time away and tokens have no data."
+              : "Rebuilt from session history before \(until.formatted(.dateTime.month().day().hour().minute())): run times and turns only.",
               systemImage: "clock.arrow.circlepath")
             .font(.system(size: 11.5)).foregroundStyle(.tertiary)
     }
 
     /// One plain sentence on how the period went, against the one before.
     private func summary(_ r: ActivityReport, _ prev: ActivityReport?, _ p: Periods, vs: String) -> String {
-        let subject = p.inProgress ? period.current : period == .day ? "这一天" : period == .week ? "这一周" : "这个月"
-        guard !r.lanes.isEmpty || r.turns > 0 else { return "\(subject)没有记录到 agent 活动。" }
-        var s = "\(subject)你带着 \(r.lanes.count) 个会话忙了 \(duration(r.activeTime))，agent 一共干了 \(duration(r.agentTime))"
-        if let x = r.leverage, x >= 0.05 { s += String(format: "，相当于 %.1f 个你", x) }
+        let subject = p.inProgress ? period.current
+            : period == .day ? String(localized: "That day") : period == .week ? String(localized: "That week") : String(localized: "That month")
+        guard !r.lanes.isEmpty || r.turns > 0 else { return String(localized: "\(subject): no agent activity recorded.") }
+        var s = String(localized: "\(subject) you juggled \(sessions(r.lanes.count)) for \(duration(r.activeTime)), and agents worked \(duration(r.agentTime)) in total")
+        if let x = r.leverage, x >= 0.05 { s += String(localized: ", like \(one(x)) of you") }
         if let prev, prev.agentTime >= 60 {
             let d = r.agentTime - prev.agentTime
-            s += abs(d) < 60 ? "，和\(vs)差不多" : "，比\(vs)\(d > 0 ? "多" : "少") \(duration(abs(d)))"
+            s += abs(d) < 60 ? String(localized: ", about the same as \(vs)")
+                : d > 0 ? String(localized: ", \(duration(abs(d))) more than \(vs)") : String(localized: ", \(duration(abs(d))) less than \(vs)")
         }
-        if r.agentTimeAway >= 60 { s += "；你不在时它们又干了 \(duration(r.agentTimeAway))" }
+        if r.agentTimeAway >= 60 { s += String(localized: "; while you were away they worked another \(duration(r.agentTimeAway))") }
         if !r.allRebuilt {
-            if let m = r.replyMedian { s += "；agent 找你时，你一般 \(duration(m)) 内回复" }
-            if r.bottleneck >= 60 { s += "，有 \(duration(r.bottleneck)) 所有 agent 都停着等你" }
+            if let m = r.replyMedian { s += String(localized: "; when an agent needed you, you usually replied within \(duration(m))") }
+            if r.bottleneck >= 60 { s += String(localized: ", and for \(duration(r.bottleneck)) every agent sat waiting on you") }
         }
-        return s + "；完成 \(r.turns) 轮。"
+        return s + String(localized: "; \(turns(r.turns)) done.")
     }
 
     private func details(_ r: ActivityReport, _ prev: ActivityReport?, vs: String, now: Date) -> some View {
         let backlog = model.backlog
         return LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-            Tile(title: "平均同时在跑", symbol: "square.stack.3d.up", value: String(format: "%.1f 个", r.parallelAverage),
-                 caption: "有 agent 在跑时 · 最多 \(r.parallelPeak) 个",
+            Tile(title: String(localized: "Avg. running at once"), symbol: "square.stack.3d.up", value: String(localized: "\(one(r.parallelAverage)) sessions"),
+                 caption: String(localized: "While agents ran · peak \(r.parallelPeak)"),
                  delta: Delta(r.parallelAverage, prev?.parallelAverage, better: .up, vs: vs) { String(format: "%.1f", $0) })
-            Tile(title: "全部停工", symbol: "pause.circle", value: r.allRebuilt ? "–" : duration(r.bottleneck),
-                 caption: "所有 agent 都在等你、没有一个在跑",
+            Tile(title: String(localized: "All stalled"), symbol: "pause.circle", value: r.allRebuilt ? "–" : duration(r.bottleneck),
+                 caption: String(localized: "Every agent waiting on you, none running"),
                  delta: comparesWaits(r, prev) ? Delta(r.bottleneck, prev?.bottleneck, better: .down, vs: vs, fmt: duration) : nil)
-            Tile(title: "Agent 利用率", symbol: "gauge.with.dots.needle.67percent",
-                 value: r.utilization.map(percent) ?? "–", caption: "在跑 ÷（在跑 + 等你）",
+            Tile(title: String(localized: "Agent utilization"), symbol: "gauge.with.dots.needle.67percent",
+                 value: r.utilization.map(percent) ?? "–", caption: String(localized: "Running ÷ (running + waiting on you)"),
                  delta: comparesWaits(r, prev) ? Delta(r.utilization, prev?.utilization, better: .up, vs: vs, fmt: percent) : nil)
-            Tile(title: "吞吐", symbol: "bolt", value: r.perActiveHour(r.turns).map { String(format: "%.1f 轮/时", $0) } ?? "–",
-                 caption: "\(r.toolCalls) 次工具 · \(compactCount(r.tokens)) token（不含缓存读）")
-            Tile(title: "当前积压", symbol: "tray.full", value: "\(backlog.count) 个",
-                 caption: backlog.oldest.map { "最久已等 \(relative($0, now: now))" } ?? "没有在等你的会话")
-            Tile(title: "切换", symbol: "arrow.left.arrow.right", value: "\(r.switches) 次",
-                 caption: r.perActiveHour(r.switches).map { String(format: "每活跃小时 %.1f 次", $0) } ?? "点卡片或通知跳转")
+            Tile(title: String(localized: "Throughput"), symbol: "bolt",
+                 value: r.perActiveHour(r.turns).map { String(localized: "\(one($0)) turns/h") } ?? "–",
+                 caption: String(localized: "\(r.toolCalls) tool calls · \(compactCount(r.tokens)) tokens (excl. cache reads)"))
+            Tile(title: String(localized: "Backlog now"), symbol: "tray.full", value: sessions(backlog.count),
+                 caption: backlog.oldest.map { String(localized: "Oldest waiting \(relative($0, now: now))") }
+                    ?? String(localized: "No sessions waiting on you"))
+            Tile(title: String(localized: "Switches"), symbol: "arrow.left.arrow.right",
+                 value: r.switches == 1 ? String(localized: "1 switch") : String(localized: "\(r.switches) switches"),
+                 caption: r.perActiveHour(r.switches).map { String(localized: "\(one($0)) switches per active hour") }
+                    ?? String(localized: "Jumps from a card or notification"))
             if let p = r.replyByProject.first, r.replyByProject.count > 1 {
-                Tile(title: "回复最慢的项目", symbol: "tortoise", value: duration(p.median), caption: "\(p.project) · \(p.count) 次")
+                Tile(title: String(localized: "Slowest replies"), symbol: "tortoise", value: duration(p.median),
+                     caption: p.count == 1 ? String(localized: "\(p.project) · 1 reply") : String(localized: "\(p.project) · \(p.count) replies"))
             }
         }
         .frame(maxWidth: .infinity)
@@ -147,14 +174,19 @@ private func comparesWaits(_ a: ActivityReport, _ b: ActivityReport?) -> Bool {
 
 func percent(_ x: Double) -> String { "\(Int((x * 100).rounded()))%" }
 
-/// "1分12秒", "3分", "2.4时".
+/// "1m 12s", "3m", "2.4h".
 func duration(_ t: TimeInterval) -> String {
     let s = Int(t.rounded())
-    if s < 60 { return "\(s)秒" }
-    if s < 600 { return s % 60 == 0 ? "\(s / 60)分" : "\(s / 60)分\(s % 60)秒" }
-    if s < 3600 { return "\(s / 60)分" }
-    return String(format: "%.1f时", t / 3600)
+    if s < 60 { return String(localized: "\(s)s") }
+    if s < 600 { return s % 60 == 0 ? String(localized: "\(s / 60)m") : String(localized: "\(s / 60)m \(s % 60)s") }
+    if s < 3600 { return String(localized: "\(s / 60)m") }
+    return String(localized: "\(one(t / 3600))h")
 }
+
+/// One decimal, for figures put into sentences.
+private func one(_ x: Double) -> String { String(format: "%.1f", x) }
+private func sessions(_ n: Int) -> String { n == 1 ? String(localized: "1 session") : String(localized: "\(n) sessions") }
+private func turns(_ n: Int) -> String { n == 1 ? String(localized: "1 turn") : String(localized: "\(n) turns") }
 
 extension Lane {
     var status: DisplayStatus {
@@ -174,7 +206,7 @@ private enum Ink {
     static let away = Color.primary.opacity(0.07)
 }
 
-/// A change against the period before: "↑ 1.2时 vs 昨天同期", green when it went the good way.
+/// A change against the period before: "↑ 1.2h vs yesterday so far", green when it went the good way.
 struct Delta {
     enum Better { case up, down }
     var text: String
@@ -185,7 +217,7 @@ struct Delta {
         let d = a - b
         let shown = fmt(abs(d))
         if shown == fmt(0) {
-            text = "与\(vs)持平"; color = .secondary
+            text = String(localized: "Same as \(vs)"); color = .secondary
         } else {
             text = "\(d > 0 ? "↑" : "↓") \(shown) vs \(vs)"
             color = (d > 0) == (better == .up) ? .green : .red
@@ -202,17 +234,20 @@ private struct Headline: View {
     var body: some View {
         let waits = comparesWaits(r, prev)
         HStack(spacing: 12) {
-            Figure(title: "Agent 总工时", value: duration(r.agentTime),
-                   note: r.agentTimeAway >= 60 ? "其中你不在时 \(duration(r.agentTimeAway))" : "所有 agent 在跑的时间相加",
+            Figure(title: String(localized: "Agent hours"), value: duration(r.agentTime),
+                   note: r.agentTimeAway >= 60 ? String(localized: "\(duration(r.agentTimeAway)) of it while you were away")
+                       : String(localized: "All agents' running time added up"),
                    delta: Delta(r.agentTime, prev?.agentTime, better: .up, vs: vs, fmt: duration))
-            Figure(title: "杠杆", value: r.leverage.map { String(format: "%.1f×", $0) } ?? "–",
-                   note: "你在场的每小时，agent 干了几小时",
+            Figure(title: String(localized: "Leverage"), value: r.leverage.map { String(format: "%.1f×", $0) } ?? "–",
+                   note: String(localized: "Agent hours per hour you were here"),
                    delta: waits ? Delta(r.leverage, prev?.leverage, better: .up, vs: vs) { String(format: "%.1f×", $0) } : nil)
-            Figure(title: "回复速度", value: r.replyMedian.map(duration) ?? "–",
-                   note: r.replyP90.map { "agent 等你回复的中位 · P90 \(duration($0))" } ?? "agent 等你回复要多久",
+            Figure(title: String(localized: "Reply time"), value: r.replyMedian.map(duration) ?? "–",
+                   note: r.replyP90.map { String(localized: "Median wait for your reply · P90 \(duration($0))") }
+                       ?? String(localized: "How long agents wait for your reply"),
                    delta: waits ? Delta(r.replyMedian, prev?.replyMedian, better: .down, vs: vs, fmt: duration) : nil)
-            Figure(title: "完成轮数", value: "\(r.turns)",
-                   note: r.perActiveHour(r.turns).map { String(format: "每活跃小时 %.1f 轮", $0) } ?? "agent 回完一次算一轮",
+            Figure(title: String(localized: "Turns done"), value: "\(r.turns)",
+                   note: r.perActiveHour(r.turns).map { String(localized: "\(one($0)) turns per active hour") }
+                       ?? String(localized: "One agent reply is one turn"),
                    delta: Delta(Double(r.turns), prev.map { Double($0.turns) }, better: .up, vs: vs) { "\(Int($0))" })
         }
     }
@@ -250,31 +285,35 @@ private struct Highlights: View {
         let mvp = r.sessionTotals.filter { $0.running > 0 }.max { $0.running < $1.running }
         let long = r.longestRun
         HStack(spacing: 12) {
-            Fact(symbol: "trophy", title: "最卖力", agent: mvp.flatMap { agent($0.session) },
+            Fact(symbol: "trophy", title: String(localized: "Hardest worker"), agent: mvp.flatMap { agent($0.session) },
                  value: mvp.map { title($0.session) } ?? "–",
-                 caption: mvp.map { "跑了 \(duration($0.running)) · \(r.turnsBySession[$0.session] ?? 0) 轮" } ?? "还没有 agent 跑过")
-            Fact(symbol: "flame", title: "最长连跑", agent: long.flatMap { agent($0.session) },
+                 caption: mvp.map { String(localized: "Ran \(duration($0.running)) · \(turns(r.turnsBySession[$0.session] ?? 0))") }
+                    ?? String(localized: "No agent has run yet"))
+            Fact(symbol: "flame", title: String(localized: "Longest run"), agent: long.flatMap { agent($0.session) },
                  value: long.map { duration($0.duration) } ?? "–",
-                 caption: long.map { title($0.session) } ?? "一口气不停地跑")
+                 caption: long.map { title($0.session) } ?? String(localized: "Running without a break"))
             let peak = busiest
-            Fact(symbol: "chart.bar.fill", title: "最忙的时候", value: peak?.value ?? "–", caption: peak?.when ?? "还没有 agent 跑过")
-            Fact(symbol: "moon.zzz", title: "你不在时", value: duration(r.agentTimeAway),
-                 caption: r.allRebuilt ? "这段没有离开的记录" : r.away.isEmpty ? "你一直都在"
-                    : r.agentTimeAway >= 60 ? "agent 自己接着干的工时" : "你一走它们也停了")
+            Fact(symbol: "chart.bar.fill", title: String(localized: "Busiest"), value: peak?.value ?? "–",
+                 caption: peak?.when ?? String(localized: "No agent has run yet"))
+            Fact(symbol: "moon.zzz", title: String(localized: "While you were away"), value: duration(r.agentTimeAway),
+                 caption: r.allRebuilt ? String(localized: "No away time recorded here")
+                    : r.away.isEmpty ? String(localized: "You were here the whole time")
+                    : r.agentTimeAway >= 60 ? String(localized: "Agent hours they kept going on their own")
+                    : String(localized: "They stopped when you left"))
         }
     }
 
     private func agent(_ id: String) -> AgentKind? {
         model.sessions[id]?.agent ?? id.split(separator: ":").first.flatMap { AgentKind(rawValue: String($0)) }
     }
-    private func title(_ id: String) -> String { model.sessions[id]?.title ?? "已删除的会话" }
+    private func title(_ id: String) -> String { model.sessions[id]?.title ?? String(localized: "Deleted session") }
 
     /// The slice with the most running: sessions at once, or agent hours on a month's day.
     private var busiest: (value: String, when: String)? {
         let b = report.parallelBuckets, e = report.bucketEdges
         guard let i = b.indices.max(by: { b[$0] < b[$1] }), b[i] > 0, e.indices.contains(i + 1) else { return nil }
-        let value = period == .month ? duration(b[i] * e[i + 1].timeIntervalSince(e[i])) + " 工时"
-            : String(format: "%.1f 个同时在跑", b[i])
+        let value = period == .month ? String(localized: "\(duration(b[i] * e[i + 1].timeIntervalSince(e[i]))) agent hours")
+            : String(localized: "\(one(b[i])) running at once")
         return (value, slotLabel(period, e[i], e[i + 1]))
     }
 }
@@ -310,9 +349,9 @@ private struct AgentMix: View {
         let rows = kinds
         let total = rows.reduce(0) { $0 + $1.time }
         VStack(alignment: .leading, spacing: 9) {
-            Text("军团构成").font(.system(size: 12, weight: .semibold))
+            Text("Agent mix").font(.system(size: 12, weight: .semibold))
             if total < 1 {
-                Text("没有 agent 在跑。").font(.system(size: 12)).foregroundStyle(.tertiary)
+                Text("No agents ran.").font(.system(size: 12)).foregroundStyle(.tertiary)
             } else {
                 GeometryReader { g in
                     HStack(spacing: 1) {
@@ -328,7 +367,7 @@ private struct AgentMix: View {
                         AgentLogo(agent: k.kind, size: 11)
                         Text(k.kind.displayName).font(.system(size: 11.5, weight: .medium))
                         Spacer()
-                        Text("\(duration(k.time)) · \(percent(k.time / total)) · \(k.sessions) 个会话")
+                        Text(verbatim: "\(duration(k.time)) · \(percent(k.time / total)) · \(sessions(k.sessions))")
                             .font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.secondary)
                     }
                 }
@@ -389,7 +428,7 @@ func axisTicks(_ period: Period, _ range: DateInterval, calendar cal: Calendar =
         return (0..<7).compactMap { i in day(i).map { ($0, $0.start.formatted(.dateTime.weekday(.abbreviated))) } }
     case .month:
         let days = cal.range(of: .day, in: .month, for: range.start)?.count ?? 30
-        return [1, 5, 10, 15, 20, 25, days].compactMap { n in day(n - 1).map { ($0, "\(n)日") } }
+        return [1, 5, 10, 15, 20, 25, days].compactMap { n in day(n - 1).map { ($0, $0.start.formatted(.dateTime.day())) } }
     }
 }
 
@@ -405,7 +444,7 @@ func slotFraction(_ d: Date, _ edges: [Date]) -> Double {
 
 func midpoint(_ i: DateInterval) -> Date { i.start.addingTimeInterval(i.duration / 2) }
 
-/// One chart slice in words: "14:00–14:30", "周二 15:00–18:00", "10月3日".
+/// One chart slice in words: "14:00–14:30", "Tue 15:00–18:00", "Oct 3".
 func slotLabel(_ period: Period, _ a: Date, _ b: Date) -> String {
     let hm = Date.FormatStyle.dateTime.hour().minute()
     return switch period {
@@ -428,8 +467,9 @@ private struct ActivityChart: View {
     /// Per day in a month (hours of session time), otherwise sessions at once.
     private var scale: Double { period == .month ? 24 : 1 }
     private func fx(_ d: Date) -> Double { slotFraction(d, report.bucketEdges) }
-    private var unit: String { period == .month ? "时" : "个" }
-    private func fmt(_ v: Double) -> String { String(format: "%.1f", v * scale) + unit }
+    private func fmt(_ v: Double) -> String {
+        period == .month ? String(localized: "\(one(v * scale))h") : String(localized: "\(one(v * scale)) sessions")
+    }
 
     var body: some View {
         let run = report.parallelBuckets, wait = report.waitingBuckets, ghost = previous.parallelBuckets
@@ -439,7 +479,7 @@ private struct ActivityChart: View {
         let top = (whole > 2 ? (whole / 2).rounded(.up) * 2 : whole) / scale
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(period == .month ? "每天的会话时长" : "同时在跑 / 在等你的会话数")
+                Text(period == .month ? "Session hours per day" : "Sessions running / waiting on you")
                     .font(.system(size: 12, weight: .semibold))
                 Spacer()
                 if let i = hover, i < run.count { readout(i, run, wait, ghost) } else { legend }
@@ -520,20 +560,20 @@ private struct ActivityChart: View {
     private func readout(_ i: Int, _ run: [Double], _ wait: [Double], _ ghost: [Double]) -> some View {
         let e = report.bucketEdges
         let a = e.indices.contains(i) ? e[i] : report.range.start, b = e.indices.contains(i + 1) ? e[i + 1] : report.range.end
-        var parts = [slotLabel(period, a, b), "在跑 \(fmt(run[i]))", "等你 \(fmt(waitAt(wait, i)))"]
-        if ghost.indices.contains(i) { parts.append("上期在跑 \(fmt(ghost[i]))") }
+        var parts = [slotLabel(period, a, b), String(localized: "Running \(fmt(run[i]))"), String(localized: "Waiting \(fmt(waitAt(wait, i)))")]
+        if ghost.indices.contains(i) { parts.append(String(localized: "Last period running \(fmt(ghost[i]))")) }
         return Text(parts.joined(separator: "  ·  ")).font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary)
     }
 
     private var legend: some View {
         HStack(spacing: 12) {
-            swatch(Ink.running, "在跑")
-            swatch(Ink.waiting, "等你处理")
-            swatch(Ink.away, "你不在")
+            swatch(Ink.running, String(localized: "Agents running"))
+            swatch(Ink.waiting, String(localized: "Waiting on you"))
+            swatch(Ink.away, String(localized: "You were away"))
             HStack(spacing: 4) {
                 Path { p in p.move(to: CGPoint(x: 0, y: 3)); p.addLine(to: CGPoint(x: 12, y: 3)) }
                     .stroke(Color.primary.opacity(0.45), style: StrokeStyle(lineWidth: 1.2, dash: [3, 2])).frame(width: 12, height: 6)
-                Text("上期在跑")
+                Text("Last period")
             }
         }
         .font(.system(size: 10.5)).foregroundStyle(.secondary)
@@ -556,16 +596,16 @@ private struct ProjectBreakdown: View {
         let rows = projects
         let top = rows.first.map { $0.running + $0.waiting } ?? 0
         VStack(alignment: .leading, spacing: 9) {
-            Text("按项目").font(.system(size: 12, weight: .semibold))
+            Text("By project").font(.system(size: 12, weight: .semibold))
             if rows.isEmpty {
-                Text("没有会话在跑或等你。").font(.system(size: 12)).foregroundStyle(.tertiary)
+                Text("Nothing running or waiting on you.").font(.system(size: 12)).foregroundStyle(.tertiary)
             }
             ForEach(rows.prefix(Self.shown), id: \.name) { p in
                 VStack(alignment: .leading, spacing: 3) {
                     HStack {
                         Text(p.name).font(.system(size: 11.5, weight: .medium)).lineLimit(1)
                         Spacer()
-                        Text("在跑 \(duration(p.running)) · 等你 \(duration(p.waiting))")
+                        Text("Running \(duration(p.running)) · waiting \(duration(p.waiting))")
                             .font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.secondary)
                     }
                     GeometryReader { g in
@@ -580,7 +620,7 @@ private struct ProjectBreakdown: View {
                 }
             }
             if rows.count > Self.shown {
-                Text("另有 \(rows.count - Self.shown) 个项目").font(.system(size: 10.5)).foregroundStyle(.tertiary)
+                Text(rows.count - Self.shown == 1 ? "1 more project" : "\(rows.count - Self.shown) more projects").font(.system(size: 10.5)).foregroundStyle(.tertiary)
             }
         }
         .padding(14)
@@ -592,7 +632,7 @@ private struct ProjectBreakdown: View {
         var by: [String: (TimeInterval, TimeInterval)] = [:]
         for t in report.sessionTotals {
             let s = model.sessions[t.session]
-            let name = s == nil ? "已删除的会话" : s?.projectName ?? "其他"
+            let name = s == nil ? String(localized: "Deleted session") : s?.projectName ?? String(localized: "Other")
             by[name, default: (0, 0)].0 += t.running
             by[name, default: (0, 0)].1 += t.waiting
         }
@@ -644,8 +684,8 @@ private struct SessionLanes: View {
                 HStack(spacing: 6) {
                     Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
                         .rotationEffect(.degrees(open ? 90 : 0))
-                    Text("会话明细").font(.system(size: 12, weight: .semibold))
-                    Text("\(totals.count) 个会话").font(.system(size: 11)).foregroundStyle(.secondary)
+                    Text("Session lanes").font(.system(size: 12, weight: .semibold))
+                    Text(verbatim: sessions(totals.count)).font(.system(size: 11)).foregroundStyle(.secondary)
                     Spacer()
                     if open { lanesLegend }
                 }
@@ -672,7 +712,7 @@ private struct SessionLanes: View {
                     .frame(height: 14)
                 }
                 if totals.count > Self.few {
-                    Button(all ? "只看最忙的 \(Self.few) 个" : "显示全部 \(totals.count) 个") { all.toggle() }
+                    Button(all ? "Busiest \(Self.few) only" : "Show all \(totals.count)") { all.toggle() }
                         .buttonStyle(.link).font(.system(size: 11))
                 }
             }
@@ -688,7 +728,7 @@ private struct SessionLanes: View {
         } label: {
             HStack(spacing: 5) {
                 if let s { AgentLogo(agent: s.agent, size: 10) }
-                Text(s?.title ?? "已删除的会话").font(.system(size: 11)).lineLimit(1)
+                Text(s?.title ?? String(localized: "Deleted session")).font(.system(size: 11)).lineLimit(1)
                     .foregroundStyle(s == nil ? .tertiary : .primary)
                 Spacer(minLength: 0)
             }
@@ -702,7 +742,7 @@ private struct SessionLanes: View {
     private var lanesLegend: some View {
         HStack(spacing: 10) {
             ForEach(Lane.allCases, id: \.self) { swatch($0.status.tint, $0.status.label) }
-            swatch(Color.primary.opacity(0.12), "离开")
+            swatch(Color.primary.opacity(0.12), String(localized: "Away"))
         }
         .font(.system(size: 10.5)).foregroundStyle(.secondary)
     }
@@ -748,10 +788,10 @@ struct QuickFigures: View {
         let _ = model.activityVersion
         let r = model.report(range, buckets: 1)
         HStack(spacing: 0) {
-            figure(duration(r.agentTime), "agent 工时")
-            figure(r.leverage.map { String(format: "%.1f×", $0) } ?? "–", "杠杆")
-            figure(r.replyMedian.map(duration) ?? "–", "回复")
-            figure("\(r.turns)", "轮")
+            figure(duration(r.agentTime), String(localized: "agent hours"))
+            figure(r.leverage.map { String(format: "%.1f×", $0) } ?? "–", String(localized: "Leverage"))
+            figure(r.replyMedian.map(duration) ?? "–", String(localized: "Reply"))
+            figure("\(r.turns)", String(localized: "Turns"))
         }
         .frame(height: Self.height)
         .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(0.05)))
@@ -773,7 +813,7 @@ struct TodayFigures: View {
     var body: some View {
         let today = Calendar.current.startOfDay(for: Date())
         QuickFigures(range: DateInterval(start: today, end: Calendar.current.date(byAdding: .day, value: 1, to: today)!),
-                     help: "今天，点击打开主界面「概览」")
+                     help: String(localized: "Today. Click to open Overview in the main window."))
     }
 }
 
@@ -801,12 +841,12 @@ struct RecentFigures: View {
                 .rollingLeverage(window: Self.trendStep)
             let leverage = trend.last ?? nil
             let today = slim ? nil : model.report(DateInterval(start: Calendar.current.startOfDay(for: ctx.date), end: end), buckets: 1)
-            let help = "最近 \(SettingsView.duration(minutes))，你在场的每小时 agent 干了几小时；时长可在设置里调"
+            let help = String(localized: "Over the last \(SettingsView.duration(minutes)), agent hours per hour you were here. Change the window in Settings.")
             Group {
                 if slim {
                     // 20 pt wide: the number alone, and an arrow for its trend instead of the chart.
                     VStack(spacing: 2) {
-                        Text("杠杆").font(.system(size: 8, weight: .medium)).foregroundStyle(.secondary)
+                        Text("Leverage").font(.system(size: 8, weight: .medium)).foregroundStyle(.secondary)
                         Text(leverage.map { String(format: $0 < 10 ? "%.1f" : "%.0f", $0) } ?? "–")
                             .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
                             .lineLimit(1).minimumScaleFactor(0.5)
@@ -819,14 +859,14 @@ struct RecentFigures: View {
                 } else if folded {
                     VStack(spacing: 3) {
                         value(leverage, size: 17).help(help)
-                        caption("今日 \(duration(today?.agentTime ?? 0))")
+                        caption(String(localized: "Today \(duration(today?.agentTime ?? 0))"))
                     }
                 } else {
                     HStack(alignment: .center, spacing: 0) {
                         VStack(alignment: .leading, spacing: 0) {
                             // The same arrow as the slim rail's, beside the caption so the figure keeps its room.
                             HStack(spacing: 3) {
-                                caption("杠杆")
+                                caption(String(localized: "Leverage"))
                                 if let (symbol, tint) = Self.direction(trend) {
                                     Image(systemName: symbol).font(.system(size: 9, weight: .bold)).foregroundStyle(tint)
                                 }
@@ -843,13 +883,13 @@ struct RecentFigures: View {
                             TimeAxis(ticks: ticks)
                         }
                         .padding(.top, 6).padding(.bottom, 3)
-                        .help("杠杆走势：每点是到那时为止 \(SettingsView.duration(minutes)) 的杠杆，近 \(SettingsView.duration(span / 60))；虚线为 1×")
+                        .help("Leverage trend: each point is the leverage over the \(SettingsView.duration(minutes)) up to then, across the last \(SettingsView.duration(span / 60)); the dashed line is 1×.")
                         VStack(alignment: .trailing, spacing: 2) {
-                            caption("今日工时")
+                            caption(String(localized: "Agent hours today"))
                             Text(duration(today?.agentTime ?? 0)).font(.system(size: 15, weight: .semibold, design: .rounded).monospacedDigit())
                         }
                         .frame(width: 64, alignment: .trailing)
-                        .help("今天所有 agent 在跑的时间相加")
+                        .help("All agents' running time today, added up")
                         .padding(.leading, 8)
                     }
                     .padding(.leading, 12).padding(.trailing, 12)
@@ -973,11 +1013,11 @@ struct Sparkline: View {
             ctx.fill(Path(ellipseIn: CGRect(x: last.x - 5, y: last.y - 5, width: 10, height: 10)), with: .color(Self.lime.opacity(0.22)))
             ctx.fill(Path(ellipseIn: CGRect(x: last.x - 2.5, y: last.y - 2.5, width: 5, height: 5)), with: .color(Self.lime))
         }
-        .accessibilityLabel("杠杆走势")
+        .accessibilityLabel("Leverage trend")
     }
 }
 
-/// Clock times under the `Sparkline`, at the same x as its points, with 现在 at its right end.
+/// Clock times under the `Sparkline`, at the same x as its points, with "Now" at its right end.
 struct TimeAxis: View {
     struct Tick: Equatable { let at: Double; let label: String }
     let ticks: [Tick]
@@ -989,7 +1029,7 @@ struct TimeAxis: View {
                 ForEach(ticks, id: \.label) { t in
                     label(t.label).position(x: width * t.at, y: g.size.height / 2)
                 }
-                label("现在").frame(width: g.size.width, alignment: .trailing)
+                label(String(localized: "Now")).frame(width: g.size.width, alignment: .trailing)
                     .position(x: g.size.width / 2, y: g.size.height / 2)
             }
         }

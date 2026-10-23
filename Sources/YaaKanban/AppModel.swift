@@ -611,10 +611,11 @@ final class AppModel {
         record([ActivityRow(at: Date(), session: key, kind: .focus)])
         guard Self.isGone(s) else { telemetry.count(.jump(s.terminal)); jumper.jump(to: s); return }
         let runners = waveRunners(for: s)
-        let name = s.terminal?.termProgram.flatMap(TerminalJumper.app(forTermProgram:))?.localizedName ?? "终端"
-        let why: String? = s.terminal?.isWave == true && runners.isEmpty ? "Wave 的授权已过期"
+        let name = s.terminal?.termProgram.flatMap(TerminalJumper.app(forTermProgram:))?.localizedName ?? String(localized: "Terminal")
+        let why: String? = s.terminal?.isWave == true && runners.isEmpty ? String(localized: "Wave’s authorization has expired")
             : TerminalJumper.runsResume(s) ? nil
-            : s.terminal?.termProgram == "waveterm" ? "没有记下它在哪个 Wave 标签页" : "\(name)不接受外部输入命令"
+            : s.terminal?.termProgram == "waveterm" ? String(localized: "It’s not known which Wave tab it was in")
+            : String(localized: "\(name) doesn’t accept typed-in commands from other apps")
         switch Self.askReopen(s, cannotRun: why.map { ($0, name) }) {
         case .alertFirstButtonReturn: telemetry.count(.resume); jumper.resume(s, wave: runners) { Self.tellResumeFailed(s) }
         case .alertSecondButtonReturn: telemetry.count(.resume); jumper.copyResume(s)
@@ -642,8 +643,8 @@ final class AppModel {
     private static func tellResumeFailed(_ s: SessionState) {
         let alert = NSAlert()
         if let icon = BrandMark.image { alert.icon = icon }
-        alert.messageText = "没能在 Wave 里打开"
-        alert.informativeText = "原标签页或终端可能已关闭，Wave 的授权也可能已过期。恢复命令已复制，在 Wave 里新开一个终端粘贴即可继续 \(s.agent.displayName)。"
+        alert.messageText = String(localized: "Couldn’t open it in Wave")
+        alert.informativeText = String(localized: "The tab or terminal may be closed, or Wave’s authorization may have expired. The resume command is copied: open a new terminal in Wave and paste it to continue \(s.agent.displayName).")
         NSApp.activate(ignoringOtherApps: true)
         alert.runModal()
     }
@@ -652,17 +653,17 @@ final class AppModel {
     private static func askReopen(_ s: SessionState, cannotRun: (why: String, app: String)?) -> NSApplication.ModalResponse {
         let alert = NSAlert()
         if let icon = BrandMark.image { alert.icon = icon }
-        alert.messageText = "\(s.agent.displayName) 进程已不在"
+        alert.messageText = String(localized: "\(s.agent.displayName) is no longer running")
         if let (why, app) = cannotRun {
             // Nothing can type into that terminal: go there and paste.
-            alert.informativeText = "\(why)，无法自动打开。将切到\(app)并复制恢复命令，在原处新开一个终端粘贴即可继续。"
-            alert.addButton(withTitle: "切到\(app)并复制")
+            alert.informativeText = String(localized: "\(why), so it can’t be reopened automatically. YaaKanban will switch to \(app) and copy the resume command: open a new terminal there and paste it to continue.")
+            alert.addButton(withTitle: String(localized: "Switch to \(app) and Copy"))
         } else {
-            alert.informativeText = "是否在原终端重新打开这个会话？"
-            alert.addButton(withTitle: "重新打开")
+            alert.informativeText = String(localized: "Reopen this session in its original terminal?")
+            alert.addButton(withTitle: String(localized: "Reopen"))
         }
-        alert.addButton(withTitle: "复制恢复命令")
-        alert.addButton(withTitle: "取消")
+        alert.addButton(withTitle: String(localized: "Copy Resume Command"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         NSApp.activate(ignoringOtherApps: true)
         return alert.runModal()
     }
@@ -695,13 +696,13 @@ final class AppModel {
         guard let s = sessions[key] else { return }
         let alert = NSAlert()
         if let icon = BrandMark.image { alert.icon = icon }
-        alert.messageText = "重命名会话"
-        alert.informativeText = "只改 YaaKanban 里显示的名字。留空则恢复为 agent 的标题。"
+        alert.messageText = String(localized: "Rename Session")
+        alert.informativeText = String(localized: "Only changes the name shown in YaaKanban. Leave it empty to go back to the agent’s title.")
         let field = NSTextField(string: s.customName ?? s.title)
         field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
         alert.accessoryView = field
-        alert.addButton(withTitle: "确定")
-        alert.addButton(withTitle: "取消")
+        alert.addButton(withTitle: String(localized: "OK"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         alert.window.initialFirstResponder = field
         NSApp.activate(ignoringOtherApps: true)
         guard alert.runModal() == .alertFirstButtonReturn else { return }

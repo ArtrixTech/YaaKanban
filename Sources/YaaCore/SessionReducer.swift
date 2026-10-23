@@ -223,11 +223,11 @@ public enum Alerts {
         let before = old?.status
         switch new.status {
         case .needsInput where before != .needsInput || old?.needsInputMessage != new.needsInputMessage:
-            return .needsInput(new.needsInputMessage ?? "Needs your input")
+            return .needsInput(new.needsInputMessage ?? String(localized: "Needs your input"))
         case .idle where before == .running || before == .stuck:
             return .done(new.currentTurn?.lastMessage)
         case .stuck where before != .stuck:
-            return .stuck(new.stuckReason ?? "No progress")
+            return .stuck(new.stuckReason ?? String(localized: "No progress"))
         default:
             return nil
         }

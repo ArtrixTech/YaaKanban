@@ -23,7 +23,7 @@ public struct HermesIntegration: Integration {
     public func isDetected(home: URL) -> Bool { FileManager.default.fileExists(atPath: home.appendingPathComponent(".hermes").path) }
     public func isInstalled(home: URL) -> Bool { !Self.ours(Installer.read(file(home)) ?? "").isEmpty }
 
-    public var postInstallNote: String? { "Hermes 第一次运行新 hook 前会在终端里逐条问你是否允许。" }
+    public var postInstallNote: String? { String(localized: "Before Hermes first runs a new hook, it asks you in the terminal to allow each one.") }
 
     public func plan(install: Bool, home: URL, yaak: String) throws -> [FileChange] {
         let url = file(home)
@@ -42,9 +42,9 @@ public struct HermesIntegration: Integration {
         let approved = Self.approvals(Installer.read(allowlist(home)))
         let waiting = Self.ours(text).filter { !approved.contains("\($0.event)\n\($0.command)") }.count
         guard waiting > 0 else { return [] }
-        return ["在终端里运行一次 hermes。",
-                "它会逐条询问是否允许 YaaKanban 的 hook，共 \(waiting) 条，都回答 y。",
-                "回到这里点「重新检查」。"]
+        return [String(localized: "Run hermes once in a terminal."),
+                String(localized: "It asks about each YaaKanban hook (\(waiting) in total); answer y to all."),
+                String(localized: "Come back and click “Recheck”.")]
     }
 
     // MARK: YAML

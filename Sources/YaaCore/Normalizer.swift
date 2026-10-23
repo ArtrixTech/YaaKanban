@@ -429,8 +429,8 @@ public enum Normalizer {
 
     static func askText(_ input: JSONValue) -> String {
         if let qs = input["questions"]?.array, let q = qs.first?["question"]?.string {
-            return qs.count > 1 ? "\(q)（共 \(qs.count) 个问题）" : q
+            return qs.count > 1 ? String(localized: "\(q) (\(qs.count) questions)") : q
         }
-        return input["question"]?.string ?? input["prompt"]?.string ?? "Agent asked a question"
+        return input["question"]?.string ?? input["prompt"]?.string ?? String(localized: "Agent asked a question")
     }
 }

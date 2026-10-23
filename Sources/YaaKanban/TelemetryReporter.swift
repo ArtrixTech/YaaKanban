@@ -119,10 +119,10 @@ final class TelemetryReporter {
         guard available, !TelemetryLedger.load(url).asked else { return }
         let alert = NSAlert()
         if let icon = BrandMark.image { alert.icon = icon }
-        alert.messageText = "帮助改进 YaaKanban？"
-        alert.informativeText = "开启后，YaaKanban 每天向 Aptabase 发送一份匿名使用统计：版本、系统、已接入哪些 agent、各功能的使用次数，以及会话数等粗略区间。不含 prompt、代码、路径、项目或会话名；Aptabase 会按 IP 记下国家和地区，但不保存 IP。随时可在 设置 › 隐私与反馈 关闭，或查看将要发送的内容。"
-        alert.addButton(withTitle: "开启")
-        alert.addButton(withTitle: "不用了")
+        alert.messageText = String(localized: "Help improve YaaKanban?")
+        alert.informativeText = String(localized: "When on, YaaKanban sends Aptabase one anonymous usage report a day: version, system, which agents are connected, how often each feature is used, and rough ranges such as the number of sessions. It never includes prompts, code, paths, or project or session names. Turn it off or see what will be sent any time in Settings › Privacy and feedback.")
+        alert.addButton(withTitle: String(localized: "Turn On"))
+        alert.addButton(withTitle: String(localized: "No Thanks"))
         NSApp.activate(ignoringOtherApps: true)
         set(enabled: alert.runModal() == .alertFirstButtonReturn)
     }

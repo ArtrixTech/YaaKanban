@@ -9,18 +9,18 @@ enum FeedbackPrompt {
         let report = model.diagnostics().markdown
         let alert = NSAlert()
         if let icon = BrandMark.image { alert.icon = icon }
-        alert.messageText = "反馈问题或建议"
-        alert.informativeText = "会在浏览器里打开 GitHub 的新 Issue 页面（需要 GitHub 账号）。下面的诊断信息只有版本和接入状态，不含会话内容和路径。"
-        let attach = NSButton(checkboxWithTitle: "附上诊断信息", target: nil, action: nil)
+        alert.messageText = String(localized: "Report a problem or suggest an idea")
+        alert.informativeText = String(localized: "Opens a new GitHub issue in your browser (needs a GitHub account). The diagnostics below only hold versions and integration status, with no session content or paths.")
+        let attach = NSButton(checkboxWithTitle: String(localized: "Attach diagnostics"), target: nil, action: nil)
         attach.state = .on
         let stack = NSStackView(views: [textBox(report, height: 150), attach])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.frame = NSRect(x: 0, y: 0, width: 360, height: 180)
         alert.accessoryView = stack
-        alert.addButton(withTitle: "报告问题")
-        alert.addButton(withTitle: "提建议")
-        alert.addButton(withTitle: "取消")
+        alert.addButton(withTitle: String(localized: "Report a Problem"))
+        alert.addButton(withTitle: String(localized: "Suggest an Idea"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         NSApp.activate(ignoringOtherApps: true)
         let kind: Feedback.Kind
         switch alert.runModal() {
@@ -37,8 +37,8 @@ enum FeedbackPrompt {
         if let icon = BrandMark.image { alert.icon = icon }
         alert.messageText = title
         alert.accessoryView = textBox(text, height: 320)
-        alert.addButton(withTitle: "好")
-        alert.addButton(withTitle: "复制")
+        alert.addButton(withTitle: String(localized: "OK"))
+        alert.addButton(withTitle: String(localized: "Copy"))
         NSApp.activate(ignoringOtherApps: true)
         if alert.runModal() == .alertSecondButtonReturn {
             NSPasteboard.general.clearContents()

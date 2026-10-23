@@ -11,6 +11,7 @@
 - **yaak** — CLI called by agent hooks (`yaak hook`) and by the user (`yaak install|uninstall|status`). Bundled at `YaaKanban.app/Contents/Helpers/yaak`. `Sources/yaak/`
 - **YaaKanban app** — menu-bar app: socket server, session model, notifications, floating panel, main window (overview dashboard in `DashboardView.swift`), terminal jump adapters. `Sources/YaaKanban/`
 - **Telemetry & feedback**: opt-in daily report model, bucketing and consent ledger (`YaaCore/Telemetry.swift`) and its Aptabase event (`YaaCore/Aptabase.swift`); diagnostics and prefilled issue links (`YaaIntegrations/Feedback.swift`); the sender and consent prompt (`YaaKanban/TelemetryReporter.swift`) and the feedback dialog (`YaaKanban/FeedbackPrompt.swift`); issue forms in `.github/ISSUE_TEMPLATE/`.
+- **Localization**: English source strings in code; zh-Hans translations in `Resources/zh-Hans.lproj/` (`Localizable.strings`, `InfoPlist.strings`), copied into the bundle by `scripts/bundle.sh`; `make l10n` (`scripts/l10n-check.py`) checks the compiler-extracted keys against the table.
 - **Packaging** — `Makefile`, `scripts/bundle.sh`, `Resources/Info.plist`.
 
 ## Key Relationships

@@ -17,8 +17,8 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     func requestAuthorization() {
         guard let center else { return }
         center.delegate = self
-        let allow = UNNotificationAction(identifier: "allow", title: "允许一次")
-        let deny = UNNotificationAction(identifier: "deny", title: "拒绝", options: [.destructive])
+        let allow = UNNotificationAction(identifier: "allow", title: String(localized: "Allow once"))
+        let deny = UNNotificationAction(identifier: "deny", title: String(localized: "Deny"), options: [.destructive])
         center.setNotificationCategories([
             UNNotificationCategory(identifier: "permission", actions: [allow, deny], intentIdentifiers: []),
             UNNotificationCategory(identifier: "session", actions: [], intentIdentifiers: []),
@@ -37,7 +37,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         c.categoryIdentifier = "session"
         switch alert {
         case .needsInput(let msg):
-            c.title = "需要输入 — \(where_)"
+            c.title = String(localized: "Needs input — \(where_)")
             c.body = msg
             c.sound = .default
             c.interruptionLevel = .timeSensitive
@@ -47,11 +47,11 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
                 if p.isTruncated { c.body = String((p.detail ?? msg).prefix(400)) } else { c.categoryIdentifier = "permission" }
             }
         case .done(let last):
-            c.title = "待验收 — \(where_)"
+            c.title = String(localized: "To review — \(where_)")
             c.body = last.map { String($0.prefix(200)) } ?? s.title
             c.sound = .default
         case .stuck(let reason):
-            c.title = "可能卡住 — \(where_)"
+            c.title = String(localized: "Maybe stuck — \(where_)")
             c.body = reason
         }
         center.add(UNNotificationRequest(identifier: "\(s.id)#\(UUID().uuidString)", content: c, trigger: nil))

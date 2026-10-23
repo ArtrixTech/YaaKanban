@@ -234,7 +234,7 @@ public struct PiIntegration: PluginFileIntegration {
 public struct OmpIntegration: PluginFileIntegration {
     public let agent = AgentKind.omp
     public init() {}
-    public var postInstallNote: String? { "omp 的扩展目录按默认的 ~/.omp/agent；PI_CODING_AGENT_DIR 或 profile 不会跟随。" }
+    public var postInstallNote: String? { String(localized: "omp's extension directory is assumed to be the default ~/.omp/agent; PI_CODING_AGENT_DIR and profiles aren't followed.") }
 
     func detectDir(_ home: URL) -> URL { home.appendingPathComponent(".omp") }
     func file(_ home: URL) -> URL { home.appendingPathComponent(".omp/agent/extensions/yaakanban.ts") }

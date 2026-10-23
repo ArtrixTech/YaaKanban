@@ -27,10 +27,10 @@ extension AgentKind {
 
 func relative(_ d: Date, now: Date = Date()) -> String {
     let s = Int(now.timeIntervalSince(d))
-    if s < 60 { return "\(max(s, 0))秒" }
-    if s < 3600 { return "\(s / 60)分" }
-    if s < 86400 { return "\(s / 3600)时\(s % 3600 / 60)分" }
-    return "\(s / 86400)天"
+    if s < 60 { return String(localized: "\(max(s, 0))s") }
+    if s < 3600 { return String(localized: "\(s / 60)m") }
+    if s < 86400 { return String(localized: "\(s / 3600)h \(s % 3600 / 60)m") }
+    return String(localized: "\(s / 86400)d")
 }
 
 extension SessionState {
@@ -42,7 +42,7 @@ extension SessionState {
 
     /// Running: how long the turn has run. Otherwise: how long ago it last changed.
     func clock(now: Date) -> String {
-        status == .running ? relative(clockStart, now: now) : relative(lastEventAt, now: now) + "前"
+        status == .running ? relative(clockStart, now: now) : String(localized: "\(relative(lastEventAt, now: now)) ago")
     }
 
     /// Start of the running turn, else the last change.
@@ -70,9 +70,9 @@ struct PermissionButtons: View {
                     .background(.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 HStack(spacing: 6) {
-                    Button { model.decide(session.id, .allow, requestId: p.id) } label: { Label("允许一次", systemImage: "checkmark") }
+                    Button { model.decide(session.id, .allow, requestId: p.id) } label: { Label("Allow once", systemImage: "checkmark") }
                         .buttonStyle(PillButtonStyle(tint: .green, prominent: true))
-                    Button { model.decide(session.id, .deny, requestId: p.id) } label: { Label("拒绝", systemImage: "xmark") }
+                    Button { model.decide(session.id, .deny, requestId: p.id) } label: { Label("Deny", systemImage: "xmark") }
                         .buttonStyle(PillButtonStyle(tint: .red))
                     Spacer()
                 }
@@ -100,7 +100,7 @@ struct SessionCard: View {
                     StatusGlyph(status: st, size: 20)
                     Text(session.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
                     if model.isPinned(session.id) {
-                        Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(Color(red: 1, green: 0.75, blue: 0)).help("已置顶")
+                        Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(Color(red: 1, green: 0.75, blue: 0)).help("Pinned")
                     }
                     Spacer(minLength: 4)
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
@@ -108,7 +108,7 @@ struct SessionCard: View {
                             .font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.secondary)
                     }
                     ExpandButton(expanded: expanded, action: onExpand)
-                    CardIconButton(symbol: "xmark", help: "结束：移出悬浮窗（保留在历史，需要你时会回来）") {
+                    CardIconButton(symbol: "xmark", help: String(localized: "End: remove from the floating panel (kept in History; it comes back when it needs you)")) {
                         model.dismiss(session.id)
                     }
                 }
@@ -117,7 +117,7 @@ struct SessionCard: View {
                     AgentLogo(agent: session.agent, size: 12)
                     if model.integrationIssues[session.agent] != nil {
                         Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 9)).foregroundStyle(.yellow)
-                            .help("\(session.agent.displayName) 有 hook 没授权，状态可能不全。到设置里看步骤。")
+                            .help("Some \(session.agent.displayName) hooks aren't approved, so the status may be incomplete. See Settings for the steps.")
                     }
                     if let p = session.projectName {
                         Text(p).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
@@ -141,18 +141,18 @@ struct SessionCard: View {
         .onHover { hover = $0 }
         .animation(.easeOut(duration: 0.12), value: hover)
         .onTapGesture { model.jump(session.id) }
-        .help(AppModel.isGone(session) ? "点击在原终端恢复 \(session.agent.displayName)" : "点击跳转到 \(session.agent.displayName)")
+        .help(AppModel.isGone(session) ? "Click to resume \(session.agent.displayName) in its original terminal" : "Click to jump to \(session.agent.displayName)")
         .contextMenu {
-            Button(AppModel.isGone(session) ? "在原终端恢复" : "跳转到终端") { model.jump(session.id) }
-            Button(expanded ? "收起详情" : "展开详情", action: onExpand)
-            if st == .review { Button("标记已验收") { model.markRead(session.id) } }
-            Button("复制 cwd / session") { model.jumper.copyContext(session) }
-            Button("复制恢复命令") { model.jumper.copyResume(session) }
+            Button(AppModel.isGone(session) ? "Resume in original terminal" : "Jump to terminal") { model.jump(session.id) }
+            Button(expanded ? "Hide details" : "Show details", action: onExpand)
+            if st == .review { Button("Mark as reviewed") { model.markRead(session.id) } }
+            Button("Copy cwd / session") { model.jumper.copyContext(session) }
+            Button("Copy resume command") { model.jumper.copyResume(session) }
             Divider()
             MoveMenu(session: session)
             Divider()
-            Button("结束（移出悬浮窗）") { model.dismiss(session.id) }
-            Button("从列表删除", role: .destructive) { model.remove(session.id) }
+            Button("End (remove from floating panel)") { model.dismiss(session.id) }
+            Button("Delete from list", role: .destructive) { model.remove(session.id) }
         }
     }
 
@@ -160,15 +160,15 @@ struct SessionCard: View {
     @ViewBuilder private func replyLine(_ st: DisplayStatus) -> some View {
         switch st {
         case .needsInput, .stuck:
-            Text(session.needsInputMessage ?? session.stuckReason ?? "需要你处理")
+            Text(session.needsInputMessage ?? session.stuckReason ?? String(localized: "Needs your attention"))
                 .font(.system(size: 11.5)).foregroundStyle(st.tint).lineLimit(expanded ? 6 : 2)
         default:
             if let r = session.lastReply {
                 Text(r).font(.system(size: 11.5)).foregroundStyle(.primary.opacity(0.8)).lineLimit(expanded ? 12 : 2)
             } else if st == .running {
-                Text("思考中…").font(.system(size: 11.5)).foregroundStyle(.tertiary)
+                Text("Thinking…").font(.system(size: 11.5)).foregroundStyle(.tertiary)
             } else if !session.hooked {
-                Text("此会话在安装 hook 前启动，只能看到粗略状态").font(.system(size: 11)).foregroundStyle(.tertiary)
+                Text("This session started before the hooks were installed; only a rough status is available").font(.system(size: 11)).foregroundStyle(.tertiary)
             }
         }
     }
@@ -195,9 +195,9 @@ struct SessionCard: View {
             if let u = session.usage { UsageGrid(usage: u) }
             HStack(spacing: 4) {
                 Text(session.agent.displayName)
-                if !session.subagents.isEmpty { Text("· \(session.subagents.count) 个子 agent") }
-                if session.terminal?.isWave == true { Text("· Wave") }
-                if !session.hooked { Text("· 未挂 hook").foregroundStyle(.orange) }
+                if !session.subagents.isEmpty { Text("· subagents: \(session.subagents.count)") }
+                if session.terminal?.isWave == true { Text(verbatim: "· Wave") }
+                if !session.hooked { Text("· no hooks").foregroundStyle(.orange) }
             }
             .font(.system(size: 10.5)).foregroundStyle(.tertiary)
         }
@@ -223,7 +223,7 @@ struct SubagentSlots: View {
                 ForEach(inline, id: \.id) { a in
                     // Hook-reported sub-agents share the parent's tool stream, tagged with their id.
                     let tool = session.tools.last { $0.subagentId == a.id }
-                    SubagentRow(status: .running, title: a.type ?? "子 agent",
+                    SubagentRow(status: .running, title: a.type ?? String(localized: "subagent"),
                                 detail: tool.map { "\($0.name) \($0.summary)" }, since: a.startedAt)
                 }
             }
@@ -305,7 +305,7 @@ struct CodeBlock: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
-            Text(text.isEmpty ? "（已清理）" : text)
+            Text(text.isEmpty ? String(localized: "(cleared)") : text)
                 .font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
                 .padding(8).frame(maxWidth: .infinity, alignment: .leading)
                 .background(.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -319,12 +319,12 @@ struct MoveMenu: View {
     let session: SessionState
     var body: some View {
         let id = session.id, pinned = model.isPinned(id)
-        Button(pinned ? "取消置顶" : "置顶") { withAnimation(.snappy) { model.togglePin(id) } }
+        Button(pinned ? "Unpin" : "Pin to top") { withAnimation(.snappy) { model.togglePin(id) } }
         if !pinned, Board.keepsManualOrder(session.display) {
-            Button("上移") { withAnimation(.snappy) { model.step([id], by: -1) } }
-            Button("下移") { withAnimation(.snappy) { model.step([id], by: 1) } }
+            Button("Move up") { withAnimation(.snappy) { model.step([id], by: -1) } }
+            Button("Move down") { withAnimation(.snappy) { model.step([id], by: 1) } }
         }
-        Button("重命名…") { model.rename(id) }
+        Button("Rename…") { model.rename(id) }
     }
 }
 
@@ -397,7 +397,7 @@ struct ExpandButton: View {
     var action: () -> Void
 
     var body: some View {
-        CardIconButton(symbol: "chevron.down", help: expanded ? "收起详情" : "展开详情", action: action)
+        CardIconButton(symbol: "chevron.down", help: expanded ? String(localized: "Hide details") : String(localized: "Show details"), action: action)
             .rotationEffect(.degrees(expanded ? 180 : 0))
             .animation(.snappy, value: expanded)
     }
@@ -447,7 +447,7 @@ struct UsageBadge: View {
         let tools = toolCalls ? session.toolCallCount : 0
         HStack(spacing: 7) {
             if tools > 0 {
-                Label(compactCount(tools), systemImage: "wrench.and.screwdriver").help("工具调用 \(tools) 次")
+                Label(compactCount(tools), systemImage: "wrench.and.screwdriver").help("Tool calls: \(tools)")
             }
             if let u = session.usage, u.total > 0 {
                 Label(compactCount(u.total), systemImage: "circle.hexagongrid").help(usageHelp(u))
@@ -461,7 +461,7 @@ struct UsageBadge: View {
     }
 
     private func usageHelp(_ u: Usage) -> String {
-        "Token 合计 \(u.total)：输入 \(u.input)，输出 \(u.output)，缓存读 \(u.cacheRead)，缓存写 \(u.cacheWrite)"
+        String(localized: "Tokens \(u.total): input \(u.input), output \(u.output), cache read \(u.cacheRead), cache write \(u.cacheWrite)")
     }
 }
 
@@ -477,14 +477,14 @@ struct UsageGrid: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 0) {
-                cell("输入", usage.input)
-                cell("输出", usage.output)
-                cell("缓存读", usage.cacheRead)
-                cell("缓存写", usage.cacheWrite)
+                cell(String(localized: "Input"), usage.input)
+                cell(String(localized: "Output"), usage.output)
+                cell(String(localized: "Cache read"), usage.cacheRead)
+                cell(String(localized: "Cache write"), usage.cacheWrite)
             }
             if usage.context > 0 {
                 HStack(spacing: 6) {
-                    Text("上下文").foregroundStyle(.secondary)
+                    Text("Context").foregroundStyle(.secondary)
                     if let w = usage.contextWindow, w > 0 {
                         ProgressView(value: min(1, Double(usage.context) / Double(w))).controlSize(.mini).tint(.blue)
                         Text("\(compactCount(usage.context)) / \(compactCount(w))").monospacedDigit()
@@ -497,7 +497,7 @@ struct UsageGrid: View {
             if !usage.tools.isEmpty {
                 let top = usage.tools.sorted { ($0.value, $1.key) > ($1.value, $0.key) }.prefix(5)
                 HStack(spacing: 4) {
-                    Text("\(usage.toolCalls) 次工具").foregroundStyle(.secondary)
+                    Text("Tools: \(usage.toolCalls)").foregroundStyle(.secondary)
                     ForEach(Array(top), id: \.key) { name, n in
                         Text("\(name) \(n)").padding(.horizontal, 5).padding(.vertical, 1)
                             .background(.primary.opacity(0.06), in: Capsule())

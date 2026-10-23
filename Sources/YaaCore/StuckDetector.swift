@@ -48,14 +48,14 @@ public enum StuckDetector {
             }
             let reason: String?
             if processGone {
-                reason = "进程已退出"
+                reason = String(localized: "Process exited")
             } else if let t = s.runningTools.first(where: { !isBackground($0) && now.timeIntervalSince($0.startedAt) > config.toolDuration }) {
-                reason = "\(t.name) 已运行 \(minutes(now.timeIntervalSince(t.startedAt))) 分钟"
+                reason = String(localized: "\(t.name) has been running for \(minutes(now.timeIntervalSince(t.startedAt))) min")
             } else if s.hooked, s.runningTools.isEmpty, s.subagents.isEmpty || s.awaitsBackground,
                       now.timeIntervalSince(s.lastEventAt) > config.silence {
                 // Silence is only meaningful when hooks report every step. Waiting on background
                 // agents it still applies, in case a stop or notification never comes.
-                reason = "\(minutes(now.timeIntervalSince(s.lastEventAt))) 分钟无新事件"
+                reason = String(localized: "No new events for \(minutes(now.timeIntervalSince(s.lastEventAt))) min")
             } else {
                 reason = nil
             }

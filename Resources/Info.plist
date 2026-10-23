@@ -3,6 +3,8 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleIdentifier</key><string>com.artrix.yaakanban</string>
+	<key>CFBundleDevelopmentRegion</key><string>en</string>
+	<key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hans</string></array>
 	<key>CFBundleName</key><string>YaaKanban</string>
 	<key>CFBundleDisplayName</key><string>YaaKanban</string>
 	<key>CFBundleExecutable</key><string>YaaKanban</string>

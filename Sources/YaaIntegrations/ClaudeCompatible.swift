@@ -19,8 +19,8 @@ public struct QwenIntegration: Integration {
 
     public func pendingSteps(home: URL) -> [String] {
         guard let root = try? JSONFile.load(file(home)).root, root["disableAllHooks"] as? Bool == true else { return [] }
-        return ["~/.qwen/settings.json 里写着 \"disableAllHooks\": true，Qwen Code 不会运行任何 hook。",
-                "删掉这一项（或改成 false），重开 qwen，再回到这里点「重新检查」。"]
+        return [String(localized: "~/.qwen/settings.json has \"disableAllHooks\": true, so Qwen Code runs no hooks."),
+                String(localized: "Remove it (or set it to false), restart qwen, then come back and click “Recheck”.")]
     }
 
     public func plan(install: Bool, home: URL, yaak: String) throws -> [FileChange] {
@@ -38,7 +38,7 @@ public struct GeminiIntegration: Integration {
     public let agent = AgentKind.gemini
     public init() {}
     static let name = "yaakanban"
-    public var postInstallNote: String? { "Gemini CLI 只在信任过的文件夹里运行 hook：第一次在某个项目里打开 gemini 时选择信任。" }
+    public var postInstallNote: String? { String(localized: "Gemini CLI runs hooks only in trusted folders: choose to trust the folder the first time you open gemini in a project.") }
 
     static let events: [(name: String, timeout: Int)] = [
         "SessionStart", "BeforeAgent", "BeforeTool", "AfterTool", "AfterAgent", "Notification", "SessionEnd",
@@ -51,13 +51,13 @@ public struct GeminiIntegration: Integration {
     public func pendingSteps(home: URL) -> [String] {
         guard let root = try? JSONFile.load(file(home)).root, let cfg = root["hooksConfig"] as? [String: Any] else { return [] }
         if cfg["enabled"] as? Bool == false {
-            return ["~/.gemini/settings.json 的 hooksConfig.enabled 是 false，Gemini CLI 不会运行任何 hook。",
-                    "改成 true（或删掉这一项），重开 gemini，再回到这里点「重新检查」。"]
+            return [String(localized: "hooksConfig.enabled is false in ~/.gemini/settings.json, so Gemini CLI runs no hooks."),
+                    String(localized: "Set it to true (or remove it), restart gemini, then come back and click “Recheck”.")]
         }
         let disabled = (cfg["disabled"] as? [String] ?? []).filter { $0 == Self.name || HookCommand.isOurs($0) }
         guard !disabled.isEmpty else { return [] }
-        return ["yaak hook 在 Gemini CLI 里被关掉了（hooksConfig.disabled）。",
-                "在 gemini 里输入 /hooks enable \(Self.name)，或从 ~/.gemini/settings.json 的 hooksConfig.disabled 删掉它，再回到这里点「重新检查」。"]
+        return [String(localized: "The yaak hook is disabled in Gemini CLI (hooksConfig.disabled)."),
+                String(localized: "In gemini, run /hooks enable \(Self.name), or remove it from hooksConfig.disabled in ~/.gemini/settings.json, then come back and click “Recheck”.")]
     }
 
     public func plan(install: Bool, home: URL, yaak: String) throws -> [FileChange] {
@@ -76,7 +76,7 @@ public struct GeminiIntegration: Integration {
 public struct DroidIntegration: Integration {
     public let agent = AgentKind.droid
     public init() {}
-    public var postInstallNote: String? { "Droid 在没信任过的文件夹里不运行任何 hook：第一次在某个项目里打开 droid 时选择信任。" }
+    public var postInstallNote: String? { String(localized: "Droid runs no hooks in untrusted folders: choose to trust the folder the first time you open droid in a project.") }
 
     static let events: [(name: String, timeout: Int)] = [
         "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Notification", "Stop", "SessionEnd",
@@ -100,8 +100,8 @@ public struct DroidIntegration: Integration {
     public func pendingSteps(home: URL) -> [String] {
         let roots = [settings(home), activeHooksFile(home)].compactMap { $0.flatMap { try? JSONFile.load($0).root } }
         guard roots.contains(where: { $0["hooksDisabled"] as? Bool == true }) else { return [] }
-        return ["Droid 的 hooksDisabled 是 true（~/.factory/settings.json 或 hooks.json），不会运行任何 hook。",
-                "在 droid 里输入 /hooks 重新启用，或删掉这一项，再回到这里点「重新检查」。"]
+        return [String(localized: "Droid has hooksDisabled set to true (~/.factory/settings.json or hooks.json), so it runs no hooks."),
+                String(localized: "Re-enable them with /hooks in droid, or remove the setting, then come back and click “Recheck”.")]
     }
 
     /// Events with foreign entries in a file, ours excluded.
@@ -151,7 +151,7 @@ public struct DroidIntegration: Integration {
 public struct ZCodeIntegration: Integration {
     public let agent = AgentKind.zcode
     public init() {}
-    public var postInstallNote: String? { "ZCode 在会话开始时读取 hook 配置：装好后新开的会话才会上报。" }
+    public var postInstallNote: String? { String(localized: "ZCode reads its hook config when a session starts: only sessions opened after installing will report.") }
 
     static let events: [(name: String, timeout: Int)] = [
         "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "Stop",
@@ -164,13 +164,13 @@ public struct ZCodeIntegration: Integration {
     public func pendingSteps(home: URL) -> [String] {
         guard let hooks = (try? JSONFile.load(file(home)).root)?["hooks"] as? [String: Any] else { return [] }
         if hooks["enabled"] as? Bool != true {
-            return ["ZCode 的 hook 总开关没开（~/.zcode/cli/config.json 的 hooks.enabled）。",
-                    "在 ZCode 的 设置 → Hooks 里打开，或把 hooks.enabled 改成 true，再回到这里点「重新检查」。"]
+            return [String(localized: "ZCode's main hook switch is off (hooks.enabled in ~/.zcode/cli/config.json)."),
+                    String(localized: "Turn it on in ZCode under Settings → Hooks, or set hooks.enabled to true, then come back and click “Recheck”.")]
         }
         let off = Self.disabledEvents(hooks["events"] as? [String: Any] ?? [:])
         guard !off.isEmpty else { return [] }
-        return ["YaaKanban 的 \(off.sorted().joined(separator: "、")) hook 在 ZCode 里被关掉了。",
-                "在 ZCode 的 设置 → Hooks 里重新打开，再回到这里点「重新检查」。"]
+        return [String(localized: "YaaKanban's \(off.sorted().formatted(.list(type: .and))) hooks are disabled in ZCode."),
+                String(localized: "Turn them back on in ZCode under Settings → Hooks, then come back and click “Recheck”.")]
     }
 
     /// Events whose hook of ours is switched off.

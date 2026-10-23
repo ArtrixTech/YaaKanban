@@ -208,7 +208,7 @@ private func json(_ url: URL) throws -> [String: Any] {
         let i = CodexIntegration()
         try Installer.apply(try i.plan(install: true, home: h, yaak: yaak))
         #expect(i.status(home: h, yaak: yaak) == .needsAuthorization)
-        #expect(i.pendingSteps(home: h).contains { $0.contains("8 条未信任") })
+        #expect(i.pendingSteps(home: h).contains { $0.contains("untrusted yaak hooks (8)") })
 
         // Trust every hook as Codex would, then change one, disable one.
         let hooks = try json(h.appendingPathComponent(".codex/hooks.json"))["hooks"] as! [String: Any]
@@ -227,8 +227,8 @@ private func json(_ url: URL) throws -> [String: Any] {
         #expect(states["PreToolUse"] == .disabled)
         #expect(states["SessionStart"] == .trusted)
         let steps = i.pendingSteps(home: h)
-        #expect(steps.contains { $0.contains("1 条 yaak hook 在你信任之后变了") })
-        #expect(steps.contains { $0.contains("重新启用 1 条") })
+        #expect(steps.contains { $0.contains("changed since you trusted them (1;") })
+        #expect(steps.contains { $0.contains("disabled yaak hooks (1)") })
 
         // All trusted.
         try toml.replacingOccurrences(of: "sha256:old", with: CodexTrust.hash(label: "stop", matcher: nil,
@@ -322,14 +322,14 @@ private func json(_ url: URL) throws -> [String: Any] {
         let h = try home([".hermes"])
         let i = HermesIntegration()
         try Installer.apply(try i.plan(install: true, home: h, yaak: yaak))
-        #expect(i.pendingSteps(home: h).contains { $0.contains("共 6 条") })
+        #expect(i.pendingSteps(home: h).contains { $0.contains("(6 in total)") })
         let text = try String(contentsOf: h.appendingPathComponent(".hermes/config.yaml"), encoding: .utf8)
         // Hermes keys consent on the exact (event, command) it parsed from YAML.
         let approvals = HermesIntegration.ours(text).dropLast().map { ["event": $0.event, "command": $0.command] }
         #expect(approvals.allSatisfy { $0["command"] == HookCommand.make(yaak: yaak, agent: .hermes, event: $0["event"]!) })
         let data = try JSONSerialization.data(withJSONObject: ["approvals": approvals])
         try data.write(to: h.appendingPathComponent(".hermes/shell-hooks-allowlist.json"))
-        #expect(i.pendingSteps(home: h).contains { $0.contains("共 1 条") })
+        #expect(i.pendingSteps(home: h).contains { $0.contains("(1 in total)") })
         try (text + "hooks_auto_accept: true\n").write(to: h.appendingPathComponent(".hermes/config.yaml"), atomically: true, encoding: .utf8)
         #expect(i.pendingSteps(home: h).isEmpty)
     }
