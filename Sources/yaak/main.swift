@@ -31,7 +31,7 @@ func selfPath() -> String {
 // MARK: hook
 
 /// Agents whose permission hook can take a decision from the app.
-let approvalEvents: [AgentKind: String] = [.claudeCode: "PermissionRequest", .qwen: "PermissionRequest",
+let approvalEvents: [AgentKind: String] = [.claudeCode: "PermissionRequest", .qwen: "PermissionRequest", .zcode: "PermissionRequest",
                                            .copilot: "permissionRequest", .opencode: "permission"]
 
 /// Hooks must return within ~100 ms: reading stdin and sending to the app share one budget from
@@ -86,7 +86,7 @@ func runHook(agent: AgentKind, event: String) -> Never {
 
 func decisionOutput(_ agent: AgentKind, _ d: PermissionDecision) -> String {
     switch agent {
-    case .claudeCode, .qwen:
+    case .claudeCode, .qwen, .zcode:
         var decision: [String: Any] = ["behavior": d.rawValue]
         if d == .deny { decision["message"] = "Denied from YaaKanban" }
         let out: [String: Any] = ["hookSpecificOutput": ["hookEventName": "PermissionRequest", "decision": decision]]

@@ -632,4 +632,144 @@ private func json(_ url: URL) throws -> [String: Any] {
         try write(#"{"version":1,"hooks":{}}"#, f)
         #expect(throws: IntegrationError.self) { try i.plan(install: true, home: h, yaak: yaak) }
     }
+
+    @Test func zcode() throws {
+        let h = try home([".zcode/cli"])
+        let i = ZCodeIntegration()
+        let f = h.appendingPathComponent(".zcode/cli/config.json")
+        try write(#"{"mcpServers":{"x":{"command":"mcp"}}}"#, f)
+        try roundTrip(i, h, [f])
+        try Installer.apply(try i.plan(install: true, home: h, yaak: yaak))
+        var root = try json(f)
+        var hooks = root["hooks"] as! [String: Any]
+        // No other hooks: switching the master switch on is ours to do.
+        #expect(hooks["enabled"] as? Bool == true)
+        let events = hooks["events"] as! [String: Any]
+        #expect(ours(events, "PermissionRequest").first?["timeout"] as? Int == Integrations.approvalTimeout + 10)
+        #expect(ours(events, "PermissionRequest").first?["timeoutMs"] as? Int == (Integrations.approvalTimeout + 10) * 1000)
+        #expect((events["PreToolUse"] as! [[String: Any]])[0]["matcher"] as? String == "*")
+        #expect(root["mcpServers"] != nil)
+        #expect(i.status(home: h, yaak: yaak) == .installed)
+        try Installer.apply(try i.plan(install: false, home: h, yaak: yaak))
+        #expect(try json(f)["hooks"] == nil)
+
+        // The user switched our Stop hook off: reinstalling keeps it off, and it is reported.
+        try Installer.apply(try i.plan(install: true, home: h, yaak: yaak))
+        root = try json(f); hooks = root["hooks"] as! [String: Any]
+        var ev = hooks["events"] as! [String: Any]
+        var stop = (ev["Stop"] as! [[String: Any]])[0]
+        var inner = stop["hooks"] as! [[String: Any]]; inner[0]["enabled"] = false; stop["hooks"] = inner
+        ev["Stop"] = [stop]; hooks["events"] = ev; root["hooks"] = hooks
+        try write(try JSONFile.render(root), f)
+        #expect(i.status(home: h, yaak: yaak) == .needsAuthorization)
+        #expect(try i.plan(install: true, home: h, yaak: "/other/yaak").first?.after?.contains(#""enabled" : false"#) == true)
+
+        // Someone else's hooks under a switch that is off: leave the switch to the user.
+        let h2 = try home([".zcode/cli"])
+        let f2 = h2.appendingPathComponent(".zcode/cli/config.json")
+        let foreign = #"{"hooks":{"enabled":false,"events":{"Stop":[{"hooks":[{"type":"process","command":"python3"}]}]}}}"#
+        try write(foreign, f2)
+        try Installer.apply(try i.plan(install: true, home: h2, yaak: yaak))
+        #expect((try json(f2)["hooks"] as! [String: Any])["enabled"] as? Bool == false)
+        #expect(i.status(home: h2, yaak: yaak) == .needsAuthorization)
+        try Installer.apply(try i.plan(install: false, home: h2, yaak: yaak))
+        #expect(NSDictionary(dictionary: try json(f2)).isEqual(to: try JSONSerialization.jsonObject(with: Data(foreign.utf8)) as! [String: Any]))
+
+        // A switch the user set is theirs, and uninstall gives back exactly what was there.
+        for original in [#"{"hooks":{"enabled":false}}"#, #"{"hooks":{"maxOutputBytes":100}}"#] {
+            try write(original, f2)
+            try Installer.apply(try i.plan(install: true, home: h2, yaak: yaak))
+            #expect((try json(f2)["hooks"] as! [String: Any])["enabled"] as? Bool == (original.contains("false") ? false : true))
+            try Installer.apply(try i.plan(install: false, home: h2, yaak: yaak))
+            #expect(NSDictionary(dictionary: try json(f2)).isEqual(to: try JSONSerialization.jsonObject(with: Data(original.utf8)) as! [String: Any]))
+        }
+
+        for bad in [#"{"hooks":[]}"#, #"{"hooks":{"events":{"Stop":"x"}}}"#] {
+            try write(bad, f2)
+            #expect(throws: IntegrationError.self) { try i.plan(install: true, home: h2, yaak: yaak) }
+        }
+    }
+
+    @Test func kiro() throws {
+        let h = try home([".kiro/hooks"])
+        let i = KiroIntegration()
+        let f = h.appendingPathComponent(".kiro/hooks/yaak.json")
+        try Installer.apply(try i.plan(install: true, home: h, yaak: yaak))
+        let root = try json(f)
+        #expect(root["version"] as? String == "v1")
+        let hooks = root["hooks"] as! [[String: Any]]
+        let pre = hooks.first { $0["trigger"] as? String == "PreToolUse" }!
+        #expect(pre["matcher"] as? String == "*" && pre["timeout"] as? Int == 5)
+        #expect((pre["action"] as? [String: Any])?["command"] as? String == "'\(yaak)' hook kiro PreToolUse")
+        #expect(i.status(home: h, yaak: yaak) == .installed)
+
+        let settings = h.appendingPathComponent(".kiro/settings/cli.json")
+        try write(#"{"chat.agentEngine":"v3"}"#, settings)
+        #expect(i.status(home: h, yaak: yaak) == .installed)
+        for v2 in [#"{"chat.agentEngine":"v2"}"#, #"{"chat":{"agentEngine":"v2"}}"#, #"{"chat.agentEngine":2}"#] {
+            try write(v2, settings)
+            #expect(i.status(home: h, yaak: yaak) == .needsAuthorization)
+        }
+        try write(#"{"chat":{"agentEngine":"V3"}}"#, settings)
+        #expect(i.status(home: h, yaak: yaak) == .installed)
+
+        try Installer.apply(try i.plan(install: false, home: h, yaak: yaak))
+        #expect(!FileManager.default.fileExists(atPath: f.path))
+        try write(#"{"version":"v1","hooks":[]}"#, f)
+        #expect(throws: IntegrationError.self) { try i.plan(install: true, home: h, yaak: yaak) }
+    }
+
+    @Test func kimi() throws {
+        let h = try home([".kimi-code"])
+        let i = KimiIntegration()
+        let f = h.appendingPathComponent(".kimi-code/config.toml")
+        let original = """
+        default_model = "kimi-k3"
+
+        [[hooks]]
+        event = "PreToolUse"
+        matcher = "Shell"
+        command = "guard.sh"
+
+        # model settings
+        [models.kimi-k3]
+        provider = "moonshot"
+
+        """
+        try write(original, f)
+        try Installer.apply(try i.plan(install: true, home: h, yaak: yaak))
+        let text = Installer.read(f)!
+        #expect(text.hasPrefix(original.trimmingCharacters(in: .newlines)))
+        #expect(text.contains("command = \"'\(yaak)' hook kimi PreToolUse\""))
+        #expect(text.components(separatedBy: "[[hooks]]").count - 1 == KimiIntegration.events.count + 1)
+        #expect(i.status(home: h, yaak: yaak) == .installed)
+        #expect(try i.plan(install: true, home: h, yaak: yaak).isEmpty)
+        #expect(i.status(home: h, yaak: "/other/yaak") == .outdated)
+        try Installer.apply(try i.plan(install: false, home: h, yaak: yaak))
+        #expect(Installer.read(f) == original)
+
+        // Installing into a fresh home creates the file; uninstalling removes it.
+        let h2 = try home([".kimi-code"])
+        try Installer.apply(try i.plan(install: true, home: h2, yaak: yaak))
+        try Installer.apply(try i.plan(install: false, home: h2, yaak: yaak))
+        #expect(!FileManager.default.fileExists(atPath: h2.appendingPathComponent(".kimi-code/config.toml").path))
+
+        // A matcher the user added to our table survives an update.
+        try write(original, f)
+        try Installer.apply(try i.plan(install: true, home: h, yaak: "/old/yaak"))
+        let edited = Installer.read(f)!.replacingOccurrences(of: "event = \"Stop\"", with: "event = \"Stop\" # mine\nmatcher = \"x\"")
+        try write(edited, f)
+        try Installer.apply(try i.plan(install: true, home: h, yaak: yaak))
+        let updated = Installer.read(f)!
+        #expect(!updated.contains("/old/yaak"))
+        #expect(updated.contains("hook kimi Stop\"\ntimeout = 5\nmatcher = \"x\""))
+        try Installer.apply(try i.plan(install: false, home: h, yaak: yaak))
+        #expect(Installer.read(f) == original)
+
+        for bad in ["hooks = []\n", "hooks.x = 1\n", "\"hooks\" = []\n", "[ hooks ]\n", "[\"hooks\".a]\n", "[[hooks.x]]\n"] {
+            try write(bad, f)
+            #expect(throws: IntegrationError.self) { try i.plan(install: true, home: h, yaak: yaak) }
+        }
+        #expect(KimiIntegration.quote("a\"b\\c") == #""a\"b\\c""#)
+    }
 }

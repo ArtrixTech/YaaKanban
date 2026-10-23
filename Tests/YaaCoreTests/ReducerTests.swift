@@ -1097,4 +1097,90 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(failed.latestTool?.isError == true && failed.latestTool?.output == "boom")
         #expect(Normalizer.normalize(copilot("sessionEnd", ["sessionId": .null])).isEmpty)
     }
+
+    private func kimi(_ event: String, _ fields: [String: JSONValue] = [:], at: TimeInterval = 0) -> HookEnvelope {
+        var p: [String: JSONValue] = ["session_id": .string("k1"), "cwd": .string("/tmp/proj"), "hook_event_name": .string(event)]
+        p.merge(fields) { $1 }
+        return env(.kimi, event, p, at: at)
+    }
+
+    @Test func kimiTurnAndPermission() {
+        let input: JSONValue = .object(["command": .string("rm -rf build")])
+        let tool: [String: JSONValue] = ["tool_name": .string("Shell"), "tool_input": input, "tool_call_id": .string("call_1")]
+        let s = fold([
+            kimi("SessionStart", ["source": .string("startup")]),
+            kimi("UserPromptSubmit", ["prompt": .string("clean up")], at: 1),
+            kimi("PreToolUse", tool, at: 2),
+            // Notify-only: never shown as waiting on the app, even if a stray awaiting key arrives.
+            kimi("PermissionRequest", tool.merging(["action": .string("run"), Normalizer.awaitingKey: .bool(true)]) { $1 }, at: 3),
+        ])
+        #expect(s.title == "clean up")
+        #expect(s.status == .needsInput && s.pendingPermission?.id == "call_1" && s.pendingPermission?.awaitingDecision == false)
+
+        let answered = fold([kimi("PermissionResult", ["tool_call_id": .string("call_1"), "decision": .string("approved")], at: 4)], into: s)
+        #expect(answered.status == .running && answered.pendingPermission == nil)
+
+        let done = fold([
+            kimi("PostToolUse", tool.merging(["tool_output": .string("removed")]) { $1 }, at: 5),
+            kimi("Stop", ["stop_hook_active": .bool(false)], at: 6),
+        ], into: answered)
+        #expect(done.latestTool?.isRunning == false && done.latestTool?.output == "removed")
+        #expect(done.status == .idle)
+
+        let failed = fold([
+            kimi("PreToolUse", tool),
+            kimi("PostToolUseFailure", tool.merging(["error": .object(["message": .string("denied")])]) { $1 }, at: 1),
+            kimi("Interrupt", at: 2),
+        ])
+        #expect(failed.latestTool?.isError == true && failed.latestTool?.output == "denied")
+        #expect(failed.status == .idle)
+    }
+
+    @Test func kimiPromptPartsAndSubagent() {
+        let parts: JSONValue = .array([.object(["type": .string("text"), "text": .string("fix")]),
+                                       .object(["type": .string("image_url"), "image_url": .string("x")]),
+                                       .object(["type": .string("text"), "text": .string("the build")])])
+        let agent: [String: JSONValue] = ["tool_name": .string("Agent"), "tool_input": .object([:]), "tool_call_id": .string("a1")]
+        let sub: [String: JSONValue] = ["tool_name": .string("Shell"), "tool_input": .object([:]), "tool_call_id": .string("s1")]
+        let s = fold([
+            kimi("UserPromptSubmit", ["prompt": parts]),
+            kimi("PreToolUse", agent, at: 1),
+            kimi("SubagentStart", ["agent_name": .string("coder")], at: 2),
+            kimi("PreToolUse", sub, at: 3),
+            kimi("PostToolUse", sub, at: 4),
+            // The sub-agent's own Stop: the parent turn goes on.
+            kimi("Stop", at: 5),
+        ])
+        #expect(s.title == "fix the build")
+        #expect(s.status == .running && s.subagents.map(\.id) == ["coder"])
+
+        let done = fold([
+            kimi("SubagentStop", ["agent_name": .string("coder")], at: 6),
+            kimi("PostToolUse", agent, at: 7),
+            kimi("Stop", at: 8),
+        ], into: s)
+        #expect(done.subagents.isEmpty && done.status == .idle)
+    }
+
+    @Test func zcodeAndKiro() {
+        let tmp = "/var/folders/x/zcode-hook-123.jsonl"
+        let z = Normalizer.normalize(env(.zcode, "Stop", ["session_id": .string("z1"), "hook_event_name": .string("Stop"),
+                                                         "transcript_path": .string(tmp), "last_assistant_message": .string("Done.")]))
+        #expect(z.count == 1 && z[0].transcriptPath == nil)
+        #expect(z.first?.kind == .turnEnd(lastMessage: "Done."))
+
+        // Kiro sends no tool id: start and end pair through the synthetic one.
+        let input: JSONValue = .object(["path": .string("README.md")])
+        func kiro(_ event: String, _ f: [String: JSONValue] = [:], at: TimeInterval = 0) -> HookEnvelope {
+            env(.kiro, event, ["session_id": .string("r1"), "hook_event_name": .string(event)].merging(f) { $1 }, at: at)
+        }
+        let s = fold([
+            kiro("UserPromptSubmit", ["prompt": .string("read it")]),
+            kiro("PreToolUse", ["tool_name": .string("read"), "tool_input": input], at: 1),
+            kiro("PostToolUse", ["tool_name": .string("read"), "tool_input": input, "tool_response": .string("hi")], at: 2),
+            kiro("Stop", at: 3),
+        ])
+        #expect(s.tools.count == 1 && s.latestTool?.isRunning == false && s.latestTool?.output == "hi")
+        #expect(s.status == .idle)
+    }
 }

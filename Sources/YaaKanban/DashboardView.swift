@@ -352,6 +352,9 @@ private struct AgentMix: View {
         case .droid: .brown
         case .copilot: .cyan
         case .gemini: .mint
+        case .zcode: .red
+        case .kiro: .purple
+        case .kimi: .gray
         }
     }
 

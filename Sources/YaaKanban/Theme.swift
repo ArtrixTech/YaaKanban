@@ -269,6 +269,9 @@ struct AgentLogo: View {
         case .droid: "droid"
         case .copilot: "copilot"
         case .gemini: "gemini"
+        case .zcode: "zcode"
+        case .kiro: "kiro"
+        case .kimi: "kimi"
         }
         guard let url = Bundle.main.resourceURL?.appendingPathComponent("AgentIcons/\(file).svg"),
               let img = NSImage(contentsOf: url) else { return nil }

@@ -55,6 +55,9 @@ there (a `.yaak.bak` backup is made first):
 | Droid | `~/.factory/hooks.json` (or `settings.json` `hooks` when that is where they live) |
 | Copilot CLI | `~/.copilot/hooks/yaak.json` |
 | Gemini CLI | `~/.gemini/settings.json` |
+| ZCode | `~/.zcode/cli/config.json` (`hooks.events`) |
+| Kiro CLI | `~/.kiro/hooks/yaak.json` (V3 engine) |
+| Kimi Code | `~/.kimi-code/config.toml` (`[[hooks]]`) |
 
 Hooks call `yaak hook <agent> <event>`, which forwards the event over a user-only Unix socket
 and returns at once; if the app is not running, events are spooled and replayed later. A hook

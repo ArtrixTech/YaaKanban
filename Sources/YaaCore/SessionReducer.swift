@@ -123,6 +123,8 @@ public enum SessionReducer {
             s.needsInputMessage = "\(req.tool): \(req.summary)"
 
         case .turnEnd(let last):
+            // Kimi sub-agents fire Stop under the parent's session id while its Agent call runs.
+            if s.agent == .kimi, s.tools.contains(where: { $0.isRunning && $0.name == "Agent" }) { break }
             endTurn(&s, at: e.at, lastMessage: last)
 
         case .sessionEnd:

@@ -56,7 +56,8 @@ public enum Integrations {
     public static let all: [any Integration] = [ClaudeIntegration(), CodexIntegration(), CursorIntegration(),
                                                 OpenCodeIntegration(), PiIntegration(), HermesIntegration(),
                                                 DeepSeekIntegration(), QwenIntegration(), DroidIntegration(),
-                                                CopilotIntegration(), GeminiIntegration()]
+                                                CopilotIntegration(), GeminiIntegration(), ZCodeIntegration(),
+                                                KiroIntegration(), KimiIntegration()]
 
     public static func named(_ agent: AgentKind) -> (any Integration)? { all.first { $0.agent == agent } }
 

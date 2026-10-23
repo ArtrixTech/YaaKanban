@@ -1,7 +1,7 @@
 import Foundation
 import YaaCore
 
-/// Agents whose hook files copy Claude's shape (`ClaudeShapedHooks`): Qwen Code, Gemini CLI and Factory Droid.
+/// Agents whose hook files copy Claude's shape (`ClaudeShapedHooks`): Qwen Code, Gemini CLI, Factory Droid and ZCode.
 /// Entries carry no marker key; they are recognised by command, like Codex's.
 
 public struct QwenIntegration: Integration {
@@ -142,5 +142,93 @@ public struct DroidIntegration: Integration {
             }
         }
         return changes
+    }
+}
+
+/// ZCode keeps user hooks in `~/.zcode/cli/config.json` under `hooks.events` (Claude's event map), and
+/// runs none of them until `hooks.enabled` is true. Each hook also has its own `enabled` switch.
+/// The file is ZCode's whole CLI config, so only `hooks` is touched.
+public struct ZCodeIntegration: Integration {
+    public let agent = AgentKind.zcode
+    public init() {}
+    public var postInstallNote: String? { "ZCode 在会话开始时读取 hook 配置：装好后新开的会话才会上报。" }
+
+    static let events: [(name: String, timeout: Int)] = [
+        "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "Stop",
+    ].map { ($0, 5) } + [("PermissionRequest", Integrations.approvalTimeout + 10)]
+
+    func file(_ home: URL) -> URL { home.appendingPathComponent(".zcode/cli/config.json") }
+    public func isDetected(home: URL) -> Bool { FileManager.default.fileExists(atPath: home.appendingPathComponent(".zcode").path) }
+    public func isInstalled(home: URL) -> Bool { JSONFile.containsOurs(file(home)) }
+
+    public func pendingSteps(home: URL) -> [String] {
+        guard let hooks = (try? JSONFile.load(file(home)).root)?["hooks"] as? [String: Any] else { return [] }
+        if hooks["enabled"] as? Bool != true {
+            return ["ZCode 的 hook 总开关没开（~/.zcode/cli/config.json 的 hooks.enabled）。",
+                    "在 ZCode 的 设置 → Hooks 里打开，或把 hooks.enabled 改成 true，再回到这里点「重新检查」。"]
+        }
+        let off = Self.disabledEvents(hooks["events"] as? [String: Any] ?? [:])
+        guard !off.isEmpty else { return [] }
+        return ["YaaKanban 的 \(off.sorted().joined(separator: "、")) hook 在 ZCode 里被关掉了。",
+                "在 ZCode 的 设置 → Hooks 里重新打开，再回到这里点「重新检查」。"]
+    }
+
+    /// Events whose hook of ours is switched off.
+    static func disabledEvents(_ events: [String: Any]) -> Set<String> {
+        Set(events.compactMap { event, groups in
+            (groups as? [[String: Any]] ?? []).contains { g in
+                (g["hooks"] as? [[String: Any]] ?? []).contains {
+                    HookCommand.isOurs($0["command"] as? String ?? "") && $0["enabled"] as? Bool == false
+                }
+            } ? event : nil
+        })
+    }
+
+    public func plan(install: Bool, home: URL, yaak: String) throws -> [FileChange] {
+        let url = file(home)
+        let root = try JSONFile.load(url).root
+        if root["hooks"] != nil && !(root["hooks"] is [String: Any])
+            || (root["hooks"] as? [String: Any])?["events"].map({ !($0 is [String: Any]) }) == true {
+            throw IntegrationError.refused("hooks in \(url.path) is not an object; refusing to edit it")
+        }
+        let existing = (root["hooks"] as? [String: Any])?["events"] as? [String: Any] ?? [:]
+        if let bad = existing.first(where: { !($0.value is [Any]) })?.key {
+            throw IntegrationError.refused("hooks.events.\(bad) in \(url.path) is not an array; refusing to edit it")
+        }
+        return try JSONFile.plan(url) { root in
+            var hooks = root["hooks"] as? [String: Any] ?? [:]
+            let events = hooks["events"] as? [String: Any] ?? [:]
+            let off = Self.disabledEvents(events)
+            var wrapped: [String: Any] = ["hooks": events]
+            ClaudeShapedHooks.edit(&wrapped, events: Self.events, command: { HookCommand.make(yaak: yaak, agent: agent, event: $0) },
+                                   install: install, marker: [:])
+            var edited = wrapped["hooks"] as? [String: Any] ?? [:]
+            // Keep a hook the user switched off switched off; give our groups a catch-all matcher.
+            for (event, groups) in edited {
+                edited[event] = (groups as? [[String: Any]] ?? []).map { g in
+                    var g = g
+                    let inner = g["hooks"] as? [[String: Any]] ?? []
+                    guard inner.contains(where: { HookCommand.isOurs($0["command"] as? String ?? "") }) else { return g }
+                    if g["matcher"] == nil { g["matcher"] = "*" }
+                    // The documented timeout is in seconds; timeoutMs, if read, wins and says the same.
+                    g["hooks"] = inner.map { h in
+                        var h = h
+                        guard HookCommand.isOurs(h["command"] as? String ?? "") else { return h }
+                        if let t = h["timeout"] as? Int { h["timeoutMs"] = t * 1000 }
+                        if off.contains(event) { h["enabled"] = false }
+                        return h
+                    }
+                    return g
+                }
+            }
+            let foreign = !DroidIntegration.definedEvents(edited).isEmpty
+            hooks["events"] = edited.isEmpty ? nil : edited
+            // Turn the switch on only when nobody has set it and no other hook would start running;
+            // otherwise it is the user's call, and pendingSteps asks for it.
+            if install && !foreign && hooks["enabled"] == nil { hooks["enabled"] = true }
+            // With no hooks left, an `enabled: true` (likely ours) switches nothing on; take it back.
+            if !install && hooks["events"] == nil && hooks["enabled"] as? Bool == true { hooks["enabled"] = nil }
+            root["hooks"] = hooks.isEmpty ? nil : hooks
+        }
     }
 }

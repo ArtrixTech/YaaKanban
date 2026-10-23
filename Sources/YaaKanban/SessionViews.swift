@@ -15,6 +15,9 @@ extension AgentKind {
         case .droid: "d.circle"
         case .copilot: "airplane"
         case .gemini: "sparkle"
+        case .zcode: "z.circle"
+        case .kiro: "k.circle"
+        case .kimi: "moon"
         }
     }
 }

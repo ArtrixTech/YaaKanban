@@ -12,6 +12,9 @@ public enum AgentKind: String, Codable, CaseIterable, Sendable {
     case droid
     case copilot
     case gemini
+    case zcode
+    case kiro
+    case kimi
 
     public var displayName: String {
         switch self {
@@ -26,6 +29,9 @@ public enum AgentKind: String, Codable, CaseIterable, Sendable {
         case .droid: return "Droid"
         case .copilot: return "Copilot CLI"
         case .gemini: return "Gemini CLI"
+        case .zcode: return "ZCode"
+        case .kiro: return "Kiro CLI"
+        case .kimi: return "Kimi Code"
         }
     }
 }
@@ -309,6 +315,10 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
         case .droid: return "droid --resume \(id)"
         case .copilot: return "copilot --resume \(id)"
         case .gemini: return "gemini --resume \(id)"
+        // ZCode is a desktop app with no resume command.
+        case .zcode: return nil
+        case .kiro: return "kiro-cli chat --resume-id \(id)"
+        case .kimi: return "kimi --session \(id)"
         }
     }
 

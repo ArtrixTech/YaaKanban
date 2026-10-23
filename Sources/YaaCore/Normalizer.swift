@@ -2,8 +2,8 @@ import Foundation
 
 /// Turns a raw hook envelope into agent-neutral events.
 ///
-/// Claude Code, Codex, DeepSeek dsh (through its Claude hooks bridge), Qwen Code and Droid share the
-/// Claude hook schema; Gemini CLI and Copilot CLI are renamed into it. Cursor and Hermes have their own. OpenCode and pi
+/// Claude Code, Codex, DeepSeek dsh (through its Claude hooks bridge), Qwen Code, Droid, ZCode and Kiro CLI
+/// share the Claude hook schema; Gemini CLI, Copilot CLI and Kimi Code are renamed into it. Cursor and Hermes have their own. OpenCode and pi
 /// run YaaKanban's own plugin, which emits the "yaak" schema (see `Plugins.swift`).
 public enum Normalizer {
     /// Payload key the CLI adds when it is blocking on a permission decision.
@@ -14,9 +14,11 @@ public enum Normalizer {
 
     public static func normalize(_ env: HookEnvelope) -> [AgentEvent] {
         switch env.agent {
-        case .claudeCode, .codex, .deepseek, .qwen, .droid: return claudeSchema(env)
+        case .claudeCode, .codex, .deepseek, .qwen, .droid, .kiro: return claudeSchema(env)
+        case .zcode: return claudeSchema(withoutTranscript(env))
         case .gemini: return claudeSchema(geminiAsClaude(env))
         case .copilot: return claudeSchema(copilotAsClaude(env))
+        case .kimi: return kimiSchema(env)
         case .hermes: return hermesSchema(env)
         case .cursor: return cursorSchema(env)
         case .opencode, .pi: return yaakSchema(env)
@@ -166,6 +168,51 @@ public enum Normalizer {
         var e = env
         e.payload = .object(o)
         return e
+    }
+
+    /// ZCode's `transcript_path` is a temporary file it deletes after the hook runs.
+    static func withoutTranscript(_ env: HookEnvelope) -> HookEnvelope {
+        guard var o = env.payload.object else { return env }
+        o["transcript_path"] = nil
+        var e = env
+        e.payload = .object(o)
+        return e
+    }
+
+    // MARK: Kimi Code
+
+    /// Kimi's external hooks use Claude's event names with `tool_call_id`, `tool_output` and an error
+    /// object. Its PermissionRequest is fire-and-forget; PermissionResult reports the user's answer.
+    static func kimiSchema(_ env: HookEnvelope) -> [AgentEvent] {
+        guard var o = env.payload.object else { return [] }
+        let event = o["hook_event_name"]?.string ?? env.event
+        switch event {
+        case "PermissionResult":
+            guard let sid = o["session_id"]?.string else { return [] }
+            return [AgentEvent(agent: .kimi, sessionId: sid, at: env.receivedAt, kind: .inputAnswered,
+                               cwd: o["cwd"]?.string ?? env.cwd, transcriptPath: nil,
+                               agentPid: env.agentPid, terminal: env.terminal)]
+        // Sub-agent events carry only a name; it pairs start with stop well enough for display.
+        case "SubagentStart", "SubagentStop":
+            o["agent_id"] = o["agent_name"]
+            o["agent_type"] = o["agent_name"]
+            o["hook_event_name"] = .string(event)
+        // An interrupted or failed turn fires these instead of Stop.
+        case "Interrupt", "StopFailure": o["hook_event_name"] = .string("Stop")
+        default: o["hook_event_name"] = .string(event)
+        }
+        // The prompt is a list of content parts; keep the text ones.
+        if case .array(let parts)? = o["prompt"] {
+            let text = parts.compactMap { $0["type"]?.string == "text" ? $0["text"]?.string : nil }
+            o["prompt"] = .string(text.joined(separator: " "))
+        }
+        if o["tool_use_id"] == nil { o["tool_use_id"] = o["tool_call_id"] }
+        if o["tool_response"] == nil { o["tool_response"] = o["tool_output"] }
+        if case .object(let err)? = o["error"] { o["error"] = err["message"] ?? .string("error") }
+        o[awaitingKey] = nil
+        var e = env
+        e.payload = .object(o)
+        return claudeSchema(e)
     }
 
     // MARK: Cursor
