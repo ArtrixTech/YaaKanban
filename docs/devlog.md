@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(feedback): add opt-in daily telemetry and prefilled issue feedback
+## fix(telemetry): address the adversarial review of the telemetry branch
 
 `pending` | 2026-10-23
+
+- **Changes**: day keys use a fixed Gregorian calendar in the local zone (`Telemetry.calendar`); `pending` only returns days within the last 7 calendar days (`Telemetry.day(_:minus:)`); `TelemetryLedger.update` takes an `flock` on `telemetry.json.lock`; `tick` notes, picks and marks sent in one locked update; reporter re-marks today after an off/on from `yaak`. Consent prompt runs from a Timer, menu `done` from `RunLoop.main.perform`, instead of GCD blocks. `yaak telemetry status` says DO_NOT_TRACK in a shell does not reach the app; `doctor` reports the ledger state. Validator: bucket allow-list, real calendar dates, `+` in versions; comment states names are pattern-checked. docs/telemetry.md wording for DNT and 查看.
+- **Reason**: review findings: non-Gregorian system calendars produced keys like `2569-10-22` (all rejected, and `pending` stuck after switching back); a modal alert inside a main-queue block stalled every `@MainActor` Task (ingest, permission requests); days older than 10 were sent then refused; CLI/app lost updates could undo `off`.
+- **User feedback**: "修复问题，并支持tmtdeck"
+- **Process**: modal stall reproduced in a scratch app: modal from a GCD block ran 0 MainActor Tasks in 1.5 s, from a Timer or `RunLoop.perform` 15. Lock ablation: without `flock` 200 concurrent updates kept 33, with it 200. `make test` 118 pass; `npm test` 3 pass. End to end against local `wrangler dev`: yesterday sent (one D1 row), a 12-day-old day dropped unsent.
+- **Result**: all high/medium findings fixed; low ones fixed except the westward-midnight edge (a day can be skipped; safe for privacy).
+- **Notes**: alerts opened directly from SwiftUI button actions (AppModel rename etc.) are not inside a GCD block and were left as they are.
+
+## feat(feedback): add opt-in daily telemetry and prefilled issue feedback
+
+`440c4ee` | 2026-10-23
 
 - **Changes**: spec §6 (feedback & telemetry decisions), §1 notes the only network traffic. YaaCore `Telemetry.swift`: `TelemetryEvent` (fixed counters, jump by terminal kind), `TelemetrySetting`, `TelemetryReport` (schema 1), `TelemetryFigures` (sessions/turns per agent from turns started that day), buckets, day keys, `DO_NOT_TRACK`, `TelemetryLedger` (`Paths.telemetry` = `telemetry.json`: consent, asked, install id, per-day counts, lastSent; read-modify-write). YaaIntegrations `Feedback.swift`: `Diagnostics` (versions, integration status, app listening, spool, db size, telemetry; no paths) and `Feedback.issueURL` (issue-form template + `diagnostics` field). App: `TelemetryReporter` (counts, tick sends each finished day once via ephemeral URLSession, preview, consent alert 3 s after first launch of a build with an endpoint), `FeedbackPrompt` (diagnostics shown, optional, then GitHub issue), menu 反馈…, settings 隐私与反馈 (toggle, 查看, 重置 id, 反馈…; replaces the About issue link). Counters in AppModel (jump, resume, approvals, rename, pin, spool replay), panel toggle, settings installs. `yaak doctor`, `yaak telemetry status|on|off`. `Info.plist` `YaakTelemetryEndpoint` (empty), `bundle.sh` sets it from `YAAK_TELEMETRY_ENDPOINT`. `.github/ISSUE_TEMPLATE` bug/feature forms. `docs/telemetry.md` lists every field. README, Architecture updated.
 - **Reason**: understand usage anonymously and give users a feedback path, without breaking the local-first promise.

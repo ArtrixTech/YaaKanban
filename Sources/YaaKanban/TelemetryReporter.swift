@@ -59,12 +59,21 @@ final class TelemetryReporter {
         let day = Telemetry.dayKey(now)
         guard isOn, noted != day else { return }
         noted = day
-        l = TelemetryLedger.update(url) { $0.note(day: day) }
-        let due = l.pending(today: day)
-        guard let last = due.last, let id = l.installId, let endpoint else { return }
-        TelemetryLedger.update(url) { $0.sent(through: last) }
+        // One locked update, so a `yaak telemetry off` cannot slip between reading and marking sent.
+        var due: [(day: String, counts: [String: Int])] = []
+        var id: String?
+        TelemetryLedger.update(url) { l in
+            guard l.enabled else { return }
+            l.note(day: day)
+            let p = l.pending(today: day)
+            guard let last = p.last else { return }
+            due = p.map { ($0, l.days[$0] ?? [:]) }
+            id = l.installId
+            l.sent(through: last)
+        }
+        guard let id, let endpoint else { return }
         for d in due {
-            guard let r = build?(d, l.days[d] ?? [:], id) else { continue }
+            guard let r = build?(d.day, d.counts, id) else { continue }
             var req = URLRequest(url: endpoint, timeoutInterval: 15)
             req.httpMethod = "POST"
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -73,7 +82,7 @@ final class TelemetryReporter {
         }
     }
 
-    /// Today's report so far, as it would be sent.
+    /// Today's report so far; setup and settings are as of now, as they would be at send time.
     func preview() -> String {
         let l = TelemetryLedger.load(url)
         let day = Telemetry.dayKey(Date())
@@ -82,7 +91,8 @@ final class TelemetryReporter {
     }
 
     private func apply(_ l: TelemetryLedger) {
-        if enabled != l.enabled { enabled = l.enabled }
+        // Turned off and on again (say from `yaak`) since this launch marked today: mark it again.
+        if enabled != l.enabled { enabled = l.enabled; noted = nil }
         if installId != l.installId { installId = l.installId }
     }
 

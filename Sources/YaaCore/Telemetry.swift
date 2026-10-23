@@ -132,9 +132,14 @@ public struct TelemetryLedger: Codable, Equatable, Sendable {
         try? JSONEncoder().encode(self).write(to: url, options: .atomic)
     }
 
-    /// Re-reads, changes and writes back, so the other writer's edits survive.
+    /// Re-reads, changes and writes back under a lock, so the other writer's edits survive (an
+    /// `off` from `yaak` racing the app's write must not be undone).
     @discardableResult
     public static func update(_ url: URL, _ f: (inout TelemetryLedger) -> Void) -> TelemetryLedger {
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let fd = open(url.path + ".lock", O_CREAT | O_RDWR, 0o600)
+        if fd >= 0 { flock(fd, LOCK_EX) }
+        defer { if fd >= 0 { flock(fd, LOCK_UN); close(fd) } }
         var l = load(url)
         f(&l)
         l.save(url)
@@ -158,10 +163,11 @@ public struct TelemetryLedger: Codable, Equatable, Sendable {
         days[day] = d
     }
 
-    /// Finished days not yet reported, oldest first, at most the last `Telemetry.maxPendingDays`.
+    /// Finished days not yet reported, oldest first, from the last `Telemetry.maxPendingDays`
+    /// calendar days only (the server refuses older ones).
     public func pending(today: String) -> [String] {
-        let done = days.keys.filter { d in d < today && lastSent.map { d > $0 } ?? true }.sorted()
-        return Array(done.suffix(Telemetry.maxPendingDays))
+        let floor = Telemetry.day(today, minus: Telemetry.maxPendingDays) ?? today
+        return days.keys.filter { d in d >= floor && d < today && lastSent.map { d > $0 } ?? true }.sorted()
     }
 
     /// Reported (or dropped) up to `day`: those days and anything older go.
@@ -235,17 +241,34 @@ public enum Telemetry {
         return (try? enc.encode(r)) ?? Data()
     }
 
+    /// Gregorian in the local time zone: day keys must not follow a Buddhist or Japanese system
+    /// calendar, since the server and the ledger's ordering read them as Gregorian.
+    public static var calendar: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = .current
+        return c
+    }
+
     /// `yyyy-MM-dd` of the local day containing `date`.
-    public static func dayKey(_ date: Date, calendar: Calendar = .current) -> String {
+    public static func dayKey(_ date: Date, calendar: Calendar = Telemetry.calendar) -> String {
         let c = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
 
     /// The local day a key names.
-    public static func interval(ofDay key: String, calendar: Calendar = .current) -> DateInterval? {
+    public static func interval(ofDay key: String, calendar: Calendar = Telemetry.calendar) -> DateInterval? {
         let p = key.split(separator: "-").compactMap { Int($0) }
         guard p.count == 3, let d = calendar.date(from: DateComponents(year: p[0], month: p[1], day: p[2])) else { return nil }
         return calendar.dateInterval(of: .day, for: d)
+    }
+
+    /// The key `n` days before `key`.
+    public static func day(_ key: String, minus n: Int) -> String? {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        guard let d = interval(ofDay: key, calendar: utc)?.start,
+              let e = utc.date(byAdding: .day, value: -n, to: d) else { return nil }
+        return dayKey(e, calendar: utc)
     }
 
     /// `DO_NOT_TRACK` set to anything but empty or `0`.

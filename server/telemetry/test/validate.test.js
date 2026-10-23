@@ -17,6 +17,7 @@ test("accepts a report as the app sends it", () => {
   assert.equal(error, undefined);
   assert.equal(row.day, "2026-10-22");
   assert.deepEqual(JSON.parse(row.report), good());
+  assert.equal(validate({ ...good(), app: "0.1.0-beta+3" }, now).error, undefined);
 });
 
 test("rejects unknown or malformed fields", () => {
@@ -32,6 +33,8 @@ test("rejects unknown or malformed fields", () => {
     (b) => { b.counts = { "Prompt Text": 1 }; },
     (b) => { b.figures = { agent_hours: "3.14159265" }; },
     (b) => { b.figures = { "turns.my project": "1" }; },
+    (b) => { b.figures = { agent_hours: "9999999" }; },
+    (b) => { b.day = "2026-10-32"; },
   ];
   for (const mutate of cases) {
     const b = good();

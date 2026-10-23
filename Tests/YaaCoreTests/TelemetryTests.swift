@@ -49,16 +49,31 @@ private let env = TelemetryEnvironment(app: "0.1.0", build: "1", os: "15", arch:
         // A day noted again after being reported is not sent twice.
         l.note(day: "2026-10-09")
         #expect(!l.pending(today: "2026-10-12").contains("2026-10-09"))
+        // A day more than seven calendar days back is never sent (the server would refuse it).
+        l.note(day: "2026-10-11")
+        #expect(l.pending(today: "2026-10-18") == ["2026-10-11"])
+        #expect(l.pending(today: "2026-10-19").isEmpty)
     }
 
     @Test func roundTripsThroughDisk() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("yaak-tel-\(UUID().uuidString).json")
-        defer { try? FileManager.default.removeItem(at: url) }
+        defer { try? FileManager.default.removeItem(at: url); try? FileManager.default.removeItem(atPath: url.path + ".lock") }
         #expect(TelemetryLedger.load(url) == TelemetryLedger())
         TelemetryLedger.update(url) { $0.set(enabled: true) }
         TelemetryLedger.update(url) { $0.note(.pin, day: "2026-10-22") }
         let l = TelemetryLedger.load(url)
         #expect(l.enabled && l.days["2026-10-22"] == ["pin": 1])
+    }
+
+    /// The app and `yaak` both write the file; concurrent updates must not lose each other's edits.
+    @Test func concurrentUpdatesAllLand() {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("yaak-tel-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url); try? FileManager.default.removeItem(atPath: url.path + ".lock") }
+        TelemetryLedger.update(url) { $0.set(enabled: true) }
+        DispatchQueue.concurrentPerform(iterations: 200) { _ in
+            TelemetryLedger.update(url) { $0.note(.pin, day: "2026-10-22") }
+        }
+        #expect(TelemetryLedger.load(url).days["2026-10-22"]?["pin"] == 200)
     }
 }
 
@@ -133,6 +148,12 @@ private let env = TelemetryEnvironment(app: "0.1.0", build: "1", os: "15", arch:
         #expect(Telemetry.dayKey(d, calendar: utc) == "1970-01-04")
         #expect(Telemetry.interval(ofDay: "1970-01-04", calendar: utc)?.contains(d) == true)
         #expect(Telemetry.interval(ofDay: "bad", calendar: utc) == nil)
+        #expect(Telemetry.day("2026-03-02", minus: 7) == "2026-02-23")
+        // Keys stay Gregorian whatever calendar the user picked in System Settings.
+        #expect(Telemetry.calendar.identifier == .gregorian)
+        var buddhist = Calendar(identifier: .buddhist)
+        buddhist.timeZone = TimeZone(identifier: "UTC")!
+        #expect(Telemetry.dayKey(d, calendar: buddhist) != "1970-01-04")
     }
 
     @Test func doNotTrackAndJumpKinds() {

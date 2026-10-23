@@ -115,10 +115,12 @@ struct MenuContent: View {
         return parts.isEmpty ? "没有进行中的会话" : parts.joined(separator: " · ")
     }
 
-    /// Closes the popover, then acts (a window opened behind it would be hidden by it).
+    /// Closes the popover, then acts (a window opened behind it would be hidden by it). Not a GCD
+    /// block: a modal alert run inside one stalls every main-actor Task until it is closed.
     private func done(_ action: @escaping () -> Void) {
         NSApp.keyWindow?.close()
-        DispatchQueue.main.async(execute: action)
+        nonisolated(unsafe) let action = action
+        RunLoop.main.perform(inModes: [.common]) { MainActor.assumeIsolated { action() } }
     }
 }
 

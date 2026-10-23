@@ -156,7 +156,7 @@ func runDoctor() -> Never {
     let up = UnixSocket.send(Wire.encode(["ping": true]), to: paths.socket.path).sent
     let d = Diagnostics.gather(paths: paths, home: Paths.home(env), yaak: selfPath(),
                                env: TelemetryEnvironment.current(bundle: appBundle() ?? .main), appListening: up,
-                               telemetry: TelemetryLedger.load(paths.telemetry).enabled && !Telemetry.doNotTrack(env))
+                               telemetry: TelemetryLedger.load(paths.telemetry).enabled)
     print(d.markdown)
     exit(0)
 }
@@ -172,7 +172,9 @@ func runTelemetry() -> Never {
         print("telemetry: off (counts cleared)")
     case "status":
         let l = TelemetryLedger.load(paths.telemetry)
-        let state = Telemetry.doNotTrack(env) ? "off (DO_NOT_TRACK)" : l.enabled ? "on" : "off"
+        // The app, launched from Finder or at login, does not see this shell's DO_NOT_TRACK.
+        let state = !l.enabled ? "off" : Telemetry.doNotTrack(env)
+            ? "on (DO_NOT_TRACK in this shell does not reach the app; run `yaak telemetry off`)" : "on"
         print("telemetry: \(state)")
         if l.enabled, let id = l.installId { print("install id: \(id)") }
         if let s = l.lastSent { print("last reported day: \(s)") }
