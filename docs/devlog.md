@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(telemetry): send daily reports to TelemetryDeck instead of a Worker
+## feat(telemetry): ship the TelemetryDeck App ID in Info.plist
 
 `pending` | 2026-10-23
+
+- **Changes**: `Resources/Info.plist` `YaakTelemetryDeckAppID` = the YaaKanban app's TelemetryDeck App ID (`YAAK_TELEMETRYDECK_APP_ID` still overrides at bundle time). Test that the shipped plist holds a UUID App ID. docs/telemetry.md says where the ID lives.
+- **Reason**: every `make app` / release build should ask and send without remembering an env var; the App ID is public (it ships in every bundle).
+- **User feedback**: "帮我改代码，确保未来版本可以正常使用。做pr。"
+- **Process**: before this, real ingest checked: debug bundle (App ID via env), temp HOME/YAAK_HOME, seeded yesterday: sent and marked `lastSent`; curl of the same signal shape to `nom.telemetrydeck.com/v2/` → 200 `OK`, malformed body → 422. `make test` 119 pass; ablation: blanking the plist ID fails the new test. `make app` bundle carries the ID; `yaak telemetry status` says configured.
+- **Result**: release builds from the repo send to TelemetryDeck once the user opts in.
+- **Notes**: the app does not check the ingest response (fire and forget, per spec); confirm arrivals in the TelemetryDeck dashboard (debug builds under Test Mode).
+
+## feat(telemetry): send daily reports to TelemetryDeck instead of a Worker
+
+`eb877fe` | 2026-10-23
 
 - **Changes**: new `YaaCore/TelemetryDeck.swift`: `TelemetryDeckSignal` maps a `TelemetryReport` to one `Yaak.daily` signal (ingest v2 `https://nom.telemetrydeck.com/v2/`, body = array of signals, dates `yyyy-MM-dd'T'HH:mm:ssZ` UTC), payload as string tags (`Yaak.day`, `Yaak.integration.*`, `Yaak.setting.*` on/off, `Yaak.count.*` bucketed, `Yaak.figure.*`, TelemetryDeck's own version/OS/arch/language names), `clientUser` = SHA-256 of the install id. Reporter: App ID from `Info.plist` `YaakTelemetryDeckAppID` (defaults override, plus `YaakTelemetryIngestURL` for testing), one POST per tick for all due days, debug builds in test mode, 查看 shows the signal. `bundle.sh` reads `YAAK_TELEMETRYDECK_APP_ID`. `yaak telemetry status` says whether an App ID is configured. Removed `server/telemetry` (Worker, validator, fixture test). Spec §6 backend revised; docs/telemetry.md, Architecture updated; consent and settings text name TelemetryDeck.
 - **Reason**: the user did not want to deploy and run a server.

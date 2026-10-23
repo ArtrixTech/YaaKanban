@@ -37,5 +37,6 @@ per report, type `Yaak.daily`. The fields above become string tags: `Yaak.day`, 
 language. `install_id` is not sent as is: the signal's user is its SHA-256, which TelemetryDeck
 salts and hashes again; it stores no IP address. Settings › 查看 shows the signal itself.
 
-The build reads the App ID from `Info.plist` (`YaakTelemetryDeckAppID`), set at bundle time
-from `YAAK_TELEMETRYDECK_APP_ID`. Builds without it send nothing.
+The build reads the App ID from `Info.plist` (`YaakTelemetryDeckAppID`), committed in
+`Resources/Info.plist`; `YAAK_TELEMETRYDECK_APP_ID` replaces it at bundle time (an empty value
+there is ignored). A bundle whose App ID is empty sends nothing.

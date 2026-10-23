@@ -168,3 +168,13 @@ private let env = TelemetryEnvironment(app: "0.1.0", build: "1", os: "15", arch:
         #expect(TelemetryEvent.jump(nil) == .jumpUnknown)
     }
 }
+
+/// Release bundles copy `Resources/Info.plist`; without an App ID they would never ask or send.
+@Test func shippedInfoPlistHasTelemetryDeckAppID() throws {
+    let plist = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent("Resources/Info.plist")
+    let info = try #require(NSDictionary(contentsOf: plist))
+    let id = try #require(info[Telemetry.appIDKey] as? String)
+    #expect(UUID(uuidString: id) != nil)
+}
