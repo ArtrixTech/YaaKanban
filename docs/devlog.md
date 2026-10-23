@@ -1,8 +1,19 @@
 # Devlog
 
+## feat(telemetry): add the Worker that stores daily reports
+
+`pending` | 2026-10-23
+
+- **Changes**: `server/telemetry`: Cloudflare Worker (`POST /v1/daily`), strict validator (`src/validate.js`: known fields only, UUID id, day within −2…+10 days, short version strings, bounded maps, bucket-shaped figures), D1 schema with one row per (install_id, day), README covering deploy, queries and free-tier notes. Node tests, including a fixture the Swift tests write.
+- **Reason**: phase 2 of the telemetry plan; the user chose a self-hosted backend.
+- **User feedback**: "先做1-2阶段。… 3自建，免费用量应该足够？ 4要"
+- **Process**: `npm test` (3 pass); `wrangler@4.20.0 dev --local` + local D1: a valid report gives 204, a resend of the same day stays one row, an unknown field gives 400, GET gives 405.
+- **Result**: ready to deploy; `database_id` in `wrangler.toml` is a placeholder.
+- **Notes**: no IP stored; rate limiting is left to a Cloudflare WAF rule (README). Bump `schema` and update the validator and fixture together.
+
 ## feat(panel): show the leverage direction arrow on the panel
 
-`pending` | 2026-10-22
+`aeada89` | 2026-10-22
 
 - **Changes**: RecentFigures' unfolded branch puts the slim rail's direction arrow (up/level/down from `direction(trend)`) beside the 杠杆 caption; spec notes it.
 - **Reason**: the expanded panel showed the curve but not the at-a-glance direction.

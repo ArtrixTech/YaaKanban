@@ -1,0 +1,9 @@
+name = "yaakanban-telemetry"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "yaakanban-telemetry"
+# Fill in after `npx wrangler d1 create yaakanban-telemetry`.
+database_id = "REPLACE_WITH_DATABASE_ID"
