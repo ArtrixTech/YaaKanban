@@ -982,3 +982,43 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(Normalizer.notifiedTasks("see <task-id>a1</task-id>").isEmpty)
     }
 }
+
+@Suite struct HermesFlow {
+    private func hermes(_ event: String, _ extra: [String: JSONValue] = [:], tool: String? = nil,
+                        input: JSONValue = .null, at: TimeInterval = 0) -> HookEnvelope {
+        var p: [String: JSONValue] = ["hook_event_name": .string(event), "session_id": .string("h1"),
+                                      "cwd": .string("/tmp/proj"), "tool_input": input, "extra": .object(extra)]
+        p["tool_name"] = tool.map(JSONValue.string) ?? .null
+        return HookEnvelope(agent: .hermes, event: event, receivedAt: t0.addingTimeInterval(at), payload: .object(p))
+    }
+
+    @Test func turnWithToolAndInterrupt() {
+        let s = fold([
+            hermes("pre_llm_call", ["user_message": .string("list files"), "is_first_turn": .bool(true)]),
+            hermes("pre_tool_call", ["tool_call_id": .string("c1")], tool: "terminal",
+                   input: .object(["command": .string("ls")]), at: 1),
+            hermes("post_tool_call", ["tool_call_id": .string("c1"), "status": .string("ok"), "result": .string("a b")],
+                   tool: "terminal", input: .object(["command": .string("ls")]), at: 2),
+            hermes("post_llm_call", ["assistant_response": .string("Two files.")], at: 3),
+            hermes("on_session_end", ["completed": .bool(true)], at: 4),
+        ])
+        #expect(s.title == "list files")
+        #expect(s.latestTool?.isRunning == false)
+        #expect(s.status == .idle)
+        #expect(s.lastReply == "Two files.")
+        #expect(s.resumeCommand == "hermes --resume 'h1'" || s.resumeCommand == "hermes --resume h1")
+
+        let ended = fold([hermes("on_session_finalize", at: 5)], into: s)
+        #expect(ended.status == .ended)
+    }
+
+    @Test func failedToolAndEmptySession() {
+        let evs = Normalizer.normalize(hermes("post_tool_call", ["status": .string("error"), "error_message": .string("boom")],
+                                              tool: "terminal", input: .object(["command": .string("x")])))
+        guard case .toolEnd(_, _, let out, let isError) = evs.first?.kind else { Issue.record("no toolEnd"); return }
+        #expect(isError && out == "boom")
+        var e = hermes("pre_llm_call")
+        if case .object(var o) = e.payload { o["session_id"] = .string(""); e.payload = .object(o) }
+        #expect(Normalizer.normalize(e).isEmpty)
+    }
+}

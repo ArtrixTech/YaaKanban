@@ -9,6 +9,8 @@ extension AgentKind {
         case .cursor: "cursorarrow"
         case .opencode: "curlybraces"
         case .pi: "p.circle"
+        case .hermes: "h.circle"
+        case .deepseek: "fish"
         }
     }
 }
@@ -103,6 +105,10 @@ struct SessionCard: View {
                 // 2: agent, project, status, stats.
                 HStack(spacing: 5) {
                     AgentLogo(agent: session.agent, size: 12)
+                    if model.integrationIssues[session.agent] != nil {
+                        Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 9)).foregroundStyle(.yellow)
+                            .help("\(session.agent.displayName) 有 hook 没授权，状态可能不全。到设置里看步骤。")
+                    }
                     if let p = session.projectName {
                         Text(p).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
                     }

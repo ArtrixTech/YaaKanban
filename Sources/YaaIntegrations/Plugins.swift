@@ -20,7 +20,7 @@ extension PluginFileIntegration {
         let url = file(home)
         let before = Installer.read(url)
         if let before, !before.contains(PluginSource.marker) {
-            throw IntegrationError.unreadable("\(url.path) exists and is not managed by YaaKanban")
+            throw IntegrationError.refused("\(url.path) exists and is not managed by YaaKanban")
         }
         let after = install ? source(yaak: yaak) : nil
         return before == after ? [] : [FileChange(path: url, before: before, after: after)]
@@ -28,7 +28,8 @@ extension PluginFileIntegration {
 }
 
 enum PluginSource {
-    static let marker = "// managed by YaaKanban"
+    static let markerText = "managed by YaaKanban"
+    static let marker = "// \(markerText)"
 
     static func jsString(_ s: String) -> String {
         let d = try! JSONSerialization.data(withJSONObject: [s], options: [.withoutEscapingSlashes])

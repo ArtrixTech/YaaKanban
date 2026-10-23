@@ -96,6 +96,10 @@ struct MenuContent: View {
             if let err = model.serverError {
                 Text(err).font(.caption).foregroundStyle(.red).padding(.horizontal, 8)
             }
+            if !model.integrationIssues.isEmpty {
+                let names = model.integrationIssues.keys.map(\.displayName).sorted().joined(separator: "、")
+                MenuRow(symbol: "exclamationmark.triangle.fill", title: "\(names) 的 hook 待授权") { done { AppWindows.open(.settings) } }
+            }
             Divider().padding(.vertical, 3)
             MenuRow(symbol: "rectangle.on.rectangle", title: model.settings.showPanel ? "隐藏悬浮窗" : "显示悬浮窗",
                     shortcut: "⌥⌘K") { panel.toggle() }
@@ -559,10 +563,13 @@ struct SettingsView: View {
                     LabeledContent {
                         HStack(spacing: 8) {
                             StatusBadge(status: status)
+                            if status == .needsAuthorization {
+                                Button("重新检查") { recheck() }
+                            }
                             if status == .outdated {
                                 Button("更新") { apply(i, install: true) }.buttonStyle(.borderedProminent)
                             }
-                            if status == .installed || status == .outdated {
+                            if status == .installed || status == .outdated || status == .needsAuthorization {
                                 Button("卸载") { apply(i, install: false) }
                             } else if status == .notInstalled {
                                 Button("安装") { apply(i, install: true) }.buttonStyle(.borderedProminent)
@@ -570,11 +577,18 @@ struct SettingsView: View {
                         }
                         .controlSize(.small)
                     } label: {
-                        HStack(spacing: 8) {
-                            AgentLogo(agent: i.agent, size: 16)
-                                .frame(width: 22, height: 22)
-                                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.06)))
-                            Text(i.agent.displayName)
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 8) {
+                                AgentLogo(agent: i.agent, size: 16)
+                                    .frame(width: 22, height: 22)
+                                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.06)))
+                                Text(i.agent.displayName)
+                            }
+                            if status == .needsAuthorization {
+                                AuthorizationSteps(steps: i.pendingSteps(home: Paths.home()))
+                            } else if status != .notDetected, let note = i.postInstallNote {
+                                Text(note).font(.system(size: 11)).foregroundStyle(.secondary).padding(.leading, 30)
+                            }
                         }
                     }
                 }
@@ -732,15 +746,21 @@ struct SettingsView: View {
         return m % 60 == 0 ? "\(m / 60) 小时" : "\(m / 60) 小时 \(m % 60) 分"
     }
 
-    static var yaak: String { Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/yaak").path }
+    static var yaak: String { AppModel.yaakPath }
 
     private func apply(_ i: any Integration, install: Bool) {
         do {
             try Installer.apply(try i.plan(install: install, home: Paths.home(), yaak: Self.yaak))
-            integrationMessage = "\(i.agent.displayName) 已\(install ? "安装" : "卸载")。" + (install ? (i.postInstallNote ?? "") : "")
+            let pending = install && !i.pendingSteps(home: Paths.home()).isEmpty
+            integrationMessage = "\(i.agent.displayName) 已\(install ? "安装" : "卸载")。" + (pending ? "还需要你在 \(i.agent.displayName) 里授权，步骤见上面。" : "")
         } catch {
             integrationMessage = "\(i.agent.displayName)：\(error)"
         }
+        recheck()
+    }
+
+    private func recheck() {
+        model.checkIntegrations()
         refresh += 1
     }
 }
@@ -784,6 +804,21 @@ struct SettingLabel: View {
     }
 }
 
+/// Numbered steps for authorizing hooks in the agent, under its row in Settings.
+struct AuthorizationSteps: View {
+    let steps: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(Array(steps.enumerated()), id: \.offset) { n, step in
+                Text("\(n + 1). \(step)").font(.system(size: 11)).foregroundStyle(.secondary)
+                    .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.leading, 30)
+    }
+}
+
 /// Integration status as a small colored capsule.
 struct StatusBadge: View {
     let status: IntegrationStatus
@@ -792,6 +827,7 @@ struct StatusBadge: View {
         let (text, color): (String, Color) = switch status {
         case .installed: ("已安装", .green)
         case .outdated: ("需更新", .orange)
+        case .needsAuthorization: ("待授权", .yellow)
         case .notInstalled: ("未安装", .secondary)
         case .notDetected: ("未检测到", .secondary)
         }

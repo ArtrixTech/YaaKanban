@@ -82,8 +82,13 @@ enum JSONFile {
 
 public enum IntegrationError: Error, CustomStringConvertible {
     case unreadable(String)
+    /// The edit would be unsafe; the message says why.
+    case refused(String)
     public var description: String {
-        switch self { case .unreadable(let p): return "\(p) is not a JSON object; refusing to edit it" }
+        switch self {
+        case .unreadable(let p): return "\(p) is not a JSON object; refusing to edit it"
+        case .refused(let why): return why
+        }
     }
 }
 
@@ -111,7 +116,25 @@ public struct ClaudeIntegration: Integration {
 public struct CodexIntegration: Integration {
     public let agent = AgentKind.codex
     public init() {}
-    public var postInstallNote: String? { "Codex: run /hooks inside Codex and trust the new YaaKanban hooks." }
+    public var postInstallNote: String? { "Codex 只运行你在 /hooks 里信任过的 hook。" }
+
+    public func pendingSteps(home: URL) -> [String] {
+        if CodexTrust.hooksOff(home: home) {
+            return ["~/.codex/config.toml 的 [features] 里写着 hooks = false，Codex 不会运行任何 hook。",
+                    "删掉这一行（或改成 true），重开 Codex，再回到这里点「重新检查」。"]
+        }
+        let states = CodexTrust.states(home: home)
+        let untrusted = states.filter { $0.state == .untrusted }.count
+        let modified = states.filter { $0.state == .modified }.count
+        let disabled = states.filter { $0.state == .disabled }.count
+        guard untrusted + modified + disabled > 0 else { return [] }
+        var steps = ["在终端里打开 codex，输入 /hooks。"]
+        if untrusted > 0 { steps.append("信任 \(untrusted) 条未信任的 yaak hook。") }
+        if modified > 0 { steps.append("\(modified) 条 yaak hook 在你信任之后变了（yaak 路径或参数），重新信任它们。") }
+        if disabled > 0 { steps.append("重新启用 \(disabled) 条被关闭的 yaak hook。") }
+        steps.append("回到这里点「重新检查」。已经打开的 Codex 会话要重开才会用上。")
+        return steps
+    }
 
     static let events: [(name: String, timeout: Int)] = [
         "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PermissionRequest",

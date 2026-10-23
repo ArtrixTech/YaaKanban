@@ -263,6 +263,8 @@ struct AgentLogo: View {
         case .cursor: "cursor"
         case .opencode: "opencode"
         case .pi: "pi"
+        case .hermes: "hermes"
+        case .deepseek: "deepseek"
         }
         guard let url = Bundle.main.resourceURL?.appendingPathComponent("AgentIcons/\(file).svg"),
               let img = NSImage(contentsOf: url) else { return nil }

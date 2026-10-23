@@ -2,7 +2,8 @@ import Foundation
 
 /// Turns a raw hook envelope into agent-neutral events.
 ///
-/// Claude Code and Codex share the Claude hook schema. Cursor has its own. OpenCode and pi
+/// Claude Code, Codex and DeepSeek dsh (through its Claude hooks bridge) share the Claude hook
+/// schema. Cursor and Hermes have their own. OpenCode and pi
 /// run YaaKanban's own plugin, which emits the "yaak" schema (see `Plugins.swift`).
 public enum Normalizer {
     /// Payload key the CLI adds when it is blocking on a permission decision.
@@ -13,7 +14,8 @@ public enum Normalizer {
 
     public static func normalize(_ env: HookEnvelope) -> [AgentEvent] {
         switch env.agent {
-        case .claudeCode, .codex: return claudeSchema(env)
+        case .claudeCode, .codex, .deepseek: return claudeSchema(env)
+        case .hermes: return hermesSchema(env)
         case .cursor: return cursorSchema(env)
         case .opencode, .pi: return yaakSchema(env)
         }
@@ -134,6 +136,43 @@ public enum Normalizer {
             return [ev(.toolEnd(id: toolId, name: tool, output: p["error_message"]?.string, isError: true))]
         case "stop": return [ev(.turnEnd(lastMessage: nil))]
         case "sessionEnd": return [ev(.sessionEnd)]
+        default: return []
+        }
+    }
+
+    // MARK: Hermes
+
+    /// Hermes shell hooks: `{hook_event_name, session_id, tool_name, tool_input, cwd, extra}`, the
+    /// event's other arguments in `extra`.
+    static func hermesSchema(_ env: HookEnvelope) -> [AgentEvent] {
+        let p = env.payload
+        guard let sid = p["session_id"]?.string, !sid.isEmpty else { return [] }
+        let x = p["extra"] ?? .null
+        func ev(_ kind: AgentEvent.Kind) -> AgentEvent {
+            AgentEvent(agent: .hermes, sessionId: sid, at: env.receivedAt, kind: kind,
+                       cwd: p["cwd"]?.string ?? env.cwd, transcriptPath: nil, agentPid: env.agentPid, terminal: env.terminal)
+        }
+        let tool = p["tool_name"]?.string ?? "tool"
+        let input = p["tool_input"] ?? .null
+        let toolId = x["tool_call_id"]?.string.flatMap { $0.isEmpty ? nil : $0 } ?? syntheticToolId(tool, input)
+
+        switch p["hook_event_name"]?.string ?? env.event {
+        case "pre_llm_call":
+            var out = x["is_first_turn"]?.bool == true ? [ev(.sessionStart)] : []
+            out.append(ev(.promptSubmitted(x["user_message"]?.string ?? "")))
+            return out
+        case "pre_tool_call":
+            var out = [ev(.toolStart(id: toolId, name: tool, input: input))]
+            if tool == "clarify" || askTools.contains(tool.lowercased()) { out.append(ev(.needsInput(askText(input)))) }
+            return out
+        case "post_tool_call":
+            let status = x["status"]?.string ?? "ok"
+            let output = status == "ok" ? x["result"].map(\.text) : (x["error_message"]?.string ?? x["result"].map(\.text))
+            return [ev(.toolEnd(id: toolId, name: tool, output: output, isError: status != "ok"))]
+        case "post_llm_call": return [ev(.turnEnd(lastMessage: x["assistant_response"]?.string))]
+        // Ends every turn, interrupted ones included; post_llm_call may already have carried the reply.
+        case "on_session_end": return [ev(.turnEnd(lastMessage: nil))]
+        case "on_session_finalize": return [ev(.sessionEnd)]
         default: return []
         }
     }

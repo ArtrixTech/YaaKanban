@@ -107,11 +107,23 @@ func selected() -> [any Integration] {
 
 func runInstall(_ install: Bool) -> Never {
     let home = Paths.home(env)
-    let yaak = option("--yaak") ?? selfPath()
     let dry = args.contains("--dry-run")
     let explicit = option("--agent") != nil
+    let me = selfPath()
+    var yaak = option("--yaak") ?? me
     if install && !yaak.contains(".app/Contents/Helpers/") {
         print("warning: hooks will point at \(yaak), which is not inside YaaKanban.app")
+    } else if install && option("--yaak") == nil {
+        // Hooks call a fixed link, so moving the app does not make agents ask for trust again.
+        let link = StableYaak.link(home: home).path
+        let app = URL(fileURLWithPath: String(me[..<me.range(of: ".app/Contents/Helpers/")!.lowerBound]) + ".app")
+        if !StableYaak.mayClaim(bundle: app, home: home) {
+            // Another (installed) copy owns the link; leave it pointing there.
+            if FileManager.default.fileExists(atPath: link) { yaak = link }
+        } else if dry { yaak = link } else {
+            do { yaak = try StableYaak.ensure(home: home, target: me) }
+            catch { print("warning: \(error); hooks will point at \(yaak)") }
+        }
     }
     var failed = false
     for i in selected() {
@@ -125,6 +137,7 @@ func runInstall(_ install: Bool) -> Never {
                 try Installer.apply(changes)
                 print("\(i.agent.rawValue): \(install ? "installed" : "uninstalled")")
                 if install, let note = i.postInstallNote { print("  note: \(note)") }
+                if install { printSteps(i.pendingSteps(home: home)) }
             }
         } catch {
             failed = true
@@ -134,9 +147,20 @@ func runInstall(_ install: Bool) -> Never {
     exit(failed ? 1 : 0)
 }
 
+func printSteps(_ steps: [String]) {
+    guard !steps.isEmpty else { return }
+    print("  to authorize:")
+    for (n, s) in steps.enumerated() { print("    \(n + 1). \(s)") }
+}
+
 func runStatus() -> Never {
     let home = Paths.home(env)
-    for i in Integrations.all { print("\(i.agent.rawValue): \(i.status(home: home).rawValue)") }
+    for i in Integrations.all {
+        let s = i.status(home: home)
+        let steps = s == .installed ? i.pendingSteps(home: home) : []
+        print("\(i.agent.rawValue): \(steps.isEmpty ? s.rawValue : IntegrationStatus.needsAuthorization.rawValue)")
+        printSteps(steps)
+    }
     let up = UnixSocket.send(Wire.encode(["ping": true]), to: paths.socket.path).sent
     print("app: \(up ? "listening" : "not running") (\(paths.socket.path))")
     exit(0)

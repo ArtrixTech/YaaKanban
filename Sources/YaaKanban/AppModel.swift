@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import Observation
 import YaaCore
+import YaaIntegrations
 
 /// Owns all session state on the main actor. Socket requests, scanners and timers feed it.
 @MainActor @Observable
@@ -26,6 +27,8 @@ final class AppModel {
     @ObservationIgnored private let scanner = ClaudeSessionScanner()
 
     var serverError: String?
+    /// Installed integrations whose hooks the agent will not run yet, with what the user has to do.
+    private(set) var integrationIssues: [AgentKind: [String]] = [:]
     /// Debug hook: render windows to PNGs (`yaak snapshot <dir>`), for verification without screen recording.
     @ObservationIgnored var onSnapshot: ((URL) -> Void)?
     /// Session selected in the main window, or `overview` (the home page).
@@ -130,6 +133,7 @@ final class AppModel {
     // MARK: Lifecycle
 
     func start() {
+        _ = Self.yaakPath
         do {
             let store = try Store(path: paths.database)
             store.purgeDetails()
@@ -164,8 +168,13 @@ final class AppModel {
         }
         notifier.requestAuthorization()
 
+        checkIntegrations()
         timers.append(Timer(timeInterval: 10, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
+        })
+        // Authorization happens in the agent, out of our sight; a minute is soon enough to notice.
+        timers.append(Timer(timeInterval: 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.checkIntegrations() }
         })
         timers.append(Timer(timeInterval: 5, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.scan() }
@@ -179,6 +188,32 @@ final class AppModel {
             Task { @MainActor in self?.awaySince = self?.awaySince ?? Date() }
         }
     }
+
+    /// Re-reads each installed integration's authorization state from the agents' own files.
+    func checkIntegrations() {
+        let home = Paths.home()
+        var issues: [AgentKind: [String]] = [:]
+        for i in Integrations.all where i.isInstalled(home: home) {
+            let steps = i.pendingSteps(home: home)
+            if !steps.isEmpty { issues[i.agent] = steps }
+        }
+        if issues != integrationIssues { integrationIssues = issues }
+    }
+
+    /// Path the hooks call: the stable link to this app's yaak, made or re-pointed on first use.
+    static let yaakPath: String = {
+        let bundled = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/yaak").path
+        // Only a real app bundle owns the link; a dev build run in place must not take it over.
+        let home = Paths.home(), link = StableYaak.link(home: home).path
+        guard Bundle.main.bundleURL.pathExtension == "app" else { return bundled }
+        guard StableYaak.mayClaim(bundle: Bundle.main.bundleURL, home: home) else {
+            // Another copy owns the link; hooks installed from here still go through it.
+            return FileManager.default.fileExists(atPath: link) ? link : bundled
+        }
+        // A lost race with another writer still leaves a valid link.
+        return (try? StableYaak.ensure(home: home, target: bundled))
+            ?? ((try? FileManager.default.destinationOfSymbolicLink(atPath: link)) != nil ? link : bundled)
+    }()
 
     func stop() {
         endAway(at: Date())

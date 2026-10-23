@@ -16,13 +16,18 @@ Decisions below were agreed with the user on 2026-10-20 (grilling session).
 
 ## 3. Integrations
 
-- First batch: Claude Code, pi, Codex, OpenCode, Cursor. Hermes and Kiro later (adapter interface ready).
+- First batch: Claude Code, pi, Codex, OpenCode, Cursor. Second wave, in four batches: (1) Hermes, DeepSeek dsh; (2) Qwen Code, Factory Droid, Copilot CLI, Gemini CLI; (3) ZCode, Kiro CLI (V3 only), Kimi Code; (4) Cline, omp, Windsurf.
 - Like Adrafinil: write entries into each agent's native hook/plugin location; idempotent install/uninstall; coexist with Adrafinil.
   - Claude Code: `~/.claude/settings.json` hooks.
   - Codex: `~/.codex/hooks.json` only (not `notify`, which is single-slot and already taken). Append only; the user must trust via `/hooks`.
   - Cursor: `~/.cursor/hooks.json`.
   - OpenCode: `~/.config/opencode/plugins/yaakanban.ts`.
   - pi: `~/.pi/agent/extensions/yaakanban.ts`.
+  - Hermes: `hooks:` in `~/.hermes/config.yaml`, edited line by line; each item and each key we add carries `# yaakanban`.
+  - DeepSeek dsh: through the official `@deepseek-ai/dsh-hooks-claude-code` bridge. `~/.dsh/yaakanban/` holds a Claude-shaped `hooks.json` and a local bundle the user adds per profile (`dsh plugin --profile <p> add file:<bundle>`).
+- Authorization: where an agent asks the user to approve hooks, status shows 待授权 with steps, Settings has 重新检查, and cards of that agent show a warning. Rechecked on launch, on demand and every 60 s. Exact checks: Codex (recompute the `/hooks` trust hash against `config.toml`), Hermes (`shell-hooks-allowlist.json` or auto-accept), dsh (a profile depends on the bundle). Folder-trust and similar caveats are shown as notes.
+- Hook path: the app keeps `~/.local/share/yaakanban/bin/yaak` linked to its bundled `yaak`, and hooks call that link, so moving or updating the app does not change hook commands (or Codex trust hashes).
+- Dry run masks values of secret-looking keys (token, key, password, auth…).
 - Installer safety: back up every file before writing (`.yaak.bak`), `--dry-run` prints the change, tests use a temp HOME.
 - Data: hooks drive state transitions; Claude session files (`~/.claude/sessions/<pid>.json`) backfill sessions without hooks and supply status.
 - Transport: hook → `yaak hook <agent> <event>` → Unix socket JSON line → app. If the app is down, append to a spool dir; the app replays on start. Hooks return within ~100 ms and never block, except the bounded permission wait.

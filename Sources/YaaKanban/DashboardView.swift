@@ -346,6 +346,8 @@ private struct AgentMix: View {
         case .cursor: .purple
         case .opencode: .green
         case .pi: .pink
+        case .hermes: .yellow
+        case .deepseek: .blue
         }
     }
 

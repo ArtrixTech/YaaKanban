@@ -6,6 +6,8 @@ public enum AgentKind: String, Codable, CaseIterable, Sendable {
     case cursor
     case opencode
     case pi
+    case hermes
+    case deepseek
 
     public var displayName: String {
         switch self {
@@ -14,6 +16,8 @@ public enum AgentKind: String, Codable, CaseIterable, Sendable {
         case .cursor: return "Cursor"
         case .opencode: return "OpenCode"
         case .pi: return "pi"
+        case .hermes: return "Hermes"
+        case .deepseek: return "DeepSeek"
         }
     }
 }
@@ -290,6 +294,9 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
         case .opencode: return "opencode --session \(id)"
         // pi's session id is the session file path.
         case .pi: return "pi --session \(id)"
+        case .hermes: return "hermes --resume \(id)"
+        // dsh resumes sessions from its web UI, not the command line.
+        case .deepseek: return nil
         }
     }
 
