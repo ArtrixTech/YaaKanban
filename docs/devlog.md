@@ -2,13 +2,13 @@
 
 ## feat(telemetry): ship the Aptabase App Key in Info.plist
 
-`pending` | 2026-10-23
+`b2f026a` | 2026-10-23
 
 - **Changes**: `Resources/Info.plist` `YaakAptabaseAppKey` = `A-US-6250643896` (US region, us.aptabase.com). Plist test now requires the shipped key to resolve to the US host. docs/telemetry.md names the region.
 - **Reason**: release builds sent nothing while the key was empty.
 - **User feedback**: "为啥选eu" → chose US and sent the key.
 - **Process**: curl of a `daily` event (isDebug true, `day` = `curl-test`) to us.aptabase.com with the key → 200 `{}` (an unknown key returns `{"error":"Application not found…"}`), so the key is live. `make test` passes.
-- **Result**: telemetry is fully configured; opted-in release builds report to Aptabase US.
+- **Result**: telemetry is fully configured; opted-in release builds report to Aptabase US. The user confirmed the test event arrived in the dashboard ("收到数据了").
 - **Notes**: the App Key is public by design (shipped in every client). The curl test event shows under Debug in the dashboard, not Release. Changing region likely means a new app and key (not verified).
 
 ## feat(telemetry): send daily reports to Aptabase instead of TelemetryDeck
