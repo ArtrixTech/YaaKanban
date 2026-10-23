@@ -983,6 +983,51 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(Normalizer.notifiedTasks(p) == ["a1", "b2"])
         #expect(Normalizer.notifiedTasks("see <task-id>a1</task-id>").isEmpty)
     }
+
+    private func shell(_ id: String, at: TimeInterval, _ extra: [String: JSONValue] = [:], agent: String? = nil) -> HookEnvelope {
+        var resp: [String: JSONValue] = ["stdout": .string(""), "stderr": .string(""), "interrupted": .bool(false),
+                                         "backgroundTaskId": .string(id)]
+        resp.merge(extra) { $1 }
+        var f: [String: JSONValue] = ["tool_name": .string("Bash"), "tool_use_id": .string("t-\(id)"),
+                                      "tool_input": .object(["command": .string("make test"), "run_in_background": .bool(true)]),
+                                      "tool_response": .object(resp)]
+        f["agent_id"] = agent.map(JSONValue.string)
+        return claude("PostToolUse", f, at: at)
+    }
+
+    @Test func stopWaitsForABackgroundShell() {
+        let stopped = fold([claude("UserPromptSubmit", ["prompt": .string("run the tests")]), shell("b7", at: 1),
+                            claude("Stop", ["last_assistant_message": .string("Waiting for the tests.")], at: 2)])
+        #expect(stopped.backgroundTasks == ["b7"])
+        #expect(stopped.status == .running)
+        #expect(stopped.unreadSince == nil)
+
+        let beforeDone = fold([notify("b7", at: 60)], into: stopped)
+        let done = fold([claude("Stop", ["last_assistant_message": .string("Tests pass.")], at: 62)], into: beforeDone)
+        #expect(done.status == .idle)
+        #expect(Alerts.between(beforeDone, done) == .done("Tests pass."))
+    }
+
+    @Test func shellsThatCannotNotifyAreNotWaitedFor() {
+        // Killed with the final response; a sub-agent's shell reports to the sub-agent.
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]),
+                      shell("b1", at: 1, ["backgroundEndsWithFinalResponse": .bool(true)]),
+                      shell("b2", at: 1, agent: "a1"),
+                      claude("PostToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("t"),
+                                             "tool_response": .object(["stdout": .string("ok"), "interrupted": .bool(false)])], at: 1),
+                      claude("Stop", at: 2)])
+        #expect(s.backgroundTasks == nil)
+        #expect(s.status == .idle)
+    }
+
+    @Test func stoppedShellIsNotWaitedFor() {
+        let stop = claude("PostToolUse", ["tool_name": .string("TaskStop"), "tool_use_id": .string("k"),
+                                          "tool_input": .object(["task_id": .string("b7")]),
+                                          "tool_response": .object(["message": .string("Stopped"), "task_id": .string("b7")])], at: 5)
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), shell("b7", at: 1), stop, claude("Stop", at: 6)])
+        #expect(s.backgroundTasks == nil)
+        #expect(s.status == .idle)
+    }
 }
 
 @Suite struct HermesFlow {

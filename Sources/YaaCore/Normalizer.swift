@@ -64,6 +64,9 @@ public enum Normalizer {
             if env.agent == .claudeCode, subagent == nil, let id = backgroundLaunch(tool, resp) {
                 out.append(ev(.backgroundStart(id: id)))
             }
+            if env.agent == .claudeCode, subagent == nil, !failed, let id = backgroundStop(tool, input, resp) {
+                out.append(ev(.backgroundEnd(id: id)))
+            }
             return out
         case "PermissionRequest":
             // Claude routes AskUserQuestion through the permission flow; it is a question, not an approval.
@@ -105,8 +108,18 @@ public enum Normalizer {
         switch tool.lowercased() {
         case "agent", "task": return resp?["isAsync"]?.bool == true ? resp?["agentId"]?.string : nil
         case "sendmessage": return resp?["success"]?.bool == true ? resp?["resumedAgentId"]?.string : nil
-        default: return nil
+        default:
+            // A shell run in (or moved to) the background. One that is killed with the final
+            // response never notifies, so it is not waited for.
+            guard resp?["backgroundEndsWithFinalResponse"]?.bool != true else { return nil }
+            return resp?["backgroundTaskId"]?.string
         }
+    }
+
+    /// A background task the agent stopped itself (TaskStop, formerly KillShell).
+    static func backgroundStop(_ tool: String, _ input: JSONValue?, _ resp: JSONValue?) -> String? {
+        guard ["taskstop", "killshell"].contains(tool.lowercased()) else { return nil }
+        return resp?["task_id"]?.string ?? input?["task_id"]?.string ?? input?["shell_id"]?.string
     }
 
     /// Claude Code tells the main agent a background task stopped by sending it a prompt that

@@ -1,5 +1,16 @@
 # Devlog
 
+## fix(claude): keep a turn running while a background shell is out
+
+`pending` | 2026-10-24
+
+- **Changes**: `Normalizer.backgroundLaunch` also returns a main-agent tool response's `backgroundTaskId` (Bash run in / moved to the background), skipped when `backgroundEndsWithFinalResponse` is set; `backgroundStop` turns a successful TaskStop/KillShell (`task_id`, `shell_id`) into `.backgroundEnd`. Reuses the existing hold (`backgroundTasks`, setting 等待背景 agent（测试）). 3 tests in `ClaudeBackgroundAgents`. Spec line extended.
+- **Reason**: a background shell's Stop ended the turn as 待验收 while the main agent was still waiting for it.
+- **User feedback**: "目前claude在运行背景shell、等待结束的时候目前yaak也提示待验收。这是预期外的。请解决。"
+- **Process**: fields read from the Claude Code 2.1.309 binary: Bash output schema keeps `backgroundTaskId` (`backgroundEndsWithFinalResponse` = killed at final response, "no notification can follow"); completion is the same `<task-notification>` with `<task-id>` = that id (seen live this session); TaskStop input `task_id`/`shell_id`, output `task_id`. Hook payload not captured raw (no raw spool). `make test` 165 pass; ablation (Normalizer change removed) fails `stopWaitsForABackgroundShell`.
+- **Result**: held until the shell's notification turn stops.
+- **Notes**: a long-lived shell (dev server) keeps the session running, then 卡住 after the silence threshold instead of 待验收; stop it with TaskStop or turn the setting off. Settings label/footer still say background agents (Windows.swift left as is: concurrent l10n edits there).
+
 ## chore: merge feature/telemetry-feedback (#3) into develop
 
 `158f919` | 2026-10-24
