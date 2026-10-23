@@ -25,6 +25,8 @@ final class AppModel {
     @ObservationIgnored let notifier = Notifier()
     @ObservationIgnored lazy var jumper = TerminalJumper(settings: settings)
     @ObservationIgnored private let scanner = ClaudeSessionScanner()
+    /// Opt-in anonymous daily reports (off unless the user turned them on).
+    let telemetry: TelemetryReporter
 
     var serverError: String?
     /// Installed integrations whose hooks the agent will not run yet, with what the user has to do.
@@ -34,6 +36,11 @@ final class AppModel {
     /// Session selected in the main window, or `overview` (the home page).
     var selection: String? = AppModel.overview
     static let overview = "overview"
+
+    init() {
+        telemetry = TelemetryReporter(paths: paths)
+        telemetry.build = { [unowned self] day, counts, id in telemetryReport(day: day, counts: counts, installId: id) }
+    }
 
     // MARK: Derived views
 
@@ -94,7 +101,7 @@ final class AppModel {
 
     /// Pins a session above every status, or unpins it.
     func togglePin(_ key: String) {
-        if isPinned(key) { settings.pinned.removeAll { $0 == key } } else { settings.pinned.insert(key, at: 0) }
+        if isPinned(key) { settings.pinned.removeAll { $0 == key } } else { settings.pinned.insert(key, at: 0); telemetry.count(.pin) }
     }
 
     /// Moves sessions before `target`, or to the end.
@@ -161,7 +168,9 @@ final class AppModel {
         } catch {
             serverError = "Cannot listen on \(paths.socket.path): \(error)"
         }
-        for req in Wire.drainSpool(paths: paths) { ingest(req.envelope, alert: false) }
+        let spooled = Wire.drainSpool(paths: paths)
+        for req in spooled { ingest(req.envelope, alert: false) }
+        telemetry.count(.spoolReplay, by: spooled.count)
 
         notifier.onAction = { [weak self] key, requestId, action in
             self?.handleNotificationAction(key: key, requestId: requestId, action: action)
@@ -288,6 +297,7 @@ final class AppModel {
         pendingReplies[key] = nil
         pending.send(Wire.encode(WireReply(decision: decision)))
         notifier.withdraw(key: key)
+        telemetry.count(decision == .allow ? .approvalAllow : .approvalDeny)
         update(key, alert: false) { s in
             guard var s else { return nil }
             s.pendingPermission = nil
@@ -304,6 +314,7 @@ final class AppModel {
         guard let pending = pendingReplies[key], pending.token == token else { return }
         pendingReplies[key] = nil
         pending.send(Wire.encode(WireReply(decision: nil)))
+        telemetry.count(.approvalTimeout)
         // The agent now shows its own prompt in the terminal; the session still needs input.
         update(key, alert: false) { s in
             guard var s else { return nil }
@@ -327,6 +338,7 @@ final class AppModel {
         trackAway(now: now)
         if now.timeIntervalSince(tokensFlushedAt) >= 60 { flushTokens() }
         store?.setMeta(Self.heartbeatKey, now.timeIntervalSince1970)
+        telemetry.tick(now: now)
         let cfg = settings.stuckConfig
         for key in Array(sessions.keys) {
             update(key, alert: true) { s in
@@ -597,15 +609,15 @@ final class AppModel {
         markRead(key)
         guard let s = sessions[key] else { return }
         record([ActivityRow(at: Date(), session: key, kind: .focus)])
-        guard Self.isGone(s) else { jumper.jump(to: s); return }
+        guard Self.isGone(s) else { telemetry.count(.jump(s.terminal)); jumper.jump(to: s); return }
         let runners = waveRunners(for: s)
         let name = s.terminal?.termProgram.flatMap(TerminalJumper.app(forTermProgram:))?.localizedName ?? "终端"
         let why: String? = s.terminal?.isWave == true && runners.isEmpty ? "Wave 的授权已过期"
             : TerminalJumper.runsResume(s) ? nil
             : s.terminal?.termProgram == "waveterm" ? "没有记下它在哪个 Wave 标签页" : "\(name)不接受外部输入命令"
         switch Self.askReopen(s, cannotRun: why.map { ($0, name) }) {
-        case .alertFirstButtonReturn: jumper.resume(s, wave: runners) { Self.tellResumeFailed(s) }
-        case .alertSecondButtonReturn: jumper.copyResume(s)
+        case .alertFirstButtonReturn: telemetry.count(.resume); jumper.resume(s, wave: runners) { Self.tellResumeFailed(s) }
+        case .alertSecondButtonReturn: telemetry.count(.resume); jumper.copyResume(s)
         default: break
         }
     }
@@ -694,6 +706,7 @@ final class AppModel {
         NSApp.activate(ignoringOtherApps: true)
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        telemetry.count(.rename)
         update(key, alert: false) { s in
             guard var s else { return nil }
             s.customName = name.isEmpty ? nil : String(name.prefix(80))

@@ -1,8 +1,30 @@
 # Devlog
 
+## chore: merge feature/telemetry-feedback (#3) into develop
+
+`pending` | 2026-10-24
+
+- **Changes**: PR #3 (telemetry and feedback) merged with the 4 hook batches. Conflicts: `Windows.swift` install message keeps develop's 待授权 hint (the post-install note now shows in the row itself) plus the PR's install/uninstall counter; devlog blocks interleaved by commit time. Follow-ups: `needsAuthorization` listed as an `integrations` value (docs/telemetry.md, `TelemetryReport` doc); docs/telemetry.md and spec §6 said EU region, now US (the user chose US with the key).
+- **Reason**: make develop carry both lines of work.
+- **User feedback**: "帮我把#3合入dev，让dev成为最新。确保问题被解决。"
+- **Process**: `make test` 162 pass (146 + the PR's tests), including prop keys ≤40 chars over all 22 agents; `make build` ok. Aptabase `EventBody.IsValid` checked: no limit on prop count, so more agents only add props.
+- **Result**: develop has telemetry and every harness integration.
+- **Notes**: telemetry now reports `needsAuthorization` for integrations waiting on approval (sent as the status rawValue, no code change).
+
+## feat(telemetry): ship the Aptabase App Key in Info.plist
+
+`b2f026a` | 2026-10-23
+
+- **Changes**: `Resources/Info.plist` `YaakAptabaseAppKey` = `A-US-6250643896` (US region, us.aptabase.com). Plist test now requires the shipped key to resolve to the US host. docs/telemetry.md names the region.
+- **Reason**: release builds sent nothing while the key was empty.
+- **User feedback**: "为啥选eu" → chose US and sent the key.
+- **Process**: curl of a `daily` event (isDebug true, `day` = `curl-test`) to us.aptabase.com with the key → 200 `{}` (an unknown key returns `{"error":"Application not found…"}`), so the key is live. `make test` passes.
+- **Result**: telemetry is fully configured; opted-in release builds report to Aptabase US. The user confirmed the test event arrived in the dashboard ("收到数据了").
+- **Notes**: the App Key is public by design (shipped in every client). The curl test event shows under Debug in the dashboard, not Release. Changing region likely means a new app and key (not verified).
+
 ## feat(integrations): add Cline, omp and Windsurf hooks
 
-`pending` | 2026-10-23
+`706afa8` | 2026-10-23
 
 - **Changes**: AgentKinds `cline` (`cline --id`), `omp` (`omp --resume <session file>`), `windsurf` (no resume). `Cline.swift`: one owned `#!/bin/sh` script per event in `~/Documents/Cline/Hooks` (no extension, 0755 via new `FileChange.executable`), prints `{}` and exits 0; a foreign file of the same name refuses. `OmpIntegration` (`Plugins.swift`): `~/.omp/agent/extensions/yaakanban.ts` sending the yaak plugin schema; sub-agent contexts skipped; turn ends at `agent_end` without `willContinue`; `tool_approval_requested/resolved` → needs_input / input_answered; the `ask` tool → needs_input. `WindsurfIntegration` (`JSONHooks.swift`): `~/.codeium/windsurf/hooks.json` entries `{command … || true, show_output:false}`, found by command (no marker field); non-object/non-list layouts refused. Normalizer: `clineSchema` (CLI `tool_call`/`tool_result` with ids and `sessionContext.rootSessionId`, VS Code `preToolUse`/`postToolUse` with synthetic ids and `taskId`; sub-agent tool calls kept, its task events dropped), `windsurfSchema` (actions → read/edit/bash/mcp tools, `trajectory_id` session). README, spec §3, Architecture.
 - **Reason**: batch 4 (last) of the harness rollout agreed with the user.
@@ -10,6 +32,18 @@
 - **Process**: Cline and omp read from source (clones of cline 1619168b, oh-my-pi); Windsurf from docs. Adversarial review found: VS Code ts-proto `toJSON` omits `success:false` → now `failed` unless `success == true`; the SDK ask tool is `ask_question` → added to `askTools`; CLI Esc runs TaskCancel then SessionShutdown, which ended the card → SessionShutdown no longer installed or mapped. Test covers each. `make test` (146 pass).
 - **Result**: Cline, omp and Windsurf installable; the 4-batch rollout is complete.
 - **Notes**: No permission hook in any of the three (omp approvals only show as needs input, and only when an approval handler is registered). Cline VS Code: hooks gated by the in-app 「Enable Hooks」 switch (global state, not readable); TaskResume/TaskError/SessionShutdown not wired there, so an errored VS Code run waits for the stuck detector (said in the install note). Cline completion reminders fire UserPromptSubmit mid-run, splitting one run into turns (no fix on our side). Windsurf: no session start/end, hooks skipped in Restricted Mode, schema unverified against a running app. Windsurf post hooks fire only on success and `post_cascade_response` is async, so a late one could end the next turn. omp: `PI_CODING_AGENT_DIR`/profiles not followed, no auto-title, session file is written lazily so resume fails before the first reply, `plan_review_requested` unhandled.
+
+## feat(telemetry): send daily reports to Aptabase instead of TelemetryDeck
+
+`0c2e3a2` | 2026-10-23
+
+- **Changes**: `YaaCore/TelemetryDeck.swift` → `YaaCore/Aptabase.swift`: `AptabaseEvent` maps a `TelemetryReport` to one `daily` event (ingest `/api/v0/events`, header `App-Key`, body = array, dates `yyyy-MM-dd'T'HH:mm:ss'Z'` UTC, session id = start second × 10⁸ + random, one per report); system props carry version/build/macOS major/language/debug; props are strings without a prefix (`day`, `schema`, `arch`, `install` = SHA-256 of the install id, `integration.*`, `setting.*`, `count.*` bucketed, `figure.*`). Host from the key's region (`A-EU-…` → eu, `A-US-…` → us; others need `YaakTelemetryIngestURL`). Info.plist key `YaakAptabaseAppKey` (empty until the key is in), `bundle.sh` reads `YAAK_APTABASE_APP_KEY`. Reporter sends at most 25 events, sets a User-Agent like the SDK. Consent/settings text, `yaak telemetry status`, spec §6, Architecture, docs/telemetry.md say Aptabase.
+- **Reason**: TelemetryDeck's free plan indexes "between once an hour and once a day"; after ~6 h nothing had shown up and its namespace status endpoint answered 404. Aptabase's dashboard is real time, has an EU region and is open source (server AGPL, SDKs MIT); free tier 20k events/month.
+- **User feedback**: "还有没有别的平台 tmtdeck感觉很草台班子 你搜一下" → "先换aptabase".
+- **Process**: request format from aptabase-swift (EventDispatcher/Event.swift) and server validation from aptabase/aptabase (`EventBody.IsValid`: timestamp within the last day, ≤10 min ahead; numeric session id started ≤7 days ago; prop keys ≤40 chars; ≤25 events per request; invalid events dropped with 200). Tests: event shape and props, key lengths over every agent/setting/event, regions, shipped plist key usable if set. `make test` 131 pass. curl of the event shape to eu/us with an unknown key → 200 `{"error":"Application not found…"}`, so path and headers are accepted.
+- **Result**: telemetry needs only an Aptabase App Key in Info.plist.
+- **Notes**: not yet sent with a real key. Aptabase's daily user is a salted hash of IP and User-Agent (session id only caches it), so same-day reports from one network and macOS/locale count as one user; retention comes from the `install` prop. It stores country/region from the IP (now in the docs and consent text). Backlog days carry the send time (server rejects events > 1 day old); `day` is the covered day. Release builds send nothing until the App Key is in Info.plist.
+- **Review**: adversarial review: no drop/misattribution found; fixed the IP/country wording, the devlog hash note, and the footer/`yaak telemetry status` saying configured for a key with no known region. The TelemetryDeck version is in history at d6f4d4a.
 
 ## feat(integrations): add ZCode, Kiro and Kimi hooks
 
@@ -22,6 +56,17 @@
 - **Result**: ZCode, Kiro CLI and Kimi Code installable; ZCode permission prompts answerable from the app.
 - **Notes**: ZCode snapshots config per session (new sessions only); its PermissionRequest tool id is undocumented (synthetic-id fallback). Kiro V2 (agent-profile hooks) not supported; an unset `chat.agentEngine` is assumed v3. `KIMI_CODE_HOME` is not followed. Kimi has no last-message field (Stop carries none). Kimi sub-agent tool calls appear as the parent's (no agent id in payloads); an interrupt inside a sub-agent may still end the parent turn early. Text edits of config.toml: a UTF-8 BOM is lost (shared `Installer.read`), a multi-line string that looks like a header can cause a false refusal, never corruption.
 
+## fix(telemetry): send to the organization's TelemetryDeck namespace
+
+`d6f4d4a` | 2026-10-23
+
+- **Changes**: ingest URL `https://nom.telemetrydeck.com/v2/namespace/com.yaakanban/` (was `/v2/`); `Content-Type: application/json; charset=utf-8`. docs/telemetry.md names the namespace and the free-plan indexing lag.
+- **Reason**: TelemetryDeck's v2 docs ask organizations with a namespace to use the namespace endpoint (all organizations have one since July 2026); `/v2/` answers 200 even for a random App ID, so its 200 proves nothing.
+- **User feedback**: dashboard showed 0 events; "test mode在哪" / "再查查文档核对一下".
+- **Process**: via the dashboard (opencli): Test Mode is the "+ Test Mode" chip on Explore › Recent Events (not top left as the docs say); org namespace `com.yaakanban`; Namespace Status: unpaid orgs are processed round robin, "between once an hour and once a day", so 0 is expected for now. curl to the namespace endpoint → 200. `make test` 129 pass; debug bundle with temp HOME/YAAK_HOME sent a seeded day through the new URL.
+- **Result**: events go to the namespace TelemetryDeck documents; arrival still to be seen once the free tier indexes them.
+- **Notes**: real-time ingestion needs a paid plan. Ingest v3 exists (flat events, namespace required); v2 stays available.
+
 ## feat(integrations): add Qwen, Droid, Copilot and Gemini hooks
 
 `b7cef5d` | 2026-10-23
@@ -33,6 +78,17 @@
 - **Result**: Qwen, Droid, Copilot and Gemini installable; Qwen and Copilot permission prompts answerable from the app.
 - **Notes**: Known limits: a tool denied in the terminal (Copilot, also Claude) fires no post hook, so the card stays 需要输入 until the turn ends — clearing on the next PreToolUse would drop a parallel call's real request. Gemini/Droid interrupts emit no turn end (Droid: `idle_prompt` only, ignored within 1 s of the last event). Settings files with comments (JSONC, allowed by Gemini/Qwen/Droid) are refused. Copilot `disableAllHooks`/`disabledHooks` and `COPILOT_HOME` are not checked; Copilot payload field names and decision output are from the SDK types, not verified against the runtime.
 
+## feat(telemetry): ship the TelemetryDeck App ID in Info.plist
+
+`203e3c3` | 2026-10-23
+
+- **Changes**: `Resources/Info.plist` `YaakTelemetryDeckAppID` = the YaaKanban app's TelemetryDeck App ID (`YAAK_TELEMETRYDECK_APP_ID` still overrides at bundle time). Test that the shipped plist holds a UUID App ID. docs/telemetry.md says where the ID lives.
+- **Reason**: every `make app` / release build should ask and send without remembering an env var; the App ID is public (it ships in every bundle).
+- **User feedback**: "帮我改代码，确保未来版本可以正常使用。做pr。"
+- **Process**: before this, real ingest checked: debug bundle (App ID via env), temp HOME/YAAK_HOME, seeded yesterday: sent and marked `lastSent`; curl of the same signal shape to `nom.telemetrydeck.com/v2/` → 200 `OK`, malformed body → 422. `make test` 119 pass; ablation: blanking the plist ID fails the new test. `make app` bundle carries the ID; `yaak telemetry status` says configured.
+- **Result**: release builds from the repo send to TelemetryDeck once the user opts in.
+- **Notes**: the app does not check the ingest response (fire and forget, per spec); confirm arrivals in the TelemetryDeck dashboard (debug builds under Test Mode).
+
 ## feat(integrations): add hook authorization checks, Hermes and DeepSeek
 
 `248ced6` | 2026-10-23
@@ -43,6 +99,50 @@
 - **Process**: Codex hash format read from codex-rs source and checked against its test fixtures (`sha256:c9ee…`, `sha256:9eef…`). Hermes consent and payloads read from hermes source. dsh verified end to end in an isolated HOME/DSH_HOME: `file:` bundle installs deps (`link:` does not); without the peer `dsh-hook-protocol` the entry silently does not activate; SessionStart/UserPromptSubmit fired with Claude-shaped payloads. Fixed while testing: Hermes strip settled `hooks:` before its event keys (now bottom-up); emptied file is deleted. Adversarial review (temp-HOME probes, Ruby YAML parse) found and fixed: quoted event key got a duplicate key (user hook lost); block-style item left `timeout:` behind (invalid YAML); CRLF refused; strip touched yaak items outside `hooks:`; `hooks:` as a list produced invalid YAML; loose `hooks_auto_accept` match; Codex `[features] hooks = false` reported installed; header with trailing comment misread; redaction missed Bearer, `x-api-key`, flow maps, block scalars, `--token X`, `export`, known key prefixes and over-masked `max_tokens`/`author`; any launched .app copy (build dir, DMG) took over the stable link (hooks exit 127 once it is gone); non-atomic link swap failed under concurrency. `IntegrationError.refused` replaces the misleading JSON message for non-JSON refusals. `make test` (127 pass).
 - **Result**: batch 1 of 4 done; Hermes and DeepSeek installable; Codex/Hermes/dsh show 待授权 until approved.
 - **Notes**: dsh changed from a managed block in the home cordis.patch.yml (applies to every profile, breaks profiles without the bridge) to a per-profile bundle. Hermes on_session_end goes into an existing list (YAML forbids duplicate keys), placed after another tool's `# <<<` closing marker so its rewrite leaves ours; if that tool reorders keys our item may follow a different key and status shows 需更新. The stable link is claimed only by copies in /Applications or ~/Applications (others only when the link is dead). dsh uninstall refuses while a profile depends on the bundle and prints the `dsh plugin --profile <p> remove yaakanban-dsh` command. Not handled: Codex inline `[hooks.state]` tables (Codex never writes them), CODEX_HOME. Existing installs pointing at the app bundle show 需更新 once and need Codex re-trust after reinstall. dsh has no CLI resume.
+
+## feat(telemetry): send daily reports to TelemetryDeck instead of a Worker
+
+`eb877fe` | 2026-10-23
+
+- **Changes**: new `YaaCore/TelemetryDeck.swift`: `TelemetryDeckSignal` maps a `TelemetryReport` to one `Yaak.daily` signal (ingest v2 `https://nom.telemetrydeck.com/v2/`, body = array of signals, dates `yyyy-MM-dd'T'HH:mm:ssZ` UTC), payload as string tags (`Yaak.day`, `Yaak.integration.*`, `Yaak.setting.*` on/off, `Yaak.count.*` bucketed, `Yaak.figure.*`, TelemetryDeck's own version/OS/arch/language names), `clientUser` = SHA-256 of the install id. Reporter: App ID from `Info.plist` `YaakTelemetryDeckAppID` (defaults override, plus `YaakTelemetryIngestURL` for testing), one POST per tick for all due days, debug builds in test mode, 查看 shows the signal. `bundle.sh` reads `YAAK_TELEMETRYDECK_APP_ID`. `yaak telemetry status` says whether an App ID is configured. Removed `server/telemetry` (Worker, validator, fixture test). Spec §6 backend revised; docs/telemetry.md, Architecture updated; consent and settings text name TelemetryDeck.
+- **Reason**: the user did not want to deploy and run a server.
+- **User feedback**: "有没有那种在线注册了就能用的tmt，省事点，不想自己部署服务器" / "修复问题，并支持tmtdeck"
+- **Process**: request format taken from TelemetryDeck's Swift SDK source (SignalManager/Signal.swift, commit 58f4362) instead of adding the SDK. `make test` 118 pass (server fixture test replaced by a signal test). End to end: release app, temp HOME/YAAK_HOME, App ID and ingest URL as launch arguments pointing at a local capture server: two due days arrived as one POST of two signals, counts bucketed, no raw install id; without an App ID nothing was sent; real defaults untouched.
+- **Result**: telemetry needs only a TelemetryDeck App ID at bundle time.
+- **Notes**: not yet sent to the real TelemetryDeck (no App ID). Counts are now buckets (payload values are strings in TelemetryDeck). The Worker is in history at 1415fb8 if self-hosting comes back.
+
+## fix(telemetry): address the adversarial review of the telemetry branch
+
+`1415fb8` | 2026-10-23
+
+- **Changes**: day keys use a fixed Gregorian calendar in the local zone (`Telemetry.calendar`); `pending` only returns days within the last 7 calendar days (`Telemetry.day(_:minus:)`); `TelemetryLedger.update` takes an `flock` on `telemetry.json.lock`; `tick` notes, picks and marks sent in one locked update; reporter re-marks today after an off/on from `yaak`. Consent prompt runs from a Timer, menu `done` from `RunLoop.main.perform`, instead of GCD blocks. `yaak telemetry status` says DO_NOT_TRACK in a shell does not reach the app; `doctor` reports the ledger state. Validator: bucket allow-list, real calendar dates, `+` in versions; comment states names are pattern-checked. docs/telemetry.md wording for DNT and 查看.
+- **Reason**: review findings: non-Gregorian system calendars produced keys like `2569-10-22` (all rejected, and `pending` stuck after switching back); a modal alert inside a main-queue block stalled every `@MainActor` Task (ingest, permission requests); days older than 10 were sent then refused; CLI/app lost updates could undo `off`.
+- **User feedback**: "修复问题，并支持tmtdeck"
+- **Process**: modal stall reproduced in a scratch app: modal from a GCD block ran 0 MainActor Tasks in 1.5 s, from a Timer or `RunLoop.perform` 15. Lock ablation: without `flock` 200 concurrent updates kept 33, with it 200. `make test` 118 pass; `npm test` 3 pass. End to end against local `wrangler dev`: yesterday sent (one D1 row), a 12-day-old day dropped unsent.
+- **Result**: all high/medium findings fixed; low ones fixed except the westward-midnight edge (a day can be skipped; safe for privacy).
+- **Notes**: alerts opened directly from SwiftUI button actions (AppModel rename etc.) are not inside a GCD block and were left as they are.
+
+## feat(feedback): add opt-in daily telemetry and prefilled issue feedback
+
+`440c4ee` | 2026-10-23
+
+- **Changes**: spec §6 (feedback & telemetry decisions), §1 notes the only network traffic. YaaCore `Telemetry.swift`: `TelemetryEvent` (fixed counters, jump by terminal kind), `TelemetrySetting`, `TelemetryReport` (schema 1), `TelemetryFigures` (sessions/turns per agent from turns started that day), buckets, day keys, `DO_NOT_TRACK`, `TelemetryLedger` (`Paths.telemetry` = `telemetry.json`: consent, asked, install id, per-day counts, lastSent; read-modify-write). YaaIntegrations `Feedback.swift`: `Diagnostics` (versions, integration status, app listening, spool, db size, telemetry; no paths) and `Feedback.issueURL` (issue-form template + `diagnostics` field). App: `TelemetryReporter` (counts, tick sends each finished day once via ephemeral URLSession, preview, consent alert 3 s after first launch of a build with an endpoint), `FeedbackPrompt` (diagnostics shown, optional, then GitHub issue), menu 反馈…, settings 隐私与反馈 (toggle, 查看, 重置 id, 反馈…; replaces the About issue link). Counters in AppModel (jump, resume, approvals, rename, pin, spool replay), panel toggle, settings installs. `yaak doctor`, `yaak telemetry status|on|off`. `Info.plist` `YaakTelemetryEndpoint` (empty), `bundle.sh` sets it from `YAAK_TELEMETRY_ENDPOINT`. `.github/ISSUE_TEMPLATE` bug/feature forms. `docs/telemetry.md` lists every field. README, Architecture updated.
+- **Reason**: understand usage anonymously and give users a feedback path, without breaking the local-first promise.
+- **User feedback**: "需要研究给本项目加入tlememetry，匿名了解用户使用情况，还要加入反馈功能。" / "先做1-2阶段。1可以默认关闭 2网站/hbrwcask都 3自建 4要" / "在新的分支+新的工作树实现。"
+- **Process**: `make test` (117 pass, +12). End to end: app built with `YAAK_TELEMETRY_ENDPOINT` pointing at a local `wrangler dev`, temp HOME/YAAK_HOME, ledger seeded with yesterday's counts → one row in local D1 with those counts, ledger `lastSent` = yesterday. `yaak doctor` / `telemetry status|on|off` and `DO_NOT_TRACK` refusal checked on a temp YAAK_HOME. Snapshots: menu shows 反馈…; settings section renders (endpoint-less build: toggle disabled, footer says so).
+- **Result**: telemetry off and unavailable until a release is built with an endpoint; feedback works now.
+- **Notes**: settings flags are as at send time, not per day. Consent asked once per `telemetry.json` (existing users see it on their first launch of a build with an endpoint). The feedback/consent dialogs (NSAlert accessory views) were not clicked through on screen. `fixture-report.json` ties the Swift report to the server validator; regenerate with `YAAK_UPDATE_FIXTURES=1 make test`.
+
+## feat(telemetry): add the Worker that stores daily reports
+
+`af5bf04` | 2026-10-23
+
+- **Changes**: `server/telemetry`: Cloudflare Worker (`POST /v1/daily`), strict validator (`src/validate.js`: known fields only, UUID id, day within −2…+10 days, short version strings, bounded maps, bucket-shaped figures), D1 schema with one row per (install_id, day), README covering deploy, queries and free-tier notes. Node tests, including a fixture the Swift tests write.
+- **Reason**: phase 2 of the telemetry plan; the user chose a self-hosted backend.
+- **User feedback**: "先做1-2阶段。… 3自建，免费用量应该足够？ 4要"
+- **Process**: `npm test` (3 pass); `wrangler@4.20.0 dev --local` + local D1: a valid report gives 204, a resend of the same day stays one row, an unknown field gives 400, GET gives 405.
+- **Result**: ready to deploy; `database_id` in `wrangler.toml` is a placeholder.
+- **Notes**: no IP stored; rate limiting is left to a Cloudflare WAF rule (README). Bump `schema` and update the validator and fixture together.
 
 ## feat(claude): keep a turn running while background agents are out
 

@@ -179,7 +179,10 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         model.settings.showPanel = on
     }
 
-    func toggle() { setVisible(!(panel.isVisible && panel.alphaValue > 0)) }
+    func toggle() {
+        model.telemetry.count(.panelToggle)
+        setVisible(!(panel.isVisible && panel.alphaValue > 0))
+    }
 
     /// A fold or unfold in flight, in screen coordinates.
     private struct Slide { var from: NSRect; var to: NSRect; var start: CFTimeInterval }
