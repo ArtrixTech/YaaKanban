@@ -3,14 +3,15 @@ import Foundation
 /// Turns a raw hook envelope into agent-neutral events.
 ///
 /// Claude Code, Codex, DeepSeek dsh (through its Claude hooks bridge), Qwen Code, Droid, ZCode and Kiro CLI
-/// share the Claude hook schema; Gemini CLI, Copilot CLI and Kimi Code are renamed into it. Cursor and Hermes have their own. OpenCode and pi
-/// run YaaKanban's own plugin, which emits the "yaak" schema (see `Plugins.swift`).
+/// share the Claude hook schema; Gemini CLI, Copilot CLI and Kimi Code are renamed into it. Cursor, Hermes, Cline and
+/// Windsurf have their own. OpenCode, pi and omp run YaaKanban's own plugin, which emits the "yaak" schema (see `Plugins.swift`).
 public enum Normalizer {
     /// Payload key the CLI adds when it is blocking on a permission decision.
     public static let awaitingKey = "_yaak_awaiting"
 
     /// Tools that are themselves a question to the user.
-    public static let askTools: Set<String> = ["askuserquestion", "request_user_input", "ask_user", "askquestion"]
+    public static let askTools: Set<String> = ["askuserquestion", "request_user_input", "ask_user", "askquestion",
+                                               "ask_question", "ask_followup_question"]
 
     public static func normalize(_ env: HookEnvelope) -> [AgentEvent] {
         switch env.agent {
@@ -21,7 +22,9 @@ public enum Normalizer {
         case .kimi: return kimiSchema(env)
         case .hermes: return hermesSchema(env)
         case .cursor: return cursorSchema(env)
-        case .opencode, .pi: return yaakSchema(env)
+        case .cline: return clineSchema(env)
+        case .windsurf: return windsurfSchema(env)
+        case .opencode, .pi, .omp: return yaakSchema(env)
         }
     }
 
@@ -281,7 +284,88 @@ public enum Normalizer {
         }
     }
 
-    // MARK: YaaKanban plugins (OpenCode, pi)
+    // MARK: Cline
+
+    /// The CLI and the VS Code extension run the same hook files with different payloads: the CLI
+    /// sends `tool_call`/`tool_result` with ids and a session id, the extension only `taskId` and
+    /// per-event objects. The event is the hook file's name.
+    static func clineSchema(_ env: HookEnvelope) -> [AgentEvent] {
+        let p = env.payload
+        guard let sid = p["sessionContext"]?["rootSessionId"]?.string ?? p["taskId"]?.string, !sid.isEmpty else { return [] }
+        // A sub-agent's hooks carry its parent; its own task events are not the session's.
+        let subagent = p["parent_agent_id"]?.string == nil ? nil : p["agent_id"]?.string
+        func ev(_ kind: AgentEvent.Kind) -> AgentEvent {
+            AgentEvent(agent: .cline, sessionId: sid, at: env.receivedAt, kind: kind,
+                       cwd: p["workspaceRoots"]?.array?.first?.string ?? env.cwd, transcriptPath: nil,
+                       agentPid: env.agentPid, terminal: env.terminal, subagentId: subagent)
+        }
+        let call = p["tool_call"] ?? p["tool_result"]
+        let use = p["preToolUse"] ?? p["postToolUse"]
+        let tool = call?["name"]?.string ?? use?["toolName"]?.string ?? "tool"
+        let input = call?["input"] ?? use?["parameters"] ?? .null
+        let toolId = call?["id"]?.string ?? syntheticToolId(tool, input)
+
+        switch env.event {
+        case "PreToolUse":
+            var out = [ev(.toolStart(id: toolId, name: tool, input: input))]
+            if askTools.contains(tool.lowercased()) { out.append(ev(.needsInput(askText(input)))) }
+            return out
+        case "PostToolUse":
+            let failed: Bool, output: String?
+            if let r = p["tool_result"] {
+                failed = r["error"]?.string != nil
+                output = r["error"]?.string ?? r["output"]?.text
+            } else {
+                // ts-proto drops default values, so a failure arrives without `success`.
+                failed = use?["success"]?.bool != true
+                output = use?["result"]?.string
+            }
+            return [ev(.toolEnd(id: toolId, name: tool, output: output, isError: failed))]
+        case _ where subagent != nil: return []
+        case "TaskStart", "TaskResume": return [ev(.sessionStart)]
+        case "UserPromptSubmit": return [ev(.promptSubmitted(p["userPromptSubmit"]?["prompt"]?.string ?? ""))]
+        case "TaskComplete":
+            let last = p["turn"]?["outputText"]?.string ?? p["taskComplete"]?["taskMetadata"]?["result"]?.string
+            return [ev(.turnEnd(lastMessage: last))]
+        case "TaskCancel", "TaskError": return [ev(.turnEnd(lastMessage: nil))]
+        default: return []
+        }
+    }
+
+    // MARK: Windsurf
+
+    /// Cascade hooks name the action, not a tool, and carry no tool id: start and end pair through
+    /// the synthetic id of the same input. The trajectory is the conversation.
+    static func windsurfSchema(_ env: HookEnvelope) -> [AgentEvent] {
+        let p = env.payload
+        guard let sid = p["trajectory_id"]?.string, !sid.isEmpty else { return [] }
+        let info = p["tool_info"] ?? .null
+        func ev(_ kind: AgentEvent.Kind) -> AgentEvent {
+            AgentEvent(agent: .windsurf, sessionId: sid, at: env.receivedAt, kind: kind,
+                       cwd: info["cwd"]?.string ?? env.cwd, transcriptPath: nil,
+                       agentPid: env.agentPid, terminal: env.terminal)
+        }
+        let event = p["agent_action_name"]?.string ?? env.event
+        let action = event.replacingOccurrences(of: "pre_", with: "").replacingOccurrences(of: "post_", with: "")
+        let tool: String
+        let input: JSONValue
+        switch action {
+        case "read_code": tool = "read"; input = .object(["file_path": info["file_path"] ?? .null])
+        case "write_code": tool = "edit"; input = .object(["file_path": info["file_path"] ?? .null])
+        case "run_command": tool = "bash"; input = .object(["command": info["command_line"] ?? .null])
+        case "mcp_tool_use":
+            tool = "mcp__\(info["mcp_server_name"]?.string ?? "mcp")__\(info["mcp_tool_name"]?.string ?? "tool")"
+            input = info["mcp_tool_arguments"] ?? .null
+        case "user_prompt": return [ev(.promptSubmitted(info["user_prompt"]?.string ?? ""))]
+        case "cascade_response": return [ev(.turnEnd(lastMessage: info["response"]?.string))]
+        default: return []
+        }
+        let id = syntheticToolId(tool, input)
+        if event.hasPrefix("pre_") { return [ev(.toolStart(id: id, name: tool, input: input))] }
+        return [ev(.toolEnd(id: id, name: tool, output: info["mcp_result"].map(\.text), isError: false))]
+    }
+
+    // MARK: YaaKanban plugins (OpenCode, pi, omp)
 
     static func yaakSchema(_ env: HookEnvelope) -> [AgentEvent] {
         let p = env.payload

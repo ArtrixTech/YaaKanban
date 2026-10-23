@@ -355,6 +355,9 @@ private struct AgentMix: View {
         case .zcode: .red
         case .kiro: .purple
         case .kimi: .gray
+        case .cline: .teal
+        case .omp: .pink
+        case .windsurf: .green
         }
     }
 

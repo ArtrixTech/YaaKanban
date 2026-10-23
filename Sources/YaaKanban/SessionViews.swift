@@ -18,6 +18,9 @@ extension AgentKind {
         case .zcode: "z.circle"
         case .kiro: "k.circle"
         case .kimi: "moon"
+        case .cline: "c.circle"
+        case .omp: "o.circle"
+        case .windsurf: "wind"
         }
     }
 }

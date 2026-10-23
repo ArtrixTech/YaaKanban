@@ -184,3 +184,41 @@ public struct CursorIntegration: Integration {
         }
     }
 }
+
+/// Windsurf (Cascade): `{"hooks": {event: [{command, show_output?}]}}` in `~/.codeium/windsurf/hooks.json`.
+/// A pre-hook exiting 2 blocks the action, so the command ends in `|| true`. Our entries are found by command.
+public struct WindsurfIntegration: Integration {
+    public let agent = AgentKind.windsurf
+    public init() {}
+    public var postInstallNote: String? { "Windsurf 在 Restricted Mode 下不运行 hook；Cascade 没有权限请求 hook，也没有会话开始/结束事件。" }
+
+    static let events = ["pre_user_prompt", "pre_read_code", "post_read_code", "pre_write_code", "post_write_code",
+                         "pre_run_command", "post_run_command", "pre_mcp_tool_use", "post_mcp_tool_use", "post_cascade_response"]
+
+    func file(_ home: URL) -> URL { home.appendingPathComponent(".codeium/windsurf/hooks.json") }
+    public func isDetected(home: URL) -> Bool { FileManager.default.fileExists(atPath: home.appendingPathComponent(".codeium/windsurf").path) }
+    public func isInstalled(home: URL) -> Bool { JSONFile.containsOurs(file(home)) }
+
+    public func plan(install: Bool, home: URL, yaak: String) throws -> [FileChange] {
+        let url = file(home)
+        let root = try JSONFile.load(url).root
+        if root["hooks"] != nil && !(root["hooks"] is [String: Any])
+            || (root["hooks"] as? [String: Any])?.values.contains(where: { !($0 is [Any]) }) == true {
+            throw IntegrationError.refused("hooks in \(url.path) is not an object of lists; refusing to edit it")
+        }
+        return try JSONFile.plan(url) { root in
+            var hooks = root["hooks"] as? [String: Any] ?? [:]
+            for (event, list) in hooks {
+                let kept = (list as? [Any] ?? []).filter { !HookCommand.isOurs(($0 as? [String: Any])?["command"] as? String ?? "") }
+                hooks[event] = kept.isEmpty ? nil : kept
+            }
+            if install {
+                for e in Self.events {
+                    hooks[e] = (hooks[e] as? [Any] ?? []) + [["command": HookCommand.make(yaak: yaak, agent: agent, event: e) + " || true",
+                                                               "show_output": false]]
+                }
+            }
+            root["hooks"] = hooks.isEmpty ? nil : hooks
+        }
+    }
+}

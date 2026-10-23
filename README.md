@@ -58,6 +58,9 @@ there (a `.yaak.bak` backup is made first):
 | ZCode | `~/.zcode/cli/config.json` (`hooks.events`) |
 | Kiro CLI | `~/.kiro/hooks/yaak.json` (V3 engine) |
 | Kimi Code | `~/.kimi-code/config.toml` (`[[hooks]]`) |
+| Cline | `~/Documents/Cline/Hooks/<Event>` scripts |
+| omp | `~/.omp/agent/extensions/yaakanban.ts` |
+| Windsurf | `~/.codeium/windsurf/hooks.json` |
 
 Hooks call `yaak hook <agent> <event>`, which forwards the event over a user-only Unix socket
 and returns at once; if the app is not running, events are spooled and replayed later. A hook

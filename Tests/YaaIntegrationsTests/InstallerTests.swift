@@ -772,4 +772,76 @@ private func json(_ url: URL) throws -> [String: Any] {
         }
         #expect(KimiIntegration.quote("a\"b\\c") == #""a\"b\\c""#)
     }
+
+    @Test func cline() throws {
+        let h = try home(["Documents/Cline"])
+        let i = ClineIntegration()
+        let dir = h.appendingPathComponent("Documents/Cline/Hooks")
+        #expect(i.isDetected(home: h))
+        #expect(i.status(home: h) == .notInstalled)
+        try Installer.apply(try i.plan(install: true, home: h, yaak: yaak))
+        for e in ClineIntegration.events {
+            let f = dir.appendingPathComponent(e)
+            let text = Installer.read(f)!
+            #expect(text.hasPrefix("#!/bin/sh\n"))
+            #expect(text.contains("'\(yaak)' hook cline \(e) >/dev/null 2>&1"))
+            #expect(text.contains("echo '{}'"))
+            let mode = try FileManager.default.attributesOfItem(atPath: f.path)[.posixPermissions] as! Int
+            #expect(mode & 0o777 == 0o755)
+        }
+        #expect(i.status(home: h, yaak: yaak) == .installed)
+        #expect(try i.plan(install: true, home: h, yaak: yaak).isEmpty)
+        #expect(i.status(home: h, yaak: "/other/yaak") == .outdated)
+
+        // A user's own hook file blocks the install instead of being overwritten.
+        try write("#!/bin/sh\necho mine\n", dir.appendingPathComponent("TaskComplete"))
+        #expect(throws: IntegrationError.self) { try i.plan(install: true, home: h, yaak: yaak) }
+        #expect(throws: IntegrationError.self) { try i.plan(install: false, home: h, yaak: yaak) }
+        try FileManager.default.removeItem(at: dir.appendingPathComponent("TaskComplete"))
+
+        try Installer.apply(try i.plan(install: false, home: h, yaak: yaak))
+        for e in ClineIntegration.events { #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent(e).path)) }
+        #expect(i.status(home: h) == .notInstalled)
+    }
+
+    @Test func omp() throws {
+        let h = try home([".omp"])
+        let i = OmpIntegration()
+        let f = h.appendingPathComponent(".omp/agent/extensions/yaakanban.ts")
+        try Installer.apply(try i.plan(install: true, home: h, yaak: yaak))
+        let text = Installer.read(f)!
+        #expect(text.hasPrefix(PluginSource.marker))
+        #expect(text.contains(#"spawn(YAAK, ["hook", "omp", event]"#))
+        #expect(text.contains(#"ctx?.agent?.kind === "sub""#))
+        #expect(text.contains("export default function"))
+        #expect(i.status(home: h, yaak: yaak) == .installed)
+        #expect(try i.plan(install: true, home: h, yaak: yaak).isEmpty)
+        try Installer.apply(try i.plan(install: false, home: h, yaak: yaak))
+        #expect(!FileManager.default.fileExists(atPath: f.path))
+        try write("export default function () {}\n", f)
+        #expect(throws: IntegrationError.self) { try i.plan(install: true, home: h, yaak: yaak) }
+    }
+
+    @Test func windsurf() throws {
+        let h = try home([".codeium/windsurf"])
+        let i = WindsurfIntegration()
+        let f = h.appendingPathComponent(".codeium/windsurf/hooks.json")
+        try write(#"{"hooks":{"pre_run_command":[{"command":"guard.sh","show_output":true}]}}"#, f)
+        try Installer.apply(try i.plan(install: true, home: h, yaak: yaak))
+        let hooks = try json(f)["hooks"] as! [String: Any]
+        let run = hooks["pre_run_command"] as! [[String: Any]]
+        #expect(run.count == 2 && run[0]["command"] as? String == "guard.sh")
+        #expect(run[1]["command"] as? String == "'\(yaak)' hook windsurf pre_run_command || true")
+        #expect(run[1]["show_output"] as? Bool == false && run[1]["_yaakanban"] == nil)
+        #expect(Set(hooks.keys) == Set(WindsurfIntegration.events))
+        #expect(i.status(home: h, yaak: "/other/yaak") == .outdated)
+        try Installer.apply(try i.plan(install: false, home: h, yaak: yaak))
+        try roundTrip(i, h, [f])
+        #expect(((try json(f)["hooks"] as! [String: Any])["pre_run_command"] as! [[String: Any]]).count == 1)
+
+        for bad in [#"{"hooks":[]}"#, #"{"hooks":{"pre_run_command":{}}}"#] {
+            try write(bad, f)
+            #expect(throws: IntegrationError.self) { try i.plan(install: true, home: h, yaak: yaak) }
+        }
+    }
 }

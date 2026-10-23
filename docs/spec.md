@@ -32,6 +32,9 @@ Decisions below were agreed with the user on 2026-10-20 (grilling session).
   - ZCode: `hooks.events` in `~/.zcode/cli/config.json`; `hooks.enabled` is switched on only when the user has not set it and no other hooks are there; PermissionRequest is answered from the app.
   - Kiro CLI: `~/.kiro/hooks/yaak.json`, owned by YaaKanban; V3 engine only.
   - Kimi Code: `[[hooks]]` tables in `~/.kimi-code/config.toml`, edited as text; its PermissionRequest is notify-only.
+  - Cline: one executable script per event in `~/Documents/Cline/Hooks`, owned by YaaKanban; no permission hook.
+  - omp: `~/.omp/agent/extensions/yaakanban.ts`; sub-agent sessions skipped; tool approvals shown as needs input.
+  - Windsurf: `~/.codeium/windsurf/hooks.json` (Cascade actions); no session or permission events.
 - Authorization: where an agent asks the user to approve hooks, status shows 待授权 with steps, Settings has 重新检查, and cards of that agent show a warning. Rechecked on launch, on demand and every 60 s. Exact checks: Codex (recompute the `/hooks` trust hash against `config.toml`), Hermes (`shell-hooks-allowlist.json` or auto-accept), dsh (a profile depends on the bundle), Qwen (`disableAllHooks`), Droid (`hooksDisabled`), Gemini (`hooksConfig.enabled` / `disabled`), ZCode (`hooks.enabled`, a hook of ours switched off), Kiro (`chat.agentEngine` is not v3). Folder-trust and similar caveats are shown as notes.
 - Hook path: the app keeps `~/.local/share/yaakanban/bin/yaak` linked to its bundled `yaak`, and hooks call that link, so moving or updating the app does not change hook commands (or Codex trust hashes).
 - Dry run masks values of secret-looking keys (token, key, password, auth…).

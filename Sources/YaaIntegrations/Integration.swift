@@ -6,6 +6,15 @@ public struct FileChange: Equatable, Sendable {
     public var path: URL
     public var before: String?
     public var after: String?
+    /// Written with mode 0755 (hook scripts).
+    public var executable = false
+
+    public init(path: URL, before: String?, after: String?, executable: Bool = false) {
+        self.path = path
+        self.before = before
+        self.after = after
+        self.executable = executable
+    }
 
     public var isNoop: Bool { before == after }
 }
@@ -57,7 +66,8 @@ public enum Integrations {
                                                 OpenCodeIntegration(), PiIntegration(), HermesIntegration(),
                                                 DeepSeekIntegration(), QwenIntegration(), DroidIntegration(),
                                                 CopilotIntegration(), GeminiIntegration(), ZCodeIntegration(),
-                                                KiroIntegration(), KimiIntegration()]
+                                                KiroIntegration(), KimiIntegration(), ClineIntegration(),
+                                                OmpIntegration(), WindsurfIntegration()]
 
     public static func named(_ agent: AgentKind) -> (any Integration)? { all.first { $0.agent == agent } }
 
@@ -93,6 +103,7 @@ public enum Installer {
             if let after = c.after {
                 try fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try after.write(to: target, atomically: true, encoding: .utf8)
+                if c.executable { try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: target.path) }
             } else {
                 try? fm.removeItem(at: c.path)
             }

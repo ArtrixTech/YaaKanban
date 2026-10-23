@@ -15,6 +15,9 @@ public enum AgentKind: String, Codable, CaseIterable, Sendable {
     case zcode
     case kiro
     case kimi
+    case cline
+    case omp
+    case windsurf
 
     public var displayName: String {
         switch self {
@@ -32,6 +35,9 @@ public enum AgentKind: String, Codable, CaseIterable, Sendable {
         case .zcode: return "ZCode"
         case .kiro: return "Kiro CLI"
         case .kimi: return "Kimi Code"
+        case .cline: return "Cline"
+        case .omp: return "omp"
+        case .windsurf: return "Windsurf"
         }
     }
 }
@@ -319,6 +325,11 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
         case .zcode: return nil
         case .kiro: return "kiro-cli chat --resume-id \(id)"
         case .kimi: return "kimi --session \(id)"
+        case .cline: return "cline --id \(id)"
+        // Like pi, omp's session id is the session file path.
+        case .omp: return "omp --resume \(id)"
+        // Cascade conversations are resumed inside the editor.
+        case .windsurf: return nil
         }
     }
 

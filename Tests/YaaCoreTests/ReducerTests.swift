@@ -1162,6 +1162,101 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(done.subagents.isEmpty && done.status == .idle)
     }
 
+    @Test func clineCliAndVSCode() {
+        // CLI: the session is the root session; tool calls carry ids.
+        func cli(_ event: String, _ f: [String: JSONValue] = [:], at: TimeInterval = 0) -> HookEnvelope {
+            env(.cline, event, ["taskId": .string("t1"), "hookName": .string(event),
+                                "sessionContext": .object(["rootSessionId": .string("root1")]),
+                                "workspaceRoots": .array([.string("/tmp/proj")]), "agent_id": .string("main")]
+                .merging(f) { $1 }, at: at)
+        }
+        let call: JSONValue = .object(["id": .string("c1"), "name": .string("run_commands"), "input": .object(["commands": .string("ls")])])
+        let s = fold([
+            cli("TaskStart"),
+            cli("UserPromptSubmit", ["userPromptSubmit": .object(["prompt": .string("list files")])], at: 1),
+            cli("PreToolUse", ["tool_call": call], at: 2),
+            // A sub-agent's tool shows up under the root session; its task end does not end the turn.
+            cli("PreToolUse", ["parent_agent_id": .string("main"), "agent_id": .string("sub1"),
+                               "tool_call": .object(["id": .string("c2"), "name": .string("read_files"), "input": .object([:])])], at: 3),
+            cli("TaskComplete", ["parent_agent_id": .string("main"), "agent_id": .string("sub1")], at: 4),
+        ])
+        #expect(s.id == "cline:root1" && s.cwd == "/tmp/proj" && s.title == "list files")
+        #expect(s.status == .running)
+        let done = fold([
+            cli("PostToolUse", ["tool_result": .object(["id": .string("c1"), "name": .string("run_commands"),
+                                                        "output": .string("a b"), "error": .null])], at: 5),
+            cli("TaskComplete", ["turn": .object(["outputText": .string("Two files."), "status": .string("completed")])], at: 6),
+        ], into: s)
+        #expect(done.tools.first { $0.id == "c1" }?.isRunning == false && done.tools.first { $0.id == "c1" }?.output == "a b")
+        #expect(done.status == .idle && done.turns.last?.lastMessage == "Two files.")
+        // The SDK's ask tool waits on the user; a CLI shutdown after Esc is not a session end.
+        let asked = fold([
+            cli("UserPromptSubmit", ["userPromptSubmit": .object(["prompt": .string("next")])], at: 7),
+            cli("PreToolUse", ["tool_call": .object(["id": .string("c3"), "name": .string("ask_question"),
+                                                    "input": .object(["question": .string("Which?")])])], at: 8),
+        ], into: done)
+        #expect(asked.status == .needsInput)
+        let cancelled = fold([cli("TaskCancel", at: 9), cli("SessionShutdown", at: 10)], into: asked)
+        #expect(cancelled.status == .idle)
+
+        // VS Code: no tool id and no root session; start and end pair by input.
+        func vs(_ event: String, _ f: [String: JSONValue] = [:], at: TimeInterval = 0) -> HookEnvelope {
+            env(.cline, event, ["taskId": .string("t9"), "hookName": .string(event)].merging(f) { $1 }, at: at)
+        }
+        let params: JSONValue = .object(["path": .string("a.swift")])
+        let v = fold([
+            vs("PreToolUse", ["preToolUse": .object(["toolName": .string("read_file"), "parameters": params])]),
+            vs("PostToolUse", ["postToolUse": .object(["toolName": .string("read_file"), "parameters": params,
+                                                       "result": .string("denied")])], at: 1),
+            vs("PreToolUse", ["preToolUse": .object(["toolName": .string("ask_followup_question"),
+                                                     "parameters": .object(["question": .string("Which file?")])])], at: 2),
+        ])
+        #expect(v.id == "cline:t9")
+        #expect(v.tools.first?.isError == true && v.tools.first?.output == "denied")
+        #expect(v.status == .needsInput)
+        let ended = fold([vs("TaskComplete", ["taskComplete": .object(["taskMetadata": .object(["result": .string("ok")])])], at: 3)], into: v)
+        #expect(ended.turns.last?.lastMessage == "ok")
+    }
+
+    @Test func windsurfActions() {
+        func ws(_ action: String, _ info: [String: JSONValue], at: TimeInterval = 0) -> HookEnvelope {
+            env(.windsurf, action, ["agent_action_name": .string(action), "trajectory_id": .string("traj1"),
+                                    "execution_id": .string("x"), "tool_info": .object(info)], at: at)
+        }
+        let s = fold([
+            ws("pre_user_prompt", ["user_prompt": .string("build it")]),
+            ws("pre_run_command", ["command_line": .string("make"), "cwd": .string("/tmp/proj")], at: 1),
+        ])
+        #expect(s.id == "windsurf:traj1" && s.title == "build it" && s.cwd == "/tmp/proj")
+        #expect(s.latestTool?.name == "bash" && s.latestTool?.isRunning == true)
+        let done = fold([
+            ws("post_run_command", ["command_line": .string("make"), "cwd": .string("/tmp/proj")], at: 2),
+            ws("pre_mcp_tool_use", ["mcp_server_name": .string("gh"), "mcp_tool_name": .string("search"),
+                                    "mcp_tool_arguments": .object(["q": .string("x")])], at: 3),
+            ws("post_mcp_tool_use", ["mcp_server_name": .string("gh"), "mcp_tool_name": .string("search"),
+                                     "mcp_tool_arguments": .object(["q": .string("x")]), "mcp_result": .string("3 hits")], at: 4),
+            ws("post_cascade_response", ["response": .string("Built.")], at: 5),
+        ], into: s)
+        #expect(done.tools.allSatisfy { !$0.isRunning })
+        #expect(done.latestTool?.name == "mcp__gh__search" && done.latestTool?.output == "3 hits")
+        #expect(done.status == .idle && done.turns.last?.lastMessage == "Built.")
+    }
+
+    @Test func ompUsesPluginSchema() {
+        let p: [String: JSONValue] = ["session_id": .string("/s/omp.jsonl"), "transcript_path": .string("/s/omp.jsonl")]
+        let s = fold([
+            env(.omp, "prompt", p.merging(["prompt": .string("hi")]) { $1 }),
+            env(.omp, "tool_start", p.merging(["id": .string("t1"), "tool": .string("ask"), "input": .object([:])]) { $1 }, at: 1),
+            env(.omp, "needs_input", p.merging(["message": .string("Waiting for your answer")]) { $1 }, at: 2),
+        ])
+        #expect(s.status == .needsInput)
+        let done = fold([
+            env(.omp, "tool_end", p.merging(["id": .string("t1"), "tool": .string("ask")]) { $1 }, at: 3),
+            env(.omp, "turn_end", p.merging(["message": .string("Bye")]) { $1 }, at: 4),
+        ], into: s)
+        #expect(done.status == .idle && done.turns.last?.lastMessage == "Bye")
+    }
+
     @Test func zcodeAndKiro() {
         let tmp = "/var/folders/x/zcode-hook-123.jsonl"
         let z = Normalizer.normalize(env(.zcode, "Stop", ["session_id": .string("z1"), "hook_event_name": .string("Stop"),
