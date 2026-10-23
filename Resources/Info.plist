@@ -4,7 +4,7 @@
 <dict>
 	<key>CFBundleIdentifier</key><string>com.artrix.yaakanban</string>
 	<key>CFBundleDevelopmentRegion</key><string>en</string>
-	<key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hans</string></array>
+	<key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hans</string><string>zh-Hant</string><string>ja</string><string>ko</string><string>es</string><string>fr</string><string>de</string><string>pt-BR</string><string>ru</string></array>
 	<key>CFBundleName</key><string>YaaKanban</string>
 	<key>CFBundleDisplayName</key><string>YaaKanban</string>
 	<key>CFBundleExecutable</key><string>YaaKanban</string>

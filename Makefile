@@ -15,13 +15,13 @@ build:
 test:
 	swift test $(TEST_FLAGS)
 
-# Every string the compiler extracts must have a zh-Hans translation (and vice versa).
+# Every string the compiler extracts must have a translation in each language (and vice versa).
 L10N_BUILD := .build/l10n
 l10n:
 	rm -rf $(L10N_BUILD)
 	swift build --scratch-path $(L10N_BUILD) -Xswiftc -emit-localized-strings \
 		-Xswiftc -emit-localized-strings-path -Xswiftc $(L10N_BUILD)/strings
-	scripts/l10n-check.py $(L10N_BUILD)/strings Resources/zh-Hans.lproj/Localizable.strings
+	scripts/l10n-check.py $(L10N_BUILD)/strings Resources/*.lproj/Localizable.strings
 
 app:
 	scripts/bundle.sh release $(APP)

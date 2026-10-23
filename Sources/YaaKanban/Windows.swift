@@ -553,6 +553,7 @@ struct SettingsView: View {
     @State private var integrationMessage: String?
     @State private var refresh = 0
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var language = AppLanguage.override
 
     static let size = NSSize(width: 500, height: 640)
 
@@ -729,6 +730,17 @@ struct SettingsView: View {
                         do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } }
                         catch { integrationMessage = String(localized: "Couldn't change the login item: \(error.localizedDescription)") }
                     }
+                Picker(selection: Binding(get: { language ?? "" }, set: { language = $0.isEmpty ? nil : $0; AppLanguage.override = language })) {
+                    Text("Follow system").tag("")
+                    ForEach(AppLanguage.all, id: \.code) { Text(verbatim: $0.name).tag($0.code) }
+                } label: { SettingLabel(String(localized: "Language"), symbol: "globe", tint: .blue) }
+                if language != AppLanguage.atLaunch {
+                    LabeledContent {
+                        Button("Restart Now") { AppLanguage.relaunch() }.controlSize(.small)
+                    } label: {
+                        Text("Takes effect after YaaKanban restarts.").padding(.leading, 30).foregroundStyle(.secondary)
+                    }
+                }
             }
             Section {
                 Toggle(isOn: Binding(get: { model.telemetry.isOn }, set: { model.telemetry.set(enabled: $0) })) {

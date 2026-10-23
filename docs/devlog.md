@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(i18n): localize the app UI with English source and zh-Hans
+## feat(i18n): add 8 languages and a language setting
 
 `pending` | 2026-10-24
+
+- **Changes**: translations for zh-Hant, ja, ko, es, fr, de, pt-BR, ru (`Resources/<code>.lproj/Localizable.strings` 355 keys + `InfoPlist.strings`); Info.plist `CFBundleLocalizations` lists all 10. New `AppLanguage.swift`: language list (endonyms), override written as this app's `AppleLanguages` (read from the app's persistent domain only), relaunch via `sh` waiting on the pid then `open`. Settings › General › Language picker (Follow system + 10), "Restart Now" row when the choice differs from the language at launch (`atLaunch` pinned in `applicationDidFinishLaunching`). `l10n-check.py` takes several tables; `make l10n` checks `Resources/*.lproj`. Spec §5 language bullet extended.
+- **Reason**: user asked for common world languages, selectable in Settings.
+- **User feedback**: "需要支持更多语言（世界常用语言，你和我确认列表）。需要在设置可选。" Chose tier 1 (8 languages) and restart-to-apply.
+- **Process**: one translator agent per language from a shared brief (keys copied from zh-Hans, Apple terminology, placeholders positional only when reordered). `make l10n` 355 keys × 9 tables, 0 problems; `make test` 165 pass; built bundle resolves each language to its own table; codesign ok.
+- **Result**: 10 UI languages, follow-system by default.
+- **Notes**: translations are machine-made, not native-reviewed; agents flagged uncertain terms (e.g. ja 終了済み to avoid 終了=Quit, ru counts as "label: N" to dodge plural agreement, fr gendered "terminés"). Dashboard summary is built from fragments, so ja/ko/ru reworded with positional placeholders; worth a native read. Longer languages (de, ru, fr) not yet checked on screen for truncation.
+
+## feat(i18n): localize the app UI with English source and zh-Hans
+
+`131087a` | 2026-10-24
 
 - **Changes**: every user-visible UI string is now an English key (SwiftUI literals, `String(localized:)` elsewhere) with zh-Hans in `Resources/zh-Hans.lproj/Localizable.strings` (351 keys) + `InfoPlist.strings`; `en.lproj`; Info.plist `CFBundleDevelopmentRegion` en, `CFBundleLocalizations` en/zh-Hans; `bundle.sh` copies `*.lproj`. `make l10n` + `scripts/l10n-check.py`: clean build with `-emit-localized-strings`, fails on missing/unused keys and placeholder mismatches. Consent prompt drops the sentence on Aptabase's IP-based country/region. Fragment-built sentences (install message, 前一/后一 天/周/月, durations, summary) rewritten whole; lists via `.formatted(.list(type: .and))`. Tests now expect English. Spec §5 records the language decision.
 - **Reason**: user asked for i18n; follows the macOS language (per-app language works).

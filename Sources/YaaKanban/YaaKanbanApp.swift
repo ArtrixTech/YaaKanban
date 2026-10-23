@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKey: HotKey?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        _ = AppLanguage.atLaunch  // pin the language this process loaded before Settings can change it
         model.start()
         if model.settings.showPanel { panel.setVisible(true) }
         hotKey = HotKey { [weak self] in Task { @MainActor in self?.panel.toggle() } }

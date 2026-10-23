@@ -51,7 +51,7 @@ Decisions below were agreed with the user on 2026-10-20 (grilling session).
 
 ## 5. UI & alerts
 
-- Language (2026-10-23): the app UI is localized, English as the source language and Simplified Chinese (zh-Hans) as a translation; it follows the macOS language (per-app language in System Settings works). The `yaak` CLI stays English. UI names quoted in this spec are the zh-Hans ones.
+- Language (2026-10-23, extended 2026-10-24): the app UI is localized, English as the source language with translations into Simplified Chinese, Traditional Chinese, Japanese, Korean, Spanish, French, German, Brazilian Portuguese and Russian. By default it follows the macOS language; Settings › General › Language picks one explicitly, applied after a restart (the setting offers Restart Now). The `yaak` CLI stays English. UI names quoted in this spec are the zh-Hans ones.
 - Agent logos: all five agents use white monochrome marks throughout the UI, including fallback symbols (updated 2026-10-21).
 
 - Menu bar: icon + count of sessions needing attention (`needs_input` + `stuck`); click opens the popover; the main window lists all sessions including history.
