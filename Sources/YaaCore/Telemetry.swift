@@ -178,8 +178,8 @@ public struct TelemetryLedger: Codable, Equatable, Sendable {
 }
 
 public enum Telemetry {
-    /// Info.plist key holding the report endpoint; empty or missing means telemetry is unavailable.
-    public static let endpointKey = "YaakTelemetryEndpoint"
+    /// Info.plist key holding the TelemetryDeck App ID; empty or missing means telemetry is unavailable.
+    public static let appIDKey = "YaakTelemetryDeckAppID"
     /// Days kept unsent at most; older ones are dropped.
     public static let maxPendingDays = 7
 

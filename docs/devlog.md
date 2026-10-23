@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(telemetry): address the adversarial review of the telemetry branch
+## feat(telemetry): send daily reports to TelemetryDeck instead of a Worker
 
 `pending` | 2026-10-23
+
+- **Changes**: new `YaaCore/TelemetryDeck.swift`: `TelemetryDeckSignal` maps a `TelemetryReport` to one `Yaak.daily` signal (ingest v2 `https://nom.telemetrydeck.com/v2/`, body = array of signals, dates `yyyy-MM-dd'T'HH:mm:ssZ` UTC), payload as string tags (`Yaak.day`, `Yaak.integration.*`, `Yaak.setting.*` on/off, `Yaak.count.*` bucketed, `Yaak.figure.*`, TelemetryDeck's own version/OS/arch/language names), `clientUser` = SHA-256 of the install id. Reporter: App ID from `Info.plist` `YaakTelemetryDeckAppID` (defaults override, plus `YaakTelemetryIngestURL` for testing), one POST per tick for all due days, debug builds in test mode, 查看 shows the signal. `bundle.sh` reads `YAAK_TELEMETRYDECK_APP_ID`. `yaak telemetry status` says whether an App ID is configured. Removed `server/telemetry` (Worker, validator, fixture test). Spec §6 backend revised; docs/telemetry.md, Architecture updated; consent and settings text name TelemetryDeck.
+- **Reason**: the user did not want to deploy and run a server.
+- **User feedback**: "有没有那种在线注册了就能用的tmt，省事点，不想自己部署服务器" / "修复问题，并支持tmtdeck"
+- **Process**: request format taken from TelemetryDeck's Swift SDK source (SignalManager/Signal.swift, commit 58f4362) instead of adding the SDK. `make test` 118 pass (server fixture test replaced by a signal test). End to end: release app, temp HOME/YAAK_HOME, App ID and ingest URL as launch arguments pointing at a local capture server: two due days arrived as one POST of two signals, counts bucketed, no raw install id; without an App ID nothing was sent; real defaults untouched.
+- **Result**: telemetry needs only a TelemetryDeck App ID at bundle time.
+- **Notes**: not yet sent to the real TelemetryDeck (no App ID). Counts are now buckets (payload values are strings in TelemetryDeck). The Worker is in history at 1415fb8 if self-hosting comes back.
+
+## fix(telemetry): address the adversarial review of the telemetry branch
+
+`1415fb8` | 2026-10-23
 
 - **Changes**: day keys use a fixed Gregorian calendar in the local zone (`Telemetry.calendar`); `pending` only returns days within the last 7 calendar days (`Telemetry.day(_:minus:)`); `TelemetryLedger.update` takes an `flock` on `telemetry.json.lock`; `tick` notes, picks and marks sent in one locked update; reporter re-marks today after an off/on from `yaak`. Consent prompt runs from a Timer, menu `done` from `RunLoop.main.perform`, instead of GCD blocks. `yaak telemetry status` says DO_NOT_TRACK in a shell does not reach the app; `doctor` reports the ledger state. Validator: bucket allow-list, real calendar dates, `+` in versions; comment states names are pattern-checked. docs/telemetry.md wording for DNT and 查看.
 - **Reason**: review findings: non-Gregorian system calendars produced keys like `2569-10-22` (all rejected, and `pending` stuck after switching back); a modal alert inside a main-queue block stalled every `@MainActor` Task (ingest, permission requests); days older than 10 were sent then refused; CLI/app lost updates could undo `off`.

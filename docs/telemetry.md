@@ -7,7 +7,7 @@ in the app's environment keeps it off, and `yaak telemetry on` refuses under it.
 
 Settings › 查看 shows today's report so far, with setup and settings as of now (a report carries
 them as at send time). `yaak telemetry status` shows the
-state, install id and endpoint. Turning it off deletes the unsent counts.
+state, install id and whether this build has a TelemetryDeck App ID. Turning it off deletes the unsent counts.
 
 ## Fields (schema 1)
 
@@ -22,15 +22,20 @@ state, install id and endpoint. Turning it off deletes the unsent counts.
 | `lang` | language code only, e.g. `zh` |
 | `integrations` | per agent: `installed`, `outdated`, `notInstalled`, `notDetected` |
 | `settings` | on/off: `show_panel`, `slim_rail`, `recent_stats`, `flash`, `review_flash`, `stale_tint`, `wave_tab_switching`, `pi_auto_title`, `launch_at_login` (as at send time) |
-| `counts` | times that day: `panel_toggle`, `jump_wave`, `jump_iterm`, `jump_terminal`, `jump_editor`, `jump_other`, `jump_unknown`, `resume`, `approval_allow`, `approval_deny`, `approval_timeout`, `rename`, `pin`, `feedback_open`, `integration_install`, `integration_uninstall`, `integration_fail`, `spool_replay` |
+| `counts` | times that day, bucketed like `sessions` below: `panel_toggle`, `jump_wave`, `jump_iterm`, `jump_terminal`, `jump_editor`, `jump_other`, `jump_unknown`, `resume`, `approval_allow`, `approval_deny`, `approval_timeout`, `rename`, `pin`, `feedback_open`, `integration_install`, `integration_uninstall`, `integration_fail`, `spool_replay` |
 | `figures` | ranges, not values: `sessions.<agent>` and `turns.<agent>` (`1`, `2-5`, `6-20`, `21-100`, `100+`), `agent_hours` (`0`, `<1`, `1-3`, `3-8`, `8-24`, `24+`), `parallel_peak` (as sessions), `leverage` (`<0.5`, `0.5-1`, `1-2`, `2-4`, `4+`) |
 
 Never sent: prompts, replies, tool input or output, file paths, project, session or terminal
 names, titles, tokens, credentials.
 
-## Server
+## Where it goes
 
-`server/telemetry` is a Cloudflare Worker with D1, one row per install per day, and it stores
-no IP address. See its README for deploying. The build reads the endpoint from `Info.plist`
-(`YaakTelemetryEndpoint`), set at bundle time from `YAAK_TELEMETRY_ENDPOINT`. Builds without it
-send nothing.
+Reports go to [TelemetryDeck](https://telemetrydeck.com) (`nom.telemetrydeck.com`), one signal
+per report, type `Yaak.daily`. The fields above become string tags: `Yaak.day`, `Yaak.schema`,
+`Yaak.integration.<agent>`, `Yaak.setting.<name>` (`on`/`off`), `Yaak.count.<event>`,
+`Yaak.figure.<name>`, plus TelemetryDeck's own names for version, build, macOS, architecture and
+language. `install_id` is not sent as is: the signal's user is its SHA-256, which TelemetryDeck
+salts and hashes again; it stores no IP address. Settings › 查看 shows the signal itself.
+
+The build reads the App ID from `Info.plist` (`YaakTelemetryDeckAppID`), set at bundle time
+from `YAAK_TELEMETRYDECK_APP_ID`. Builds without it send nothing.

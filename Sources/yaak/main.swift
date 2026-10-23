@@ -178,8 +178,8 @@ func runTelemetry() -> Never {
         print("telemetry: \(state)")
         if l.enabled, let id = l.installId { print("install id: \(id)") }
         if let s = l.lastSent { print("last reported day: \(s)") }
-        let endpoint = appBundle()?.object(forInfoDictionaryKey: Telemetry.endpointKey) as? String ?? ""
-        print("endpoint: \(endpoint.isEmpty ? "not configured in this build" : endpoint)")
+        let appID = appBundle()?.object(forInfoDictionaryKey: Telemetry.appIDKey) as? String ?? ""
+        print("TelemetryDeck: \(appID.isEmpty ? "not configured in this build (nothing is sent)" : "configured")")
     default:
         print(usage); exit(2)
     }

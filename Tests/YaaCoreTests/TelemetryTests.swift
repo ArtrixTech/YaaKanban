@@ -114,26 +114,29 @@ private let env = TelemetryEnvironment(app: "0.1.0", build: "1", os: "15", arch:
         #expect(TelemetryFigures(sessions: [a, b], day: day) == TelemetryFigures())
     }
 
-    /// The server validates this same file (`server/telemetry/test`). After changing the report,
-    /// regenerate it with `YAAK_UPDATE_FIXTURES=1 make test` and update the server to accept it.
-    @Test func reportMatchesServerFixture() throws {
+    /// The TelemetryDeck signal carries the report flattened into string tags and nothing else:
+    /// the install id only hashed, counts bucketed.
+    @Test func telemetryDeckSignal() throws {
         var f = TelemetryFigures()
-        f.sessions = [.claudeCode: 3, .pi: 1]
-        f.turns = [.claudeCode: 12, .pi: 1]
+        f.sessions = [.claudeCode: 3]
         f.agentHours = 4.2
-        f.parallelPeak = 2
-        f.leverage = 0.8
         let r = Telemetry.makeReport(installId: "e617184b-ea01-4296-a57c-3a770a5f8ef8", day: "2026-10-22", env: env,
-                                     integrations: [.claudeCode: "installed", .codex: "outdated", .cursor: "notDetected",
-                                                    .opencode: "notInstalled", .pi: "installed"],
-                                     settings: Dictionary(uniqueKeysWithValues: TelemetrySetting.allCases.map { ($0, true) }),
-                                     counts: Dictionary(uniqueKeysWithValues: TelemetryEvent.allCases.map { ($0.rawValue, 1) }),
-                                     figures: f)
-        let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .appendingPathComponent("../../server/telemetry/test/fixture-report.json").standardizedFileURL
-        let json = String(decoding: Telemetry.encode(r, pretty: true), as: UTF8.self) + "\n"
-        if ProcessInfo.processInfo.environment["YAAK_UPDATE_FIXTURES"] != nil { try json.write(to: fixture, atomically: true, encoding: .utf8) }
-        #expect(try String(contentsOf: fixture, encoding: .utf8) == json)
+                                     integrations: [.claudeCode: "installed"], settings: [.slimRail: true],
+                                     counts: ["jump_wave": 7], figures: f)
+        let sig = TelemetryDeckSignal(report: r, appID: "APP", at: Date(timeIntervalSince1970: 0), testMode: true)
+        #expect(sig.clientUser.count == 64 && sig.clientUser != r.installId)
+        #expect(sig.payload["Yaak.count.jump_wave"] == "6-20")
+        #expect(sig.payload["Yaak.figure.sessions.claude-code"] == "2-5")
+        #expect(sig.payload["Yaak.setting.slim_rail"] == "on")
+        #expect(sig.payload["Yaak.integration.claude-code"] == "installed")
+        #expect(sig.payload["Yaak.day"] == "2026-10-22")
+        #expect(sig.payload["TelemetryDeck.AppInfo.version"] == "0.1.0")
+        let body = TelemetryDeckSignal.body([sig])
+        #expect(!String(decoding: body, as: UTF8.self).contains(r.installId))
+        let arr = try #require(JSONSerialization.jsonObject(with: body) as? [[String: Any]])
+        #expect(Set(arr[0].keys) == ["receivedAt", "appID", "clientUser", "sessionID", "type", "payload", "isTestMode"])
+        #expect(arr[0]["receivedAt"] as? String == "1970-01-01T00:00:00+0000")
+        #expect(arr[0]["type"] as? String == "Yaak.daily" && arr[0]["isTestMode"] as? String == "true")
     }
 
     @Test func buckets() {
