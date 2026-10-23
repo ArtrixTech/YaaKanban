@@ -16,7 +16,11 @@ needs your input.
   set.
 - Full local history in SQLite.
 
-Everything stays on your machine; nothing is sent anywhere.
+Everything stays on your machine. The only exception is opt-in, anonymous daily usage
+statistics, off by default; [docs/telemetry.md](docs/telemetry.md) lists every field.
+
+Found a bug or have an idea? Menu → 反馈… opens a prefilled GitHub issue; `yaak doctor` prints
+the same diagnostics.
 
 ## Requirements
 
@@ -37,6 +41,8 @@ yaak install --dry-run          # show what would change
 yaak install --agent claude-code
 yaak status
 yaak uninstall
+yaak doctor                     # diagnostics for a bug report
+yaak telemetry status|on|off
 ```
 
 Installing writes YaaKanban's hook entries into each agent's own config, next to whatever is

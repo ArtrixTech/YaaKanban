@@ -1,0 +1,17 @@
+name: 功能建议 / Feature request
+description: 想要 YaaKanban 做到的事 / Something you would like YaaKanban to do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: 想法 / Idea
+      description: 想解决什么问题，希望怎样。/ The problem, and what you would like.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 诊断信息 / Diagnostics
+      description: 可选。/ Optional.
+      render: markdown

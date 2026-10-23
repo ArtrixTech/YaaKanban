@@ -24,6 +24,8 @@ public struct Paths: Sendable {
     /// Present when the user turned off pi auto titles; the pi extension checks it on each new session.
     public var piAutoTitleOff: URL { base.appendingPathComponent(Self.piAutoTitleOffName) }
     public static let piAutoTitleOffName = "pi-auto-title-off"
+    /// Telemetry consent, install id and the day counts (`TelemetryLedger`).
+    public var telemetry: URL { base.appendingPathComponent("telemetry.json") }
 }
 
 /// One line of JSON from the CLI to the app.

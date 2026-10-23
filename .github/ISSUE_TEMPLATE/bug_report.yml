@@ -1,0 +1,22 @@
+name: 问题报告 / Bug report
+description: 有东西不对劲 / Something does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么 / What happened
+      description: 你做了什么、期望什么、实际看到什么。/ What you did, what you expected, what you saw.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤 / Steps to reproduce
+      placeholder: "1. …\n2. …"
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 诊断信息 / Diagnostics
+      description: 由 YaaKanban 的「反馈…」或 `yaak doctor` 生成，不含会话内容和路径。/ From 反馈… or `yaak doctor`; no session content or paths.
+      render: markdown

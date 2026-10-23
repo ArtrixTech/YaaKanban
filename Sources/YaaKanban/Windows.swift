@@ -101,6 +101,7 @@ struct MenuContent: View {
                     shortcut: "⌥⌘K") { panel.toggle() }
             MenuRow(symbol: "macwindow", title: "主界面") { done { AppWindows.open(.main) } }
             MenuRow(symbol: "gearshape", title: "设置…") { done { AppWindows.open(.settings) } }
+            MenuRow(symbol: "bubble.left", title: "反馈…") { done { FeedbackPrompt.present(model) } }
             Divider().padding(.vertical, 3)
             MenuRow(symbol: "power", title: "退出 YaaKanban") { NSApp.terminate(nil) }
         }
@@ -701,11 +702,39 @@ struct SettingsView: View {
                         catch { integrationMessage = "登录项设置失败：\(error.localizedDescription)" }
                     }
             }
+            Section {
+                Toggle(isOn: Binding(get: { model.telemetry.isOn }, set: { model.telemetry.set(enabled: $0) })) {
+                    SettingLabel("发送匿名使用统计", symbol: "chart.line.uptrend.xyaxis", tint: .blue)
+                }
+                .disabled(!model.telemetry.available)
+                if model.telemetry.isOn {
+                    LabeledContent {
+                        HStack(spacing: 8) {
+                            Button("查看") { FeedbackPrompt.show(title: "今天的统计（明天发送）", text: model.telemetry.preview()) }
+                            Button("重置") { model.telemetry.resetId() }
+                        }
+                        .controlSize(.small)
+                    } label: {
+                        Text("匿名 ID \(model.telemetry.installId?.prefix(8) ?? "")…").padding(.leading, 30)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                LabeledContent {
+                    Button("反馈…") { FeedbackPrompt.present(model) }.controlSize(.small)
+                } label: { SettingLabel("问题与建议", symbol: "bubble.left.fill", tint: .green) }
+            } header: {
+                Text("隐私与反馈")
+            } footer: {
+                Text(model.telemetry.doNotTrack ? "已设置 DO_NOT_TRACK，不会发送统计。"
+                     : model.telemetry.endpoint == nil ? "这个版本没有配置统计服务器，不会发送任何数据。"
+                     : "默认关闭。开启后每天发送一份匿名统计：版本、系统、接入状态、功能使用次数和粗略区间的会话数；不含 prompt、代码、路径、项目或会话名。命令行：yaak telemetry status|on|off。")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             Section("关于") {
                 LabeledContent("版本", value: AboutHeader.version)
                 LabeledContent("许可证", value: "GPL-3.0")
                 LabeledContent("源代码") { Link("github.com/ArtrixTech/YaaKanban", destination: AboutHeader.repo) }
-                LabeledContent("问题反馈") { Link("提交 Issue", destination: AboutHeader.repo.appendingPathComponent("issues")) }
                 Text("© 2026 Artrix · 以 GPL-3.0 开源发布").font(.caption).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
             }
@@ -725,8 +754,10 @@ struct SettingsView: View {
     private func apply(_ i: any Integration, install: Bool) {
         do {
             try Installer.apply(try i.plan(install: install, home: Paths.home(), yaak: Self.yaak))
+            model.telemetry.count(install ? .integrationInstall : .integrationUninstall)
             integrationMessage = "\(i.agent.displayName) 已\(install ? "安装" : "卸载")。" + (install ? (i.postInstallNote ?? "") : "")
         } catch {
+            model.telemetry.count(.integrationFail)
             integrationMessage = "\(i.agent.displayName)：\(error)"
         }
         refresh += 1
@@ -735,7 +766,7 @@ struct SettingsView: View {
 
 /// Top of the settings window: logo, name, version, one-line pitch.
 struct AboutHeader: View {
-    static let repo = URL(string: "https://github.com/ArtrixTech/YaaKanban")!
+    static let repo = Feedback.repo
     static var version: String {
         let info = Bundle.main.infoDictionary
         guard let v = info?["CFBundleShortVersionString"] as? String else { return "开发版" }

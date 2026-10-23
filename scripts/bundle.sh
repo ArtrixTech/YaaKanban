@@ -10,6 +10,9 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Helpers" "$APP/Contents/Resources"
 cp "$BIN/YaaKanban" "$APP/Contents/MacOS/YaaKanban"
 cp "$BIN/yaak" "$APP/Contents/Helpers/yaak"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+if [ -n "${YAAK_TELEMETRY_ENDPOINT:-}" ]; then
+  plutil -replace YaakTelemetryEndpoint -string "$YAAK_TELEMETRY_ENDPOINT" "$APP/Contents/Info.plist"
+fi
 # A stable identity keeps the Accessibility grant across rebuilds; ad-hoc signing changes every build.
 IDENTITY="${YAAK_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Apple Development|Developer ID Application/ {print $2; exit}')}"
 IDENTITY="${IDENTITY:--}"

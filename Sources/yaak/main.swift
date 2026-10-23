@@ -9,6 +9,8 @@ usage:
   yaak install   [--agent <a>] [--dry-run] [--yaak <path>]
   yaak uninstall [--agent <a>] [--dry-run]
   yaak status
+  yaak doctor                          (diagnostics to paste into a bug report)
+  yaak telemetry [status|on|off]       (opt-in anonymous usage reports, sent by the app)
 
 agents: \(AgentKind.allCases.map(\.rawValue).joined(separator: ", "))
 """
@@ -142,6 +144,46 @@ func runStatus() -> Never {
     exit(0)
 }
 
+// MARK: doctor / telemetry
+
+/// The YaaKanban.app this binary is bundled in, if any.
+func appBundle() -> Bundle? {
+    let app = URL(fileURLWithPath: selfPath()).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    return app.pathExtension == "app" ? Bundle(url: app) : nil
+}
+
+func runDoctor() -> Never {
+    let up = UnixSocket.send(Wire.encode(["ping": true]), to: paths.socket.path).sent
+    let d = Diagnostics.gather(paths: paths, home: Paths.home(env), yaak: selfPath(),
+                               env: TelemetryEnvironment.current(bundle: appBundle() ?? .main), appListening: up,
+                               telemetry: TelemetryLedger.load(paths.telemetry).enabled && !Telemetry.doNotTrack(env))
+    print(d.markdown)
+    exit(0)
+}
+
+func runTelemetry() -> Never {
+    switch args.dropFirst().first ?? "status" {
+    case "on":
+        if Telemetry.doNotTrack(env) { print("DO_NOT_TRACK is set; telemetry stays off"); exit(1) }
+        TelemetryLedger.update(paths.telemetry) { $0.set(enabled: true) }
+        print("telemetry: on (the app sends one anonymous report per day; see docs/telemetry.md)")
+    case "off":
+        TelemetryLedger.update(paths.telemetry) { $0.set(enabled: false) }
+        print("telemetry: off (counts cleared)")
+    case "status":
+        let l = TelemetryLedger.load(paths.telemetry)
+        let state = Telemetry.doNotTrack(env) ? "off (DO_NOT_TRACK)" : l.enabled ? "on" : "off"
+        print("telemetry: \(state)")
+        if l.enabled, let id = l.installId { print("install id: \(id)") }
+        if let s = l.lastSent { print("last reported day: \(s)") }
+        let endpoint = appBundle()?.object(forInfoDictionaryKey: Telemetry.endpointKey) as? String ?? ""
+        print("endpoint: \(endpoint.isEmpty ? "not configured in this build" : endpoint)")
+    default:
+        print(usage); exit(2)
+    }
+    exit(0)
+}
+
 switch args.first {
 case "hook":
     // Never fail an agent because of a bad invocation.
@@ -150,6 +192,8 @@ case "hook":
 case "install": runInstall(true)
 case "uninstall": runInstall(false)
 case "status": runStatus()
+case "doctor": runDoctor()
+case "telemetry": runTelemetry()
 case "snapshot":
     // Debug: ask the running app to render its windows to PNGs.
     let dir = args.count > 1 ? args[1] : "/tmp/yaak-snapshot"

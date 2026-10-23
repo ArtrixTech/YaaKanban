@@ -36,6 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if model.settings.showPanel { panel.setVisible(true) }
         hotKey = HotKey { [weak self] in Task { @MainActor in self?.panel.toggle() } }
         model.onSnapshot = { [weak self] dir in self?.snapshot(to: dir) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [model] in model.telemetry.askIfNeeded() }
     }
 
     /// Renders each surface offscreen into `dir`.

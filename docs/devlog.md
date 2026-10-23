@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(telemetry): add the Worker that stores daily reports
+## feat(feedback): add opt-in daily telemetry and prefilled issue feedback
 
 `pending` | 2026-10-23
+
+- **Changes**: spec §6 (feedback & telemetry decisions), §1 notes the only network traffic. YaaCore `Telemetry.swift`: `TelemetryEvent` (fixed counters, jump by terminal kind), `TelemetrySetting`, `TelemetryReport` (schema 1), `TelemetryFigures` (sessions/turns per agent from turns started that day), buckets, day keys, `DO_NOT_TRACK`, `TelemetryLedger` (`Paths.telemetry` = `telemetry.json`: consent, asked, install id, per-day counts, lastSent; read-modify-write). YaaIntegrations `Feedback.swift`: `Diagnostics` (versions, integration status, app listening, spool, db size, telemetry; no paths) and `Feedback.issueURL` (issue-form template + `diagnostics` field). App: `TelemetryReporter` (counts, tick sends each finished day once via ephemeral URLSession, preview, consent alert 3 s after first launch of a build with an endpoint), `FeedbackPrompt` (diagnostics shown, optional, then GitHub issue), menu 反馈…, settings 隐私与反馈 (toggle, 查看, 重置 id, 反馈…; replaces the About issue link). Counters in AppModel (jump, resume, approvals, rename, pin, spool replay), panel toggle, settings installs. `yaak doctor`, `yaak telemetry status|on|off`. `Info.plist` `YaakTelemetryEndpoint` (empty), `bundle.sh` sets it from `YAAK_TELEMETRY_ENDPOINT`. `.github/ISSUE_TEMPLATE` bug/feature forms. `docs/telemetry.md` lists every field. README, Architecture updated.
+- **Reason**: understand usage anonymously and give users a feedback path, without breaking the local-first promise.
+- **User feedback**: "需要研究给本项目加入tlememetry，匿名了解用户使用情况，还要加入反馈功能。" / "先做1-2阶段。1可以默认关闭 2网站/hbrwcask都 3自建 4要" / "在新的分支+新的工作树实现。"
+- **Process**: `make test` (117 pass, +12). End to end: app built with `YAAK_TELEMETRY_ENDPOINT` pointing at a local `wrangler dev`, temp HOME/YAAK_HOME, ledger seeded with yesterday's counts → one row in local D1 with those counts, ledger `lastSent` = yesterday. `yaak doctor` / `telemetry status|on|off` and `DO_NOT_TRACK` refusal checked on a temp YAAK_HOME. Snapshots: menu shows 反馈…; settings section renders (endpoint-less build: toggle disabled, footer says so).
+- **Result**: telemetry off and unavailable until a release is built with an endpoint; feedback works now.
+- **Notes**: settings flags are as at send time, not per day. Consent asked once per `telemetry.json` (existing users see it on their first launch of a build with an endpoint). The feedback/consent dialogs (NSAlert accessory views) were not clicked through on screen. `fixture-report.json` ties the Swift report to the server validator; regenerate with `YAAK_UPDATE_FIXTURES=1 make test`.
+
+## feat(telemetry): add the Worker that stores daily reports
+
+`af5bf04` | 2026-10-23
 
 - **Changes**: `server/telemetry`: Cloudflare Worker (`POST /v1/daily`), strict validator (`src/validate.js`: known fields only, UUID id, day within −2…+10 days, short version strings, bounded maps, bucket-shaped figures), D1 schema with one row per (install_id, day), README covering deploy, queries and free-tier notes. Node tests, including a fixture the Swift tests write.
 - **Reason**: phase 2 of the telemetry plan; the user chose a self-hosted backend.
