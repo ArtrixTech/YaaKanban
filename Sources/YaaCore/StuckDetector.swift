@@ -37,8 +37,10 @@ public enum StuckDetector {
             return out
         case .running, .stuck:
             // Nothing happened after its turn ended: it is finished, whatever revived it (an old
-            // event replayed before the reducer ignored them).
-            if s.hooked, let end = s.turns.last?.endedAt, end >= s.lastEventAt, s.runningTools.isEmpty, s.subagents.isEmpty {
+            // event replayed before the reducer ignored them). A background agent still out keeps
+            // it running, unless the process is gone (its agents went with it).
+            if s.hooked, let end = s.turns.last?.endedAt, end >= s.lastEventAt, s.runningTools.isEmpty, s.subagents.isEmpty,
+               !s.awaitsBackground || processGone {
                 out.status = .idle
                 out.stuckReason = nil
                 out.unreadSince = (s.reviewedAt ?? .distantPast) >= end ? nil : end
@@ -49,8 +51,10 @@ public enum StuckDetector {
                 reason = "进程已退出"
             } else if let t = s.runningTools.first(where: { !isBackground($0) && now.timeIntervalSince($0.startedAt) > config.toolDuration }) {
                 reason = "\(t.name) 已运行 \(minutes(now.timeIntervalSince(t.startedAt))) 分钟"
-            } else if s.hooked, s.runningTools.isEmpty, s.subagents.isEmpty, now.timeIntervalSince(s.lastEventAt) > config.silence {
-                // Silence is only meaningful when hooks report every step.
+            } else if s.hooked, s.runningTools.isEmpty, s.subagents.isEmpty || s.awaitsBackground,
+                      now.timeIntervalSince(s.lastEventAt) > config.silence {
+                // Silence is only meaningful when hooks report every step. Waiting on background
+                // agents it still applies, in case a stop or notification never comes.
                 reason = "\(minutes(now.timeIntervalSince(s.lastEventAt))) 分钟无新事件"
             } else {
                 reason = nil

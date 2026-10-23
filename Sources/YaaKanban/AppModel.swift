@@ -226,6 +226,7 @@ final class AppModel {
     func ingest(_ env: HookEnvelope, alert: Bool) -> String? {
         var key: String?
         for ev in Normalizer.normalize(env) {
+            if case .backgroundStart = ev.kind, !settings.claudeBackgroundAgents { continue }
             key = update(SessionState.key(ev.agent, ev.sessionId), alert: alert) { SessionReducer.apply(ev, to: $0) }
         }
         if let key { linkParent(key) }
@@ -539,6 +540,18 @@ final class AppModel {
     }
 
     // MARK: User actions
+
+    /// Turning background-agent tracking off forgets the agents still out; the stuck check then
+    /// finishes sessions with nothing after their stopped turn (others go stuck on silence).
+    func forgetBackgroundTasks() {
+        for key in sessions.keys where sessions[key]?.backgroundTasks != nil {
+            update(key, alert: false) { s in
+                guard var s else { return nil }
+                s.backgroundTasks = nil
+                return s
+            }
+        }
+    }
 
     /// The user looked at the session: a finished turn counts as reviewed, and the clocks for
     /// turning blue and leaving the board start again.
