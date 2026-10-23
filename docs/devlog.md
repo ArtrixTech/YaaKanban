@@ -2,7 +2,7 @@
 
 ## chore: merge feature/telemetry-feedback (#3) into develop
 
-`pending` | 2026-10-24
+`158f919` | 2026-10-24
 
 - **Changes**: PR #3 (telemetry and feedback) merged with the 4 hook batches. Conflicts: `Windows.swift` install message keeps develop's 待授权 hint (the post-install note now shows in the row itself) plus the PR's install/uninstall counter; devlog blocks interleaved by commit time. Follow-ups: `needsAuthorization` listed as an `integrations` value (docs/telemetry.md, `TelemetryReport` doc); docs/telemetry.md and spec §6 said EU region, now US (the user chose US with the key).
 - **Reason**: make develop carry both lines of work.
