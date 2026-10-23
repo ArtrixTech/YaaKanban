@@ -562,8 +562,14 @@ struct SettingsView: View {
         Form {
             Section { AboutHeader() }
             Section {
-                ForEach(Integrations.all, id: \.agent) { i in
-                    let status = i.status(home: Paths.home(), yaak: Self.yaak)
+                // Only agents found on this Mac (or with our hooks still in place) are listed.
+                let found = Integrations.all.map { ($0, $0.status(home: Paths.home(), yaak: Self.yaak)) }
+                    .filter { $0.1 != .notDetected }
+                if found.isEmpty {
+                    Text("No supported agents found. Install one, then reopen Settings.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                }
+                ForEach(found, id: \.0.agent) { i, status in
                     LabeledContent {
                         HStack(spacing: 8) {
                             StatusBadge(status: status)
@@ -590,7 +596,7 @@ struct SettingsView: View {
                             }
                             if status == .needsAuthorization {
                                 AuthorizationSteps(steps: i.pendingSteps(home: Paths.home()))
-                            } else if status != .notDetected, let note = i.postInstallNote {
+                            } else if let note = i.postInstallNote {
                                 Text(note).font(.system(size: 11)).foregroundStyle(.secondary).padding(.leading, 30)
                             }
                         }

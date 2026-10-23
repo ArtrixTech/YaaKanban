@@ -389,3 +389,4 @@
 
 /* Names */
 "YaaKanban" = "YaaKanban";
+"No supported agents found. Install one, then reopen Settings." = "対応しているエージェントが見つかりません。インストールしてから設定を開き直してください。";

@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(i18n): add 8 languages and a language setting
+## feat(settings): list only detected agents
 
 `pending` | 2026-10-24
+
+- **Changes**: Settings › Agent integrations shows only integrations whose status is not `notDetected` (status checks installed first, so a row with our hooks left behind stays visible to uninstall); empty state "No supported agents found…" (+9 translations, 356 keys); dropped the now-dead `notDetected` note guard; spec §3 bullet.
+- **Reason**: all 17 supported agents were listed, mostly "Not detected" noise.
+- **User feedback**: "目前agent管理部分，所有支持的都显示出来了。需要只显示发现了的。同时审查是否能正常发现agents"
+- **Process**: audited detection on this Mac (existence checks only, no config reads): dirs found for claude, codex, cursor, opencode, pi, hermes, copilot, kiro; each matches a binary on PATH or app except copilot, whose `~/.copilot/logs` show the CLI running in stdio server mode (launched by a host app, not on PATH), so detection is right. The other 9 have neither dir nor binary. `yaak status` agrees. `make l10n` 0 problems, `make test` 165 pass, installed.
+- **Result**: 8 rows instead of 17 on this Mac.
+- **Notes**: detection is directory existence only (`isDetected`), HOME-relative; no env overrides (CLAUDE_CONFIG_DIR, CODEX_HOME, XDG_CONFIG_HOME) are honored, and an agent installed but never run (no dir yet) stays hidden; a leftover dir after uninstalling an agent still shows it. Rows re-evaluate on each Settings render.
+
+## feat(i18n): add 8 languages and a language setting
+
+`1fcb531` | 2026-10-24
 
 - **Changes**: translations for zh-Hant, ja, ko, es, fr, de, pt-BR, ru (`Resources/<code>.lproj/Localizable.strings` 355 keys + `InfoPlist.strings`); Info.plist `CFBundleLocalizations` lists all 10. New `AppLanguage.swift`: language list (endonyms), override written as this app's `AppleLanguages` (read from the app's persistent domain only), relaunch via `sh` waiting on the pid then `open`. Settings › General › Language picker (Follow system + 10), "Restart Now" row when the choice differs from the language at launch (`atLaunch` pinned in `applicationDidFinishLaunching`). `l10n-check.py` takes several tables; `make l10n` checks `Resources/*.lproj`. Spec §5 language bullet extended.
 - **Reason**: user asked for common world languages, selectable in Settings.
