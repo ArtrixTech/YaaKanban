@@ -390,3 +390,9 @@
 /* Names */
 "YaaKanban" = "YaaKanban";
 "No supported agents found. Install one, then reopen Settings." = "没有找到支持的 agent。装好一个后重新打开设置。";
+
+/* Ended list */
+"Ended · %lld" = "已结束 · %lld";
+"Ended sessions: click one to put it back on the floating panel" = "已结束的任务：点一条把它放回悬浮窗";
+"No ended sessions" = "没有已结束的任务";
+"Put back on the floating panel" = "放回悬浮窗";

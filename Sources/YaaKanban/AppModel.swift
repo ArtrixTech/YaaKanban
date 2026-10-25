@@ -63,6 +63,8 @@ final class AppModel {
     private func isLive(_ s: SessionState, now: Date) -> Bool {
         // A session joins the boards with its first message, so an unused one never lingers.
         if s.dismissedAt != nil || s.isUnstarted { return false }
+        // A pin keeps it until the user unpins or ends it.
+        if s.parentId == nil, isPinned(s.id) { return true }
         switch s.status {
         // However it ended (an exit, or a terminal crash that looks just like one), the conversation
         // lingers like a reviewed card so it can be resumed, unless the same process went on with a
@@ -70,10 +72,11 @@ final class AppModel {
         case .ended:
             if s.parentId != nil || now.timeIntervalSince(s.quietSince) >= settings.idleVisibleSeconds { return false }
             // One process may host sibling sessions (OpenCode, the Codex app): only a top-level
-            // session started after this one's last event replaced it.
+            // session started after this one's last event (or its restore) replaced it.
             guard let pid = s.agentPid else { return true }
+            let since = max(s.lastEventAt, s.restoredAt ?? s.lastEventAt)
             return !sessions.values.contains {
-                $0.agentPid == pid && $0.id != s.id && $0.parentId == nil && $0.startedAt >= s.lastEventAt
+                $0.agentPid == pid && $0.id != s.id && $0.parentId == nil && $0.startedAt >= since
             }
         // Unreviewed results stay until looked at; reviewed ones fade out after a while.
         // A sub-agent's result is its parent's business, so it only lingers briefly.
@@ -687,6 +690,26 @@ final class AppModel {
         update(key, alert: false) { s in
             guard var s, s.dismissedAt != nil else { return nil }
             s.dismissedAt = nil
+            return s
+        }
+    }
+
+    /// Top-level sessions that have left the boards (retention over, or ended on the panel),
+    /// most recent first: what the panel's ended list offers to bring back.
+    var endedSessions: [SessionState] {
+        let now = Date()
+        return sorted(sessions.values.filter { $0.parentId == nil && !$0.isUnstarted && !isLive($0, now: now) })
+    }
+
+    /// Puts an ended session back on the boards as a reviewed card, with a fresh retention.
+    func restore(_ key: String) {
+        update(key, alert: false) { s in
+            guard var s else { return nil }
+            let now = Date()
+            s.dismissedAt = nil
+            s.unreadSince = nil
+            s.reviewedAt = now
+            s.restoredAt = now
             return s
         }
     }

@@ -192,6 +192,91 @@ struct EmptyBoard: View {
     }
 }
 
+/// Bottom of the floating panel: opens the sessions that have left it, to bring one back.
+struct EndedFooter: View {
+    @Environment(AppModel.self) private var model
+    @State private var open = false
+    @State private var hover = false
+
+    var body: some View {
+        let count = model.endedSessions.count
+        HStack {
+            Button { open.toggle() } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "archivebox")
+                    Text("Ended · \(count)")
+                }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(hover ? .primary : .secondary)
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Capsule().fill(.primary.opacity(hover ? 0.1 : 0.05)))
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .onHover { hover = $0 }
+            .help("Ended sessions: click one to put it back on the floating panel")
+            .popover(isPresented: $open, arrowEdge: .bottom) { EndedList { open = false } }
+            Spacer()
+        }
+    }
+}
+
+/// Ended sessions, most recent first; clicking one restores it to the panel.
+struct EndedList: View {
+    @Environment(AppModel.self) private var model
+    var onPick: () -> Void
+
+    var body: some View {
+        let list = model.endedSessions
+        Group {
+            if list.isEmpty {
+                Text("No ended sessions").font(.system(size: 12)).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity).padding(.vertical, 24)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 2) {
+                        ForEach(list) { EndedRow(session: $0, onPick: onPick) }
+                    }
+                    .padding(6)
+                }
+            }
+        }
+        .frame(width: 320).frame(maxHeight: 420)
+        .fixedSize(horizontal: false, vertical: list.count < 8)
+    }
+}
+
+struct EndedRow: View {
+    @Environment(AppModel.self) private var model
+    let session: SessionState
+    var onPick: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        let s = session
+        HStack(spacing: 8) {
+            AgentLogo(agent: s.agent, size: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(s.title).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                Text(s.projectName ?? s.agent.displayName).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            Text(relative(s.lastEventAt)).font(.system(size: 10).monospacedDigit()).foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.primary.opacity(hover ? 0.08 : 0)))
+        .contentShape(Rectangle())
+        .onHover { hover = $0 }
+        .onTapGesture { withAnimation(.snappy) { model.restore(s.id) }; onPick() }
+        .help("Put back on the floating panel")
+        .contextMenu {
+            Button("Restore to floating panel") { withAnimation(.snappy) { model.restore(s.id) }; onPick() }
+            Button("Copy resume command") { model.jumper.copyResume(s) }
+            Button("Delete from history", role: .destructive) { model.remove(s.id) }
+        }
+    }
+}
+
 /// Floating panel content, at its natural size; the borderless window resizes to fit it. Snapped to
 /// a side it is a `SidebarRail` instead, narrow unless hovered or unfolded.
 struct FloatingPanelView: View {
@@ -254,10 +339,11 @@ struct FloatingPanelView: View {
             // Folded too (narrower), so the cards keep their place when the rail unfolds.
             if settings.showRecentStats { RecentFigures(folded: folded, slim: slim) }
             list
+            if !folded { EndedFooter() }
         }
         // Folded, the sides match the gap between cards.
         .padding(.horizontal, folded ? inset : 10).padding(.top, 10)
-        .padding(.bottom, folded ? inset : settings.panelCollapsed || model.activeSessions.isEmpty ? 10 : 0)
+        .padding(.bottom, folded ? inset : 8)
         // Cards are measured as wide as in the normal rail plus its extra, so either rail keeps their height.
         .environment(\.railExtra, folded ? settings.panelWidth - 2 * Rail.inset - (railWidth - 2 * inset) : nil)
         .environment(\.railSlim, slim)

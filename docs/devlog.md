@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(wave): resume in an ordinary terminal block
+## feat(panel): keep pinned cards and add an ended list
 
 `pending` | 2026-10-25
+
+- **Changes**: `AppModel.isLive`: a top-level pinned session (not dismissed, started) is always live. New `SessionState.restoredAt` (optional, old rows decode); the "replaced by a later session of the same pid" check counts only sessions started after `max(lastEventAt, restoredAt)`. `AppModel.endedSessions` (top-level, started, not live; newest first) and `restore(_:)` (clears dismissed/unread, sets reviewedAt + restoredAt = now). Floating panel (unfolded) gets `EndedFooter` under the list: 已结束 · N capsule opening a popover `EndedList` (320 pt, max 420 pt, scrolls); click a row = restore; context menu restore / copy resume command / delete. Panel bottom padding fixed at 8. 4 strings × 9 tables. Spec board bullet.
+- **Reason**: pinned cards still timed out after the retention like any reviewed card; ended (retention over or ended on the panel) cards could only be found in the main window's History, whose restore only undid an explicit end.
+- **User feedback**: "1.置顶任务不会自动消失 2.需要在悬浮窗底部添加按钮，点击可以浏览已经结束（归档）的任务来找回。"
+- **Process**: `make build`, `make l10n` 0 problems, `make test` 167 pass, `make install`; `yaak snapshot`: two pinned cards 13 h 43 m old are back on the panel; with the panel collapsed (setting flipped and restored) the footer shows 已结束 · 74.
+- **Result**: pins stay until unpinned or ended; ended sessions are one click away from the panel.
+- **Notes**: popover not checked on a real screen (snapshots can't open it); it is a SwiftUI popover from a non-activating NSPanel. Not in the folded rail. A restored session uses the normal retention again, so it leaves after 24 h (default) unless pinned. Restoring a session past the 24 h Wave token TTL doesn't bring its JWT back; resume falls back to other tab tokens / copy.
+
+## fix(wave): resume in an ordinary terminal block
+
+`6cbfffb` | 2026-10-25
 
 - **Changes**: new `YaaCore/WaveResume.swift` builds `wsh createblock term controller=shell cmd:cwd=… cmd:initscript.{zsh,bash,fish}=…`; `WaveAdapter.resume` uses it instead of `wsh run -c '<swap>; "$SHELL" -ilc <cmd>; exec "$SHELL" -il'` (the swap-token workaround is gone, Wave's own rc now trades it). Init script arms a one-shot hook: zsh `add-zle-hook-widget line-init` puts the command in `BUFFER` and `.accept-line`; bash a `precmd_functions` entry (echo + `history -s` + eval); fish an `--on-event fish_prompt` function. Each first runs `wsh setmeta -b $WAVETERM_BLOCKID cmd:initscript.*=null` in the background. Tests `WaveResumeTests` (meta decoding, `-n` syntax, bash hook runs once with a fake wsh). Spec resume bullet, Architecture.
 - **Reason**: a `wsh run` block is a `cmd` controller block: its header shows the raw command (`[ -n "$WAVETERM_SWAPTOKEN" ] &&…`) instead of the host, and it isn't a normal shell; a user-opened terminal + paste looks different.

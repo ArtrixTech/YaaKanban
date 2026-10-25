@@ -390,3 +390,9 @@
 /* Names */
 "YaaKanban" = "YaaKanban";
 "No supported agents found. Install one, then reopen Settings." = "Поддерживаемые агенты не найдены. Установите агента и снова откройте настройки.";
+
+/* Ended list */
+"Ended · %lld" = "Завершённые · %lld";
+"Ended sessions: click one to put it back on the floating panel" = "Завершённые сессии: нажмите на одну, чтобы вернуть её на плавающую панель";
+"No ended sessions" = "Нет завершённых сессий";
+"Put back on the floating panel" = "Вернуть на плавающую панель";

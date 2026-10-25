@@ -390,3 +390,9 @@
 /* Names */
 "YaaKanban" = "YaaKanban";
 "No supported agents found. Install one, then reopen Settings." = "対応しているエージェントが見つかりません。インストールしてから設定を開き直してください。";
+
+/* Ended list */
+"Ended · %lld" = "終了済み · %lld";
+"Ended sessions: click one to put it back on the floating panel" = "終了したセッション：クリックするとフローティングパネルに戻します";
+"No ended sessions" = "終了したセッションはありません";
+"Put back on the floating panel" = "フローティングパネルに戻す";

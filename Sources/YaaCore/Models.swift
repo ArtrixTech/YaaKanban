@@ -236,6 +236,9 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var usage: Usage?
     /// Set when the user ends the session in the panel; it stays in history but leaves the boards.
     public var dismissedAt: Date?
+    /// When the user brought it back from the ended list; sessions started before then no longer
+    /// count as replacing it.
+    public var restoredAt: Date?
     /// A name the user gave the session in YaaKanban; it wins over every other title.
     public var customName: String?
     /// Key of the session that spawned this one as a sub-agent (pi runs them as sessions of their own).

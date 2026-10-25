@@ -390,3 +390,9 @@
 /* Names */
 "YaaKanban" = "YaaKanban";
 "No supported agents found. Install one, then reopen Settings." = "지원되는 에이전트를 찾지 못했습니다. 하나를 설치한 뒤 설정을 다시 여세요.";
+
+/* Ended list */
+"Ended · %lld" = "종료됨 · %lld";
+"Ended sessions: click one to put it back on the floating panel" = "종료된 세션: 클릭하면 플로팅 패널로 되돌립니다";
+"No ended sessions" = "종료된 세션 없음";
+"Put back on the floating panel" = "플로팅 패널로 되돌리기";
