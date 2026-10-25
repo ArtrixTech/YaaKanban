@@ -192,32 +192,29 @@ struct EmptyBoard: View {
     }
 }
 
-/// Bottom of the floating panel: opens the sessions that have left it, to bring one back.
-struct EndedFooter: View {
+/// Opens the sessions that have left the floating panel, to bring one back.
+struct EndedButton: View {
     @Environment(AppModel.self) private var model
     @State private var open = false
     @State private var hover = false
 
     var body: some View {
-        let count = model.endedSessions.count
-        HStack {
-            Button { open.toggle() } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "archivebox")
-                    Text("Ended · \(count)")
-                }
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(hover ? .primary : .secondary)
-                .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Capsule().fill(.primary.opacity(hover ? 0.1 : 0.05)))
-                .contentShape(Capsule())
+        Button { open.toggle() } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "archivebox")
+                Text("Ended · \(model.endedSessions.count)")
             }
-            .buttonStyle(.plain)
-            .onHover { hover = $0 }
-            .help("Ended sessions: click one to put it back on the floating panel")
-            .popover(isPresented: $open, arrowEdge: .bottom) { EndedList { open = false } }
-            Spacer()
+            .font(.system(size: 10.5, weight: .medium))
+            .foregroundStyle(hover || open ? .secondary : .tertiary)
+            .padding(.horizontal, 6).frame(height: 20)
+            .background(Capsule().fill(.primary.opacity(hover || open ? 0.08 : 0)))
+            .contentShape(Capsule())
         }
+        .buttonStyle(.plain)
+        .onHover { hover = $0 }
+        .animation(.easeOut(duration: 0.12), value: hover)
+        .help("Ended sessions: click one to put it back on the floating panel")
+        .popover(isPresented: $open, arrowEdge: .top) { EndedList { open = false } }
     }
 }
 
@@ -339,11 +336,11 @@ struct FloatingPanelView: View {
             // Folded too (narrower), so the cards keep their place when the rail unfolds.
             if settings.showRecentStats { RecentFigures(folded: folded, slim: slim) }
             list
-            if !folded { EndedFooter() }
+            if !folded { bottomBar }
         }
         // Folded, the sides match the gap between cards.
         .padding(.horizontal, folded ? inset : 10).padding(.top, 10)
-        .padding(.bottom, folded ? inset : 8)
+        .padding(.bottom, folded ? inset : 4)
         // Cards are measured as wide as in the normal rail plus its extra, so either rail keeps their height.
         .environment(\.railExtra, folded ? settings.panelWidth - 2 * Rail.inset - (railWidth - 2 * inset) : nil)
         .environment(\.railSlim, slim)
@@ -424,23 +421,36 @@ struct FloatingPanelView: View {
                         .animation(.easeOut(duration: 0.15), value: moreBelow)
                     }
                     .transition(.opacity)
-                    // Folded, the bottom is an edge like the sides; the height is set unfolded.
-                    if !folded {
-                        ResizeGrip { delta in
-                            room?.holdTop()
-                            guard let delta else {
-                                // Let go at the minimum: back to following the content.
-                                dragStart = nil
-                                if (settings.panelListHeight ?? .infinity) <= Self.minList { settings.panelListHeight = nil }
-                                return
-                            }
-                            let start = dragStart ?? shownList
-                            dragStart = start
-                            settings.panelListHeight = min(Self.maxList, max(Self.minList, start + delta))
-                        }
-                    }
                 }
             }
+    }
+
+    /// One row under the list: the ended list on the left, the height grip centred. The button's
+    /// hidden twin on the right keeps the grip in the middle.
+    private var bottomBar: some View {
+        HStack(spacing: 0) {
+            EndedButton().fixedSize()
+            if listShown { heightGrip } else { Spacer(minLength: 0) }
+            EndedButton().fixedSize().hidden()
+        }
+        .frame(height: 22)
+    }
+
+    private var heightGrip: some View {
+        @Bindable var settings = model.settings
+        return ResizeGrip { delta in
+            room?.holdTop()
+            guard let delta else {
+                // Let go at the minimum: back to following the content.
+                dragStart = nil
+                if (settings.panelListHeight ?? .infinity) <= Self.minList { settings.panelListHeight = nil }
+                return
+            }
+            let start = dragStart ?? shownList
+            dragStart = start
+            settings.panelListHeight = min(Self.maxList, max(Self.minList, start + delta))
+        }
+        .frame(height: 22)
     }
 
     private var moreBelow: Bool { listBottom > shownList + 1 }

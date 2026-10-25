@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(panel): keep pinned cards and add an ended list
+## style(panel): merge the ended button and height grip into one bar
 
 `pending` | 2026-10-25
+
+- **Changes**: `EndedFooter` → `EndedButton` (no resting fill, tertiary text, hover capsule, popover arrow on top). The height grip moved out of `list` into `bottomBar`: one 22 pt row, button left, grip centred between it and a hidden twin; no grip when the list is hidden. Panel bottom padding 8 → 4.
+- **Reason**: the grip floated alone under the list with the capsule button a separate row below it, which looked disjointed.
+- **User feedback**: "这个ui太诡异了，要重新改。让底部协调。" (screenshot: grip, empty gap, then 已结束 · 74 capsule).
+- **Process**: `make build`, `make install`; `yaak snapshot` with the list height and recent stats temporarily changed so the bottom fits the 300 pt snapshot (both restored after).
+- **Result**: one bottom row: 已结束 · 74 on the left, grip in the middle.
+- **Notes**: popover still only verifiable on a real screen.
+
+## feat(panel): keep pinned cards and add an ended list
+
+`c239a3a` | 2026-10-25
 
 - **Changes**: `AppModel.isLive`: a top-level pinned session (not dismissed, started) is always live. New `SessionState.restoredAt` (optional, old rows decode); the "replaced by a later session of the same pid" check counts only sessions started after `max(lastEventAt, restoredAt)`. `AppModel.endedSessions` (top-level, started, not live; newest first) and `restore(_:)` (clears dismissed/unread, sets reviewedAt + restoredAt = now). Floating panel (unfolded) gets `EndedFooter` under the list: 已结束 · N capsule opening a popover `EndedList` (320 pt, max 420 pt, scrolls); click a row = restore; context menu restore / copy resume command / delete. Panel bottom padding fixed at 8. 4 strings × 9 tables. Spec board bullet.
 - **Reason**: pinned cards still timed out after the retention like any reviewed card; ended (retention over or ended on the panel) cards could only be found in the main window's History, whose restore only undid an explicit end.
