@@ -1,8 +1,19 @@
 # Devlog
 
+## fix(wave): resume in an ordinary terminal block
+
+`pending` | 2026-10-25
+
+- **Changes**: new `YaaCore/WaveResume.swift` builds `wsh createblock term controller=shell cmd:cwd=… cmd:initscript.{zsh,bash,fish}=…`; `WaveAdapter.resume` uses it instead of `wsh run -c '<swap>; "$SHELL" -ilc <cmd>; exec "$SHELL" -il'` (the swap-token workaround is gone, Wave's own rc now trades it). Init script arms a one-shot hook: zsh `add-zle-hook-widget line-init` puts the command in `BUFFER` and `.accept-line`; bash a `precmd_functions` entry (echo + `history -s` + eval); fish an `--on-event fish_prompt` function. Each first runs `wsh setmeta -b $WAVETERM_BLOCKID cmd:initscript.*=null` in the background. Tests `WaveResumeTests` (meta decoding, `-n` syntax, bash hook runs once with a fake wsh). Spec resume bullet, Architecture.
+- **Reason**: a `wsh run` block is a `cmd` controller block: its header shows the raw command (`[ -n "$WAVETERM_SWAPTOKEN" ] &&…`) instead of the host, and it isn't a normal shell; a user-opened terminal + paste looks different.
+- **User feedback**: "你在waveterm恢复的terminal和看起来用户自己打开粘贴恢复的不一样。请解决。" (screenshot: resumed block header with the swap-token command, next to a normal `artrix@…` terminal header).
+- **Process**: read Wave source (`wshcmd-term.go`, `wshcmd-createblock.go`, `shellcontroller.go`, `makeSwapToken`, `zsh_zshrc.sh`, `bash_bashrc.sh`): a shell block's `cmd:initscript.<shell>` comes back from `wsh token` and is sourced before `~/.zshrc`/`~/.bash_profile`, so running the agent there would miss PATH; hence the first-prompt hook. Live in Wave 0.14.5: zsh and bash (`term:localshellpath=/bin/bash`) blocks showed the command at a normal prompt, got their own `WAVETERM_BLOCKID`, found `claude` on PATH, and the init-script meta was gone afterwards; then the exact args from `createBlockArgs` gave the same. Test blocks deleted. `make test` 167 pass.
+- **Result**: resumed sessions open in a block indistinguishable from a user-opened terminal with the command pasted.
+- **Notes**: fish path untested (fish not installed). Shells other than zsh/bash/fish (sh, pwsh, nu) get no init script: the block opens but nothing runs; the command is still on the clipboard. zsh: a `.zshrc` that replaces `zle-line-init` without `add-zle-hook-widget` (old oh-my-zsh key-bindings) would drop the hook. `wsh createblock` is a hidden command (present in 0.14.5); it needs `WAVETERM_TABID` in the runner env, which `process(_:as:)` sets when known.
+
 ## feat(settings): list only detected agents
 
-`pending` | 2026-10-24
+`6e14b56` | 2026-10-24
 
 - **Changes**: Settings › Agent integrations shows only integrations whose status is not `notDetected` (status checks installed first, so a row with our hooks left behind stays visible to uninstall); empty state "No supported agents found…" (+9 translations, 356 keys); dropped the now-dead `notDetected` note guard; spec §3 bullet.
 - **Reason**: all 17 supported agents were listed, mostly "Not detected" noise.

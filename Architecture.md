@@ -2,7 +2,7 @@
 
 ## Components
 
-- **YaaCore** — agent-neutral model, hook-payload normalizers, session state machine, stuck detection, alerts, wire protocol (Unix socket + spool), SQLite history, efficiency activity rows, reports and their calendar periods (`Activity.swift`, `ActivityReport.swift`, `ActivityPeriod.swift`). `Sources/YaaCore/`
+- **YaaCore** — agent-neutral model, hook-payload normalizers, session state machine, stuck detection, alerts, wire protocol (Unix socket + spool), SQLite history, efficiency activity rows, reports and their calendar periods (`Activity.swift`, `ActivityReport.swift`, `ActivityPeriod.swift`), the Wave resume block (`WaveResume.swift`). `Sources/YaaCore/`
 - **YaaIntegrations** — per-agent installers that add/remove YaaKanban hooks or plugins in each agent's config, and report pending user authorization. `Sources/YaaIntegrations/`
   - Integration protocol, `Installer` (apply, backup, redacted dry run), `StableYaak` (the stable hook link) — `Integration.swift`
   - JSON-hook agents (Claude, Codex, Cursor, Windsurf) — `JSONHooks.swift`; Codex `/hooks` trust check — `CodexTrust.swift`
