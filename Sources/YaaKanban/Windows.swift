@@ -779,11 +779,6 @@ struct SettingsView: View {
                 Toggle(isOn: $settings.showRecentStats) {
                     SettingLabel(String(localized: "Show leverage and today's work time on top"), symbol: "chart.bar.fill", tint: .orange)
                 }
-                if settings.showRecentStats {
-                    Picker(selection: $settings.recentMinutes) {
-                        ForEach(Preferences.recentChoices, id: \.self) { Text(Self.duration($0)).tag($0) }
-                    } label: { Text("Leverage over the last").padding(.leading, 30) }
-                }
                 Toggle(isOn: $settings.slimRail) {
                     VStack(alignment: .leading, spacing: 2) {
                         SettingLabel(String(localized: "Slim sidebar (experimental)"), symbol: "sidebar.right", tint: .teal)

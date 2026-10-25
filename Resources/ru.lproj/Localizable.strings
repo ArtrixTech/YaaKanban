@@ -216,7 +216,6 @@
 "Opacity" = "Непрозрачность";
 "Show / hide" = "Показать / скрыть";
 "Show leverage and today's work time on top" = "Показывать вверху множитель и время работы за сегодня";
-"Leverage over the last" = "Множитель за последние";
 "Slim sidebar (experimental)" = "Узкая боковая панель (экспериментально)";
 "When snapped to the left or right edge and folded, the panel becomes a thin strip: each session shows only its status, agent and time, running ones shimmer, and the height stays the same. Hover it (or push the pointer to the screen edge) to expand." = "Если панель прикреплена к левому или правому краю экрана и свернута, она превращается в узкую полоску: у каждого сеанса видны только статус, агент и время, работающие переливаются, а высота не меняется. Наведите на нее указатель (или подведите его к краю экрана), чтобы развернуть.";
 "Wait for background agents (beta)" = "Ждать фоновых агентов (бета)";
@@ -293,7 +292,6 @@
 ", about the same as %@" = ", примерно как %@";
 ", %@ more than %@" = ", на %1$@ больше, чем %2$@";
 ", %@ less than %@" = ", на %1$@ меньше, чем %2$@";
-"; while you were away they worked another %@" = "; пока вас не было, они отработали еще %@";
 "; when an agent needed you, you usually replied within %@" = "; когда агент ждал вас, вы обычно отвечали в пределах %@";
 ", and for %@ every agent sat waiting on you" = ", а %@ все агенты простаивали в ожидании вас";
 "; %@ done." = "; итог — %@.";
@@ -301,9 +299,7 @@
 "%@ sessions" = "%@ сеанса";
 "While agents ran · peak %lld" = "Пока агенты работали · максимум %lld";
 "All stalled" = "Все стоят";
-"Every agent waiting on you, none running" = "Все агенты ждут вас, ни один не работает";
 "Agent utilization" = "Загрузка агентов";
-"Running ÷ (running + waiting on you)" = "Работа ÷ (работа + ожидание вас)";
 "Throughput" = "Темп";
 "%@ turns/h" = "%@ хода/ч";
 "%lld tool calls · %@ tokens (excl. cache reads)" = "Вызовов инструментов: %lld · токенов: %@ (без чтения кэша)";
@@ -329,13 +325,9 @@
 "%@ of it while you were away" = "Из них %@, пока вас не было";
 "All agents' running time added up" = "Суммарное время работы всех агентов";
 "Leverage" = "Множитель";
-"Agent hours per hour you were here" = "Агенто-часов на каждый ваш час присутствия";
 "Reply time" = "Время ответа";
 "Median wait for your reply · P90 %@" = "Медиана ожидания вашего ответа · P90 %@";
 "How long agents wait for your reply" = "Сколько агенты ждут вашего ответа";
-"Turns done" = "Завершено ходов";
-"%@ turns per active hour" = "%@ хода в активный час";
-"One agent reply is one turn" = "Один ответ агента — один ход";
 "Hardest worker" = "Самый трудолюбивый";
 "Ran %@ · %@" = "Работал %@ · %@";
 "No agent has run yet" = "Агенты еще не работали";
@@ -345,7 +337,6 @@
 "While you were away" = "Пока вас не было";
 "No away time recorded here" = "Отсутствие здесь не записано";
 "You were here the whole time" = "Вы были здесь все время";
-"Agent hours they kept going on their own" = "Агенто-часы, которые они отработали сами";
 "They stopped when you left" = "Они остановились, когда вы ушли";
 "Deleted session" = "Удаленный сеанс";
 "%@ agent hours" = "%@ агенто-ч";
@@ -374,9 +365,7 @@
 "agent hours" = "агенто-часы";
 "Reply" = "Ответ";
 "Today. Click to open Overview in the main window." = "Сегодня. Нажмите, чтобы открыть «Обзор» в главном окне.";
-"Over the last %@, agent hours per hour you were here. Change the window in Settings." = "За последние %@ — агенто-часов на каждый ваш час присутствия. Период меняется в настройках.";
 "Today %@" = "Сегодня %@";
-"Leverage trend: each point is the leverage over the %@ up to then, across the last %@; the dashed line is 1×." = "Тренд множителя: каждая точка — множитель за %@ до этого момента, за последние %@; пунктир — 1×.";
 "Agent hours today" = "Агенто-часы за сегодня";
 "All agents' running time today, added up" = "Суммарное время работы всех агентов за сегодня";
 "Leverage trend" = "Тренд множителя";
@@ -396,3 +385,18 @@
 "Ended sessions: click one to put it back on the floating panel" = "Завершённые сессии: нажмите на одну, чтобы вернуть её на плавающую панель";
 "No ended sessions" = "Нет завершённых сессий";
 "Put back on the floating panel" = "Вернуть на плавающую панель";
+"; %@ of it while you were away" = "; из них %@ — пока вас не было";
+", though they sat blocked for %@ waiting on you" = ", но %@ они стояли, ожидая вас";
+"Agents asking or stuck while you were gone" = "Агенты спрашивали или зависли, пока вас не было";
+"Blocked while away" = "Застряли без вас";
+"How long finished turns wait for you" = "Сколько готовые ходы ждут вас";
+"Median from done to your look · P90 %@" = "Медиана от готовности до просмотра · P90 %@";
+"Per intervention" = "На одно вмешательство";
+"Pickup time" = "Время подхвата";
+"Running ÷ (running + blocked on you)" = "Работа ÷ (работа + ожидание вас)";
+"Some agent blocked on you, none running" = "Какой-то агент ждёт вас, ни один не работает";
+"Working %@, blocked %@" = "Работали %@, ждали %@";
+"Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's leverage." = "Тренд множителя: каждая точка — множитель за 4 часа до этого момента, за последние %@; пунктир — сегодняшний множитель.";
+"Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "За последние 4 часа: часы агентов (включая ваше отсутствие) на час вашего присутствия. Стрелка сравнивает с сегодняшним множителем.";
+"All agent hours ÷ your time here" = "Все часы агентов ÷ ваше присутствие";
+"Per prompt or answer · %lld in all" = "На запрос или ответ · всего %lld";

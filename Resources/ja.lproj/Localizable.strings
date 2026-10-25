@@ -216,7 +216,6 @@
 "Opacity" = "不透明度";
 "Show / hide" = "表示 / 非表示";
 "Show leverage and today's work time on top" = "上部にレバレッジと今日の作業時間を表示";
-"Leverage over the last" = "レバレッジの集計期間";
 "Slim sidebar (experimental)" = "スリムサイドバー（実験的）";
 "When snapped to the left or right edge and folded, the panel becomes a thin strip: each session shows only its status, agent and time, running ones shimmer, and the height stays the same. Hover it (or push the pointer to the screen edge) to expand." = "画面の左右の端に吸着させて折りたたむと、パネルは細い帯になります。各セッションにはステータス、エージェント、時間だけが表示され、実行中のものには光が流れ、高さはそのままです。ポインタを重ねる（または画面の端まで動かす）と展開します。";
 "Wait for background agents (beta)" = "バックグラウンドエージェントを待つ（ベータ）";
@@ -293,7 +292,6 @@
 ", about the same as %@" = "、%@とほぼ同じ";
 ", %@ more than %@" = "、%2$@より%1$@多い";
 ", %@ less than %@" = "、%2$@より%1$@少ない";
-"; while you were away they worked another %@" = "。離席中にもさらに%@稼働";
 "; when an agent needed you, you usually replied within %@" = "。エージェントに呼ばれたときは、たいてい%@以内に返信";
 ", and for %@ every agent sat waiting on you" = "、%@はすべてのエージェントがあなたを待って停止";
 "; %@ done." = "。%@完了しました。";
@@ -301,9 +299,7 @@
 "%@ sessions" = "%@セッション";
 "While agents ran · peak %lld" = "エージェント実行中 · 最大%lld";
 "All stalled" = "全停止";
-"Every agent waiting on you, none running" = "すべてのエージェントが対応待ちで、実行中なし";
 "Agent utilization" = "エージェント稼働率";
-"Running ÷ (running + waiting on you)" = "実行 ÷（実行 + 対応待ち）";
 "Throughput" = "スループット";
 "%@ turns/h" = "%@ターン/時";
 "%lld tool calls · %@ tokens (excl. cache reads)" = "ツール%lld回 · %@トークン（キャッシュ読み取りを除く）";
@@ -329,13 +325,9 @@
 "%@ of it while you were away" = "うち離席中%@";
 "All agents' running time added up" = "全エージェントの実行時間の合計";
 "Leverage" = "レバレッジ";
-"Agent hours per hour you were here" = "在席1時間あたりのエージェント稼働時間";
 "Reply time" = "返信時間";
 "Median wait for your reply · P90 %@" = "返信待ちの中央値 · P90 %@";
 "How long agents wait for your reply" = "エージェントが返信を待つ時間";
-"Turns done" = "完了ターン";
-"%@ turns per active hour" = "アクティブ1時間あたり%@ターン";
-"One agent reply is one turn" = "エージェントの返信1回で1ターン";
 "Hardest worker" = "最も働いたエージェント";
 "Ran %@ · %@" = "実行%@ · %@";
 "No agent has run yet" = "まだ実行されたエージェントはありません";
@@ -345,7 +337,6 @@
 "While you were away" = "離席中";
 "No away time recorded here" = "この期間に離席の記録はありません";
 "You were here the whole time" = "ずっと在席していました";
-"Agent hours they kept going on their own" = "エージェントが自力で続けた稼働時間";
 "They stopped when you left" = "離席すると停止しました";
 "Deleted session" = "削除されたセッション";
 "%@ agent hours" = "稼働%@";
@@ -374,9 +365,7 @@
 "agent hours" = "エージェント稼働時間";
 "Reply" = "返信";
 "Today. Click to open Overview in the main window." = "今日。クリックするとメインウインドウの「概要」を開きます。";
-"Over the last %@, agent hours per hour you were here. Change the window in Settings." = "直近%@の、在席1時間あたりのエージェント稼働時間。期間は設定で変更できます。";
 "Today %@" = "今日%@";
-"Leverage trend: each point is the leverage over the %@ up to then, across the last %@; the dashed line is 1×." = "レバレッジの推移：各点はその時点までの%@のレバレッジで、直近%@分を表示。破線は1×です。";
 "Agent hours today" = "今日の稼働時間";
 "All agents' running time today, added up" = "今日の全エージェントの実行時間の合計";
 "Leverage trend" = "レバレッジの推移";
@@ -396,3 +385,18 @@
 "Ended sessions: click one to put it back on the floating panel" = "終了したセッション：クリックするとフローティングパネルに戻します";
 "No ended sessions" = "終了したセッションはありません";
 "Put back on the floating panel" = "フローティングパネルに戻す";
+"; %@ of it while you were away" = "。うち%@は離席中";
+", though they sat blocked for %@ waiting on you" = "。ただし%@はあなたを待って止まっていました";
+"Agents asking or stuck while you were gone" = "離席中にエージェントが質問中または停止していた時間";
+"Blocked while away" = "離席中の停止";
+"How long finished turns wait for you" = "完了したターンがあなたを待つ時間";
+"Median from done to your look · P90 %@" = "完了から確認までの中央値 · P90 %@";
+"Per intervention" = "介入1回あたり";
+"Pickup time" = "引き取り時間";
+"Running ÷ (running + blocked on you)" = "実行 ÷（実行 + あなた待ちで停止）";
+"Some agent blocked on you, none running" = "あなた待ちで止まり、実行中のものがない";
+"Working %@, blocked %@" = "稼働%@、停止%@";
+"Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's leverage." = "レバレッジの推移：各点はその時点までの4時間のレバレッジで、直近%@分を表示。破線は今日のレバレッジです。";
+"Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "直近4時間の、離席中も含むエージェント稼働時間 ÷ 在席時間。矢印は今日のレバレッジとの比較です。";
+"All agent hours ÷ your time here" = "全エージェント稼働時間 ÷ 在席時間";
+"Per prompt or answer · %lld in all" = "指示・回答1回あたり · 計%lld回";

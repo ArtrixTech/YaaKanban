@@ -216,7 +216,6 @@
 "Opacity" = "Opacité";
 "Show / hide" = "Afficher / masquer";
 "Show leverage and today's work time on top" = "Afficher le levier et le temps de travail du jour en haut";
-"Leverage over the last" = "Levier calculé sur";
 "Slim sidebar (experimental)" = "Barre latérale fine (expérimental)";
 "When snapped to the left or right edge and folded, the panel becomes a thin strip: each session shows only its status, agent and time, running ones shimmer, and the height stays the same. Hover it (or push the pointer to the screen edge) to expand." = "Quand le panneau est aimanté au bord gauche ou droit et replié, il devient une fine bande : chaque session n’affiche que son état, son agent et sa durée, celles en cours scintillent, et la hauteur reste la même. Survolez-la (ou poussez le pointeur contre le bord de l’écran) pour la développer.";
 "Wait for background agents (beta)" = "Attendre les agents en arrière-plan (bêta)";
@@ -293,7 +292,6 @@
 ", about the same as %@" = ", à peu près comme %@";
 ", %@ more than %@" = ", %@ de plus que %@";
 ", %@ less than %@" = ", %@ de moins que %@";
-"; while you were away they worked another %@" = " ; pendant votre absence, ils ont travaillé %@ de plus";
 "; when an agent needed you, you usually replied within %@" = " ; quand un agent avait besoin de vous, vous répondiez en général en moins de %@";
 ", and for %@ every agent sat waiting on you" = ", et pendant %@ tous les agents vous attendaient";
 "; %@ done." = " ; %@ terminés.";
@@ -301,9 +299,7 @@
 "%@ sessions" = "%@ sessions";
 "While agents ran · peak %lld" = "Quand des agents tournaient · pic à %lld";
 "All stalled" = "Tout à l’arrêt";
-"Every agent waiting on you, none running" = "Tous les agents vous attendent, aucun ne tourne";
 "Agent utilization" = "Utilisation des agents";
-"Running ÷ (running + waiting on you)" = "En cours ÷ (en cours + en attente de vous)";
 "Throughput" = "Débit";
 "%@ turns/h" = "%@ tours/h";
 "%lld tool calls · %@ tokens (excl. cache reads)" = "%lld appels d’outils · %@ tokens (hors lectures cache)";
@@ -329,13 +325,9 @@
 "%@ of it while you were away" = "Dont %@ pendant votre absence";
 "All agents' running time added up" = "Temps d’exécution de tous les agents cumulé";
 "Leverage" = "Levier";
-"Agent hours per hour you were here" = "Heures d’agent par heure de présence";
 "Reply time" = "Temps de réponse";
 "Median wait for your reply · P90 %@" = "Attente médiane de votre réponse · P90 %@";
 "How long agents wait for your reply" = "Combien de temps les agents attendent votre réponse";
-"Turns done" = "Tours terminés";
-"%@ turns per active hour" = "%@ tours par heure active";
-"One agent reply is one turn" = "Une réponse d’agent compte pour un tour";
 "Hardest worker" = "Le plus assidu";
 "Ran %@ · %@" = "A tourné %@ · %@";
 "No agent has run yet" = "Aucun agent n’a encore tourné";
@@ -345,7 +337,6 @@
 "While you were away" = "Pendant votre absence";
 "No away time recorded here" = "Aucune absence enregistrée ici";
 "You were here the whole time" = "Vous étiez là tout le temps";
-"Agent hours they kept going on their own" = "Heures d’agent poursuivies sans vous";
 "They stopped when you left" = "Ils se sont arrêtés quand vous êtes parti";
 "Deleted session" = "Session supprimée";
 "%@ agent hours" = "%@ heures d’agent";
@@ -374,9 +365,7 @@
 "agent hours" = "heures d’agent";
 "Reply" = "Réponse";
 "Today. Click to open Overview in the main window." = "Aujourd’hui. Cliquez pour ouvrir la Vue d’ensemble dans la fenêtre principale.";
-"Over the last %@, agent hours per hour you were here. Change the window in Settings." = "Sur une période de %@, heures d’agent par heure de présence. Modifiez la période dans les Réglages.";
 "Today %@" = "Aujourd’hui %@";
-"Leverage trend: each point is the leverage over the %@ up to then, across the last %@; the dashed line is 1×." = "Tendance du levier : chaque point est le levier sur %@ jusqu’à ce moment, sur une période de %@ ; la ligne pointillée correspond à 1×.";
 "Agent hours today" = "Heures d’agent du jour";
 "All agents' running time today, added up" = "Temps d’exécution de tous les agents aujourd’hui, cumulé";
 "Leverage trend" = "Tendance du levier";
@@ -396,3 +385,18 @@
 "Ended sessions: click one to put it back on the floating panel" = "Sessions terminées : cliquez sur l’une d’elles pour la remettre dans le panneau flottant";
 "No ended sessions" = "Aucune session terminée";
 "Put back on the floating panel" = "Remettre dans le panneau flottant";
+"; %@ of it while you were away" = "; dont %@ pendant ton absence";
+", though they sat blocked for %@ waiting on you" = ", mais ils sont restés bloqués %@ à t’attendre";
+"Agents asking or stuck while you were gone" = "Agents qui demandent ou bloqués pendant ton absence";
+"Blocked while away" = "Bloqués en ton absence";
+"How long finished turns wait for you" = "Combien de temps les tours terminés t’attendent";
+"Median from done to your look · P90 %@" = "Médiane de terminé à consulté · P90 %@";
+"Per intervention" = "Par intervention";
+"Pickup time" = "Délai de reprise";
+"Running ÷ (running + blocked on you)" = "En cours ÷ (en cours + bloqués par toi)";
+"Some agent blocked on you, none running" = "Un agent bloqué par toi, aucun en cours";
+"Working %@, blocked %@" = "Actifs %@, bloqués %@";
+"Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's leverage." = "Tendance du levier : chaque point est le levier sur les 4 heures jusqu’à ce moment, sur une période de %@ ; la ligne pointillée est le levier du jour.";
+"Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "Sur les 4 dernières heures, heures d’agent (absences comprises) par heure de présence. La flèche le compare au levier du jour.";
+"All agent hours ÷ your time here" = "Toutes les heures d’agent ÷ ton temps présent";
+"Per prompt or answer · %lld in all" = "Par consigne ou réponse · %lld au total";

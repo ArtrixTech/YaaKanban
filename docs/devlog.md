@@ -1,8 +1,19 @@
 # Devlog
 
-## style(panel): merge the ended button and height grip into one bar
+## feat(overview): count away work in leverage and split blocked from review
 
 `pending` | 2026-10-25
+
+- **Changes**: `ActivityReport`: leverage = agentTime (away included) ÷ activeTime; `presentAgentBuckets` → `agentBuckets` (all running). Sweep splits waiting into blocked (needsInput/stuck) and review; `bottleneck` and `utilization` count only blocked. New `blockedAway`, `utilizationAway`, `pickups`/`pickupMedian`/`pickupP90` (closed review segments that started inside the measured range, away taken out), `interventions` (finished turns + needsInput→running) and `agentTimePerIntervention`. Overview: 4th headline 完成轮数 → 离开时被卡住; 你不在时 highlight shows away utilization with both durations; new tiles 接手速度 and 每次介入; the summary says how much of the agent time was away and how long agents were blocked then. Floating panel: leverage window fixed at 4 h (setting `recentMinutes` and its picker removed); the arrow and the trend's dashed line compare with today's leverage instead of the last window / 1×. Strings in all 9 tables; spec §5 efficiency bullet.
+- **Reason**: the old leverage left out everything agents did while the user was away, which is where most of the leverage comes from; it was really just parallelism while present. Waits mixed blocked-on-you with finished-and-unreviewed, and the most costly waste (blocked while away) was hidden.
+- **User feedback**: "我感觉你现在这个杠杆的计算不符合道理，只评估了我在的时候的效率，我不在的时候不是其实更重要？…现在的数据有什么要调整" → "关于杠杆，时间窗口的问题，直接做成4小时，悬浮窗显示的趋势也是相对于今日基线是更高还是相似还是更低。对于后面：全部执行。"
+- **Process**: new test `blockedReviewAndInterventions` caught that an ask carried in from before the range was not counted as an intervention (only pickup needs a known start); fixed. `make test` 168 pass, `make l10n` 0 problems, `make install`, `yaak snapshot`: today 2.3× (away 4.2 h of 9.4 h), blocked while away 3m26s, away utilization 99%, pickup 2m21s, 8m50s per intervention; two over-long captions shortened after the first snapshot.
+- **Result**: leverage rewards leaving agents running; the overview shows where agents were blocked by you vs only waiting for review.
+- **Notes**: with a 4 h window, a return after long away can still spike the panel figure (little present time); no floor added by choice. Running still includes waiting on background agents/shells, so agent hours run slightly high there. A needsInput answered by a new prompt can count twice (answer + turn). Telemetry `leverage` bucket now uses the new definition (no schema bump).
+
+## style(panel): merge the ended button and height grip into one bar
+
+`ae39f7b` | 2026-10-25
 
 - **Changes**: `EndedFooter` → `EndedButton` (no resting fill, tertiary text, hover capsule, popover arrow on top). The height grip moved out of `list` into `bottomBar`: one 22 pt row, button left, grip centred between it and a hidden twin; no grip when the list is hidden. Panel bottom padding 8 → 4.
 - **Reason**: the grip floated alone under the list with the capsule button a separate row below it, which looked disjointed.

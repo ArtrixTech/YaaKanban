@@ -216,7 +216,6 @@
 "Opacity" = "透明度";
 "Show / hide" = "显示 / 隐藏";
 "Show leverage and today's work time on top" = "顶部显示杠杆和今日工时";
-"Leverage over the last" = "杠杆统计最近";
 "Slim sidebar (experimental)" = "超窄侧边栏（实验性）";
 "When snapped to the left or right edge and folded, the panel becomes a thin strip: each session shows only its status, agent and time, running ones shimmer, and the height stays the same. Hover it (or push the pointer to the screen edge) to expand." = "吸附到屏幕左右边并收起后，变成一条细条，每个会话只显示状态、agent 和时间，运行中的有流光，高度不变。鼠标移上去（推到屏幕边也行）展开。";
 "Wait for background agents (beta)" = "等待背景 agent（测试）";
@@ -293,7 +292,6 @@
 ", about the same as %@" = "，和%@差不多";
 ", %@ more than %@" = "，比%2$@多 %1$@";
 ", %@ less than %@" = "，比%2$@少 %1$@";
-"; while you were away they worked another %@" = "；你不在时它们又干了 %@";
 "; when an agent needed you, you usually replied within %@" = "；agent 找你时，你一般 %@ 内回复";
 ", and for %@ every agent sat waiting on you" = "，有 %@ 所有 agent 都停着等你";
 "; %@ done." = "；完成 %@。";
@@ -301,9 +299,7 @@
 "%@ sessions" = "%@ 个";
 "While agents ran · peak %lld" = "有 agent 在跑时 · 最多 %lld 个";
 "All stalled" = "全部停工";
-"Every agent waiting on you, none running" = "所有 agent 都在等你、没有一个在跑";
 "Agent utilization" = "Agent 利用率";
-"Running ÷ (running + waiting on you)" = "在跑 ÷（在跑 + 等你）";
 "Throughput" = "吞吐";
 "%@ turns/h" = "%@ 轮/时";
 "%lld tool calls · %@ tokens (excl. cache reads)" = "%lld 次工具 · %@ token（不含缓存读）";
@@ -329,13 +325,9 @@
 "%@ of it while you were away" = "其中你不在时 %@";
 "All agents' running time added up" = "所有 agent 在跑的时间相加";
 "Leverage" = "杠杆";
-"Agent hours per hour you were here" = "你在场的每小时，agent 干了几小时";
 "Reply time" = "回复速度";
 "Median wait for your reply · P90 %@" = "agent 等你回复的中位 · P90 %@";
 "How long agents wait for your reply" = "agent 等你回复要多久";
-"Turns done" = "完成轮数";
-"%@ turns per active hour" = "每活跃小时 %@ 轮";
-"One agent reply is one turn" = "agent 回完一次算一轮";
 "Hardest worker" = "最卖力";
 "Ran %@ · %@" = "跑了 %@ · %@";
 "No agent has run yet" = "还没有 agent 跑过";
@@ -345,7 +337,6 @@
 "While you were away" = "你不在时";
 "No away time recorded here" = "这段没有离开的记录";
 "You were here the whole time" = "你一直都在";
-"Agent hours they kept going on their own" = "agent 自己接着干的工时";
 "They stopped when you left" = "你一走它们也停了";
 "Deleted session" = "已删除的会话";
 "%@ agent hours" = "%@ 工时";
@@ -374,9 +365,7 @@
 "agent hours" = "agent 工时";
 "Reply" = "回复";
 "Today. Click to open Overview in the main window." = "今天，点击打开主界面「概览」";
-"Over the last %@, agent hours per hour you were here. Change the window in Settings." = "最近 %@，你在场的每小时 agent 干了几小时；时长可在设置里调";
 "Today %@" = "今日 %@";
-"Leverage trend: each point is the leverage over the %@ up to then, across the last %@; the dashed line is 1×." = "杠杆走势：每点是到那时为止 %@ 的杠杆，近 %@；虚线为 1×";
 "Agent hours today" = "今日工时";
 "All agents' running time today, added up" = "今天所有 agent 在跑的时间相加";
 "Leverage trend" = "杠杆走势";
@@ -396,3 +385,18 @@
 "Ended sessions: click one to put it back on the floating panel" = "已结束的任务：点一条把它放回悬浮窗";
 "No ended sessions" = "没有已结束的任务";
 "Put back on the floating panel" = "放回悬浮窗";
+"; %@ of it while you were away" = "；其中 %@ 是你不在时干的";
+", though they sat blocked for %@ waiting on you" = "，但有 %@ 卡着等你";
+"Agents asking or stuck while you were gone" = "你不在时 agent 在问你或卡住的时长";
+"Blocked while away" = "离开时被卡住";
+"How long finished turns wait for you" = "完成的轮次等你接手多久";
+"Median from done to your look · P90 %@" = "完成到你查看的中位数 · P90 %@";
+"Per intervention" = "每次介入";
+"Pickup time" = "接手速度";
+"Running ÷ (running + blocked on you)" = "运行 ÷（运行 + 卡着等你）";
+"Some agent blocked on you, none running" = "有 agent 卡着等你，且没有在跑的";
+"Working %@, blocked %@" = "干活 %@，卡住 %@";
+"Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's leverage." = "杠杆走势：每点是到那时为止 4 小时的杠杆，近 %@；虚线为今日杠杆";
+"Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "最近 4 小时，含你不在时的 agent 工时 ÷ 你在场的时间。箭头与今日杠杆比较";
+"All agent hours ÷ your time here" = "agent 总工时 ÷ 你在场的时间";
+"Per prompt or answer · %lld in all" = "每次发话或回答 · 共 %lld 次";

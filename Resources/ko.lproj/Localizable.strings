@@ -216,7 +216,6 @@
 "Opacity" = "불투명도";
 "Show / hide" = "보기 / 가리기";
 "Show leverage and today's work time on top" = "상단에 레버리지와 오늘 작업 시간 표시";
-"Leverage over the last" = "레버리지 집계 기간";
 "Slim sidebar (experimental)" = "슬림 사이드바(실험적)";
 "When snapped to the left or right edge and folded, the panel becomes a thin strip: each session shows only its status, agent and time, running ones shimmer, and the height stays the same. Hover it (or push the pointer to the screen edge) to expand." = "화면 왼쪽이나 오른쪽 가장자리에 붙여 접으면 패널이 가는 막대로 바뀝니다. 각 세션은 상태, 에이전트, 시간만 표시하고 실행 중인 세션은 반짝이며 높이는 그대로 유지됩니다. 포인터를 올리거나 화면 가장자리로 밀면 펼쳐집니다.";
 "Wait for background agents (beta)" = "백그라운드 에이전트 기다리기(베타)";
@@ -293,7 +292,6 @@
 ", about the same as %@" = ". %@와(과) 비슷합니다";
 ", %@ more than %@" = ". %2$@보다 %1$@ 많습니다";
 ", %@ less than %@" = ". %2$@보다 %1$@ 적습니다";
-"; while you were away they worked another %@" = ". 자리를 비운 동안 에이전트가 %@ 더 일했습니다";
 "; when an agent needed you, you usually replied within %@" = ". 에이전트가 응답을 요청하면 보통 %@ 안에 응답했습니다";
 ", and for %@ every agent sat waiting on you" = ". 모든 에이전트가 응답을 기다리며 멈춰 있던 시간은 %@입니다";
 "; %@ done." = ". 완료: %@.";
@@ -301,9 +299,7 @@
 "%@ sessions" = "%@개";
 "While agents ran · peak %lld" = "에이전트 실행 중 · 최대 %lld개";
 "All stalled" = "모두 멈춤";
-"Every agent waiting on you, none running" = "모든 에이전트가 응답을 기다리며 실행 중인 것이 없음";
 "Agent utilization" = "에이전트 가동률";
-"Running ÷ (running + waiting on you)" = "실행 ÷ (실행 + 응답 대기)";
 "Throughput" = "처리량";
 "%@ turns/h" = "시간당 %@턴";
 "%lld tool calls · %@ tokens (excl. cache reads)" = "도구 호출 %lld회 · 토큰 %@개(캐시 읽기 제외)";
@@ -329,13 +325,9 @@
 "%@ of it while you were away" = "그중 자리 비운 동안 %@";
 "All agents' running time added up" = "모든 에이전트의 실행 시간 합계";
 "Leverage" = "레버리지";
-"Agent hours per hour you were here" = "자리에 있던 1시간당 에이전트 작업 시간";
 "Reply time" = "응답 시간";
 "Median wait for your reply · P90 %@" = "응답 대기 시간 중앙값 · P90 %@";
 "How long agents wait for your reply" = "에이전트가 응답을 기다리는 시간";
-"Turns done" = "완료한 턴";
-"%@ turns per active hour" = "활성 시간당 %@턴";
-"One agent reply is one turn" = "에이전트 응답 1회가 1턴";
 "Hardest worker" = "가장 열심히 일한 세션";
 "Ran %@ · %@" = "%@ 실행 · %@";
 "No agent has run yet" = "아직 실행된 에이전트가 없음";
@@ -345,7 +337,6 @@
 "While you were away" = "자리 비운 동안";
 "No away time recorded here" = "여기에는 자리 비움 기록이 없음";
 "You were here the whole time" = "계속 자리에 있었음";
-"Agent hours they kept going on their own" = "에이전트가 스스로 계속 일한 시간";
 "They stopped when you left" = "자리를 비우자 에이전트도 멈춤";
 "Deleted session" = "삭제된 세션";
 "%@ agent hours" = "에이전트 작업 %@";
@@ -374,9 +365,7 @@
 "agent hours" = "에이전트 작업 시간";
 "Reply" = "응답";
 "Today. Click to open Overview in the main window." = "오늘. 클릭하여 메인 윈도우에서 개요를 엽니다.";
-"Over the last %@, agent hours per hour you were here. Change the window in Settings." = "최근 %@ 동안 자리에 있던 1시간당 에이전트 작업 시간입니다. 기간은 설정에서 변경할 수 있습니다.";
 "Today %@" = "오늘 %@";
-"Leverage trend: each point is the leverage over the %@ up to then, across the last %@; the dashed line is 1×." = "레버리지 추이: 최근 %2$@ 동안 각 지점은 그 시점까지 %1$@의 레버리지입니다. 점선은 1×입니다.";
 "Agent hours today" = "오늘 에이전트 작업 시간";
 "All agents' running time today, added up" = "오늘 모든 에이전트의 실행 시간 합계";
 "Leverage trend" = "레버리지 추이";
@@ -396,3 +385,18 @@
 "Ended sessions: click one to put it back on the floating panel" = "종료된 세션: 클릭하면 플로팅 패널로 되돌립니다";
 "No ended sessions" = "종료된 세션 없음";
 "Put back on the floating panel" = "플로팅 패널로 되돌리기";
+"; %@ of it while you were away" = "; 그중 %@는 자리를 비운 동안";
+", though they sat blocked for %@ waiting on you" = ", 다만 %@ 동안은 당신을 기다리며 막혀 있었습니다";
+"Agents asking or stuck while you were gone" = "자리를 비운 동안 에이전트가 묻거나 멈춰 있던 시간";
+"Blocked while away" = "자리 비운 동안 막힘";
+"How long finished turns wait for you" = "끝난 턴이 당신을 기다린 시간";
+"Median from done to your look · P90 %@" = "완료부터 확인까지 중앙값 · P90 %@";
+"Per intervention" = "개입 1회당";
+"Pickup time" = "인수 시간";
+"Running ÷ (running + blocked on you)" = "실행 ÷ (실행 + 당신 때문에 막힘)";
+"Some agent blocked on you, none running" = "에이전트가 당신 때문에 막혀 있고 실행 중인 것이 없음";
+"Working %@, blocked %@" = "작업 %@, 막힘 %@";
+"Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's leverage." = "레버리지 추이: 최근 %@ 동안 각 지점은 그 시점까지 4시간의 레버리지입니다. 점선은 오늘의 레버리지입니다.";
+"Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "최근 4시간, 자리를 비운 시간 포함 에이전트 작업 시간 ÷ 머문 시간. 화살표는 오늘의 레버리지와 비교합니다.";
+"All agent hours ÷ your time here" = "전체 에이전트 작업 시간 ÷ 머문 시간";
+"Per prompt or answer · %lld in all" = "프롬프트·답변 1회당 · 총 %lld회";

@@ -127,8 +127,9 @@ struct DashboardView: View {
             s += abs(d) < 60 ? String(localized: ", about the same as \(vs)")
                 : d > 0 ? String(localized: ", \(duration(abs(d))) more than \(vs)") : String(localized: ", \(duration(abs(d))) less than \(vs)")
         }
-        if r.agentTimeAway >= 60 { s += String(localized: "; while you were away they worked another \(duration(r.agentTimeAway))") }
+        if r.agentTimeAway >= 60 { s += String(localized: "; \(duration(r.agentTimeAway)) of it while you were away") }
         if !r.allRebuilt {
+            if r.blockedAway >= 60 { s += String(localized: ", though they sat blocked for \(duration(r.blockedAway)) waiting on you") }
             if let m = r.replyMedian { s += String(localized: "; when an agent needed you, you usually replied within \(duration(m))") }
             if r.bottleneck >= 60 { s += String(localized: ", and for \(duration(r.bottleneck)) every agent sat waiting on you") }
         }
@@ -142,11 +143,19 @@ struct DashboardView: View {
                  caption: String(localized: "While agents ran · peak \(r.parallelPeak)"),
                  delta: Delta(r.parallelAverage, prev?.parallelAverage, better: .up, vs: vs) { String(format: "%.1f", $0) })
             Tile(title: String(localized: "All stalled"), symbol: "pause.circle", value: r.allRebuilt ? "–" : duration(r.bottleneck),
-                 caption: String(localized: "Every agent waiting on you, none running"),
+                 caption: String(localized: "Some agent blocked on you, none running"),
                  delta: comparesWaits(r, prev) ? Delta(r.bottleneck, prev?.bottleneck, better: .down, vs: vs, fmt: duration) : nil)
             Tile(title: String(localized: "Agent utilization"), symbol: "gauge.with.dots.needle.67percent",
-                 value: r.utilization.map(percent) ?? "–", caption: String(localized: "Running ÷ (running + waiting on you)"),
+                 value: r.utilization.map(percent) ?? "–", caption: String(localized: "Running ÷ (running + blocked on you)"),
                  delta: comparesWaits(r, prev) ? Delta(r.utilization, prev?.utilization, better: .up, vs: vs, fmt: percent) : nil)
+            Tile(title: String(localized: "Pickup time"), symbol: "checkmark.circle", value: r.pickupMedian.map(duration) ?? "–",
+                 caption: r.pickupP90.map { String(localized: "Median from done to your look · P90 \(duration($0))") }
+                    ?? String(localized: "How long finished turns wait for you"),
+                 delta: comparesWaits(r, prev) ? Delta(r.pickupMedian, prev?.pickupMedian, better: .down, vs: vs, fmt: duration) : nil)
+            Tile(title: String(localized: "Per intervention"), symbol: "hand.point.up.left",
+                 value: r.agentTimePerIntervention.map(duration) ?? "–",
+                 caption: String(localized: "Per prompt or answer · \(r.interventions) in all"),
+                 delta: Delta(r.agentTimePerIntervention, prev?.agentTimePerIntervention, better: .up, vs: vs, fmt: duration))
             Tile(title: String(localized: "Throughput"), symbol: "bolt",
                  value: r.perActiveHour(r.turns).map { String(localized: "\(one($0)) turns/h") } ?? "–",
                  caption: String(localized: "\(r.toolCalls) tool calls · \(compactCount(r.tokens)) tokens (excl. cache reads)"))
@@ -239,16 +248,15 @@ private struct Headline: View {
                        : String(localized: "All agents' running time added up"),
                    delta: Delta(r.agentTime, prev?.agentTime, better: .up, vs: vs, fmt: duration))
             Figure(title: String(localized: "Leverage"), value: r.leverage.map { String(format: "%.1f×", $0) } ?? "–",
-                   note: String(localized: "Agent hours per hour you were here"),
+                   note: String(localized: "All agent hours ÷ your time here"),
                    delta: waits ? Delta(r.leverage, prev?.leverage, better: .up, vs: vs) { String(format: "%.1f×", $0) } : nil)
             Figure(title: String(localized: "Reply time"), value: r.replyMedian.map(duration) ?? "–",
                    note: r.replyP90.map { String(localized: "Median wait for your reply · P90 \(duration($0))") }
                        ?? String(localized: "How long agents wait for your reply"),
                    delta: waits ? Delta(r.replyMedian, prev?.replyMedian, better: .down, vs: vs, fmt: duration) : nil)
-            Figure(title: String(localized: "Turns done"), value: "\(r.turns)",
-                   note: r.perActiveHour(r.turns).map { String(localized: "\(one($0)) turns per active hour") }
-                       ?? String(localized: "One agent reply is one turn"),
-                   delta: Delta(Double(r.turns), prev.map { Double($0.turns) }, better: .up, vs: vs) { "\(Int($0))" })
+            Figure(title: String(localized: "Blocked while away"), value: r.allRebuilt ? "–" : duration(r.blockedAway),
+                   note: String(localized: "Agents asking or stuck while you were gone"),
+                   delta: waits ? Delta(r.blockedAway, prev?.blockedAway, better: .down, vs: vs, fmt: duration) : nil)
         }
     }
 }
@@ -274,7 +282,7 @@ private struct Figure: View {
 }
 
 /// Four facts to read the period by: the hardest worker, the longest run, the busiest slice,
-/// and what got done while the user was away.
+/// and how much of the user's absence the agents spent working rather than blocked.
 private struct Highlights: View {
     @Environment(AppModel.self) private var model
     let period: Period
@@ -295,11 +303,12 @@ private struct Highlights: View {
             let peak = busiest
             Fact(symbol: "chart.bar.fill", title: String(localized: "Busiest"), value: peak?.value ?? "–",
                  caption: peak?.when ?? String(localized: "No agent has run yet"))
-            Fact(symbol: "moon.zzz", title: String(localized: "While you were away"), value: duration(r.agentTimeAway),
+            Fact(symbol: "moon.zzz", title: String(localized: "While you were away"),
+                 value: r.allRebuilt || r.away.isEmpty ? "–" : r.utilizationAway.map(percent) ?? "–",
                  caption: r.allRebuilt ? String(localized: "No away time recorded here")
                     : r.away.isEmpty ? String(localized: "You were here the whole time")
-                    : r.agentTimeAway >= 60 ? String(localized: "Agent hours they kept going on their own")
-                    : String(localized: "They stopped when you left"))
+                    : r.utilizationAway == nil ? String(localized: "They stopped when you left")
+                    : String(localized: "Working \(duration(r.agentTimeAway)), blocked \(duration(r.blockedAway))"))
         }
     }
 
@@ -817,9 +826,10 @@ struct TodayFigures: View {
     }
 }
 
-/// The floating panel's figures: leverage over the last `recentMinutes` as the hero with its trend
-/// behind, and today's agent hours. The slim rail keeps only the leverage. Windows move by whole
-/// minutes so the report cache holds between redraws.
+/// The floating panel's figures: leverage over the last `window` as the hero with its trend
+/// behind, and today's agent hours. The arrow and the dashed line read against today's leverage.
+/// The slim rail keeps only the leverage. Windows move by whole minutes so the report cache holds
+/// between redraws.
 struct RecentFigures: View {
     @Environment(AppModel.self) private var model
     var folded = false
@@ -827,21 +837,25 @@ struct RecentFigures: View {
 
     /// Fixed, so the panel's cards sit at the same height folded or not.
     static let height: CGFloat = 52
-    /// Trend points, each the leverage of the `recentMinutes` up to it, a `trendStep`th of that apart.
+    /// Long enough that agents left running while the user is away still count against the time
+    /// that set them going.
+    static let window: TimeInterval = 4 * 3600
+    /// Trend points, each the leverage of the `window` up to it, a `trendStep`th of that apart.
     static let trendPoints = 36, trendStep = 12
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { ctx in
             let _ = model.activityVersion
-            let minutes = model.settings.recentMinutes
             let end = Calendar.current.dateInterval(of: .minute, for: ctx.date)!.end
             let slices = Self.trendPoints + Self.trendStep - 1
-            let span = minutes * 60 / Double(Self.trendStep) * Double(slices)
+            let span = Self.window / Double(Self.trendStep) * Double(slices)
             let trend = model.report(DateInterval(start: end.addingTimeInterval(-span), end: end), buckets: slices)
                 .rollingLeverage(window: Self.trendStep)
             let leverage = trend.last ?? nil
-            let today = slim ? nil : model.report(DateInterval(start: Calendar.current.startOfDay(for: ctx.date), end: end), buckets: 1)
-            let help = String(localized: "Over the last \(SettingsView.duration(minutes)), agent hours per hour you were here. Change the window in Settings.")
+            let today = model.report(DateInterval(start: Calendar.current.startOfDay(for: ctx.date), end: end), buckets: 1)
+            let baseline = today.leverage
+            let arrow = Self.direction(leverage, against: baseline)
+            let help = String(localized: "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage.")
             Group {
                 if slim {
                     // 20 pt wide: the number alone, and an arrow for its trend instead of the chart.
@@ -850,7 +864,7 @@ struct RecentFigures: View {
                         Text(leverage.map { String(format: $0 < 10 ? "%.1f" : "%.0f", $0) } ?? "–")
                             .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
                             .lineLimit(1).minimumScaleFactor(0.5)
-                        if let (symbol, tint) = Self.direction(trend) {
+                        if let (symbol, tint) = arrow {
                             Image(systemName: symbol).font(.system(size: 8, weight: .bold)).foregroundStyle(tint)
                         }
                     }
@@ -859,7 +873,7 @@ struct RecentFigures: View {
                 } else if folded {
                     VStack(spacing: 3) {
                         value(leverage, size: 17).help(help)
-                        caption(String(localized: "Today \(duration(today?.agentTime ?? 0))"))
+                        caption(String(localized: "Today \(duration(today.agentTime))"))
                     }
                 } else {
                     HStack(alignment: .center, spacing: 0) {
@@ -867,7 +881,7 @@ struct RecentFigures: View {
                             // The same arrow as the slim rail's, beside the caption so the figure keeps its room.
                             HStack(spacing: 3) {
                                 caption(String(localized: "Leverage"))
-                                if let (symbol, tint) = Self.direction(trend) {
+                                if let (symbol, tint) = arrow {
                                     Image(systemName: symbol).font(.system(size: 9, weight: .bold)).foregroundStyle(tint)
                                 }
                             }
@@ -877,16 +891,16 @@ struct RecentFigures: View {
                         .help(help)
                         let ticks = Self.ticks(end: end, span: span, slices: slices)
                         VStack(spacing: 1) {
-                            Sparkline(values: trend, ticks: ticks.map(\.at))
+                            Sparkline(values: trend, baseline: baseline, ticks: ticks.map(\.at))
                                 .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.3)],
                                                      startPoint: .leading, endPoint: .trailing))
                             TimeAxis(ticks: ticks)
                         }
                         .padding(.top, 6).padding(.bottom, 3)
-                        .help("Leverage trend: each point is the leverage over the \(SettingsView.duration(minutes)) up to then, across the last \(SettingsView.duration(span / 60)); the dashed line is 1×.")
+                        .help("Leverage trend: each point is the leverage over the 4 hours up to then, across the last \(SettingsView.duration(span / 60)); the dashed line is today's leverage.")
                         VStack(alignment: .trailing, spacing: 2) {
                             caption(String(localized: "Agent hours today"))
-                            Text(duration(today?.agentTime ?? 0)).font(.system(size: 15, weight: .semibold, design: .rounded).monospacedDigit())
+                            Text(duration(today.agentTime)).font(.system(size: 15, weight: .semibold, design: .rounded).monospacedDigit())
                         }
                         .frame(width: 64, alignment: .trailing)
                         .help("All agents' running time today, added up")
@@ -926,11 +940,11 @@ struct RecentFigures: View {
         return f
     }()
 
-    /// Up or down when the leverage moved a tenth or more over the last window, else level.
-    static func direction(_ trend: [Double?]) -> (String, Color)? {
-        guard let now = trend.last ?? nil, trend.count > trendStep, let then = trend[trend.count - 1 - trendStep] else { return nil }
-        if now > then * 1.1 { return ("arrow.up.right", Sparkline.lime) }
-        if now < then * 0.9 { return ("arrow.down.right", .orange) }
+    /// Up or down when the leverage is a tenth or more above or below today's, else level.
+    static func direction(_ now: Double?, against base: Double?) -> (String, Color)? {
+        guard let now, let base else { return nil }
+        if now > base * 1.1 { return ("arrow.up.right", Sparkline.lime) }
+        if now < base * 0.9 { return ("arrow.down.right", .orange) }
         return ("arrow.right", .secondary)
     }
 
@@ -958,11 +972,12 @@ struct RecentFigures: View {
     }
 }
 
-/// The leverage trend: a smooth line from 0 up, filled down to the bottom edge, with a dashed 1×
-/// line and the latest point marked. Gaps (too little time on to count) are bridged; leading ones
+/// The leverage trend: a smooth line from 0 up, filled down to the bottom edge, with a dashed line
+/// at `baseline` (today's leverage) and the latest point marked. Gaps (too little time on to count) are bridged; leading ones
 /// are left empty.
 struct Sparkline: View {
     let values: [Double?]
+    var baseline: Double?
     /// Fractions along the line where `TimeAxis` labels a time: a faint guide each.
     var ticks: [Double] = []
 
@@ -973,7 +988,7 @@ struct Sparkline: View {
     var body: some View {
         Canvas { ctx, size in
             let known = values.enumerated().compactMap { i, v in v.map { (i, $0) } }
-            let top = max((known.map(\.1).max() ?? 0) * 1.2, 1.25)
+            let top = max(((known.map(\.1) + [baseline ?? 0]).max() ?? 0) * 1.2, 1.25)
             let n = max(values.count - 1, 1)
             func y(_ v: Double) -> CGFloat { 5 + (size.height - 5) * (1 - v / top) }
             let points = known.map { CGPoint(x: (size.width - Self.endInset) * Double($0.0) / Double(n), y: y($0.1)) }
@@ -983,10 +998,12 @@ struct Sparkline: View {
                 ctx.fill(Path(CGRect(x: x - 0.25, y: 3, width: 0.5, height: size.height - 3)), with: .color(.primary.opacity(0.08)))
             }
 
-            // 1×: the agents did as much as the user was there.
-            var unit = Path()
-            unit.move(to: CGPoint(x: 0, y: y(1))); unit.addLine(to: CGPoint(x: size.width, y: y(1)))
-            ctx.stroke(unit, with: .color(.primary.opacity(0.14)), style: StrokeStyle(lineWidth: 0.5, dash: [2, 3]))
+            // Today's level, which the arrow reads against.
+            if let baseline {
+                var base = Path()
+                base.move(to: CGPoint(x: 0, y: y(baseline))); base.addLine(to: CGPoint(x: size.width, y: y(baseline)))
+                ctx.stroke(base, with: .color(.primary.opacity(0.14)), style: StrokeStyle(lineWidth: 0.5, dash: [2, 3]))
+            }
 
             guard let first = points.first, let last = points.last else { return }
             // Each step eases out of one point and into the next, so it never overshoots.
