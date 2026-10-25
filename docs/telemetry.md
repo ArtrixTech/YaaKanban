@@ -2,12 +2,14 @@
 
 Off by default. When you turn it on (the one-time prompt, Settings › Privacy and feedback, or
 `yaak telemetry on`), the app sends **one report per local day it ran**, after that day ends. A
-failed send is dropped, not retried; at most the last 7 unsent days are kept. `DO_NOT_TRACK=1`
+send waits up to an hour for a network (the first tick of a day is often right after waking);
+one that still fails is dropped, not retried; at most the last 7 unsent days are kept. `DO_NOT_TRACK=1`
 in the app's environment keeps it off, and `yaak telemetry on` refuses under it. Only the app sends; `yaak` and agent hooks never use the network.
 
 Settings › View shows today's report so far, with setup and settings as of now (a report carries
 them as at send time). `yaak telemetry status` shows the
-state, install id and whether this build has an Aptabase App Key. Turning it off deletes the unsent counts.
+state, install id, the last reported day, how the last send ended (accepted, HTTP status or
+network error) and whether this build has an Aptabase App Key. Turning it off deletes the unsent counts.
 
 ## Fields (schema 1)
 

@@ -23,7 +23,14 @@ final class TelemetryReporter {
     /// The day already marked in the ledger by this launch.
     @ObservationIgnored private var noted: String?
 
-    private static let session = URLSession(configuration: .ephemeral)
+    /// Waits for a network rather than failing at once: the first tick of a new day is often just
+    /// after waking, before Wi-Fi is back, and a failed send is dropped (spec §6).
+    private static let session: URLSession = {
+        let c = URLSessionConfiguration.ephemeral
+        c.waitsForConnectivity = true
+        c.timeoutIntervalForResource = 3600
+        return URLSession(configuration: c)
+    }()
 
     init(paths: Paths, bundle: Bundle = .main, env: [String: String] = ProcessInfo.processInfo.environment) {
         url = paths.telemetry
@@ -88,7 +95,11 @@ final class TelemetryReporter {
         let sys = first.systemProps
         req.setValue("\(sys.osName)/\(sys.osVersion) \(sys.locale)", forHTTPHeaderField: "User-Agent")
         req.httpBody = AptabaseEvent.body(Array(events))
-        Self.session.dataTask(with: req).resume()
+        let ledger = url, days = due.map(\.day)
+        Self.session.dataTask(with: req) { _, response, error in
+            let result = TelemetryLedger.SendResult(at: Date(), days: days, response: response, error: error)
+            TelemetryLedger.update(ledger) { l in if l.enabled { l.lastResult = result } }
+        }.resume()
     }
 
     /// Debug builds mark their events as debug data (Aptabase's Debug/Release switch).

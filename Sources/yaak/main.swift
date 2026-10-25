@@ -207,6 +207,10 @@ func runTelemetry() -> Never {
         print("telemetry: \(state)")
         if l.enabled, let id = l.installId { print("install id: \(id)") }
         if let s = l.lastSent { print("last reported day: \(s)") }
+        if let r = l.lastResult {
+            let outcome = r.ok ? "accepted" : r.error ?? "HTTP \(r.status.map(String.init) ?? "?")"
+            print("last send: \(r.at.formatted(date: .numeric, time: .shortened)), \(r.days.joined(separator: " ")): \(outcome)")
+        }
         let appKey = appBundle()?.object(forInfoDictionaryKey: Telemetry.appKeyKey) as? String ?? ""
         let usable = AptabaseEvent.ingestURL(appKey: appKey) != nil
         print("Aptabase: \(usable ? "configured" : "no usable App Key in this build (nothing is sent)")")

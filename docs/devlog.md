@@ -1,8 +1,19 @@
 # Devlog
 
+## fix(telemetry): wait for a network and record each send's outcome
+
+`pending` | 2026-10-26
+
+- **Changes**: `TelemetryReporter`: session `waitsForConnectivity`, resource timeout 1 h; the data task's completion writes `TelemetryLedger.lastResult` (`SendResult`: time, days, HTTP status, error domain+code; kept only while on, cleared by off). `yaak telemetry status` prints `last send: <time>, <days>: accepted | HTTP n | <error>`. docs/telemetry.md. Test `sendResult` (old ledger without the key decodes; 200 ok, 401 / -1009 not).
+- **Reason**: the day was marked sent before a fire-and-forget POST whose response was never read, so any failure vanished without trace; the first tick of a new day typically runs right after wake, when the default session fails at once with no network.
+- **User feedback**: "看一下telemetry，最近几天后台啥也没看到，修一下问题。"
+- **Process**: ledger: on, lastSent 2026-10-24 (then 2026-10-25 after midnight) → the app did attempt the sends. Captured the release app's exact request via a local server (temp HOME/YAAK_HOME, `-YaakTelemetryIngestURL`): well-formed, 42 props, all keys ≤40, isDebug false. Replayed it (isDebug true, day `curl-test`) to us.aptabase.com `/events` and `/event` (which returns validation errors) → 200 both. Aptabase source (EventsController): the batch endpoint returns 200 even when it drops invalid events; validation = timestamp within 1 day, session ≤7 days, key ≤40. No proxy; direct reach OK. pmset: Mac was awake at both midnights here, so the wake race is not proven to be what lost this user's events; unified log kept nothing for the app. End to end with the new build: capture server up → `last send …: accepted`; nothing listening → no result within 10 s (waiting for connectivity, as intended). `make test` 169 pass.
+- **Result**: sends survive a not-yet-connected wake, and a failed send is now visible in `yaak telemetry status`.
+- **Notes**: requests from this machine are valid and accepted, so if the dashboard is still empty check its Release/Debug switch (the first test event was Debug; app events are Release) and date range; events for day 2026-10-23/24/25 should be there. A 200 from the batch endpoint does not prove storage. Waiting for a network is not a retry; spec §6 unchanged.
+
 ## feat(overview): count away work in leverage and split blocked from review
 
-`pending` | 2026-10-25
+`7861509` | 2026-10-25
 
 - **Changes**: `ActivityReport`: leverage = agentTime (away included) ÷ activeTime; `presentAgentBuckets` → `agentBuckets` (all running). Sweep splits waiting into blocked (needsInput/stuck) and review; `bottleneck` and `utilization` count only blocked. New `blockedAway`, `utilizationAway`, `pickups`/`pickupMedian`/`pickupP90` (closed review segments that started inside the measured range, away taken out), `interventions` (finished turns + needsInput→running) and `agentTimePerIntervention`. Overview: 4th headline 完成轮数 → 离开时被卡住; 你不在时 highlight shows away utilization with both durations; new tiles 接手速度 and 每次介入; the summary says how much of the agent time was away and how long agents were blocked then. Floating panel: leverage window fixed at 4 h (setting `recentMinutes` and its picker removed); the arrow and the trend's dashed line compare with today's leverage instead of the last window / 1×. Strings in all 9 tables; spec §5 efficiency bullet.
 - **Reason**: the old leverage left out everything agents did while the user was away, which is where most of the leverage comes from; it was really just parallelism while present. Waits mixed blocked-on-you with finished-and-unreviewed, and the most costly waste (blocked while away) was hidden.

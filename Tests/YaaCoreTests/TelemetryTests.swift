@@ -75,6 +75,24 @@ private let env = TelemetryEnvironment(app: "0.1.0", build: "1", os: "15", arch:
         }
         #expect(TelemetryLedger.load(url).days["2026-10-22"]?["pin"] == 200)
     }
+
+    /// Ledgers written before `lastResult` existed still load; a send's outcome is kept until off.
+    @Test func sendResult() throws {
+        let old = #"{"asked":true,"enabled":true,"installId":"x","days":{},"lastSent":"2026-10-24"}"#
+        var l = try JSONDecoder().decode(TelemetryLedger.self, from: Data(old.utf8))
+        #expect(l.lastSent == "2026-10-24" && l.lastResult == nil)
+        let u = URL(string: "https://us.aptabase.com/api/v0/events")!
+        let ok = HTTPURLResponse(url: u, statusCode: 200, httpVersion: nil, headerFields: nil)
+        let bad = HTTPURLResponse(url: u, statusCode: 401, httpVersion: nil, headerFields: nil)
+        let offline = NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet)
+        #expect(TelemetryLedger.SendResult(at: Date(), days: ["d"], response: ok, error: nil).ok)
+        #expect(!TelemetryLedger.SendResult(at: Date(), days: ["d"], response: bad, error: nil).ok)
+        let r = TelemetryLedger.SendResult(at: Date(), days: ["d"], response: nil, error: offline)
+        #expect(!r.ok && r.error == "NSURLErrorDomain -1009" && r.status == nil)
+        l.lastResult = r
+        l.set(enabled: false)
+        #expect(l.lastResult == nil)
+    }
 }
 
 @Suite struct TelemetryReportTests {

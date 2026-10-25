@@ -120,6 +120,30 @@ public struct TelemetryLedger: Codable, Equatable, Sendable {
     public var days: [String: [String: Int]] = [:]
     /// Days already reported (or given up on) are at most this one.
     public var lastSent: String?
+    /// How the latest send ended, for `yaak telemetry status` (the send itself is never retried).
+    public var lastResult: SendResult?
+
+    public struct SendResult: Codable, Equatable, Sendable {
+        public var at: Date
+        /// The days the request carried.
+        public var days: [String]
+        /// HTTP status, or nil when no response came back.
+        public var status: Int?
+        /// Error domain and code when the request failed, like `NSURLErrorDomain -1009`.
+        public var error: String?
+
+        public init(at: Date, days: [String], status: Int?, error: String?) {
+            self.at = at; self.days = days; self.status = status; self.error = error
+        }
+
+        public var ok: Bool { error == nil && status.map { (200..<300).contains($0) } ?? false }
+
+        public init(at: Date, days: [String], response: URLResponse?, error: Error?) {
+            let e = error.map { $0 as NSError }
+            self.init(at: at, days: days, status: (response as? HTTPURLResponse)?.statusCode,
+                      error: e.map { "\($0.domain) \($0.code)" })
+        }
+    }
 
     public init() {}
 
@@ -150,7 +174,7 @@ public struct TelemetryLedger: Codable, Equatable, Sendable {
     public mutating func set(enabled on: Bool) {
         enabled = on
         asked = true
-        if on { if installId == nil { installId = UUID().uuidString.lowercased() } } else { days = [:] }
+        if on { if installId == nil { installId = UUID().uuidString.lowercased() } } else { days = [:]; lastResult = nil }
     }
 
     public mutating func resetId() { installId = enabled ? UUID().uuidString.lowercased() : nil }
