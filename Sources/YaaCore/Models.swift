@@ -84,9 +84,13 @@ public struct HookEnvelope: Codable, Equatable, Sendable {
     public var cwd: String?
     public var terminal: TerminalContext
     public var payload: JSONValue
+    /// Parents of `agentPid`, nearest first, taken while the hook ran (a one-shot agent may be gone
+    /// by the time the app reads it). An agent among them called this one as a tool.
+    public var ancestorPids: [Int32]?
 
     public init(agent: AgentKind, event: String, receivedAt: Date = Date(), agentPid: Int32? = nil,
-                cwd: String? = nil, terminal: TerminalContext = TerminalContext(), payload: JSONValue = .null) {
+                cwd: String? = nil, terminal: TerminalContext = TerminalContext(), payload: JSONValue = .null,
+                ancestorPids: [Int32]? = nil) {
         self.agent = agent
         self.event = event
         self.receivedAt = receivedAt
@@ -94,6 +98,28 @@ public struct HookEnvelope: Codable, Equatable, Sendable {
         self.cwd = cwd
         self.terminal = terminal
         self.payload = payload
+        self.ancestorPids = ancestorPids
+    }
+}
+
+/// Agents run as tools of another agent (Claude running `codex exec` through Bash): the caller is a
+/// session whose agent process is an ancestor of this one's.
+public enum CallerLink {
+    /// Agents whose hook process is an editor or app that also hosts its terminals; an agent started
+    /// in such a terminal by hand is not called by them.
+    static let hosts: Set<AgentKind> = [.cursor, .windsurf]
+
+    /// Key of the session that called `s`, the nearest ancestor first; nil when it was not called.
+    public static func caller(of s: SessionState, ancestors: [Int32], among sessions: some Collection<SessionState>) -> String? {
+        guard !ancestors.isEmpty else { return nil }
+        let callers = sessions.filter {
+            $0.id != s.id && $0.parentId == nil && $0.status != .ended && !hosts.contains($0.agent) && $0.agentPid != nil
+        }
+        for pid in ancestors where pid != s.agentPid {
+            // One process may host several sessions (after `/clear`); the latest one is calling.
+            if let c = callers.filter({ $0.agentPid == pid }).max(by: { $0.lastEventAt < $1.lastEventAt }) { return c.id }
+        }
+        return nil
     }
 }
 

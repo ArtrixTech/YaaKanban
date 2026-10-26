@@ -1337,3 +1337,70 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(s.matches("leverage"))
     }
 }
+
+@Suite struct CallerLinkTests {
+    private func session(_ agent: AgentKind, _ id: String, pid: Int32?, status: SessionStatus = .running,
+                         lastEvent: TimeInterval = 0, parent: String? = nil) -> SessionState {
+        var s = SessionState(agent: agent, sessionId: id, at: t0)
+        s.agentPid = pid
+        s.status = status
+        s.lastEventAt = t0.addingTimeInterval(lastEvent)
+        s.parentId = parent
+        return s
+    }
+
+    /// Claude ran `codex exec` through Bash: codex → zsh → claude.
+    @Test func agentStartedByAnotherAgentIsItsSubagent() {
+        let claude = session(.claudeCode, "c", pid: 100)
+        let codex = session(.codex, "x", pid: 300)
+        #expect(CallerLink.caller(of: codex, ancestors: [200, 100, 50], among: [claude, codex]) == claude.id)
+    }
+
+    @Test func agentStartedByTheUserHasNoCaller() {
+        let claude = session(.claudeCode, "c", pid: 100)
+        let codex = session(.codex, "x", pid: 300)
+        #expect(CallerLink.caller(of: codex, ancestors: [200, 50], among: [claude, codex]) == nil)
+        #expect(CallerLink.caller(of: codex, ancestors: [], among: [claude, codex]) == nil)
+    }
+
+    /// Cursor's hooks run in the editor, which also hosts the terminal the user typed `claude` in.
+    @Test func editorHostingTheTerminalIsNotACaller() {
+        let cursor = session(.cursor, "u", pid: 100)
+        let claude = session(.claudeCode, "c", pid: 300)
+        #expect(CallerLink.caller(of: claude, ancestors: [200, 100], among: [cursor, claude]) == nil)
+    }
+
+    @Test func nearestLiveTopLevelCallerWins() {
+        let outer = session(.claudeCode, "outer", pid: 100)
+        let inner = session(.codex, "inner", pid: 200)
+        let gone = session(.claudeCode, "gone", pid: 150, status: .ended)
+        let sub = session(.pi, "sub", pid: 180, parent: outer.id)
+        let leaf = session(.opencode, "leaf", pid: 300)
+        let all = [outer, inner, gone, sub, leaf]
+        #expect(CallerLink.caller(of: leaf, ancestors: [250, 200, 180, 150, 100], among: all) == inner.id)
+        #expect(CallerLink.caller(of: leaf, ancestors: [180, 150, 100], among: all) == outer.id)
+    }
+
+    /// After `/clear` one process holds the old and the new session; the latest one is calling.
+    @Test func latestSessionOfTheCallingProcess() {
+        let old = session(.claudeCode, "old", pid: 100, status: .idle, lastEvent: 0)
+        let new = session(.claudeCode, "new", pid: 100, lastEvent: 60)
+        let codex = session(.codex, "x", pid: 300)
+        #expect(CallerLink.caller(of: codex, ancestors: [100], among: [old, new, codex]) == new.id)
+    }
+
+    @Test func ancestorsOfThisProcessEndBeforeLaunchd() {
+        let chain = ProcessUtil.ancestors(of: getpid())
+        #expect(chain.first == getppid())
+        #expect(!chain.contains(1) && !chain.contains(getpid()))
+    }
+
+    /// Spooled envelopes from before the field decode unchanged.
+    @Test func envelopeWithoutAncestorsDecodes() throws {
+        let old = HookEnvelope(agent: .codex, event: "Stop", payload: .object([:]))
+        var json = try #require(JSONValue.parse(Wire.encode(old)))
+        if case .object(var o) = json { o["ancestorPids"] = nil; json = .object(o) }
+        let back = Wire.decode(HookEnvelope.self, try JSONEncoder().encode(json))
+        #expect(back?.ancestorPids == nil && back?.agent == .codex)
+    }
+}

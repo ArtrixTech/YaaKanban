@@ -19,6 +19,17 @@ public enum ProcessUtil {
         return String(cString: buf)
     }
 
+    /// Parents of `pid`, nearest first, up to (not including) launchd.
+    public static func ancestors(of pid: Int32, limit: Int = 16) -> [Int32] {
+        var out: [Int32] = []
+        var cur = pid
+        while out.count < limit, let p = parent(of: cur), p > 1, p != cur {
+            out.append(p)
+            cur = p
+        }
+        return out
+    }
+
     static let shells: Set<String> = ["sh", "bash", "zsh", "dash", "fish", "env"]
 
     /// The agent process that ran this hook: the first ancestor that is not a shell.

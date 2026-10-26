@@ -1,8 +1,19 @@
 # Devlog
 
-## chore(release): bump the version to 0.1.2
+## feat(session): fold agents called by another agent under the caller
 
 `pending` | 2026-10-26
+
+- **Changes**: `yaak hook` records the agent process's ancestor pids (`ProcessUtil.ancestors`, `HookEnvelope.ancestorPids`, optional so old spool files decode); `CallerLink.caller` (Models.swift) picks the nearest ancestor that is a live top-level session's `agentPid` (latest session of that pid; Cursor/Windsurf excluded as hosts); `AppModel.ingest` sets `parentId` from it while the session has no turns yet, so the existing sub-agent folding, notification and stats rules apply; `activeSessions` shows a parent as needs input (with the child's message) while a linked child needs input.
+- **Reason**: Codex/other agents run by Claude as tools appeared as user-started cards on the board.
+- **User feedback**: "现在还没有办法识别一个Agent是用户主动调用的，还是从其他的Agent里面作为外部的工具调用的……先看看有没有办法解决这个问题"; chose "折叠进调用者卡片" and "冒泡到调用者卡片".
+- **Process**: checked the process tree (Bash tool command → zsh → claude) and hook env; unit tests for CallerLink and ancestors; e2e with a temp YAAK_HOME: a stand-in agent under this Claude spooled `ancestorPids` containing Claude's pid; hook 8–26 ms warm.
+- **Result**: `make test` 180 tests pass.
+- **Notes**: linking happens once, before the first turn; a session already seen with turns is never re-parented. Callers must be known to YaaKanban (hooked or scanned). Env vars like `CLAUDE_CODE_SESSION_ID` are inherited by children and were not used. A linked child's long run does not count as activity for the caller's stuck check (Bash tool > 5 min still flags it, as before).
+
+## chore(release): bump the version to 0.1.2
+
+`fcd6881` | 2026-10-26
 
 - **Changes**: `Info.plist` 0.1.1 (2) → 0.1.2 (3); CHANGELOG Unreleased → `[0.1.2]`.
 - **Reason**: ship the DMG and app icon; 0.1.1 (zip only, no icon) stays as published.

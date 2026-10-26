@@ -7,6 +7,9 @@ the update.
 
 ## [Unreleased]
 
+### Changed
+- An agent that another agent runs as a tool (Claude calling Codex, for example) no longer gets a card of its own: it shows under the calling session, which also shows when it needs your input.
+
 ## [0.1.2] - 2026-10-26
 
 ### Added

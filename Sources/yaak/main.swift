@@ -62,7 +62,8 @@ func runHook(agent: AgentKind, event: String) -> Never {
     let at = payload["ts"]?.number.map { Date(timeIntervalSince1970: $0 / 1000) } ?? Date()
     let envelope = HookEnvelope(agent: agent, event: event, receivedAt: at, agentPid: pid,
                                 cwd: FileManager.default.currentDirectoryPath,
-                                terminal: TerminalContext(environment: env), payload: payload)
+                                terminal: TerminalContext(environment: env), payload: payload,
+                                ancestorPids: pid.map { ProcessUtil.ancestors(of: $0) })
 
     if wantsDecision {
         let wait = TimeInterval(Integrations.approvalTimeout + 5)

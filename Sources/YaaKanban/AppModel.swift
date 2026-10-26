@@ -46,12 +46,23 @@ final class AppModel {
     // MARK: Derived views
 
     /// Active sessions for the floating panel; idle and ended ones only for a while (24 h by default).
-    /// Sub-agents of a session on the board show inside its card instead.
+    /// Sub-agents of a session on the board show inside its card instead; one waiting on the user
+    /// shows its parent as waiting too, since the whole call is held up.
     var activeSessions: [SessionState] {
         let now = Date()
         let live = sessions.values.filter { isLive($0, now: now) }
         let shown = Set(live.map(\.id))
-        return sorted(live.filter { s in s.parentId.map { !shown.contains($0) } ?? true })
+        var waiting: [String: SessionState] = [:]
+        for c in live where c.status == .needsInput { if let p = c.parentId { waiting[p] = c } }
+        return sorted(live.compactMap { s in
+            if let p = s.parentId, shown.contains(p) { return nil }
+            guard let c = waiting[s.id], s.status != .needsInput else { return s }
+            var shownAs = s
+            shownAs.status = .needsInput
+            shownAs.needsInputMessage = c.needsInputMessage
+            shownAs.needsInputSince = c.needsInputSince
+            return shownAs
+        })
     }
 
     /// Live sub-agent sessions of `key`, oldest first.
@@ -266,7 +277,14 @@ final class AppModel {
         var key: String?
         for ev in Normalizer.normalize(env) {
             if case .backgroundStart = ev.kind, !settings.claudeBackgroundAgents { continue }
-            key = update(SessionState.key(ev.agent, ev.sessionId), alert: alert) { SessionReducer.apply(ev, to: $0) }
+            key = update(SessionState.key(ev.agent, ev.sessionId), alert: alert) { old in
+                var s = SessionReducer.apply(ev, to: old)
+                // Another agent started it as a tool: it works for that one, from its first turn on.
+                if s.parentId == nil, old?.turns.isEmpty ?? true, let pids = env.ancestorPids {
+                    s.parentId = CallerLink.caller(of: s, ancestors: pids, among: sessions.values)
+                }
+                return s
+            }
         }
         if let key { linkParent(key) }
         return key

@@ -45,7 +45,7 @@ Decisions below were agreed with the user on 2026-10-20 (grilling session).
 
 ## 4. Model
 
-- One row = one session. Turns (prompt → stop) are listed in detail. Sub-agents fold under the parent (“2 sub-agents running”).
+- One row = one session. Turns (prompt → stop) are listed in detail. Sub-agents fold under the parent (“2 sub-agents running”). Agents another agent runs as a tool (2026-10-26; e.g. Claude running `codex exec` through Bash) fold the same way under the calling session: the caller is a live top-level session whose agent process is an ancestor of the new one's (recorded by the hook; Cursor and Windsurf, whose hooks run in the editor hosting the terminal, never count as callers); one that needs input shows its caller card as needs input with its message.
 - States: `running`, `needs_input`, `stuck`, `idle`, `ended`.
 - Stuck: running with no new event for 5 min; a single tool running > 5 min; process gone while still running. Running sub-agents count as activity. Thresholds configurable.
 - History fully kept in SQLite. Metadata (session, turn, tool name, summary) forever; full tool input/output 30 days.
