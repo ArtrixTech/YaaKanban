@@ -192,57 +192,6 @@ struct EmptyBoard: View {
     }
 }
 
-/// Opens the sessions that have left the floating panel, to bring one back.
-struct EndedButton: View {
-    @Environment(AppModel.self) private var model
-    @Binding var open: Bool
-    @State private var hover = false
-
-    var body: some View {
-        Button { open.toggle() } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "archivebox")
-                Text("Ended · \(model.endedSessions.count)")
-            }
-            .font(.system(size: 10.5, weight: .medium))
-            .foregroundStyle(hover || open ? .secondary : .tertiary)
-            .padding(.horizontal, 6).frame(height: 20)
-            .background(Capsule().fill(.primary.opacity(hover || open ? 0.08 : 0)))
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .onHover { hover = $0 }
-        .animation(.easeOut(duration: 0.12), value: hover)
-        .help("Ended sessions: click one to put it back on the floating panel")
-        .popover(isPresented: $open, arrowEdge: .top) { EndedList { open = false } }
-    }
-}
-
-/// Ended sessions, most recent first; clicking one restores it to the panel.
-struct EndedList: View {
-    @Environment(AppModel.self) private var model
-    var onPick: () -> Void
-
-    var body: some View {
-        let list = model.endedSessions
-        Group {
-            if list.isEmpty {
-                Text("No ended sessions").font(.system(size: 12)).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity).padding(.vertical, 24)
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 2) {
-                        ForEach(list) { PickRow(session: $0, onBoard: false, onPick: onPick) }
-                    }
-                    .padding(6)
-                }
-            }
-        }
-        .frame(width: 320).frame(maxHeight: 420)
-        .fixedSize(horizontal: false, vertical: list.count < 8)
-    }
-}
-
 /// Sessions of the last two weeks matching the panel's search, most recent first.
 struct SearchResults: View {
     @Environment(AppModel.self) private var model
@@ -263,7 +212,7 @@ struct SearchResults: View {
     }
 }
 
-/// One session in the ended list or the search. Clicking it goes to it when it is on the panel,
+/// One session in the search. Clicking it goes to it when it is on the panel,
 /// else puts it back there.
 struct PickRow: View {
     @Environment(AppModel.self) private var model
@@ -326,7 +275,6 @@ struct FloatingPanelView: View {
     /// Where the list's top and bottom are in the scroll view, to fade an edge while more is past it.
     @State private var listTop: CGFloat = 0
     @State private var listBottom: CGFloat = 0
-    @State private var endedOpen = false
     /// The search replaces the list with sessions of the last two weeks.
     @State private var searching = false
     @State private var query = ""
@@ -345,7 +293,7 @@ struct FloatingPanelView: View {
             // instead of growing the frame, which the window would center, pushing the header up.
             .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: anchor)
             .clipped()
-            .onChange(of: endedOpen || (searching && room?.isKey == true), initial: true) { room?.holdOpen = $1 }
+            .onChange(of: searching && room?.isKey == true, initial: true) { room?.holdOpen = $1 }
             // Folded back (the user clicked elsewhere, then left): the rail shows cards again.
             .onChange(of: folded) { if $1 { closeSearch() } }
     }
@@ -484,14 +432,14 @@ struct FloatingPanelView: View {
         }
     }
 
-    /// One row under the list: the ended list on the left, the search on the right, the height
-    /// grip centred between them. Searching, the row is the search field.
+    /// One row under the list: the height grip centred, the search on the right. Searching, the
+    /// row is the search field.
     @ViewBuilder private var bottomBar: some View {
         if searchShown {
             SearchField(query: $query, onClose: closeSearch).frame(height: 22).padding(.bottom, 2)
         } else {
             HStack(spacing: 0) {
-                EndedButton(open: $endedOpen).fixedSize().frame(maxWidth: .infinity, alignment: .leading)
+                Color.clear.frame(maxWidth: .infinity)
                 if listShown { heightGrip.frame(width: 80) }
                 IconButton(symbol: "magnifyingglass", help: String(localized: "Search the last \(AppModel.searchDays) days"), action: openSearch)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -588,8 +536,8 @@ final class PanelRoom {
     /// Snapshots render the rail folded whatever the user pinned, and slim if asked.
     var snapshotFolded = false
     var snapshotSlim = false
-    /// Something opened from the panel (the ended list, the search) needs it to stay unfolded
-    /// while the pointer is elsewhere: a peeking rail would fold and take it away.
+    /// The search is open and needs the panel to stay unfolded while the pointer is elsewhere: a
+    /// peeking rail would fold and take it away.
     var holdOpen = false
     /// Makes the panel the key window, so the search field takes typing without a click.
     @ObservationIgnored var makeKey: () -> Void = {}

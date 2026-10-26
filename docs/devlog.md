@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(panel): search two weeks of history and keep the rail open for popovers
+## refactor(panel): drop the ended list in favour of the search
 
 `pending` | 2026-10-26
+
+- **Changes**: removed `EndedButton`, `EndedList`, `AppModel.endedSessions` and the panel's `endedOpen`; `holdOpen` now only follows the search. Bottom bar: an empty flexible slot on the left keeps the grip centred, magnifier right. 3 strings × 9 tables removed; spec board bullet (search replaces the ended list).
+- **Reason**: the search with an empty query already lists every session of the last 14 days, ended ones included, and restores them on click.
+- **User feedback**: "你这个搜索已经起到了已结束归档的作用，把左下角归档列表干掉吧。"
+- **Process**: `make build`, `make test` 170 pass, `make l10n` 0 problems, `make install`.
+- **Result**: one way back for ended sessions instead of two.
+- **Notes**: sessions ended more than 14 days ago are no longer reachable from the panel; the main window's History still has them.
+
+## feat(panel): search two weeks of history and keep the rail open for popovers
+
+`8bd3683` | 2026-10-26
 
 - **Changes**: `PanelRoom.holdOpen` (ended popover open, or searching while the panel is key) stops `checkPeek` from folding a peeking rail; `isKey` from window delegate, `makeKey` set by the controller. `EndedButton` takes its `open` binding from the panel. Bottom bar: 已结束 left, grip (80 pt) centred, magnifier right (`IconButton`), replacing the hidden twin. Search: the bottom row becomes `SearchField` (focused on appear, Esc/× close), the list area shows `SearchResults` (`AppModel.search`: top-level, started, `quietSince` within `searchDays` = 14, `SessionState.matches`: name/title, cwd, projectDir, id, agent, peek prompt/reply, turns' prompts/replies, case-insensitive). `EndedRow` → `PickRow` (on the board: status glyph, click = jump; else click = restore). List scroll area factored into `scrolling`, fading the top edge too while scrolled. Recent figures trend: `trendStep` 24, `trendPoints` 25 → the curve spans the 4 h window (was 36 points × 20 min ≈ 12 h); help text uses the window. 3 strings × 9 tables; spec board + efficiency bullets; test `Search.matchesNamePathPromptsAndReplies`.
 - **Reason**: the user's panel sits folded at the right edge (slim, 28 pt); opening 已结束 while peeking put the pointer on the popover, outside the hot zone, so the rail folded and took the popover (its anchor) away: the "crash and reappear / auto-collapse". No crash report exists for the app.

@@ -696,13 +696,6 @@ final class AppModel {
         }
     }
 
-    /// Top-level sessions that have left the boards (retention over, or ended on the panel),
-    /// most recent first: what the panel's ended list offers to bring back.
-    var endedSessions: [SessionState] {
-        let now = Date()
-        return sorted(sessions.values.filter { $0.parentId == nil && !$0.isUnstarted && !isLive($0, now: now) })
-    }
-
     /// How far back the panel's search reaches.
     static let searchDays = 14
 

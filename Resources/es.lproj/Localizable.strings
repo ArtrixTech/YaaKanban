@@ -381,9 +381,6 @@
 "No supported agents found. Install one, then reopen Settings." = "No se ha encontrado ningún agente compatible. Instala uno y vuelve a abrir Ajustes.";
 
 /* Ended list */
-"Ended · %lld" = "Finalizadas · %lld";
-"Ended sessions: click one to put it back on the floating panel" = "Sesiones finalizadas: haz clic en una para devolverla al panel flotante";
-"No ended sessions" = "No hay sesiones finalizadas";
 "Put back on the floating panel" = "Devolver al panel flotante";
 "; %@ of it while you were away" = "; %@ de ello mientras no estabas";
 ", though they sat blocked for %@ waiting on you" = ", aunque estuvieron bloqueados %@ esperándote";

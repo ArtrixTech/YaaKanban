@@ -381,9 +381,6 @@
 "No supported agents found. Install one, then reopen Settings." = "沒有找到支援的 agent。安裝一個後重新開啟設定。";
 
 /* Ended list */
-"Ended · %lld" = "已結束 · %lld";
-"Ended sessions: click one to put it back on the floating panel" = "已結束的任務：點一條把它放回浮動面板";
-"No ended sessions" = "沒有已結束的任務";
 "Put back on the floating panel" = "放回浮動面板";
 "; %@ of it while you were away" = "；其中 %@ 是你不在時做的";
 ", though they sat blocked for %@ waiting on you" = "，但有 %@ 卡著等你";
