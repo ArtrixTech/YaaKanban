@@ -96,6 +96,9 @@ struct MenuContent: View {
             if let err = model.serverError {
                 Text(err).font(.caption).foregroundStyle(.red).padding(.horizontal, 8)
             }
+            if model.noIntegrations {
+                MenuRow(symbol: "powerplug.fill", title: String(localized: "Connect agents…")) { done { AppWindows.open(.settings) } }
+            }
             if !model.integrationIssues.isEmpty {
                 let names = model.integrationIssues.keys.map(\.displayName).sorted().formatted(.list(type: .and))
                 MenuRow(symbol: "exclamationmark.triangle.fill", title: String(localized: "\(names) hooks need approval")) { done { AppWindows.open(.settings) } }
@@ -230,10 +233,23 @@ struct MenuRow: View {
 }
 
 struct EmptyBoard: View {
+    @Environment(AppModel.self) private var model
+
     var body: some View {
         VStack(spacing: 6) {
-            Image(systemName: "moon.zzz.fill").font(.system(size: 22)).foregroundStyle(.tertiary)
-            Text("No active tasks").font(.system(size: 12)).foregroundStyle(.secondary)
+            if model.noIntegrations {
+                // First run: nothing reports until an integration is installed.
+                Image(systemName: "powerplug.fill").font(.system(size: 22)).foregroundStyle(.tertiary)
+                Text("No agents connected yet").font(.system(size: 12, weight: .medium))
+                Text("Install the integration for the agents you use; sessions you start afterwards show up here.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 16)
+                Button("Connect agents…") { AppWindows.open(.settings) }
+                    .controlSize(.small).buttonStyle(.borderedProminent).padding(.top, 2)
+            } else {
+                Image(systemName: "moon.zzz.fill").font(.system(size: 22)).foregroundStyle(.tertiary)
+                Text("No active tasks").font(.system(size: 12)).foregroundStyle(.secondary)
+            }
         }
         .frame(maxWidth: .infinity).padding(.vertical, 18)
     }
@@ -1049,7 +1065,7 @@ struct SettingsView: View {
             model.telemetry.count(install ? .integrationInstall : .integrationUninstall)
             let name = i.agent.displayName
             integrationMessage = !install ? String(localized: "\(name) uninstalled.")
-                : i.pendingSteps(home: Paths.home()).isEmpty ? String(localized: "\(name) installed.")
+                : i.pendingSteps(home: Paths.home()).isEmpty ? String(localized: "\(name) installed. Sessions you start from now on report to YaaKanban; restart ones already running.")
                 : String(localized: "\(name) installed. You still need to approve it in \(name); the steps are above.")
         } catch {
             model.telemetry.count(.integrationFail)

@@ -32,6 +32,10 @@ final class AppModel {
     var serverError: String?
     /// Installed integrations whose hooks the agent will not run yet, with what the user has to do.
     private(set) var integrationIssues: [AgentKind: [String]] = [:]
+    /// Agents found on this Mac without our hooks: their sessions show only what a scan can see.
+    private(set) var unhookedAgents: Set<AgentKind> = []
+    /// No integration installed at all: the panel and menu point to Settings.
+    private(set) var noIntegrations = false
     /// Debug hook: render windows to PNGs (`yaak snapshot <dir>`), for verification without screen recording.
     @ObservationIgnored var onSnapshot: ((URL) -> Void)?
     /// Session selected in the main window, or `overview` (the home page).
@@ -217,11 +221,20 @@ final class AppModel {
     func checkIntegrations() {
         let home = Paths.home()
         var issues: [AgentKind: [String]] = [:]
-        for i in Integrations.all where i.isInstalled(home: home) {
+        var unhooked: Set<AgentKind> = []
+        var installed = 0
+        for i in Integrations.all {
+            guard i.isInstalled(home: home) else {
+                if i.isDetected(home: home) { unhooked.insert(i.agent) }
+                continue
+            }
+            installed += 1
             let steps = i.pendingSteps(home: home)
             if !steps.isEmpty { issues[i.agent] = steps }
         }
         if issues != integrationIssues { integrationIssues = issues }
+        if unhooked != unhookedAgents { unhookedAgents = unhooked }
+        if (installed == 0) != noIntegrations { noIntegrations = installed == 0 }
     }
 
     /// Path the hooks call: the stable link to this app's yaak, made or re-pointed on first use.

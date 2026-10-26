@@ -251,7 +251,7 @@
 "%lld h" = "%lld ч";
 "%lld h %lld min" = "%1$lld ч %2$lld мин";
 "%@ uninstalled." = "%@: удалено.";
-"%@ installed." = "%@: установлено.";
+"%@ installed. Sessions you start from now on report to YaaKanban; restart ones already running." = "%@: установлено. Сессии, запущенные с этого момента, будут видны в YaaKanban; уже запущенные перезапустите.";
 "%@ installed. You still need to approve it in %@; the steps are above." = "%1$@: установлено. Осталось одобрить в %2$@; инструкции выше.";
 "Development build" = "Сборка для разработки";
 "Version %@" = "Версия %@";
@@ -423,3 +423,7 @@
 "Restart to Update" = "Перезапустить для обновления";
 "Updated to %@" = "Обновлено до %@";
 "Version %@ is downloaded" = "Версия %@ загружена";
+"No agents connected yet" = "Агенты ещё не подключены";
+"Install the integration for the agents you use; sessions you start afterwards show up here." = "Установите интеграцию для своих агентов; сессии, запущенные после этого, появятся здесь.";
+"Connect agents…" = "Подключить агентов…";
+"%@ integration isn't installed: the status is approximate, with no approvals or done alerts. Install it in Settings." = "Интеграция %@ не установлена: статус приблизительный, без подтверждений и уведомлений о завершении. Установите её в настройках.";

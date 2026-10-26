@@ -251,7 +251,7 @@
 "%lld h" = "%lld h";
 "%lld h %lld min" = "%lld h %lld min";
 "%@ uninstalled." = "%@ desinstalado.";
-"%@ installed." = "%@ instalado.";
+"%@ installed. Sessions you start from now on report to YaaKanban; restart ones already running." = "%@ instalado. Las sesiones que inicies a partir de ahora informarán a YaaKanban; reinicia las que ya están en marcha.";
 "%@ installed. You still need to approve it in %@; the steps are above." = "%@ instalado. Aún tienes que aprobarlo en %@; los pasos están arriba.";
 "Development build" = "Compilación de desarrollo";
 "Version %@" = "Versión %@";
@@ -423,3 +423,7 @@
 "Restart to Update" = "Reiniciar para actualizar";
 "Updated to %@" = "Actualizado a %@";
 "Version %@ is downloaded" = "Versión %@ descargada";
+"No agents connected yet" = "Aún no hay agentes conectados";
+"Install the integration for the agents you use; sessions you start afterwards show up here." = "Instala la integración de los agentes que usas; las sesiones que inicies después aparecerán aquí.";
+"Connect agents…" = "Conectar agentes…";
+"%@ integration isn't installed: the status is approximate, with no approvals or done alerts. Install it in Settings." = "La integración de %@ no está instalada: el estado es aproximado, sin aprobaciones ni avisos de fin. Instálala en Ajustes.";

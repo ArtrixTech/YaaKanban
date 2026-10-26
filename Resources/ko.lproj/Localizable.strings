@@ -251,7 +251,7 @@
 "%lld h" = "%lld시간";
 "%lld h %lld min" = "%lld시간 %lld분";
 "%@ uninstalled." = "%@ 제거됨.";
-"%@ installed." = "%@ 설치됨.";
+"%@ installed. Sessions you start from now on report to YaaKanban; restart ones already running." = "%@ 설치됨. 이제부터 시작하는 세션이 YaaKanban에 보고됩니다. 실행 중인 세션은 다시 시작하세요.";
 "%@ installed. You still need to approve it in %@; the steps are above." = "%@ 설치됨. %@에서 승인해야 합니다. 위의 단계를 참고하세요.";
 "Development build" = "개발 빌드";
 "Version %@" = "버전 %@";
@@ -423,3 +423,7 @@
 "Restart to Update" = "재시작하여 업데이트";
 "Updated to %@" = "%@(으)로 업데이트됨";
 "Version %@ is downloaded" = "버전 %@ 다운로드 완료";
+"No agents connected yet" = "아직 연결된 에이전트가 없습니다";
+"Install the integration for the agents you use; sessions you start afterwards show up here." = "사용하는 에이전트의 연동을 설치하면 이후 시작하는 세션이 여기에 표시됩니다.";
+"Connect agents…" = "에이전트 연결…";
+"%@ integration isn't installed: the status is approximate, with no approvals or done alerts. Install it in Settings." = "%@ 연동이 설치되지 않았습니다. 상태는 추정치이며 승인과 완료 알림이 없습니다. 설정에서 설치하세요.";

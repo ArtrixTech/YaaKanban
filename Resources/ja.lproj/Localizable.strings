@@ -251,7 +251,7 @@
 "%lld h" = "%lld時間";
 "%lld h %lld min" = "%lld時間%lld分";
 "%@ uninstalled." = "%@をアンインストールしました。";
-"%@ installed." = "%@をインストールしました。";
+"%@ installed. Sessions you start from now on report to YaaKanban; restart ones already running." = "%@をインストールしました。これから始めるセッションが YaaKanban に報告されます。実行中のセッションは再起動してください。";
 "%@ installed. You still need to approve it in %@; the steps are above." = "%1$@をインストールしました。%2$@での承認も必要です。手順は上記のとおりです。";
 "Development build" = "開発ビルド";
 "Version %@" = "バージョン%@";
@@ -423,3 +423,7 @@
 "Restart to Update" = "再起動してアップデート";
 "Updated to %@" = "%@ にアップデートしました";
 "Version %@ is downloaded" = "バージョン %@ をダウンロードしました";
+"No agents connected yet" = "まだエージェントが接続されていません";
+"Install the integration for the agents you use; sessions you start afterwards show up here." = "使っているエージェントの連携をインストールすると、その後に始めたセッションがここに表示されます。";
+"Connect agents…" = "エージェントを接続…";
+"%@ integration isn't installed: the status is approximate, with no approvals or done alerts. Install it in Settings." = "%@ の連携がインストールされていません。状態は推定で、承認や完了の通知はありません。設定でインストールしてください。";

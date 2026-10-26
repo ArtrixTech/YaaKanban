@@ -1,8 +1,19 @@
 # Devlog
 
+## feat(onboarding): point a new user to connecting their agents
+
+`pending` | 2026-10-27
+
+- **Changes**: `AppModel.checkIntegrations` also tracks `unhookedAgents` (detected, not installed) and `noIntegrations`; `EmptyBoard` shows "No agents connected yet" with 连接 Agent… (opens Settings) while nothing is installed, and the menu has the same row; a card of an unhooked agent shows a plug mark (status approximate, no approvals or done alerts); the install message says only sessions started afterwards report; README gains a DMG install section, a first-run walkthrough and how to link `yaak` without `make install`; spec §Integrations and CHANGELOG updated; 9 translations.
+- **Reason**: an onboarding review found no first-run guidance: a new user saw "No active tasks" and had to discover Settings; Claude sessions found by the scan looked connected without hooks; running sessions don't pick up new hooks; README covered only building from source and its CLI commands assumed `make install`.
+- **User feedback**: "看下当前onboarding做的如何，是否满足让一个新用户完整搞定初始化配置的流程的要求", then "按照你的方案来。"
+- **Process**: `make test` 180 pass, `make l10n` 0 problems; ran the built app with a temp HOME/YAAK_HOME and DO_NOT_TRACK, `yaak snapshot`: empty panel and menu show the connect prompt.
+- **Result**: done; the plug mark on a card and the Settings message were not seen on screen (need a live unhooked session / a real install).
+- **Notes**: running the app with a temp HOME still writes the real `com.artrix.yaakanban` defaults (it saved `floatingPanelFrame`); export the domain before and `defaults import` it after. No multi-step wizard by choice; the agents list stays in Settings.
+
 ## feat(session): fold agents called by another agent under the caller
 
-`pending` | 2026-10-26
+`e96fbe5` | 2026-10-26
 
 - **Changes**: `yaak hook` records the agent process's ancestor pids (`ProcessUtil.ancestors`, `HookEnvelope.ancestorPids`, optional so old spool files decode); `CallerLink.caller` (Models.swift) picks the nearest ancestor that is a live top-level session's `agentPid` (latest session of that pid; Cursor/Windsurf excluded as hosts); `AppModel.ingest` sets `parentId` from it while the session has no turns yet, so the existing sub-agent folding, notification and stats rules apply; `activeSessions` shows a parent as needs input (with the child's message) while a linked child needs input.
 - **Reason**: Codex/other agents run by Claude as tools appeared as user-started cards on the board.

@@ -115,7 +115,10 @@ struct SessionCard: View {
                 // 2: agent, project, status, stats.
                 HStack(spacing: 5) {
                     AgentLogo(agent: session.agent, size: 12)
-                    if model.integrationIssues[session.agent] != nil {
+                    if model.unhookedAgents.contains(session.agent) {
+                        Image(systemName: "powerplug").font(.system(size: 9)).foregroundStyle(.secondary)
+                            .help("\(session.agent.displayName) integration isn't installed: the status is approximate, with no approvals or done alerts. Install it in Settings.")
+                    } else if model.integrationIssues[session.agent] != nil {
                         Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 9)).foregroundStyle(.yellow)
                             .help("Some \(session.agent.displayName) hooks aren't approved, so the status may be incomplete. See Settings for the steps.")
                     }

@@ -251,7 +251,7 @@
 "%lld h" = "%lld 小時";
 "%lld h %lld min" = "%lld 小時 %lld 分";
 "%@ uninstalled." = "已解除安裝 %@。";
-"%@ installed." = "已安裝 %@。";
+"%@ installed. Sessions you start from now on report to YaaKanban; restart ones already running." = "已安裝 %@。從現在起新開的工作階段會回報給 YaaKanban；正在執行的需要重新啟動。";
 "%@ installed. You still need to approve it in %@; the steps are above." = "%1$@ 已安裝。你仍需在 %2$@ 中授權，步驟請見上方。";
 "Development build" = "開發版本";
 "Version %@" = "版本 %@";
@@ -423,3 +423,7 @@
 "Restart to Update" = "重新啟動以更新";
 "Updated to %@" = "已更新到 %@";
 "Version %@ is downloaded" = "新版本 %@ 已下載";
+"No agents connected yet" = "還沒有連接任何 Agent";
+"Install the integration for the agents you use; sessions you start afterwards show up here." = "為你使用的 Agent 安裝整合，之後新開的工作階段會顯示在這裡。";
+"Connect agents…" = "連接 Agent…";
+"%@ integration isn't installed: the status is approximate, with no approvals or done alerts. Install it in Settings." = "%@ 沒有安裝整合：狀態是估計的，沒有審批和完成提醒。到設定裡安裝。";
