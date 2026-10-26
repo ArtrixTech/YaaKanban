@@ -146,26 +146,24 @@ struct SetupGuide: View {
                 banner(String(localized: "All installed. Each agent is ticked by itself the next time you use it; restart sessions already running."),
                        symbol: "checkmark.circle.fill", tint: .green)
             }
-            // Only the list scrolls; its card keeps a fixed frame.
+            // Only the list scrolls; it sits on the page with no card around it.
             ScrollView {
                 VStack(spacing: 0) {
                     ForEach(Array(list.enumerated()), id: \.element.0.agent) { n, item in
-                        if n > 0 { Divider().padding(.leading, 56) }
+                        if n > 0 { Divider().padding(.leading, 44) }
                         connectRow(item.0, item.1, heard: heard.contains(item.0.agent))
                     }
                 }
-                .padding(.bottom, 6)
+                .padding(.vertical, 8)
             }
             .scrollIndicators(.automatic)
-            // Rows fade out at the bottom edge instead of being cut.
+            // Rows fade out at both edges instead of being cut.
             .mask(VStack(spacing: 0) {
+                LinearGradient(colors: [.black.opacity(0), .black], startPoint: .top, endPoint: .bottom).frame(height: 18)
                 Color.black
-                LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .top, endPoint: .bottom).frame(height: 18)
+                LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .top, endPoint: .bottom).frame(height: 24)
             })
             .frame(maxHeight: .infinity)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.primary.opacity(0.045)))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.primary.opacity(0.07)))
         }
         if let message {
             Text(message).font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled)
@@ -210,7 +208,7 @@ struct SetupGuide: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
+        .padding(.vertical, 10)
     }
 
     private func agentLogo(_ agent: AgentKind) -> some View {
@@ -319,7 +317,7 @@ struct SetupGuide: View {
                         .keyboardShortcut(.defaultAction)
                 }
             }
-            .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(.large)
+            .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(.extraLarge)
         }
     }
 

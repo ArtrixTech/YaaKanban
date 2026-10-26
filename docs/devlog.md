@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(onboarding): drop the empty band under the guide's footer
+## style(onboarding): unframe the guide's agent list and enlarge its button
 
 `pending` | 2026-10-27
+
+- **Changes**: SetupGuide's agent list loses its rounded card (fill, clip, stroke); rows align to the page margins (row inset 0, divider inset 44), list padded 8 pt top and bottom and masked with an 18 pt fade at the top and 24 pt at the bottom. Footer primary buttons (Continue/Done) use `.controlSize(.extraLarge)`.
+- **Reason**: user asked for no frame around the list, fades at both edges, and a taller Continue button.
+- **User feedback**: "onboarding页面的列表去掉圆角外框。上下要有渐变遮罩。继续按钮高一点。"
+- **Process**: `make build`, `make test` 180 pass, `yaak snapshot` checked the layout.
+- **Result**: done.
+- **Notes**: the 8 pt list padding keeps the first and last rows clear of the fades when the list is not scrolled.
+
+## fix(onboarding): drop the empty band under the guide's footer
+
+`f31e914` | 2026-10-27
 
 - **Changes**: SetupGuide reads the hidden title bar's height from its window (`frame − contentLayoutRect`, scene windows only: `identifier != nil`) and gives the content that much less height; the content still draws under the bar via `ignoresSafeArea`. Bottom padding 24 (was 18) to match the sides; the agent list fades out over 18 pt at its bottom edge instead of cutting a row.
 - **Reason**: user screenshot showed a band of empty space below the footer.
