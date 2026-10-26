@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(panel): restore the floating panel where and as big as it was left
+## chore(release): bump the version to 0.1.1
 
 `pending` | 2026-10-26
+
+- **Changes**: `Info.plist` `CFBundleShortVersionString` 0.1.0 → 0.1.1, `CFBundleVersion` 1 → 2.
+- **Reason**: first tagged release; develop goes to main through a PR, tagged `v0.1.1` with the built app attached.
+- **User feedback**: "帮我pr到main，并开新的release V0.1.1"
+- **Process**: `make test`, `make app`.
+- **Result**: see the PR and the release.
+- **Notes**: no earlier tag or GitHub release exists (0.1.0 was never tagged). The app is signed with an Apple Development identity, not notarized; downloaders have to clear quarantine.
+
+## fix(panel): restore the floating panel where and as big as it was left
+
+`b797da8` | 2026-10-26
 
 - **Changes**: `FloatingPanelController` saves `panel.frame` itself (`floatingPanelFrame`, `NSStringFromRect`) on move, resize and the end of a slide (never mid-slide, when the window is the union of both shapes), and restores it at launch if it still meets a screen; AppKit's `setFrameAutosaveName` dropped, its old "NSWindow Frame YaaFloatingPanel" value read once as a fallback and removed. At launch the top is held 3 s (was not held).
 - **Reason**: two drifts. (1) AppKit's autosave restores only the top-left corner of a non-resizable window: the docked 28 pt rail came back 340 × 120, off the right edge, so undocked and clamped. (2) The cards lay out ~0.7 s after launch; the list growing from short to full height grew the panel about its middle, so it moved up by half the growth and hit the top of the screen. Measured: saved y 1124 came back 1288 (the top).
