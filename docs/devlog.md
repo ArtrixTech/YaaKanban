@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(onboarding): restyle the setup guide and default its choices on
+## feat(onboarding): merge the guide's connect and check steps
 
 `pending` | 2026-10-27
+
+- **Changes**: SetupGuide down to 2 steps (`Step.verify` and its view removed); each agent row goes Install → Installed ("Ticked by itself the next time you use X. Sessions already running need a restart.") → Connected (`model.connectedAgents`), approvals inline; banner "All installed…" / "Every agent below is connected." when nothing is pending. Layout: page fixed at 560×600, no outer ScrollView, only the agent list scrolls inside its card; header = logo + title, progress dots and ✕ at the top right, lead below; `.ignoresSafeArea()` drops the top gap. `setup-verify` snapshot removed. Spec, README, CHANGELOG; 2 new / 8 removed strings × 9 languages.
+- **Reason**: user: page cut off and scrolled as a whole, wasted top space; installing all then waiting on a separate verify page felt bad, and asking to send an OpenCode message to verify was confusing.
+- **User feedback**: "ui超长了，被截断。让列表仅限harness，页面不要整体滑动…进度放右上角去"; "能不能点了安装之后一个个提醒验证？另外为啥opencode需要发一条消息验证？"
+- **Process**: OpenCode's plugin only sends on `session.created`/`chat.message`, and OpenCode creates the session at the first message, so opening it sends nothing; verification is now passive instead of a task. `make l10n` 0 problems, `make test`, `yaak snapshot` of both steps checked (list scrolls inside the card).
+- **Result**: done.
+- **Notes**: a load-time ping from plugins (connected without any session) would need a new hook event and makes every installed plugin outdated; not done. Hermes' approval text says to press 重新检查, which exists in Settings; the guide rechecks every 2 s by itself.
+
+## feat(onboarding): restyle the setup guide and default its choices on
+
+`306717e` | 2026-10-27
 
 - **Changes**: SetupGuide frameless (`.hiddenTitleBar`, a probe hides traffic lights, transparent title bar, movable by background; own ✕ and Esc = skip), translucent `.sidebar` backdrop with an accent glow, hero header (step n of 3, 26 pt title, lead), cards with 32 pt icons; step 1 a full-width gradient "Connect All Agents" button (Return) while anything is not installed, a green banner when all are; step 2 each waiting agent says "No events yet. Open a new X session and send a message." with "Listening…", or "approve the hook first"; step 3 launch at login, Accessibility, CLI, statistics all toggles starting on, applied only on Done (reopened guide shows current login item / statistics; a statistics no given before stands via new `TelemetryReporter.asked`); notifications requested automatically on reaching step 3, denied shows a warning and a prominent Open System Settings. Spec, CHANGELOG; 13 new / 9 removed strings × 9 languages.
 - **Reason**: user review of the first version.

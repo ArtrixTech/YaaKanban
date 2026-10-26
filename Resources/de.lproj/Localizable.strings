@@ -441,7 +441,6 @@
 "Keeps watching after a restart. Events from while it is closed are kept and shown later." = "Beobachtet auch nach einem Neustart weiter. Ereignisse, während die App geschlossen ist, bleiben erhalten und erscheinen später.";
 "Lets a click on a card bring the agent's exact window or Wave tab to the front. Without it, YaaKanban only activates the app." = "Ein Klick auf eine Karte holt das Fenster oder den Wave-Tab des Agenten nach vorn. Ohne diese Freigabe aktiviert YaaKanban nur die App.";
 "Links yaak to ~/.local/bin for yaak status, install and doctor." = "Verlinkt yaak nach ~/.local/bin für yaak status, install und doctor.";
-"No agent is connected yet. Go back to install one, or skip this for now." = "Noch kein Agent verbunden. Geh zurück und installiere einen oder überspringe es vorerst.";
 "No supported agents found on this Mac. Install one (Claude Code, Codex, Cursor, OpenCode, pi and more are supported), then come back here." = "Auf diesem Mac wurde kein unterstützter Agent gefunden. Installiere einen (Claude Code, Codex, Cursor, OpenCode, pi und weitere) und komm dann zurück.";
 "Notifications" = "Mitteilungen";
 "One report a day of versions, connected agents and rough usage ranges. Never prompts, code, paths or names. Change it any time in Settings." = "Ein Bericht pro Tag mit Versionen, verbundenen Agenten und groben Nutzungsbereichen. Nie Prompts, Code, Pfade oder Namen. Jederzeit in den Einstellungen änderbar.";
@@ -452,15 +451,10 @@
 "Skip Setup" = "Einrichtung überspringen";
 "YaaKanban adds a small hook to each agent's own settings (a backup is kept), so the agent tells it when a session runs, finishes or needs you. Install it for the agents you use." = "YaaKanban fügt den Einstellungen jedes Agenten einen kleinen Hook hinzu (mit Sicherungskopie), damit der Agent meldet, wenn eine Sitzung läuft, fertig ist oder dich braucht. Installiere ihn für die Agenten, die du nutzt.";
 "Alerts and preferences" = "Mitteilungen und Einstellungen";
-"Approve the hook in %@ first (steps below)." = "Gib den Hook zuerst in %@ frei (Schritte unten).";
-"Check that they report" = "Prüfen, ob sie melden";
 "Connect All Agents" = "Alle Agenten verbinden";
 "Connect your agents" = "Agenten verbinden";
 "Every agent below is connected." = "Alle Agenten unten sind verbunden.";
-"Hooks load when a session starts. Open a new session in each agent and send one message; the agent is ticked here once its first event arrives. Sessions that were already running need a restart." = "Hooks werden beim Start einer Sitzung geladen. Öffne in jedem Agenten eine neue Sitzung und sende eine Nachricht; der Agent wird abgehakt, sobald sein erstes Ereignis ankommt. Bereits laufende Sitzungen müssen neu gestartet werden.";
-"Listening…" = "Lauscht…";
-"No events yet. Open a new %@ session and send a message." = "Noch keine Ereignisse. Öffne eine neue %@-Sitzung und sende eine Nachricht.";
 "Notifications are off for YaaKanban. Turn them on in System Settings, or you will miss done alerts and approval requests." = "Mitteilungen für YaaKanban sind aus. Schalte sie in den Systemeinstellungen ein, sonst verpasst du Fertig-Hinweise und Freigabeanfragen.";
 "Recommended · installs the hook in every agent below at once" = "Empfohlen · installiert den Hook in allen Agenten unten auf einmal";
-"Step %lld of 3" = "Schritt %lld von 3";
-"Still waiting after sending a message? Check that the agent trusts the folder you opened and that any approval it asks for is done. You can finish now; the tick appears whenever the first event arrives." = "Immer noch nichts nach einer Nachricht? Prüfe, ob der Agent dem geöffneten Ordner vertraut und jede verlangte Freigabe erteilt ist. Du kannst jetzt abschließen; der Haken erscheint, sobald das erste Ereignis ankommt.";
+"All installed. Each agent is ticked by itself the next time you use it; restart sessions already running." = "Alles installiert. Jeder Agent wird abgehakt, sobald du ihn das nächste Mal benutzt; laufende Sitzungen neu starten.";
+"Ticked by itself the next time you use %@. Sessions already running need a restart." = "Wird abgehakt, sobald du %@ das nächste Mal benutzt. Laufende Sitzungen müssen neu gestartet werden.";

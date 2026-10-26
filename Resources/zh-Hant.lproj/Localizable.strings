@@ -441,7 +441,6 @@
 "Keeps watching after a restart. Events from while it is closed are kept and shown later." = "重新開機後繼續監看。關閉期間的事件會保留，之後再顯示。";
 "Lets a click on a card bring the agent's exact window or Wave tab to the front. Without it, YaaKanban only activates the app." = "點擊卡片時，把 Agent 所在的視窗或 Wave 分頁切到前面。沒有這項權限時，YaaKanban 只能啟用對應的應用程式。";
 "Links yaak to ~/.local/bin for yaak status, install and doctor." = "把 yaak 連結到 ~/.local/bin，用於 yaak status、install 和 doctor。";
-"No agent is connected yet. Go back to install one, or skip this for now." = "還沒有連接任何 Agent。可以返回上一步安裝，也可以先略過。";
 "No supported agents found on this Mac. Install one (Claude Code, Codex, Cursor, OpenCode, pi and more are supported), then come back here." = "這台 Mac 上沒有找到支援的 Agent。先安裝一個（支援 Claude Code、Codex、Cursor、OpenCode、pi 等），再回到這裡。";
 "Notifications" = "通知";
 "One report a day of versions, connected agents and rough usage ranges. Never prompts, code, paths or names. Change it any time in Settings." = "每天一份報告，包括版本、已連接的 Agent 和大致的使用範圍。不包含提示詞、程式碼、路徑或名稱。隨時可以在設定裡修改。";
@@ -452,15 +451,10 @@
 "Skip Setup" = "略過設定";
 "YaaKanban adds a small hook to each agent's own settings (a backup is kept), so the agent tells it when a session runs, finishes or needs you. Install it for the agents you use." = "YaaKanban 會在每個 Agent 自己的設定裡加一個小 hook（會保留備份），這樣 Agent 會在工作階段執行、完成或需要你時告訴它。為你使用的 Agent 安裝即可。";
 "Alerts and preferences" = "提醒與偏好";
-"Approve the hook in %@ first (steps below)." = "請先在 %@ 裡核准 hook（步驟見下方）。";
-"Check that they report" = "確認它們能回報";
 "Connect All Agents" = "一鍵連接全部 Agent";
 "Connect your agents" = "連接你的 Agent";
 "Every agent below is connected." = "下面的 Agent 都已連接。";
-"Hooks load when a session starts. Open a new session in each agent and send one message; the agent is ticked here once its first event arrives. Sessions that were already running need a restart." = "hook 在工作階段開始時載入。在每個 Agent 裡新開一個工作階段並傳送一則訊息，收到它的第一個事件後這裡就會打勾。之前已在執行的工作階段需要重新啟動。";
-"Listening…" = "監聽中…";
-"No events yet. Open a new %@ session and send a message." = "還沒收到事件。新開一個 %@ 工作階段並傳送一則訊息。";
 "Notifications are off for YaaKanban. Turn them on in System Settings, or you will miss done alerts and approval requests." = "YaaKanban 的通知已關閉。請到系統設定裡開啟，否則會錯過完成提醒與權限請求。";
 "Recommended · installs the hook in every agent below at once" = "推薦 · 一次為下面所有 Agent 安裝 hook";
-"Step %lld of 3" = "第 %lld 步，共 3 步";
-"Still waiting after sending a message? Check that the agent trusts the folder you opened and that any approval it asks for is done. You can finish now; the tick appears whenever the first event arrives." = "傳了訊息還是沒反應？確認 Agent 信任你開啟的資料夾，以及它要求的授權都已完成。現在也可以先完成設定，收到第一個事件時會自動打勾。";
+"All installed. Each agent is ticked by itself the next time you use it; restart sessions already running." = "已全部安裝。下次使用各個 Agent 時會自動打勾；正在執行的工作階段需要重新啟動。";
+"Ticked by itself the next time you use %@. Sessions already running need a restart." = "下次使用 %@ 時自動打勾。正在執行的工作階段需要重新啟動。";

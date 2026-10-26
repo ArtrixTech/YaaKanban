@@ -441,7 +441,6 @@
 "Keeps watching after a restart. Events from while it is closed are kept and shown later." = "再起動後も監視を続けます。終了中のイベントは保存され、あとで表示されます。";
 "Lets a click on a card bring the agent's exact window or Wave tab to the front. Without it, YaaKanban only activates the app." = "カードをクリックしたとき、エージェントのウインドウや Wave のタブを前面に出します。許可しない場合は、アプリをアクティブにするだけです。";
 "Links yaak to ~/.local/bin for yaak status, install and doctor." = "yaak status、install、doctor 用に yaak を ~/.local/bin にリンクします。";
-"No agent is connected yet. Go back to install one, or skip this for now." = "まだエージェントが接続されていません。前に戻ってインストールするか、今はスキップしてください。";
 "No supported agents found on this Mac. Install one (Claude Code, Codex, Cursor, OpenCode, pi and more are supported), then come back here." = "この Mac に対応エージェントが見つかりません。いずれか（Claude Code、Codex、Cursor、OpenCode、pi など）をインストールしてから戻ってください。";
 "Notifications" = "通知";
 "One report a day of versions, connected agents and rough usage ranges. Never prompts, code, paths or names. Change it any time in Settings." = "バージョン、接続中のエージェント、おおまかな利用範囲を 1 日 1 回送信します。プロンプト、コード、パス、名前は含みません。設定でいつでも変更できます。";
@@ -452,15 +451,10 @@
 "Skip Setup" = "セットアップをスキップ";
 "YaaKanban adds a small hook to each agent's own settings (a backup is kept), so the agent tells it when a session runs, finishes or needs you. Install it for the agents you use." = "YaaKanban は各エージェントの設定に小さなフックを追加し（バックアップを保存します）、セッションの実行、完了、入力待ちを知らせてもらいます。使っているエージェントにインストールしてください。";
 "Alerts and preferences" = "通知と設定";
-"Approve the hook in %@ first (steps below)." = "まず %@ で hook を承認してください（手順は下）。";
-"Check that they report" = "報告を確認";
 "Connect All Agents" = "すべてのエージェントを接続";
 "Connect your agents" = "エージェントを接続";
 "Every agent below is connected." = "下のエージェントはすべて接続済みです。";
-"Hooks load when a session starts. Open a new session in each agent and send one message; the agent is ticked here once its first event arrives. Sessions that were already running need a restart." = "hook はセッション開始時に読み込まれます。各エージェントで新しいセッションを開いてメッセージを 1 つ送ると、最初のイベントが届いた時点でここにチェックが付きます。実行中だったセッションは再起動が必要です。";
-"Listening…" = "待機中…";
-"No events yet. Open a new %@ session and send a message." = "まだイベントがありません。%@ で新しいセッションを開いてメッセージを送ってください。";
 "Notifications are off for YaaKanban. Turn them on in System Settings, or you will miss done alerts and approval requests." = "YaaKanban の通知がオフです。システム設定でオンにしないと、完了通知や承認リクエストを見逃します。";
 "Recommended · installs the hook in every agent below at once" = "おすすめ · 下のすべてのエージェントに hook を一度にインストール";
-"Step %lld of 3" = "ステップ %lld / 3";
-"Still waiting after sending a message? Check that the agent trusts the folder you opened and that any approval it asks for is done. You can finish now; the tick appears whenever the first event arrives." = "メッセージを送っても反応がない場合は、開いたフォルダをエージェントが信頼しているか、求められた承認が済んでいるか確認してください。今は完了しても構いません。最初のイベントが届くとチェックが付きます。";
+"All installed. Each agent is ticked by itself the next time you use it; restart sessions already running." = "すべてインストールしました。各エージェントは次に使ったときに自動でチェックが付きます。実行中のセッションは再起動が必要です。";
+"Ticked by itself the next time you use %@. Sessions already running need a restart." = "次に %@ を使ったときに自動でチェックが付きます。実行中のセッションは再起動が必要です。";

@@ -441,7 +441,6 @@
 "Keeps watching after a restart. Events from while it is closed are kept and shown later." = "Continua observando depois de reiniciar. Os eventos de enquanto estava fechado ficam guardados e aparecem depois.";
 "Lets a click on a card bring the agent's exact window or Wave tab to the front. Without it, YaaKanban only activates the app." = "Um clique num cartão traz para a frente a janela ou a aba do Wave do agente. Sem isso, o YaaKanban só ativa o app.";
 "Links yaak to ~/.local/bin for yaak status, install and doctor." = "Vincula o yaak em ~/.local/bin para yaak status, install e doctor.";
-"No agent is connected yet. Go back to install one, or skip this for now." = "Nenhum agente conectado ainda. Volte para instalar um ou pule por enquanto.";
 "No supported agents found on this Mac. Install one (Claude Code, Codex, Cursor, OpenCode, pi and more are supported), then come back here." = "Nenhum agente compatível encontrado neste Mac. Instale um (Claude Code, Codex, Cursor, OpenCode, pi e outros) e volte aqui.";
 "Notifications" = "Notificações";
 "One report a day of versions, connected agents and rough usage ranges. Never prompts, code, paths or names. Change it any time in Settings." = "Um relatório por dia com versões, agentes conectados e faixas aproximadas de uso. Nunca prompts, código, caminhos ou nomes. Mude quando quiser em Ajustes.";
@@ -452,15 +451,10 @@
 "Skip Setup" = "Pular configuração";
 "YaaKanban adds a small hook to each agent's own settings (a backup is kept), so the agent tells it when a session runs, finishes or needs you. Install it for the agents you use." = "O YaaKanban adiciona um pequeno hook aos ajustes de cada agente (com backup), para que o agente avise quando uma sessão roda, termina ou precisa de você. Instale nos agentes que você usa.";
 "Alerts and preferences" = "Alertas e preferências";
-"Approve the hook in %@ first (steps below)." = "Aprove o hook no %@ primeiro (passos abaixo).";
-"Check that they report" = "Confira se eles reportam";
 "Connect All Agents" = "Conectar todos os agentes";
 "Connect your agents" = "Conecte seus agentes";
 "Every agent below is connected." = "Todos os agentes abaixo estão conectados.";
-"Hooks load when a session starts. Open a new session in each agent and send one message; the agent is ticked here once its first event arrives. Sessions that were already running need a restart." = "Os hooks são carregados quando uma sessão começa. Abra uma nova sessão em cada agente e envie uma mensagem; o agente é marcado aqui assim que o primeiro evento chega. Sessões que já estavam rodando precisam ser reiniciadas.";
-"Listening…" = "Escutando…";
-"No events yet. Open a new %@ session and send a message." = "Nenhum evento ainda. Abra uma nova sessão do %@ e envie uma mensagem.";
 "Notifications are off for YaaKanban. Turn them on in System Settings, or you will miss done alerts and approval requests." = "As notificações do YaaKanban estão desativadas. Ative-as nos Ajustes do Sistema, ou você perderá avisos de conclusão e pedidos de aprovação.";
 "Recommended · installs the hook in every agent below at once" = "Recomendado · instala o hook em todos os agentes abaixo de uma vez";
-"Step %lld of 3" = "Passo %lld de 3";
-"Still waiting after sending a message? Check that the agent trusts the folder you opened and that any approval it asks for is done. You can finish now; the tick appears whenever the first event arrives." = "Nada ainda depois de enviar uma mensagem? Confira se o agente confia na pasta que você abriu e se qualquer aprovação pedida foi feita. Você pode concluir agora; a marca aparece quando o primeiro evento chegar.";
+"All installed. Each agent is ticked by itself the next time you use it; restart sessions already running." = "Tudo instalado. Cada agente será marcado sozinho na próxima vez que você usá-lo; reinicie as sessões já abertas.";
+"Ticked by itself the next time you use %@. Sessions already running need a restart." = "Marcado sozinho na próxima vez que você usar o %@. Sessões já abertas precisam ser reiniciadas.";

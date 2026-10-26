@@ -29,12 +29,12 @@ open it and drag YaaKanban into Applications, then launch it.
 
 On first launch a setup guide walks you through it:
 
-1. **Connect** — the agents found on this Mac; install the integration for the ones you use. Some
-   agents also ask you to approve the hooks; the guide shows the steps and ticks them when done.
-2. **Check** — start a new session in each agent and send a message; the guide ticks each agent
-   as its first event arrives. Sessions already running don't load the hooks; restart them.
-3. **Alerts and preferences** — notifications, launch at login, Accessibility (for jumping to the
-   exact window or Wave tab) and the `yaak` command.
+1. **Connect** — the agents found on this Mac; install the integration for all of them with one
+   button, or one by one. Each agent is ticked by itself the next time you use it (sessions already
+   running don't load the hooks; restart them). Some agents also ask you to approve the hooks; the
+   guide shows the steps.
+2. **Alerts and preferences** — notifications, launch at login, Accessibility (for jumping to the
+   exact window or Wave tab), the `yaak` command and statistics, all on unless you turn them off.
 
 Reopen it any time from the menu (**Connect agents…** while nothing is connected) or Settings →
 General → Setup guide. Settings → Agent integrations manages the integrations afterwards.

@@ -441,7 +441,6 @@
 "Keeps watching after a restart. Events from while it is closed are kept and shown later." = "Continue à surveiller après un redémarrage. Les événements survenus pendant la fermeture sont conservés et affichés ensuite.";
 "Lets a click on a card bring the agent's exact window or Wave tab to the front. Without it, YaaKanban only activates the app." = "Un clic sur une carte met au premier plan la fenêtre ou l'onglet Wave de l'agent. Sans cela, YaaKanban active seulement l'app.";
 "Links yaak to ~/.local/bin for yaak status, install and doctor." = "Lie yaak dans ~/.local/bin pour yaak status, install et doctor.";
-"No agent is connected yet. Go back to install one, or skip this for now." = "Aucun agent connecté pour l'instant. Revenez en arrière pour en installer un, ou passez cette étape.";
 "No supported agents found on this Mac. Install one (Claude Code, Codex, Cursor, OpenCode, pi and more are supported), then come back here." = "Aucun agent pris en charge sur ce Mac. Installez-en un (Claude Code, Codex, Cursor, OpenCode, pi et d'autres), puis revenez ici.";
 "Notifications" = "Notifications";
 "One report a day of versions, connected agents and rough usage ranges. Never prompts, code, paths or names. Change it any time in Settings." = "Un rapport par jour : versions, agents connectés et ordres de grandeur d'utilisation. Jamais de prompts, de code, de chemins ni de noms. Modifiable à tout moment dans les Réglages.";
@@ -452,15 +451,10 @@
 "Skip Setup" = "Passer la configuration";
 "YaaKanban adds a small hook to each agent's own settings (a backup is kept), so the agent tells it when a session runs, finishes or needs you. Install it for the agents you use." = "YaaKanban ajoute un petit hook dans les réglages de chaque agent (une sauvegarde est conservée), pour que l'agent lui signale quand une session tourne, se termine ou a besoin de vous. Installez-le pour les agents que vous utilisez.";
 "Alerts and preferences" = "Alertes et préférences";
-"Approve the hook in %@ first (steps below)." = "Approuvez d'abord le hook dans %@ (étapes ci-dessous).";
-"Check that they report" = "Vérifier qu'ils signalent";
 "Connect All Agents" = "Connecter tous les agents";
 "Connect your agents" = "Connectez vos agents";
 "Every agent below is connected." = "Tous les agents ci-dessous sont connectés.";
-"Hooks load when a session starts. Open a new session in each agent and send one message; the agent is ticked here once its first event arrives. Sessions that were already running need a restart." = "Les hooks se chargent au démarrage d'une session. Ouvrez une nouvelle session dans chaque agent et envoyez un message ; l'agent est coché ici dès que son premier événement arrive. Les sessions déjà ouvertes doivent être redémarrées.";
-"Listening…" = "À l'écoute…";
-"No events yet. Open a new %@ session and send a message." = "Aucun événement pour l'instant. Ouvrez une nouvelle session %@ et envoyez un message.";
 "Notifications are off for YaaKanban. Turn them on in System Settings, or you will miss done alerts and approval requests." = "Les notifications de YaaKanban sont désactivées. Activez-les dans Réglages Système, sinon vous manquerez les alertes de fin et les demandes d'approbation.";
 "Recommended · installs the hook in every agent below at once" = "Recommandé · installe le hook dans tous les agents ci-dessous en une fois";
-"Step %lld of 3" = "Étape %lld sur 3";
-"Still waiting after sending a message? Check that the agent trusts the folder you opened and that any approval it asks for is done. You can finish now; the tick appears whenever the first event arrives." = "Toujours rien après un message ? Vérifiez que l'agent fait confiance au dossier ouvert et que toute approbation demandée est faite. Vous pouvez terminer maintenant ; la coche apparaîtra dès le premier événement.";
+"All installed. Each agent is ticked by itself the next time you use it; restart sessions already running." = "Tout est installé. Chaque agent sera coché tout seul à sa prochaine utilisation ; redémarrez les sessions déjà ouvertes.";
+"Ticked by itself the next time you use %@. Sessions already running need a restart." = "Coché tout seul à la prochaine utilisation de %@. Les sessions déjà ouvertes doivent être redémarrées.";

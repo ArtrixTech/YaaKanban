@@ -68,7 +68,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("main", AnyView(MainWindow().environment(model)), NSSize(width: 1000, height: 640)),
             ("settings", AnyView(SettingsView(panel: panel).environment(model)), SettingsView.size),
             ("setup", AnyView(SetupGuide(live: false).environment(model)), SetupGuide.size),
-            ("setup-verify", AnyView(SetupGuide(step: .verify, live: false).environment(model)), SetupGuide.size),
             ("setup-finish", AnyView(SetupGuide(step: .finish, live: false).environment(model)), SetupGuide.size),
             ("dashboard", AnyView(DashboardView().environment(model)), NSSize(width: 1000, height: 900)),
             ("dashboard-week", AnyView(DashboardView(period: .week).environment(model)), NSSize(width: 1000, height: 900)),

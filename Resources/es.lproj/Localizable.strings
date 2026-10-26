@@ -441,7 +441,6 @@
 "Keeps watching after a restart. Events from while it is closed are kept and shown later." = "Sigue vigilando tras reiniciar. Los eventos de mientras está cerrada se guardan y se muestran después.";
 "Lets a click on a card bring the agent's exact window or Wave tab to the front. Without it, YaaKanban only activates the app." = "Al hacer clic en una tarjeta, trae al frente la ventana o la pestaña de Wave del agente. Sin esto, YaaKanban solo activa la app.";
 "Links yaak to ~/.local/bin for yaak status, install and doctor." = "Enlaza yaak en ~/.local/bin para yaak status, install y doctor.";
-"No agent is connected yet. Go back to install one, or skip this for now." = "Aún no hay ningún agente conectado. Vuelve atrás para instalar uno u omite este paso por ahora.";
 "No supported agents found on this Mac. Install one (Claude Code, Codex, Cursor, OpenCode, pi and more are supported), then come back here." = "No se encontró ningún agente compatible en este Mac. Instala uno (Claude Code, Codex, Cursor, OpenCode, pi y más) y vuelve aquí.";
 "Notifications" = "Notificaciones";
 "One report a day of versions, connected agents and rough usage ranges. Never prompts, code, paths or names. Change it any time in Settings." = "Un informe al día con versiones, agentes conectados y rangos aproximados de uso. Nunca prompts, código, rutas ni nombres. Puedes cambiarlo cuando quieras en Ajustes.";
@@ -452,15 +451,10 @@
 "Skip Setup" = "Omitir configuración";
 "YaaKanban adds a small hook to each agent's own settings (a backup is kept), so the agent tells it when a session runs, finishes or needs you. Install it for the agents you use." = "YaaKanban añade un pequeño hook a los ajustes de cada agente (con copia de seguridad), para que el agente le avise cuando una sesión se ejecuta, termina o te necesita. Instálalo en los agentes que uses.";
 "Alerts and preferences" = "Avisos y preferencias";
-"Approve the hook in %@ first (steps below)." = "Aprueba primero el hook en %@ (pasos abajo).";
-"Check that they report" = "Comprueba que informan";
 "Connect All Agents" = "Conectar todos los agentes";
 "Connect your agents" = "Conecta tus agentes";
 "Every agent below is connected." = "Todos los agentes de abajo están conectados.";
-"Hooks load when a session starts. Open a new session in each agent and send one message; the agent is ticked here once its first event arrives. Sessions that were already running need a restart." = "Los hooks se cargan al iniciar una sesión. Abre una sesión nueva en cada agente y envía un mensaje; el agente se marca aquí en cuanto llega su primer evento. Las sesiones que ya estaban abiertas deben reiniciarse.";
-"Listening…" = "Escuchando…";
-"No events yet. Open a new %@ session and send a message." = "Aún no hay eventos. Abre una sesión nueva de %@ y envía un mensaje.";
 "Notifications are off for YaaKanban. Turn them on in System Settings, or you will miss done alerts and approval requests." = "Las notificaciones de YaaKanban están desactivadas. Actívalas en Ajustes del Sistema o te perderás los avisos de fin y las solicitudes de aprobación.";
 "Recommended · installs the hook in every agent below at once" = "Recomendado · instala el hook en todos los agentes de abajo a la vez";
-"Step %lld of 3" = "Paso %lld de 3";
-"Still waiting after sending a message? Check that the agent trusts the folder you opened and that any approval it asks for is done. You can finish now; the tick appears whenever the first event arrives." = "¿Sigue sin pasar nada tras enviar un mensaje? Comprueba que el agente confía en la carpeta que abriste y que has hecho cualquier aprobación que pida. Puedes terminar ahora; la marca aparece cuando llegue el primer evento.";
+"All installed. Each agent is ticked by itself the next time you use it; restart sessions already running." = "Todo instalado. Cada agente se marcará solo la próxima vez que lo uses; reinicia las sesiones ya abiertas.";
+"Ticked by itself the next time you use %@. Sessions already running need a restart." = "Se marcará solo la próxima vez que uses %@. Las sesiones ya abiertas deben reiniciarse.";

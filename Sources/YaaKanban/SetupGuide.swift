@@ -5,14 +5,15 @@ import SwiftUI
 import YaaCore
 import YaaIntegrations
 
-/// First-run window in three steps: connect the agents, see each one report, then alerts and
-/// preferences. Opens by itself on a first launch with nothing connected; the menu, the empty
-/// panel and Settings open it again. Closing it at any step counts as done. Frameless: no title
-/// bar or traffic lights, its own close button, dragged by the background.
+/// First-run window in two steps: connect the agents (each one is ticked once its first event
+/// arrives, whenever that is), then alerts and preferences. Opens by itself on a first launch with
+/// nothing connected; the menu, the empty panel and Settings open it again. Closing it at any step
+/// counts as done. Frameless: no title bar or traffic lights, its own close button, dragged by the
+/// background. The page itself never scrolls; only the agent list does.
 struct SetupGuide: View {
-    enum Step: Int, CaseIterable { case connect, verify, finish }
+    enum Step: Int, CaseIterable { case connect, finish }
     static let id = "setup"
-    static let size = NSSize(width: 560, height: 640)
+    static let size = NSSize(width: 560, height: 600)
 
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -41,23 +42,18 @@ struct SetupGuide: View {
 
     var body: some View {
         let _ = refresh
-        VStack(spacing: 0) {
-            topBar
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    hero
-                    switch step {
-                    case .connect: connect
-                    case .verify: verify
-                    case .finish: finish
-                    }
-                }
-                .padding(.horizontal, 28).padding(.bottom, 20)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 16) {
+            header
+            switch step {
+            case .connect: connect
+            case .finish: finish
             }
+            Spacer(minLength: 0)
             footer
         }
-        .frame(width: Self.size.width, height: Self.size.height)
+        .padding(.horizontal, 28).padding(.top, 22).padding(.bottom, 18)
+        .frame(width: Self.size.width, height: Self.size.height, alignment: .top)
+        .ignoresSafeArea()
         .background(Backdrop())
         .background(FramelessWindow())
         .onReceive(poll) { _ in recheck() }
@@ -66,40 +62,36 @@ struct SetupGuide: View {
         .onDisappear { if live, !closed { model.finishSetup() } }
         .onExitCommand { close(apply: false) }
     }
+
     // MARK: Parts
 
-    private var topBar: some View {
-        HStack(spacing: 6) {
-            ForEach(Step.allCases, id: \.self) { s in
-                Capsule().fill(s.rawValue <= step.rawValue ? Color.accentColor : Color.primary.opacity(0.15))
-                    .frame(width: s == step ? 22 : 8, height: 8)
+    /// Logo and title on the left, progress and close on the right, the lead underneath.
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 14) {
+                BrandMark(size: 44).shadow(color: .black.opacity(0.18), radius: 6, y: 2)
+                Text(title).font(.system(size: 24, weight: .bold))
+                Spacer()
+                HStack(spacing: 6) {
+                    ForEach(Step.allCases, id: \.self) { s in
+                        Capsule().fill(s.rawValue <= step.rawValue ? Color.accentColor : Color.primary.opacity(0.15))
+                            .frame(width: s == step ? 22 : 8, height: 8)
+                    }
+                }
+                Button { close(apply: false) } label: {
+                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .background(Circle().fill(Color.primary.opacity(0.08)))
+                }
+                .buttonStyle(.plain).help(String(localized: "Skip Setup")).padding(.leading, 6)
             }
-            Spacer()
-            Button { close(apply: false) } label: {
-                Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24)
-                    .background(Circle().fill(Color.primary.opacity(0.08)))
-            }
-            .buttonStyle(.plain).help(String(localized: "Skip Setup"))
-        }
-        .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 4)
-    }
-
-    private var hero: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            BrandMark(size: 52).shadow(color: .black.opacity(0.18), radius: 8, y: 3)
-                .padding(.bottom, 6)
-            Text("Step \(step.rawValue + 1) of 3").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.accentColor)
-            Text(title).font(.system(size: 26, weight: .bold))
             Text(lead).font(.system(size: 13)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.top, 6)
     }
 
     private var title: String {
         switch step {
         case .connect: String(localized: "Connect your agents")
-        case .verify: String(localized: "Check that they report")
         case .finish: String(localized: "Alerts and preferences")
         }
     }
@@ -107,7 +99,6 @@ struct SetupGuide: View {
     private var lead: String {
         switch step {
         case .connect: String(localized: "YaaKanban adds a small hook to each agent's own settings (a backup is kept), so the agent tells it when a session runs, finishes or needs you. Install it for the agents you use.")
-        case .verify: String(localized: "Hooks load when a session starts. Open a new session in each agent and send one message; the agent is ticked here once its first event arrives. Sessions that were already running need a restart.")
         case .finish: String(localized: "Everything here can be changed later in Settings, which also opens this guide again.")
         }
     }
@@ -120,7 +111,7 @@ struct SetupGuide: View {
     private static func pending(_ s: IntegrationStatus) -> Bool { s == .notInstalled || s == .outdated }
 
     @ViewBuilder private var connect: some View {
-        let list = found
+        let list = found, heard = model.connectedAgents
         if list.isEmpty {
             Text("No supported agents found on this Mac. Install one (Claude Code, Codex, Cursor, OpenCode, pi and more are supported), then come back here.")
                 .font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
@@ -128,7 +119,7 @@ struct SetupGuide: View {
             if list.contains(where: { Self.pending($0.1) }) {
                 Button { installAll() } label: {
                     HStack(spacing: 14) {
-                        Image(systemName: "link.circle.fill").font(.system(size: 30))
+                        Image(systemName: "link.circle.fill").font(.system(size: 28))
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Connect All Agents").font(.system(size: 16, weight: .bold))
                             Text("Recommended · installs the hook in every agent below at once")
@@ -138,111 +129,84 @@ struct SetupGuide: View {
                         Image(systemName: "arrow.right").font(.system(size: 15, weight: .bold))
                     }
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 18).padding(.vertical, 16)
+                    .padding(.horizontal, 18).padding(.vertical, 14)
                     .frame(maxWidth: .infinity)
                     .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.accentColor.gradient))
                     .shadow(color: Color.accentColor.opacity(0.35), radius: 10, y: 4)
                 }
                 .buttonStyle(Pressable())
                 .keyboardShortcut(.defaultAction)
-            } else if list.allSatisfy({ $0.1 == .installed }) {
+            } else if list.allSatisfy({ heard.contains($0.0.agent) }) {
                 banner(String(localized: "Every agent below is connected."), symbol: "checkmark.seal.fill", tint: .green)
+            } else if list.allSatisfy({ $0.1 == .installed }) {
+                banner(String(localized: "All installed. Each agent is ticked by itself the next time you use it; restart sessions already running."),
+                       symbol: "checkmark.circle.fill", tint: .green)
             }
-            card {
-                ForEach(Array(list.enumerated()), id: \.element.0.agent) { n, item in
-                    if n > 0 { Divider().padding(.leading, 56) }
-                    connectRow(item.0, item.1)
+            // Only the list scrolls; its card keeps a fixed frame.
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(Array(list.enumerated()), id: \.element.0.agent) { n, item in
+                        if n > 0 { Divider().padding(.leading, 56) }
+                        connectRow(item.0, item.1, heard: heard.contains(item.0.agent))
+                    }
                 }
             }
+            .scrollIndicators(.automatic)
+            .frame(maxHeight: .infinity)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.primary.opacity(0.045)))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.primary.opacity(0.07)))
         }
         if let message {
             Text(message).font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(3).fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private func connectRow(_ i: any Integration, _ status: IntegrationStatus) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+    /// One agent from install to its first event: Install → Installed (waiting) → Connected.
+    private func connectRow(_ i: any Integration, _ status: IntegrationStatus, heard: Bool) -> some View {
+        let name = i.agent.displayName
+        let waiting = !heard && (status == .installed || status == .outdated)
+        return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 12) {
                 agentLogo(i.agent)
-                Text(i.agent.displayName).font(.system(size: 13, weight: .medium))
-                Spacer()
-                StatusBadge(status: status)
-                switch status {
-                case .notInstalled: Button("Install") { install(i) }.controlSize(.small)
-                case .outdated: Button("Update") { install(i) }.controlSize(.small)
-                default: EmptyView()
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name).font(.system(size: 13, weight: .medium))
+                    if waiting {
+                        Text("Ticked by itself the next time you use \(name). Sessions already running need a restart.")
+                            .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                Spacer(minLength: 8)
+                Group {
+                    switch status {
+                    case .notInstalled: Button("Install") { install(i) }
+                    case .outdated: Button("Update") { install(i) }
+                    case .needsAuthorization: StatusBadge(status: status)
+                    default:
+                        if heard {
+                            Label("Connected", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                        } else {
+                            StatusBadge(status: status)
+                        }
+                    }
+                }
+                .controlSize(.small).font(.system(size: 12, weight: .medium)).fixedSize()
             }
             if status == .needsAuthorization {
                 AuthorizationSteps(steps: i.pendingSteps(home: Paths.home())).padding(.leading, 14)
-            } else if status == .installed || status == .outdated, let note = i.postInstallNote {
+            } else if waiting, let note = i.postInstallNote {
                 Text(note).font(.system(size: 11)).foregroundStyle(.secondary).padding(.leading, 44)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, 11)
+        .padding(.horizontal, 14).padding(.vertical, 10)
     }
 
     private func agentLogo(_ agent: AgentKind) -> some View {
         AgentLogo(agent: agent, size: 18)
             .frame(width: 32, height: 32)
             .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.07)))
-    }
-    @ViewBuilder private var verify: some View {
-        let installed = found.filter { $0.1 != .notInstalled }
-        if installed.isEmpty {
-            Text("No agent is connected yet. Go back to install one, or skip this for now.")
-                .font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
-        } else {
-            let heard = model.connectedAgents
-            card {
-                ForEach(Array(installed.enumerated()), id: \.element.0.agent) { n, item in
-                    if n > 0 { Divider().padding(.leading, 56) }
-                    verifyRow(item.0, item.1, heard: heard.contains(item.0.agent))
-                }
-            }
-            if installed.contains(where: { !heard.contains($0.0.agent) }) {
-                Text("Still waiting after sending a message? Check that the agent trusts the folder you opened and that any approval it asks for is done. You can finish now; the tick appears whenever the first event arrives.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    private func verifyRow(_ i: any Integration, _ status: IntegrationStatus, heard: Bool) -> some View {
-        let name = i.agent.displayName
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 12) {
-                agentLogo(i.agent)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(name).font(.system(size: 13, weight: .medium))
-                    if !heard {
-                        Text(status == .needsAuthorization
-                             ? String(localized: "Approve the hook in \(name) first (steps below).")
-                             : String(localized: "No events yet. Open a new \(name) session and send a message."))
-                            .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                Spacer(minLength: 8)
-                Group {
-                    if heard {
-                        Label("Connected", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-                    } else if status == .needsAuthorization {
-                        Label("Needs approval", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
-                    } else {
-                        HStack(spacing: 6) {
-                            ProgressView().controlSize(.small)
-                            Text("Listening…").foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .font(.system(size: 12, weight: .medium)).fixedSize()
-            }
-            if !heard, status == .needsAuthorization {
-                AuthorizationSteps(steps: i.pendingSteps(home: Paths.home())).padding(.leading, 14)
-            }
-        }
-        .padding(.horizontal, 14).padding(.vertical, 11)
     }
 
     @ViewBuilder private var finish: some View {
@@ -347,8 +311,8 @@ struct SetupGuide: View {
             }
             .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(.large)
         }
-        .padding(.horizontal, 24).padding(.vertical, 16)
     }
+
     // MARK: Actions
 
     /// First run starts every choice on; a reopened guide shows what is set now.

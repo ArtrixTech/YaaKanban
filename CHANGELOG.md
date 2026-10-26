@@ -8,7 +8,7 @@ the update.
 ## [Unreleased]
 
 ### Added
-- A setup guide on first launch: install the integrations for the agents found on this Mac, see each one report its first session, then allow notifications and confirm launch at login, Accessibility, the `yaak` command and statistics (all on by default). A frameless window with one big Connect All Agents button. Reopen it from the menu or Settings › General.
+- A setup guide on first launch: install the integrations for the agents found on this Mac (each is ticked once it reports, no test session needed), then allow notifications and confirm launch at login, Accessibility, the `yaak` command and statistics (all on by default). A frameless window with one big Connect All Agents button. Reopen it from the menu or Settings › General.
 - Until an agent is connected, the floating panel and the menu offer **Connect agents…**, which opens the guide. Cards of an agent without its integration show a plug mark, and installing says to restart sessions already running.
 
 ### Changed
