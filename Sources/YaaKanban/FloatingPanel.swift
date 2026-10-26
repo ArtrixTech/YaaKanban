@@ -139,11 +139,15 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         root.addSubview(blur)
         panel.contentView = root
 
-        if !panel.setFrameUsingName("YaaFloatingPanel"), let screen = NSScreen.main {
+        if let f = Self.savedFrame() {
+            panel.setFrame(f, display: false)
+            // The cards take most of a second to lay out, the list short until then; growing back
+            // keeps the top where it was instead of growing about the middle.
+            room.topHeldUntil = CACurrentMediaTime() + 3
+        } else if let screen = NSScreen.main {
             let f = screen.visibleFrame
             panel.setFrameOrigin(NSPoint(x: f.maxX - Self.width - 16, y: f.maxY - 136))
         }
-        panel.setFrameAutosaveName("YaaFloatingPanel")
         room.makeKey = { [panel] in panel.makeKey() }
         updateRoom()
         updateDock()
@@ -165,6 +169,36 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
     }
 
     var isVisible: Bool { panel.isVisible }
+
+    // MARK: Frame: where and how big the panel was, restored at launch.
+
+    private static let frameKey = "floatingPanelFrame"
+
+    /// The last frame saved, if it is still on a screen. Saved by hand rather than with AppKit's
+    /// frame autosave, which restores only the top-left corner of a window that is not resizable:
+    /// a rail docked to the right came back 340 wide, off the edge, and so not docked.
+    private static func savedFrame() -> NSRect? {
+        let d = UserDefaults.standard
+        // Before 2026-10-26 the frame was AppKit's autosave ("x y w h" then the screen's).
+        let legacy = "NSWindow Frame YaaFloatingPanel"
+        var f: NSRect?
+        if let s = d.string(forKey: frameKey) {
+            f = NSRectFromString(s)
+        } else if let s = d.string(forKey: legacy) {
+            let n = s.split(separator: " ").compactMap { Double($0) }
+            if n.count >= 4 { f = NSRect(x: n[0], y: n[1], width: n[2], height: n[3]) }
+        }
+        d.removeObject(forKey: legacy)
+        guard let f, f.width > 0, f.height > 0,
+              NSScreen.screens.contains(where: { $0.visibleFrame.intersects(f) }) else { return nil }
+        return f
+    }
+
+    /// Mid-slide the window is the union of both shapes, not where the panel is.
+    private func saveFrame() {
+        guard slide == nil else { return }
+        UserDefaults.standard.set(NSStringFromRect(panel.frame), forKey: Self.frameKey)
+    }
 
     func applyOpacity() { panel.alphaValue = model.settings.panelOpacity }
 
@@ -258,6 +292,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         link = nil
         place(window: s.to, panel: s.to)
         slide = nil
+        saveFrame()
         host.frame = blur.bounds
         host.autoresizingMask = [.width, .height]
         // The content may have asked for another size mid-slide.
@@ -376,9 +411,12 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         checkPeek()
     }
 
+    func windowDidResize(_ notification: Notification) { saveFrame() }
+
     func windowDidMove(_ notification: Notification) {
         updateRoom()
         guard slide == nil else { return }  // our own slide, not a drag
+        saveFrame()
         // Snap once the drag settles.
         NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(snapLater), object: nil)
         perform(#selector(snapLater), with: nil, afterDelay: 0.15)

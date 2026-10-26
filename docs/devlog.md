@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(panel): scroll the list back to the top when the rail folds
+## fix(panel): restore the floating panel where and as big as it was left
 
 `pending` | 2026-10-26
+
+- **Changes**: `FloatingPanelController` saves `panel.frame` itself (`floatingPanelFrame`, `NSStringFromRect`) on move, resize and the end of a slide (never mid-slide, when the window is the union of both shapes), and restores it at launch if it still meets a screen; AppKit's `setFrameAutosaveName` dropped, its old "NSWindow Frame YaaFloatingPanel" value read once as a fallback and removed. At launch the top is held 3 s (was not held).
+- **Reason**: two drifts. (1) AppKit's autosave restores only the top-left corner of a non-resizable window: the docked 28 pt rail came back 340 × 120, off the right edge, so undocked and clamped. (2) The cards lay out ~0.7 s after launch; the list growing from short to full height grew the panel about its middle, so it moved up by half the growth and hit the top of the screen. Measured: saved y 1124 came back 1288 (the top).
+- **User feedback**: "还有悬浮位置要记忆，下次启动按照上次悬浮位置/尺寸来"
+- **Process**: logged `fit` with timestamps around a relaunch (temporary, removed) to find both steps. After: relaunching twice from `{{2143, 1124}, {28, 1070}}` (docked rail, mid-height) and `{{1200, 1500}, {300, 600}}` (free) keeps the top and the side; `make test` 170 pass, `make install`.
+- **Result**: position (top edge, docked side) and width come back; height follows the list height the user set with the grip (already saved), as before.
+- **Notes**: the 3 s launch hold is a margin on the ~0.7 s measured; a slower first layout would grow about the middle again. A saved frame on a screen no longer attached falls back to the default top-right spot.
+
+## feat(panel): scroll the list back to the top when the rail folds
+
+`137d908` | 2026-10-26
 
 - **Changes**: `FloatingPanelView.scrolling` wraps its `ScrollView` in a `ScrollViewReader`; the content carries a fixed id, and `folded` turning true scrolls it to the top. Spec board bullet.
 - **Reason**: a rail folded while scrolled down kept the offset, so the folded rail and the next peek started mid-list instead of at the pinned / waiting cards.
