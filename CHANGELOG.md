@@ -7,6 +7,9 @@ the update.
 
 ## [Unreleased]
 
+### Added
+- A drag-to-install disk image (open it, drag YaaKanban into Applications) and an app icon.
+
 ## [0.1.1] - 2026-10-26
 
 ### Added
