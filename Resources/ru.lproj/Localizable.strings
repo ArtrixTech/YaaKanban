@@ -400,3 +400,6 @@
 "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "За последние 4 часа: часы агентов (включая ваше отсутствие) на час вашего присутствия. Стрелка сравнивает с сегодняшним множителем.";
 "All agent hours ÷ your time here" = "Все часы агентов ÷ ваше присутствие";
 "Per prompt or answer · %lld in all" = "На запрос или ответ · всего %lld";
+"Close search" = "Закрыть поиск";
+"No matches" = "Ничего не найдено";
+"Search the last %lld days" = "Поиск за последние %lld дн.";

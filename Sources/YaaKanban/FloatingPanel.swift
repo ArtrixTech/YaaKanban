@@ -144,6 +144,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
             panel.setFrameOrigin(NSPoint(x: f.maxX - Self.width - 16, y: f.maxY - 136))
         }
         panel.setFrameAutosaveName("YaaFloatingPanel")
+        room.makeKey = { [panel] in panel.makeKey() }
         updateRoom()
         updateDock()
         // Dock, resolution or display arrangement changed.
@@ -335,7 +336,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
     private func checkPeek() {
         guard room.peek, folded else { return endPeek() }
         // Mid-slide the panel is still unfolding under the pointer; a held button is a drag.
-        guard slide == nil, !hotZone.contains(NSEvent.mouseLocation), NSEvent.pressedMouseButtons == 0 else { return }
+        guard slide == nil, !room.holdOpen, !hotZone.contains(NSEvent.mouseLocation), NSEvent.pressedMouseButtons == 0 else { return }
         endPeek()
     }
 
@@ -366,6 +367,14 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
     }
 
     func windowDidChangeScreen(_ notification: Notification) { updateRoom() }
+
+    func windowDidBecomeKey(_ notification: Notification) { room.isKey = true }
+
+    func windowDidResignKey(_ notification: Notification) {
+        room.isKey = false
+        // Clicked elsewhere while the search held the rail open: it folds once the pointer is gone.
+        checkPeek()
+    }
 
     func windowDidMove(_ notification: Notification) {
         updateRoom()

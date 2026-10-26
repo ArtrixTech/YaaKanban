@@ -299,6 +299,13 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
         hooked && turns.isEmpty && (status == .idle || status == .ended)
     }
 
+    /// Whether `query` appears, ignoring case, in its name, project path, id, agent, prompts or replies.
+    public func matches(_ query: String) -> Bool {
+        let fields: [String?] = [title, cwd, projectDir, sessionId, agent.displayName, peek?.lastPrompt, peek?.lastReply]
+            + turns.flatMap { [$0.prompt, $0.lastMessage] }
+        return fields.contains { $0?.localizedCaseInsensitiveContains(query) == true }
+    }
+
     /// The agent's latest reply, from hooks or the transcript.
     public var lastReply: String? { currentTurn?.lastMessage ?? peek?.lastReply }
 

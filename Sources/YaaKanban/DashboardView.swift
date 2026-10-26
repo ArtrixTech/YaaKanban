@@ -840,8 +840,9 @@ struct RecentFigures: View {
     /// Long enough that agents left running while the user is away still count against the time
     /// that set them going.
     static let window: TimeInterval = 4 * 3600
-    /// Trend points, each the leverage of the `window` up to it, a `trendStep`th of that apart.
-    static let trendPoints = 36, trendStep = 12
+    /// Trend points, each the leverage of the `window` up to it, a `trendStep`th of that apart:
+    /// together they span the last `window` too.
+    static let trendStep = 24, trendPoints = trendStep + 1
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { ctx in
@@ -897,7 +898,7 @@ struct RecentFigures: View {
                             TimeAxis(ticks: ticks)
                         }
                         .padding(.top, 6).padding(.bottom, 3)
-                        .help("Leverage trend: each point is the leverage over the 4 hours up to then, across the last \(SettingsView.duration(span / 60)); the dashed line is today's leverage.")
+                        .help("Leverage trend: each point is the leverage over the 4 hours up to then, across the last \(SettingsView.duration(Self.window / 60)); the dashed line is today's leverage.")
                         VStack(alignment: .trailing, spacing: 2) {
                             caption(String(localized: "Agent hours today"))
                             Text(duration(today.agentTime)).font(.system(size: 15, weight: .semibold, design: .rounded).monospacedDigit())

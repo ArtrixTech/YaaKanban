@@ -195,7 +195,7 @@ struct EmptyBoard: View {
 /// Opens the sessions that have left the floating panel, to bring one back.
 struct EndedButton: View {
     @Environment(AppModel.self) private var model
-    @State private var open = false
+    @Binding var open: Bool
     @State private var hover = false
 
     var body: some View {
@@ -232,7 +232,7 @@ struct EndedList: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 2) {
-                        ForEach(list) { EndedRow(session: $0, onPick: onPick) }
+                        ForEach(list) { PickRow(session: $0, onBoard: false, onPick: onPick) }
                     }
                     .padding(6)
                 }
@@ -243,9 +243,32 @@ struct EndedList: View {
     }
 }
 
-struct EndedRow: View {
+/// Sessions of the last two weeks matching the panel's search, most recent first.
+struct SearchResults: View {
+    @Environment(AppModel.self) private var model
+    let query: String
+    var onPick: () -> Void
+
+    var body: some View {
+        let found = model.search(query)
+        let onBoard = Set(model.activeSessions.map(\.id))
+        if found.isEmpty {
+            Text("No matches").font(.system(size: 12)).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity).padding(.vertical, 18)
+        } else {
+            LazyVStack(spacing: 2) {
+                ForEach(found) { PickRow(session: $0, onBoard: onBoard.contains($0.id), onPick: onPick) }
+            }
+        }
+    }
+}
+
+/// One session in the ended list or the search. Clicking it goes to it when it is on the panel,
+/// else puts it back there.
+struct PickRow: View {
     @Environment(AppModel.self) private var model
     let session: SessionState
+    let onBoard: Bool
     var onPick: () -> Void
     @State private var hover = false
 
@@ -258,19 +281,29 @@ struct EndedRow: View {
                 Text(s.projectName ?? s.agent.displayName).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 4)
+            if onBoard { StatusGlyph(status: model.display(s), size: 14) }
             Text(relative(s.lastEventAt)).font(.system(size: 10).monospacedDigit()).foregroundStyle(.tertiary)
         }
         .padding(.horizontal, 8).padding(.vertical, 5)
         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.primary.opacity(hover ? 0.08 : 0)))
         .contentShape(Rectangle())
         .onHover { hover = $0 }
-        .onTapGesture { withAnimation(.snappy) { model.restore(s.id) }; onPick() }
-        .help("Put back on the floating panel")
+        .onTapGesture(perform: pick)
+        .help(onBoard ? String(localized: "Jump to terminal") : String(localized: "Put back on the floating panel"))
         .contextMenu {
-            Button("Restore to floating panel") { withAnimation(.snappy) { model.restore(s.id) }; onPick() }
+            if onBoard {
+                Button("Jump to terminal", action: pick)
+            } else {
+                Button("Restore to floating panel", action: pick)
+            }
             Button("Copy resume command") { model.jumper.copyResume(s) }
             Button("Delete from history", role: .destructive) { model.remove(s.id) }
         }
+    }
+
+    private func pick() {
+        onPick()
+        if onBoard { model.jump(session.id) } else { withAnimation(.snappy) { model.restore(session.id) } }
     }
 }
 
@@ -290,8 +323,13 @@ struct FloatingPanelView: View {
     /// List height when a resize drag began.
     @State private var dragStart: CGFloat?
     @State private var widthStart: CGFloat?
-    /// Where the list's bottom is in the scroll view, to fade the bottom edge while more is below.
+    /// Where the list's top and bottom are in the scroll view, to fade an edge while more is past it.
+    @State private var listTop: CGFloat = 0
     @State private var listBottom: CGFloat = 0
+    @State private var endedOpen = false
+    /// The search replaces the list with sessions of the last two weeks.
+    @State private var searching = false
+    @State private var query = ""
 
     static let minList: CGFloat = 120
     static let maxList: CGFloat = 1400
@@ -307,6 +345,9 @@ struct FloatingPanelView: View {
             // instead of growing the frame, which the window would center, pushing the header up.
             .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: anchor)
             .clipped()
+            .onChange(of: endedOpen || (searching && room?.isKey == true), initial: true) { room?.holdOpen = $1 }
+            // Folded back (the user clicked elsewhere, then left): the rail shows cards again.
+            .onChange(of: folded) { if $1 { closeSearch() } }
     }
 
     /// Docked to a side and neither hovered nor unfolded.
@@ -398,42 +439,80 @@ struct FloatingPanelView: View {
 
     @ViewBuilder private var list: some View {
         @Bindable var settings = model.settings
-            if !settings.panelCollapsed {
+            if searchShown {
+                scrolling {
+                    SearchResults(query: query) { closeSearch() }
+                }
+                .id("search")
+            } else if !settings.panelCollapsed {
                 if model.activeSessions.isEmpty {
                     EmptyBoard().transition(.opacity)
                 } else {
-                    ScrollView {
+                    scrolling {
                         BoardList(expanded: expanded) { s in
                             withAnimation(.spring(duration: 0.3, bounce: 0.15)) { expanded = expanded == s.id ? nil : s.id }
                         }
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { grow(to: $0) }
-                        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .scrollView).maxY } action: { listBottom = $0 }
-                    }
-                    .scrollIndicators(.never)
-                    .frame(height: shownList)
-                    // More below the bottom edge: it fades out instead of being cut.
-                    .mask {
-                        VStack(spacing: 0) {
-                            Color.black
-                            LinearGradient(colors: [.black, .black.opacity(moreBelow ? 0 : 1)], startPoint: .top, endPoint: .bottom)
-                                .frame(height: 28)
-                        }
-                        .animation(.easeOut(duration: 0.15), value: moreBelow)
                     }
                     .transition(.opacity)
                 }
             }
     }
 
-    /// One row under the list: the ended list on the left, the height grip centred. The button's
-    /// hidden twin on the right keeps the grip in the middle.
-    private var bottomBar: some View {
-        HStack(spacing: 0) {
-            EndedButton().fixedSize()
-            if listShown { heightGrip } else { Spacer(minLength: 0) }
-            EndedButton().fixedSize().hidden()
+    /// The list area: as tall as `shownList`, scrolling, each edge fading out instead of being cut
+    /// while more is past it.
+    private func scrolling(@ViewBuilder _ content: () -> some View) -> some View {
+        ScrollView {
+            content()
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { grow(to: $0) }
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .scrollView) } action: {
+                    listTop = $0.minY
+                    listBottom = $0.maxY
+                }
         }
-        .frame(height: 22)
+        .scrollIndicators(.never)
+        .frame(height: shownList)
+        .mask {
+            VStack(spacing: 0) {
+                LinearGradient(colors: [.black.opacity(moreAbove ? 0 : 1), .black], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 28)
+                Color.black
+                LinearGradient(colors: [.black, .black.opacity(moreBelow ? 0 : 1)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 28)
+            }
+            .animation(.easeOut(duration: 0.15), value: moreAbove)
+            .animation(.easeOut(duration: 0.15), value: moreBelow)
+        }
+    }
+
+    /// One row under the list: the ended list on the left, the search on the right, the height
+    /// grip centred between them. Searching, the row is the search field.
+    @ViewBuilder private var bottomBar: some View {
+        if searchShown {
+            SearchField(query: $query, onClose: closeSearch).frame(height: 22).padding(.bottom, 2)
+        } else {
+            HStack(spacing: 0) {
+                EndedButton(open: $endedOpen).fixedSize().frame(maxWidth: .infinity, alignment: .leading)
+                if listShown { heightGrip.frame(width: 80) }
+                IconButton(symbol: "magnifyingglass", help: String(localized: "Search the last \(AppModel.searchDays) days"), action: openSearch)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .frame(height: 22)
+        }
+    }
+
+    private var searchShown: Bool { searching && !folded }
+
+    private func openSearch() {
+        room?.holdTop()
+        room?.makeKey()
+        withAnimation(.snappy) { searching = true }
+    }
+
+    private func closeSearch() {
+        guard searching else { return }
+        room?.holdTop()
+        withAnimation(.snappy) { searching = false }
+        query = ""
     }
 
     private var heightGrip: some View {
@@ -453,17 +532,44 @@ struct FloatingPanelView: View {
         .frame(height: 22)
     }
 
+    private var moreAbove: Bool { listTop < -1 }
     private var moreBelow: Bool { listBottom > shownList + 1 }
 
     /// The list's natural height changed. Without a height set by hand the panel follows it both
     /// ways; with one, the panel keeps it and the list scrolls.
     private func grow(to h: CGFloat) { listHeight = h }
 
-    private var listShown: Bool { !model.settings.panelCollapsed && !model.activeSessions.isEmpty }
+    private var listShown: Bool { searchShown || (!model.settings.panelCollapsed && !model.activeSessions.isEmpty) }
 
     private var shownList: CGFloat {
         let fits = room.map { max(Self.minList, $0.height - chrome) } ?? .infinity
         return min(model.settings.panelListHeight ?? min(listHeight, Self.maxList), fits)
+    }
+}
+
+/// The panel's search field, focused when it appears; Esc or the cross closes the search.
+struct SearchField: View {
+    @Binding var query: String
+    var onClose: () -> Void
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "magnifyingglass").font(.system(size: 10.5, weight: .semibold)).foregroundStyle(.secondary)
+            TextField("Search the last \(AppModel.searchDays) days", text: $query)
+                .textFieldStyle(.plain).font(.system(size: 11.5))
+                .focused($focused)
+                .onExitCommand(perform: onClose)
+            Button(action: onClose) {
+                Image(systemName: "xmark.circle.fill").font(.system(size: 11)).foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
+            .help("Close search")
+        }
+        .padding(.horizontal, 8)
+        .frame(maxHeight: .infinity)
+        .background(Capsule().fill(.primary.opacity(0.07)))
+        .onAppear { focused = true }
     }
 }
 
@@ -475,11 +581,18 @@ final class PanelRoom {
     var dock: DockEdge?
     /// The folded rail is shown unfolded while the pointer is over it.
     var peek = false
+    /// The panel is the key window (the search field has the keyboard).
+    var isKey = false
     /// The width grip is being dragged: resize at once instead of sliding.
     var resizing = false
     /// Snapshots render the rail folded whatever the user pinned, and slim if asked.
     var snapshotFolded = false
     var snapshotSlim = false
+    /// Something opened from the panel (the ended list, the search) needs it to stay unfolded
+    /// while the pointer is elsewhere: a peeking rail would fold and take it away.
+    var holdOpen = false
+    /// Makes the panel the key window, so the search field takes typing without a click.
+    @ObservationIgnored var makeKey: () -> Void = {}
     /// Until when a height change keeps the top edge still: the user is resizing or folding the
     /// list by hand. Otherwise the panel grows and shrinks about its middle.
     @ObservationIgnored var topHeldUntil: CFTimeInterval = 0

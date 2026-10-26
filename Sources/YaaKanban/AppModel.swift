@@ -703,6 +703,19 @@ final class AppModel {
         return sorted(sessions.values.filter { $0.parentId == nil && !$0.isUnstarted && !isLive($0, now: now) })
     }
 
+    /// How far back the panel's search reaches.
+    static let searchDays = 14
+
+    /// Top-level sessions active in the last `searchDays` days that match `query` (all of them for
+    /// an empty one), most recent first: what the panel's search finds.
+    func search(_ query: String) -> [SessionState] {
+        let since = Date().addingTimeInterval(-Double(Self.searchDays) * 86400)
+        let q = query.trimmingCharacters(in: .whitespaces)
+        return sorted(sessions.values.filter {
+            $0.parentId == nil && !$0.isUnstarted && $0.quietSince >= since && (q.isEmpty || $0.matches(q))
+        })
+    }
+
     /// Puts an ended session back on the boards as a reviewed card, with a fresh retention.
     func restore(_ key: String) {
         update(key, alert: false) { s in

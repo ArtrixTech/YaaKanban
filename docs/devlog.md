@@ -1,8 +1,19 @@
 # Devlog
 
-## perf(store): skip saving sessions that did not change
+## feat(panel): search two weeks of history and keep the rail open for popovers
 
 `pending` | 2026-10-26
+
+- **Changes**: `PanelRoom.holdOpen` (ended popover open, or searching while the panel is key) stops `checkPeek` from folding a peeking rail; `isKey` from window delegate, `makeKey` set by the controller. `EndedButton` takes its `open` binding from the panel. Bottom bar: 已结束 left, grip (80 pt) centred, magnifier right (`IconButton`), replacing the hidden twin. Search: the bottom row becomes `SearchField` (focused on appear, Esc/× close), the list area shows `SearchResults` (`AppModel.search`: top-level, started, `quietSince` within `searchDays` = 14, `SessionState.matches`: name/title, cwd, projectDir, id, agent, peek prompt/reply, turns' prompts/replies, case-insensitive). `EndedRow` → `PickRow` (on the board: status glyph, click = jump; else click = restore). List scroll area factored into `scrolling`, fading the top edge too while scrolled. Recent figures trend: `trendStep` 24, `trendPoints` 25 → the curve spans the 4 h window (was 36 points × 20 min ≈ 12 h); help text uses the window. 3 strings × 9 tables; spec board + efficiency bullets; test `Search.matchesNamePathPromptsAndReplies`.
+- **Reason**: the user's panel sits folded at the right edge (slim, 28 pt); opening 已结束 while peeking put the pointer on the popover, outside the hot zone, so the rail folded and took the popover (its anchor) away: the "crash and reappear / auto-collapse". No crash report exists for the app.
+- **User feedback**: "目前点击已结束菜单大概率会导致悬浮窗崩溃重新出现。（也可能是自动收起）另外：1，悬浮窗顶上也要和底下有渐变遮罩 2，杠杆在悬浮窗的曲线范围依然是最近4h，现在显示的太长了看不清楚趋势 3，右下角增加搜索按钮，能搜索近14天的所有历史"
+- **Process**: saved panel frame `… 2143 1288 28 1070 …` (28 pt wide at the right edge) supported the fold hypothesis. `make build`, `make test` 170 pass, `make l10n` 0 problems, `make install`, `yaak snapshot`: trend axis now ~4 h ending at 现在.
+- **Result**: see Changes.
+- **Notes**: popover hold, search focus in the non-activating panel and the top fade were not checked on a real screen (snapshots can't click or scroll). Searching hides the height grip; folding back closes the search. A search result already on the board jumps (may ask to reopen a gone session).
+
+## perf(store): skip saving sessions that did not change
+
+`f35774f` | 2026-10-26
 
 - **Changes**: `AppModel.update` saves to the store only when the new state differs from the old (`SessionState` is Equatable); everything else in it runs as before.
 - **Reason**: the 10 s tick (stuck detection) and the 5 s scan pass every session through `update`, which rewrote each one's full JSON: 145 sessions, 28 MB, every 10 s, on the main thread. macOS logged "disk writes" reports for YaaKanban daily (2.1 GB in 10–40 min; 137 GB over 15 h on 10-23), heaviest stack `scan → update → Store.save → sqlite WAL write/checkpoint`.

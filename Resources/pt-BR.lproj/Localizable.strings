@@ -400,3 +400,6 @@
 "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "Nas últimas 4 horas, horas de agente (ausência incluída) por hora que você esteve aqui. A seta compara com a alavancagem de hoje.";
 "All agent hours ÷ your time here" = "Todas as horas de agente ÷ seu tempo aqui";
 "Per prompt or answer · %lld in all" = "Por instrução ou resposta · %lld no total";
+"Close search" = "Fechar busca";
+"No matches" = "Nenhum resultado";
+"Search the last %lld days" = "Buscar nos últimos %lld dias";

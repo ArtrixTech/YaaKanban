@@ -400,3 +400,6 @@
 "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "최근 4시간, 자리를 비운 시간 포함 에이전트 작업 시간 ÷ 머문 시간. 화살표는 오늘의 레버리지와 비교합니다.";
 "All agent hours ÷ your time here" = "전체 에이전트 작업 시간 ÷ 머문 시간";
 "Per prompt or answer · %lld in all" = "프롬프트·답변 1회당 · 총 %lld회";
+"Close search" = "검색 닫기";
+"No matches" = "일치 항목 없음";
+"Search the last %lld days" = "최근 %lld일 검색";

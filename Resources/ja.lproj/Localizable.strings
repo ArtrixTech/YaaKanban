@@ -400,3 +400,6 @@
 "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "直近4時間の、離席中も含むエージェント稼働時間 ÷ 在席時間。矢印は今日のレバレッジとの比較です。";
 "All agent hours ÷ your time here" = "全エージェント稼働時間 ÷ 在席時間";
 "Per prompt or answer · %lld in all" = "指示・回答1回あたり · 計%lld回";
+"Close search" = "検索を閉じる";
+"No matches" = "一致なし";
+"Search the last %lld days" = "過去 %lld 日間を検索";

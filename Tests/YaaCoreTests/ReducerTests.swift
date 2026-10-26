@@ -1324,3 +1324,16 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(s.status == .idle)
     }
 }
+
+@Suite struct Search {
+    @Test func matchesNamePathPromptsAndReplies() {
+        var s = SessionState(agent: .codex, sessionId: "abc123", at: Date())
+        s.cwd = "/Users/me/GitHub/YaaKanban"
+        s.turns = [Turn(id: 1, prompt: "fix the Telemetry send", startedAt: Date(), toolCount: 0, lastMessage: "Done: waits for a network")]
+        s.peek = TranscriptPeek(lastReply: "看一下悬浮窗")
+        for q in ["yaakanban", "TELEMETRY", "a network", "悬浮窗", "abc1", "codex"] { #expect(s.matches(q), "\(q)") }
+        #expect(!s.matches("leverage"))
+        s.customName = "Leverage rework"
+        #expect(s.matches("leverage"))
+    }
+}

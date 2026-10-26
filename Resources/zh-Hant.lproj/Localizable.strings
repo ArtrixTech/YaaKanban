@@ -400,3 +400,6 @@
 "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "最近 4 小時，含你不在時的 agent 工時 ÷ 你在場的時間。箭頭與今日槓桿比較";
 "All agent hours ÷ your time here" = "agent 總工時 ÷ 你在場的時間";
 "Per prompt or answer · %lld in all" = "每次發話或回答 · 共 %lld 次";
+"Close search" = "關閉搜尋";
+"No matches" = "沒有符合的任務";
+"Search the last %lld days" = "搜尋近 %lld 天";
