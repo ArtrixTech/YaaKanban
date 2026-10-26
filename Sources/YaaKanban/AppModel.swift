@@ -278,7 +278,9 @@ final class AppModel {
         // A sub-agent's finished turn is reviewed through its parent.
         if new.parentId != nil { new.unreadSince = nil }
         sessions[key] = new
-        store?.save(new)
+        // The tick and the scan pass every session through here; rewriting the unchanged ones
+        // dirtied gigabytes a day.
+        if new != old { store?.save(new) }
         record(Activity.rows(old: old, new: new, now: Date()))
         if old?.pendingPermission?.awaitingDecision == true && new.pendingPermission?.awaitingDecision != true {
             pendingReplies.removeValue(forKey: key)?.send(Wire.encode(WireReply(decision: nil)))

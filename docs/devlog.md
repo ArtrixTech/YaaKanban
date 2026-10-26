@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(telemetry): wait for a network and record each send's outcome
+## perf(store): skip saving sessions that did not change
 
 `pending` | 2026-10-26
+
+- **Changes**: `AppModel.update` saves to the store only when the new state differs from the old (`SessionState` is Equatable); everything else in it runs as before.
+- **Reason**: the 10 s tick (stuck detection) and the 5 s scan pass every session through `update`, which rewrote each one's full JSON: 145 sessions, 28 MB, every 10 s, on the main thread. macOS logged "disk writes" reports for YaaKanban daily (2.1 GB in 10–40 min; 137 GB over 15 h on 10-23), heaviest stack `scan → update → Store.save → sqlite WAL write/checkpoint`.
+- **User feedback**: none directly; found while looking into the panel "crash" report (no crash log exists, only these diagnostics).
+- **Process**: `proc_pid_rusage` logical writes over 60 s: 136 MB before, 10 MB after (`make install`). Diffing rows over 30 s afterwards: only the two running sessions change (hook events).
+- **Result**: about 13× less disk writing; the main thread no longer encodes 28 MB every tick.
+- **Notes**: what is left is real changes, but each rewrites the session's whole JSON blob (a busy session is ~800 KB because it keeps every tool's input/output); cutting that further needs a different storage layout (not done).
+
+## fix(telemetry): wait for a network and record each send's outcome
+
+`c2d098f` | 2026-10-26
 
 - **Changes**: `TelemetryReporter`: session `waitsForConnectivity`, resource timeout 1 h; the data task's completion writes `TelemetryLedger.lastResult` (`SendResult`: time, days, HTTP status, error domain+code; kept only while on, cleared by off). `yaak telemetry status` prints `last send: <time>, <days>: accepted | HTTP n | <error>`. docs/telemetry.md. Test `sendResult` (old ledger without the key decodes; 200 ok, 401 / -1009 not).
 - **Reason**: the day was marked sent before a fire-and-forget POST whose response was never read, so any failure vanished without trace; the first tick of a new day typically runs right after wake, when the default session fails at once with no network.
