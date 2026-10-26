@@ -4,12 +4,12 @@ import YaaCore
 extension DisplayStatus {
     var label: String {
         switch self {
-        case .needsInput: "需要输入"
-        case .stuck: "可能卡住"
-        case .review: "待验收"
-        case .running: "运行中"
-        case .done: "已验收"
-        case .ended: "已结束"
+        case .needsInput: String(localized: "Needs input")
+        case .stuck: String(localized: "Maybe stuck")
+        case .review: String(localized: "To review")
+        case .running: String(localized: "Running")
+        case .done: String(localized: "Reviewed")
+        case .ended: String(localized: "Ended")
         }
     }
 
@@ -263,6 +263,18 @@ struct AgentLogo: View {
         case .cursor: "cursor"
         case .opencode: "opencode"
         case .pi: "pi"
+        case .hermes: "hermes"
+        case .deepseek: "deepseek"
+        case .qwen: "qwen"
+        case .droid: "droid"
+        case .copilot: "copilot"
+        case .gemini: "gemini"
+        case .zcode: "zcode"
+        case .kiro: "kiro"
+        case .kimi: "kimi"
+        case .cline: "cline"
+        case .omp: "omp"
+        case .windsurf: "windsurf"
         }
         guard let url = Bundle.main.resourceURL?.appendingPathComponent("AgentIcons/\(file).svg"),
               let img = NSImage(contentsOf: url) else { return nil }

@@ -6,6 +6,18 @@ public enum AgentKind: String, Codable, CaseIterable, Sendable {
     case cursor
     case opencode
     case pi
+    case hermes
+    case deepseek
+    case qwen
+    case droid
+    case copilot
+    case gemini
+    case zcode
+    case kiro
+    case kimi
+    case cline
+    case omp
+    case windsurf
 
     public var displayName: String {
         switch self {
@@ -14,6 +26,18 @@ public enum AgentKind: String, Codable, CaseIterable, Sendable {
         case .cursor: return "Cursor"
         case .opencode: return "OpenCode"
         case .pi: return "pi"
+        case .hermes: return "Hermes"
+        case .deepseek: return "DeepSeek"
+        case .qwen: return "Qwen Code"
+        case .droid: return "Droid"
+        case .copilot: return "Copilot CLI"
+        case .gemini: return "Gemini CLI"
+        case .zcode: return "ZCode"
+        case .kiro: return "Kiro CLI"
+        case .kimi: return "Kimi Code"
+        case .cline: return "Cline"
+        case .omp: return "omp"
+        case .windsurf: return "Windsurf"
         }
     }
 }
@@ -111,6 +135,10 @@ public struct AgentEvent: Equatable, Sendable {
         case sessionEnd
         case subagentStart(id: String, type: String?)
         case subagentStop(id: String)
+        /// Claude Code launched a background agent; the main agent may stop before it returns.
+        case backgroundStart(id: String)
+        /// A background agent reported back (its `<task-notification>`).
+        case backgroundEnd(id: String)
         /// Status reported by a session file. Drives sessions without hooks; for hooked ones only an
         /// `.idle` newer than the last hook event counts (an interrupt fires no Stop hook).
         case statusSnapshot(SessionStatus)
@@ -208,10 +236,16 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var usage: Usage?
     /// Set when the user ends the session in the panel; it stays in history but leaves the boards.
     public var dismissedAt: Date?
+    /// When the user brought it back from the ended list; sessions started before then no longer
+    /// count as replacing it.
+    public var restoredAt: Date?
     /// A name the user gave the session in YaaKanban; it wins over every other title.
     public var customName: String?
     /// Key of the session that spawned this one as a sub-agent (pi runs them as sessions of their own).
     public var parentId: String?
+    /// Background agents launched and not yet reported back; while any is out, a stopped turn
+    /// is not finished. Optional so sessions stored before it decode.
+    public var backgroundTasks: [String]?
 
     public static let toolHistoryLimit = 200
 
@@ -246,6 +280,7 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var currentTurn: Turn? { turns.last }
     public var latestTool: ToolCall? { tools.last }
     public var runningTools: [ToolCall] { tools.filter(\.isRunning) }
+    public var awaitsBackground: Bool { !(backgroundTasks ?? []).isEmpty }
 
     /// What the UI shows: `.idle` splits into "to review" and "done". The agent exiting is not the
     /// end for the user: only ending it on the panel is (and, in the app, outliving the retention).
@@ -262,6 +297,13 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     /// quiet or exited. Such a session has nothing to show (a fresh `claude`/`pi` window, or `/new`).
     public var isUnstarted: Bool {
         hooked && turns.isEmpty && (status == .idle || status == .ended)
+    }
+
+    /// Whether `query` appears, ignoring case, in its name, project path, id, agent, prompts or replies.
+    public func matches(_ query: String) -> Bool {
+        let fields: [String?] = [title, cwd, projectDir, sessionId, agent.displayName, peek?.lastPrompt, peek?.lastReply]
+            + turns.flatMap { [$0.prompt, $0.lastMessage] }
+        return fields.contains { $0?.localizedCaseInsensitiveContains(query) == true }
     }
 
     /// The agent's latest reply, from hooks or the transcript.
@@ -282,6 +324,22 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
         case .opencode: return "opencode --session \(id)"
         // pi's session id is the session file path.
         case .pi: return "pi --session \(id)"
+        case .hermes: return "hermes --resume \(id)"
+        // dsh resumes sessions from its web UI, not the command line.
+        case .deepseek: return nil
+        case .qwen: return "qwen --resume \(id)"
+        case .droid: return "droid --resume \(id)"
+        case .copilot: return "copilot --resume \(id)"
+        case .gemini: return "gemini --resume \(id)"
+        // ZCode is a desktop app with no resume command.
+        case .zcode: return nil
+        case .kiro: return "kiro-cli chat --resume-id \(id)"
+        case .kimi: return "kimi --session \(id)"
+        case .cline: return "cline --id \(id)"
+        // Like pi, omp's session id is the session file path.
+        case .omp: return "omp --resume \(id)"
+        // Cascade conversations are resumed inside the editor.
+        case .windsurf: return nil
         }
     }
 

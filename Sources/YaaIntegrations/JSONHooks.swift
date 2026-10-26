@@ -82,8 +82,13 @@ enum JSONFile {
 
 public enum IntegrationError: Error, CustomStringConvertible {
     case unreadable(String)
+    /// The edit would be unsafe; the message says why.
+    case refused(String)
     public var description: String {
-        switch self { case .unreadable(let p): return "\(p) is not a JSON object; refusing to edit it" }
+        switch self {
+        case .unreadable(let p): return "\(p) is not a JSON object; refusing to edit it"
+        case .refused(let why): return why
+        }
     }
 }
 
@@ -111,7 +116,25 @@ public struct ClaudeIntegration: Integration {
 public struct CodexIntegration: Integration {
     public let agent = AgentKind.codex
     public init() {}
-    public var postInstallNote: String? { "Codex: run /hooks inside Codex and trust the new YaaKanban hooks." }
+    public var postInstallNote: String? { String(localized: "Codex runs only the hooks you trusted in /hooks.") }
+
+    public func pendingSteps(home: URL) -> [String] {
+        if CodexTrust.hooksOff(home: home) {
+            return [String(localized: "~/.codex/config.toml has hooks = false under [features], so Codex runs no hooks."),
+                    String(localized: "Remove that line (or set it to true), restart Codex, then come back and click “Recheck”.")]
+        }
+        let states = CodexTrust.states(home: home)
+        let untrusted = states.filter { $0.state == .untrusted }.count
+        let modified = states.filter { $0.state == .modified }.count
+        let disabled = states.filter { $0.state == .disabled }.count
+        guard untrusted + modified + disabled > 0 else { return [] }
+        var steps = [String(localized: "Open codex in a terminal and enter /hooks.")]
+        if untrusted > 0 { steps.append(String(localized: "Trust the untrusted yaak hooks (\(untrusted)).")) }
+        if modified > 0 { steps.append(String(localized: "Yaak hooks changed since you trusted them (\(modified); yaak path or arguments): trust them again.")) }
+        if disabled > 0 { steps.append(String(localized: "Re-enable the disabled yaak hooks (\(disabled)).")) }
+        steps.append(String(localized: "Come back and click “Recheck”. Codex sessions already open need a restart to pick them up."))
+        return steps
+    }
 
     static let events: [(name: String, timeout: Int)] = [
         "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PermissionRequest",
@@ -156,6 +179,44 @@ public struct CursorIntegration: Integration {
                     hooks[e] = list
                 }
                 if root["version"] == nil { root["version"] = 1 }
+            }
+            root["hooks"] = hooks.isEmpty ? nil : hooks
+        }
+    }
+}
+
+/// Windsurf (Cascade): `{"hooks": {event: [{command, show_output?}]}}` in `~/.codeium/windsurf/hooks.json`.
+/// A pre-hook exiting 2 blocks the action, so the command ends in `|| true`. Our entries are found by command.
+public struct WindsurfIntegration: Integration {
+    public let agent = AgentKind.windsurf
+    public init() {}
+    public var postInstallNote: String? { String(localized: "Windsurf runs no hooks in Restricted Mode; Cascade has no permission-request hook and no session start/end events.") }
+
+    static let events = ["pre_user_prompt", "pre_read_code", "post_read_code", "pre_write_code", "post_write_code",
+                         "pre_run_command", "post_run_command", "pre_mcp_tool_use", "post_mcp_tool_use", "post_cascade_response"]
+
+    func file(_ home: URL) -> URL { home.appendingPathComponent(".codeium/windsurf/hooks.json") }
+    public func isDetected(home: URL) -> Bool { FileManager.default.fileExists(atPath: home.appendingPathComponent(".codeium/windsurf").path) }
+    public func isInstalled(home: URL) -> Bool { JSONFile.containsOurs(file(home)) }
+
+    public func plan(install: Bool, home: URL, yaak: String) throws -> [FileChange] {
+        let url = file(home)
+        let root = try JSONFile.load(url).root
+        if root["hooks"] != nil && !(root["hooks"] is [String: Any])
+            || (root["hooks"] as? [String: Any])?.values.contains(where: { !($0 is [Any]) }) == true {
+            throw IntegrationError.refused("hooks in \(url.path) is not an object of lists; refusing to edit it")
+        }
+        return try JSONFile.plan(url) { root in
+            var hooks = root["hooks"] as? [String: Any] ?? [:]
+            for (event, list) in hooks {
+                let kept = (list as? [Any] ?? []).filter { !HookCommand.isOurs(($0 as? [String: Any])?["command"] as? String ?? "") }
+                hooks[event] = kept.isEmpty ? nil : kept
+            }
+            if install {
+                for e in Self.events {
+                    hooks[e] = (hooks[e] as? [Any] ?? []) + [["command": HookCommand.make(yaak: yaak, agent: agent, event: e) + " || true",
+                                                               "show_output": false]]
+                }
             }
             root["hooks"] = hooks.isEmpty ? nil : hooks
         }

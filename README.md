@@ -16,7 +16,11 @@ needs your input.
   set.
 - Full local history in SQLite.
 
-Everything stays on your machine; nothing is sent anywhere.
+Everything stays on your machine. The only exception is opt-in, anonymous daily usage
+statistics, off by default; [docs/telemetry.md](docs/telemetry.md) lists every field.
+
+Found a bug or have an idea? Menu → Feedback… (反馈…) opens a prefilled GitHub issue; `yaak doctor` prints
+the same diagnostics.
 
 ## Requirements
 
@@ -29,7 +33,7 @@ make test      # run the test suite
 make install   # build, copy to ~/Applications, link the yaak CLI to ~/.local/bin, launch
 ```
 
-Then open Settings → Agent 接入 and install the hooks for the agents you use, or from the
+Then open Settings → Agent integrations and install the hooks for the agents you use, or from the
 command line:
 
 ```sh
@@ -37,6 +41,8 @@ yaak install --dry-run          # show what would change
 yaak install --agent claude-code
 yaak status
 yaak uninstall
+yaak doctor                     # diagnostics for a bug report
+yaak telemetry status|on|off
 ```
 
 Installing writes YaaKanban's hook entries into each agent's own config, next to whatever is
@@ -49,6 +55,18 @@ there (a `.yaak.bak` backup is made first):
 | Cursor | `~/.cursor/hooks.json` |
 | OpenCode | `~/.config/opencode/plugins/yaakanban.ts` |
 | pi | `~/.pi/agent/extensions/yaakanban.ts` |
+| Hermes | `~/.hermes/config.yaml` (Hermes asks to allow each hook on first run) |
+| DeepSeek dsh | `~/.dsh/yaakanban/` bundle, added to each dsh profile |
+| Qwen Code | `~/.qwen/settings.json` |
+| Droid | `~/.factory/hooks.json` (or `settings.json` `hooks` when that is where they live) |
+| Copilot CLI | `~/.copilot/hooks/yaak.json` |
+| Gemini CLI | `~/.gemini/settings.json` |
+| ZCode | `~/.zcode/cli/config.json` (`hooks.events`) |
+| Kiro CLI | `~/.kiro/hooks/yaak.json` (V3 engine) |
+| Kimi Code | `~/.kimi-code/config.toml` (`[[hooks]]`) |
+| Cline | `~/Documents/Cline/Hooks/<Event>` scripts |
+| omp | `~/.omp/agent/extensions/yaakanban.ts` |
+| Windsurf | `~/.codeium/windsurf/hooks.json` |
 
 Hooks call `yaak hook <agent> <event>`, which forwards the event over a user-only Unix socket
 and returns at once; if the app is not running, events are spooled and replayed later. A hook

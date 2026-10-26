@@ -219,8 +219,8 @@ struct WaveAdapter {
         }
     }
 
-    /// Runs `cmd` in a new block of the session's tab (Wave places it next to the block the token
-    /// was issued for), then stays in a shell. A login shell gives the agent CLIs their PATH.
+    /// Opens an ordinary terminal block in the session's tab (Wave places it next to the block the
+    /// token was issued for) that runs `cmd` at its first prompt, like the user pasting it there.
     /// Each runner's token is tried in turn (a token's block may be closed). When none works the
     /// user pastes the copied command instead, and `failed` says so.
     func resume(_ cmd: String, cwd: String?, app: NSRunningApplication, runners: [TerminalContext],
@@ -233,19 +233,11 @@ struct WaveAdapter {
                 _ = WaveTabBar(pid: pid).press { WaveDB.place(ofBlock: block, tab: tab) }
             }
         }
-        let args = ["run"] + (cwd.map { ["--cwd", $0] } ?? []) + ["-c", Self.resumeScript(cmd)]
+        let args = WaveResume.createBlockArgs(cmd, cwd: cwd)
         DispatchQueue.global(qos: .userInitiated).async {
             guard !runners.contains(where: { Self.runWaiting(args, as: $0) }) else { return }
             DispatchQueue.main.async { MainActor.assumeIsolated { failed() } }
         }
-    }
-
-    /// A `wsh run` block gets only a one-time `WAVETERM_SWAPTOKEN`; Wave's own rc files trade it
-    /// for the block's id, tab and JWT, but `-ilc` reads the user's rc instead. Trading it here
-    /// lets the resumed agent's hooks report its block, so its card can jump there again.
-    static func resumeScript(_ cmd: String) -> String {
-        let swap = "[ -n \"$WAVETERM_SWAPTOKEN\" ] && eval \"$(\"${WAVETERM_WSHBINDIR:-$HOME/Library/Application Support/waveterm/bin}/wsh\" token \"$WAVETERM_SWAPTOKEN\" zsh 2>/dev/null)\""
-        return "\(swap); \"$SHELL\" -ilc \(shellQuote(cmd)); exec \"$SHELL\" -il"
     }
 
     /// Runs `wsh` as `terminal` and reports whether it succeeded (bounded: a hung `wsh` counts as failed).

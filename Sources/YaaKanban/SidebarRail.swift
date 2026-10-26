@@ -55,7 +55,7 @@ struct RailHeader: View {
         HStack(spacing: 4) {
             BrandMark(size: 20)
             Spacer(minLength: 0)
-            IconButton(symbol: edge == .right ? "chevron.left.2" : "chevron.right.2", help: "固定展开", action: onUnfold)
+            IconButton(symbol: edge == .right ? "chevron.left.2" : "chevron.right.2", help: String(localized: "Pin open"), action: onUnfold)
         }
         .frame(height: BoardHeaderHeight.value)
     }
@@ -100,14 +100,14 @@ struct NarrowSessionCard: View {
         .onTapGesture { model.jump(session.id) }
         .help(help(st))
         .contextMenu {
-            Button(AppModel.isGone(session) ? "在原终端恢复" : "跳转到终端") { model.jump(session.id) }
-            if st == .review { Button("标记已验收") { model.markRead(session.id) } }
-            Button("复制 cwd / session") { model.jumper.copyContext(session) }
-            Button("复制恢复命令") { model.jumper.copyResume(session) }
+            Button(AppModel.isGone(session) ? "Resume in original terminal" : "Jump to terminal") { model.jump(session.id) }
+            if st == .review { Button("Mark as reviewed") { model.markRead(session.id) } }
+            Button("Copy cwd / session") { model.jumper.copyContext(session) }
+            Button("Copy resume command") { model.jumper.copyResume(session) }
             Divider()
             MoveMenu(session: session)
             Divider()
-            Button("结束（移出悬浮窗）") { model.dismiss(session.id) }
+            Button("End (remove from floating panel)") { model.dismiss(session.id) }
         }
     }
 
@@ -240,7 +240,7 @@ struct NarrowSessionCard: View {
         var lines = ["\(session.title) · \(st.label)"]
         if let p = session.projectName { lines.append(p) }
         if let d = SubagentSlots.detail(session) { lines.append(d) }
-        lines.append(AppModel.isGone(session) ? "点击在原终端恢复 \(session.agent.displayName)" : "点击跳转到 \(session.agent.displayName)")
+        lines.append(AppModel.isGone(session) ? String(localized: "Click to resume \(session.agent.displayName) in its original terminal") : String(localized: "Click to jump to \(session.agent.displayName)"))
         return lines.joined(separator: "\n")
     }
 }
@@ -289,7 +289,7 @@ struct NarrowSubagents: View {
 
     var body: some View {
         let rows = model.subagents(of: session.id).map { (id: $0.id, status: $0.display, name: $0.title) }
-            + session.subagents.map { (id: $0.id, status: DisplayStatus.running, name: $0.type ?? "子 agent") }
+            + session.subagents.map { (id: $0.id, status: DisplayStatus.running, name: $0.type ?? String(localized: "subagent")) }
         if rows.isEmpty {
             Color.clear.frame(height: 0)
         } else {

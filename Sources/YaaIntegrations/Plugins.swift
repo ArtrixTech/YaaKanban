@@ -20,7 +20,7 @@ extension PluginFileIntegration {
         let url = file(home)
         let before = Installer.read(url)
         if let before, !before.contains(PluginSource.marker) {
-            throw IntegrationError.unreadable("\(url.path) exists and is not managed by YaaKanban")
+            throw IntegrationError.refused("\(url.path) exists and is not managed by YaaKanban")
         }
         let after = install ? source(yaak: yaak) : nil
         return before == after ? [] : [FileChange(path: url, before: before, after: after)]
@@ -28,7 +28,8 @@ extension PluginFileIntegration {
 }
 
 enum PluginSource {
-    static let marker = "// managed by YaaKanban"
+    static let markerText = "managed by YaaKanban"
+    static let marker = "// \(markerText)"
 
     static func jsString(_ s: String) -> String {
         let d = try! JSONSerialization.data(withJSONObject: [s], options: [.withoutEscapingSlashes])
@@ -220,6 +221,95 @@ public struct PiIntegration: PluginFileIntegration {
           pi.on("agent_end", async (e: any) => { last = lastText(e.messages) })
           pi.on("agent_settled", async (_e: any, ctx: any) => { send("turn_end", { ...base(ctx), message: last }); last = undefined })
           pi.on("session_shutdown", async (_e: any, ctx: any) => send("session_end", base(ctx)))
+        }
+
+        """
+    }
+}
+
+/// oh-my-pi: a pi fork with its own home (`~/.omp/agent`) and event set. It has no `ui_prompt_*`,
+/// `agent_settled` or `session_info_changed`; a turn ends at the `agent_end` that will not continue,
+/// and the tool-approval events stand in for prompts. Extensions are rebound to sub-agent sessions,
+/// whose events are skipped.
+public struct OmpIntegration: PluginFileIntegration {
+    public let agent = AgentKind.omp
+    public init() {}
+    public var postInstallNote: String? { String(localized: "omp's extension directory is assumed to be the default ~/.omp/agent; PI_CODING_AGENT_DIR and profiles aren't followed.") }
+
+    func detectDir(_ home: URL) -> URL { home.appendingPathComponent(".omp") }
+    func file(_ home: URL) -> URL { home.appendingPathComponent(".omp/agent/extensions/yaakanban.ts") }
+
+    func source(yaak: String) -> String {
+        """
+        \(PluginSource.marker) — `yaak uninstall --agent omp` removes this file.
+        import { spawn } from "node:child_process"
+
+        const YAAK = \(PluginSource.jsString(yaak))
+
+        function run(event: string, body: any): Promise<void> {
+          return new Promise((resolve) => {
+            try {
+              const p = spawn(YAAK, ["hook", "omp", event], {
+                stdio: ["pipe", "ignore", "ignore"],
+                env: { ...process.env, YAAK_AGENT_PID: String(process.pid) },
+              })
+              p.on("error", () => resolve())
+              p.on("close", () => resolve())
+              p.stdin.on("error", () => {})
+              p.stdin.end(JSON.stringify(body))
+            } catch { resolve() }
+          })
+        }
+
+        // Events are delivered one at a time so the app sees them in order.
+        let chain: Promise<void> = Promise.resolve()
+        function send(event: string, payload: any) {
+          const body = { ...payload, ts: Date.now() }
+          chain = chain.then(() => run(event, body))
+        }
+
+        function lastText(messages: any[]): string | undefined {
+          for (let i = (messages?.length ?? 0) - 1; i >= 0; i--) {
+            const m = messages[i]
+            if (m?.role !== "assistant") continue
+            const c = m.content
+            if (typeof c === "string") return c
+            const t = (c ?? []).filter((b: any) => b?.type === "text").map((b: any) => b.text).join("\\n")
+            if (t) return t
+          }
+        }
+
+        export default function (pi: any) {
+          const sub = (ctx: any) => ctx?.agent?.kind === "sub"
+          const base = (ctx: any) => {
+            const file = ctx?.sessionManager?.getSessionFile?.()
+            return { session_id: file ?? ctx?.sessionManager?.getSessionId?.() ?? String(process.pid),
+                     transcript_path: file, cwd: ctx?.sessionManager?.getCwd?.() ?? process.cwd() }
+          }
+          const on = (name: string, f: (e: any, ctx: any) => void) =>
+            pi.on(name, async (e: any, ctx: any) => { try { if (!sub(ctx)) f(e, ctx) } catch {} })
+          on("session_start", (_e, ctx) => {
+            send("session_start", base(ctx))
+            const name = pi.getSessionName?.()
+            if (name) send("title", { ...base(ctx), title: name })
+          })
+          on("input", (e, ctx) => send("prompt", { ...base(ctx), prompt: e.text }))
+          on("tool_execution_start", (e, ctx) => {
+            send("tool_start", { ...base(ctx), id: e.toolCallId, tool: e.toolName, input: e.args })
+            // omp's question tool; answering it ends the call, which clears the attention.
+            if (e.toolName === "ask") send("needs_input", { ...base(ctx), message: "Waiting for your answer" })
+          })
+          on("tool_execution_end", (e, ctx) =>
+            send("tool_end", { ...base(ctx), id: e.toolCallId, tool: e.toolName, is_error: e.isError,
+                               output: (typeof e.result === "string" ? e.result : JSON.stringify(e.result ?? "")).slice(0, 2048) }))
+          on("tool_approval_requested", (e, ctx) =>
+            send("needs_input", { ...base(ctx), message: e.reason ?? `omp wants to run ${e.toolName}` }))
+          on("tool_approval_resolved", (_e, ctx) => send("input_answered", base(ctx)))
+          on("agent_end", (e, ctx) => {
+            if (e.willContinue) return
+            send("turn_end", { ...base(ctx), message: lastText(e.messages) })
+          })
+          on("session_shutdown", (_e, ctx) => send("session_end", base(ctx)))
         }
 
         """

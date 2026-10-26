@@ -123,11 +123,14 @@ public enum SessionReducer {
             s.needsInputMessage = "\(req.tool): \(req.summary)"
 
         case .turnEnd(let last):
+            // Kimi sub-agents fire Stop under the parent's session id while its Agent call runs.
+            if s.agent == .kimi, s.tools.contains(where: { $0.isRunning && $0.name == "Agent" }) { break }
             endTurn(&s, at: e.at, lastMessage: last)
 
         case .sessionEnd:
             endRunningTools(&s, at: e.at)
             s.subagents.removeAll()
+            s.backgroundTasks = nil
             s.status = .ended
             s.unreadSince = nil
             clearAttention(&s)
@@ -143,6 +146,13 @@ public enum SessionReducer {
             for i in s.tools.indices where s.tools[i].isRunning && s.tools[i].subagentId == id {
                 s.tools[i].endedAt = e.at
             }
+
+        case .backgroundStart(let id):
+            if !(s.backgroundTasks ?? []).contains(id) { s.backgroundTasks = (s.backgroundTasks ?? []) + [id] }
+
+        case .backgroundEnd(let id):
+            s.backgroundTasks?.removeAll { $0 == id }
+            if s.backgroundTasks?.isEmpty == true { s.backgroundTasks = nil }
 
         case .statusSnapshot, .titleChanged:
             break
@@ -165,8 +175,19 @@ public enum SessionReducer {
 
     private static func endTurn(_ s: inout SessionState, at: Date, lastMessage: String?) {
         if let i = s.turns.indices.last {
-            s.turns[i].endedAt = at
+            // Held for a background agent, a later idle notice must not move the turn's end.
+            if !s.awaitsBackground || s.turns[i].endedAt == nil { s.turns[i].endedAt = at }
             if let lastMessage { s.turns[i].lastMessage = lastMessage }
+        }
+        // The main agent stopped but a background agent is still out: the work is not done.
+        // Its notification starts a new turn, and that turn's stop finishes the session.
+        if s.awaitsBackground {
+            for i in s.tools.indices where s.tools[i].isRunning && s.tools[i].subagentId == nil { s.tools[i].endedAt = at }
+            // What is still waiting on the user now belongs to a background agent's tool; keep it.
+            if s.status == .needsInput, s.runningTools.contains(where: { $0.subagentId != nil }) { return }
+            clearAttention(&s)
+            s.status = .running
+            return
         }
         endRunningTools(&s, at: at)
         s.subagents.removeAll()
@@ -202,11 +223,11 @@ public enum Alerts {
         let before = old?.status
         switch new.status {
         case .needsInput where before != .needsInput || old?.needsInputMessage != new.needsInputMessage:
-            return .needsInput(new.needsInputMessage ?? "Needs your input")
+            return .needsInput(new.needsInputMessage ?? String(localized: "Needs your input"))
         case .idle where before == .running || before == .stuck:
             return .done(new.currentTurn?.lastMessage)
         case .stuck where before != .stuck:
-            return .stuck(new.stuckReason ?? "No progress")
+            return .stuck(new.stuckReason ?? String(localized: "No progress"))
         default:
             return nil
         }

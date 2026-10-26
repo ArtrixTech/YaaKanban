@@ -7,13 +7,21 @@ TEST_FLAGS := $(if $(wildcard $(CLT_DEV)/Frameworks/Testing.framework), \
 APP := build/YaaKanban.app
 INSTALL_DIR := $(HOME)/Applications
 
-.PHONY: build test app install run clean
+.PHONY: build test l10n app install run release clean
 
 build:
 	swift build
 
 test:
 	swift test $(TEST_FLAGS)
+
+# Every string the compiler extracts must have a translation in each language (and vice versa).
+L10N_BUILD := .build/l10n
+l10n:
+	rm -rf $(L10N_BUILD)
+	swift build --scratch-path $(L10N_BUILD) -Xswiftc -emit-localized-strings \
+		-Xswiftc -emit-localized-strings-path -Xswiftc $(L10N_BUILD)/strings
+	scripts/l10n-check.py $(L10N_BUILD)/strings Resources/*.lproj/Localizable.strings
 
 app:
 	scripts/bundle.sh release $(APP)
@@ -29,6 +37,10 @@ install: app
 run: app
 	pkill -x YaaKanban || true
 	open $(APP)
+
+# Publishes the Info.plist version as a GitHub release (see scripts/release.sh).
+release:
+	scripts/release.sh
 
 clean:
 	rm -rf .build build

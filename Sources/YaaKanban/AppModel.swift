@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import Observation
 import YaaCore
+import YaaIntegrations
 
 /// Owns all session state on the main actor. Socket requests, scanners and timers feed it.
 @MainActor @Observable
@@ -24,13 +25,23 @@ final class AppModel {
     @ObservationIgnored let notifier = Notifier()
     @ObservationIgnored lazy var jumper = TerminalJumper(settings: settings)
     @ObservationIgnored private let scanner = ClaudeSessionScanner()
+    /// Opt-in anonymous daily reports (off unless the user turned them on).
+    let telemetry: TelemetryReporter
+    let updater = Updater()
 
     var serverError: String?
+    /// Installed integrations whose hooks the agent will not run yet, with what the user has to do.
+    private(set) var integrationIssues: [AgentKind: [String]] = [:]
     /// Debug hook: render windows to PNGs (`yaak snapshot <dir>`), for verification without screen recording.
     @ObservationIgnored var onSnapshot: ((URL) -> Void)?
     /// Session selected in the main window, or `overview` (the home page).
     var selection: String? = AppModel.overview
     static let overview = "overview"
+
+    init() {
+        telemetry = TelemetryReporter(paths: paths)
+        telemetry.build = { [unowned self] day, counts, id in telemetryReport(day: day, counts: counts, installId: id) }
+    }
 
     // MARK: Derived views
 
@@ -53,6 +64,8 @@ final class AppModel {
     private func isLive(_ s: SessionState, now: Date) -> Bool {
         // A session joins the boards with its first message, so an unused one never lingers.
         if s.dismissedAt != nil || s.isUnstarted { return false }
+        // A pin keeps it until the user unpins or ends it.
+        if s.parentId == nil, isPinned(s.id) { return true }
         switch s.status {
         // However it ended (an exit, or a terminal crash that looks just like one), the conversation
         // lingers like a reviewed card so it can be resumed, unless the same process went on with a
@@ -60,10 +73,11 @@ final class AppModel {
         case .ended:
             if s.parentId != nil || now.timeIntervalSince(s.quietSince) >= settings.idleVisibleSeconds { return false }
             // One process may host sibling sessions (OpenCode, the Codex app): only a top-level
-            // session started after this one's last event replaced it.
+            // session started after this one's last event (or its restore) replaced it.
             guard let pid = s.agentPid else { return true }
+            let since = max(s.lastEventAt, s.restoredAt ?? s.lastEventAt)
             return !sessions.values.contains {
-                $0.agentPid == pid && $0.id != s.id && $0.parentId == nil && $0.startedAt >= s.lastEventAt
+                $0.agentPid == pid && $0.id != s.id && $0.parentId == nil && $0.startedAt >= since
             }
         // Unreviewed results stay until looked at; reviewed ones fade out after a while.
         // A sub-agent's result is its parent's business, so it only lingers briefly.
@@ -91,7 +105,7 @@ final class AppModel {
 
     /// Pins a session above every status, or unpins it.
     func togglePin(_ key: String) {
-        if isPinned(key) { settings.pinned.removeAll { $0 == key } } else { settings.pinned.insert(key, at: 0) }
+        if isPinned(key) { settings.pinned.removeAll { $0 == key } } else { settings.pinned.insert(key, at: 0); telemetry.count(.pin) }
     }
 
     /// Moves sessions before `target`, or to the end.
@@ -130,6 +144,7 @@ final class AppModel {
     // MARK: Lifecycle
 
     func start() {
+        _ = Self.yaakPath
         do {
             let store = try Store(path: paths.database)
             store.purgeDetails()
@@ -157,15 +172,22 @@ final class AppModel {
         } catch {
             serverError = "Cannot listen on \(paths.socket.path): \(error)"
         }
-        for req in Wire.drainSpool(paths: paths) { ingest(req.envelope, alert: false) }
+        let spooled = Wire.drainSpool(paths: paths)
+        for req in spooled { ingest(req.envelope, alert: false) }
+        telemetry.count(.spoolReplay, by: spooled.count)
 
         notifier.onAction = { [weak self] key, requestId, action in
             self?.handleNotificationAction(key: key, requestId: requestId, action: action)
         }
         notifier.requestAuthorization()
 
+        checkIntegrations()
         timers.append(Timer(timeInterval: 10, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
+        })
+        // Authorization happens in the agent, out of our sight; a minute is soon enough to notice.
+        timers.append(Timer(timeInterval: 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.checkIntegrations() }
         })
         timers.append(Timer(timeInterval: 5, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.scan() }
@@ -179,6 +201,32 @@ final class AppModel {
             Task { @MainActor in self?.awaySince = self?.awaySince ?? Date() }
         }
     }
+
+    /// Re-reads each installed integration's authorization state from the agents' own files.
+    func checkIntegrations() {
+        let home = Paths.home()
+        var issues: [AgentKind: [String]] = [:]
+        for i in Integrations.all where i.isInstalled(home: home) {
+            let steps = i.pendingSteps(home: home)
+            if !steps.isEmpty { issues[i.agent] = steps }
+        }
+        if issues != integrationIssues { integrationIssues = issues }
+    }
+
+    /// Path the hooks call: the stable link to this app's yaak, made or re-pointed on first use.
+    static let yaakPath: String = {
+        let bundled = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/yaak").path
+        // Only a real app bundle owns the link; a dev build run in place must not take it over.
+        let home = Paths.home(), link = StableYaak.link(home: home).path
+        guard Bundle.main.bundleURL.pathExtension == "app" else { return bundled }
+        guard StableYaak.mayClaim(bundle: Bundle.main.bundleURL, home: home) else {
+            // Another copy owns the link; hooks installed from here still go through it.
+            return FileManager.default.fileExists(atPath: link) ? link : bundled
+        }
+        // A lost race with another writer still leaves a valid link.
+        return (try? StableYaak.ensure(home: home, target: bundled))
+            ?? ((try? FileManager.default.destinationOfSymbolicLink(atPath: link)) != nil ? link : bundled)
+    }()
 
     func stop() {
         endAway(at: Date())
@@ -217,6 +265,7 @@ final class AppModel {
     func ingest(_ env: HookEnvelope, alert: Bool) -> String? {
         var key: String?
         for ev in Normalizer.normalize(env) {
+            if case .backgroundStart = ev.kind, !settings.claudeBackgroundAgents { continue }
             key = update(SessionState.key(ev.agent, ev.sessionId), alert: alert) { SessionReducer.apply(ev, to: $0) }
         }
         if let key { linkParent(key) }
@@ -230,7 +279,9 @@ final class AppModel {
         // A sub-agent's finished turn is reviewed through its parent.
         if new.parentId != nil { new.unreadSince = nil }
         sessions[key] = new
-        store?.save(new)
+        // The tick and the scan pass every session through here; rewriting the unchanged ones
+        // dirtied gigabytes a day.
+        if new != old { store?.save(new) }
         record(Activity.rows(old: old, new: new, now: Date()))
         if old?.pendingPermission?.awaitingDecision == true && new.pendingPermission?.awaitingDecision != true {
             pendingReplies.removeValue(forKey: key)?.send(Wire.encode(WireReply(decision: nil)))
@@ -252,6 +303,7 @@ final class AppModel {
         pendingReplies[key] = nil
         pending.send(Wire.encode(WireReply(decision: decision)))
         notifier.withdraw(key: key)
+        telemetry.count(decision == .allow ? .approvalAllow : .approvalDeny)
         update(key, alert: false) { s in
             guard var s else { return nil }
             s.pendingPermission = nil
@@ -268,6 +320,7 @@ final class AppModel {
         guard let pending = pendingReplies[key], pending.token == token else { return }
         pendingReplies[key] = nil
         pending.send(Wire.encode(WireReply(decision: nil)))
+        telemetry.count(.approvalTimeout)
         // The agent now shows its own prompt in the terminal; the session still needs input.
         update(key, alert: false) { s in
             guard var s else { return nil }
@@ -291,6 +344,7 @@ final class AppModel {
         trackAway(now: now)
         if now.timeIntervalSince(tokensFlushedAt) >= 60 { flushTokens() }
         store?.setMeta(Self.heartbeatKey, now.timeIntervalSince1970)
+        telemetry.tick(now: now)
         let cfg = settings.stuckConfig
         for key in Array(sessions.keys) {
             update(key, alert: true) { s in
@@ -528,6 +582,18 @@ final class AppModel {
 
     // MARK: User actions
 
+    /// Turning background-agent tracking off forgets the agents still out; the stuck check then
+    /// finishes sessions with nothing after their stopped turn (others go stuck on silence).
+    func forgetBackgroundTasks() {
+        for key in sessions.keys where sessions[key]?.backgroundTasks != nil {
+            update(key, alert: false) { s in
+                guard var s else { return nil }
+                s.backgroundTasks = nil
+                return s
+            }
+        }
+    }
+
     /// The user looked at the session: a finished turn counts as reviewed, and the clocks for
     /// turning blue and leaving the board start again.
     func markRead(_ key: String) {
@@ -549,15 +615,16 @@ final class AppModel {
         markRead(key)
         guard let s = sessions[key] else { return }
         record([ActivityRow(at: Date(), session: key, kind: .focus)])
-        guard Self.isGone(s) else { jumper.jump(to: s); return }
+        guard Self.isGone(s) else { telemetry.count(.jump(s.terminal)); jumper.jump(to: s); return }
         let runners = waveRunners(for: s)
-        let name = s.terminal?.termProgram.flatMap(TerminalJumper.app(forTermProgram:))?.localizedName ?? "终端"
-        let why: String? = s.terminal?.isWave == true && runners.isEmpty ? "Wave 的授权已过期"
+        let name = s.terminal?.termProgram.flatMap(TerminalJumper.app(forTermProgram:))?.localizedName ?? String(localized: "Terminal")
+        let why: String? = s.terminal?.isWave == true && runners.isEmpty ? String(localized: "Wave’s authorization has expired")
             : TerminalJumper.runsResume(s) ? nil
-            : s.terminal?.termProgram == "waveterm" ? "没有记下它在哪个 Wave 标签页" : "\(name)不接受外部输入命令"
+            : s.terminal?.termProgram == "waveterm" ? String(localized: "It’s not known which Wave tab it was in")
+            : String(localized: "\(name) doesn’t accept typed-in commands from other apps")
         switch Self.askReopen(s, cannotRun: why.map { ($0, name) }) {
-        case .alertFirstButtonReturn: jumper.resume(s, wave: runners) { Self.tellResumeFailed(s) }
-        case .alertSecondButtonReturn: jumper.copyResume(s)
+        case .alertFirstButtonReturn: telemetry.count(.resume); jumper.resume(s, wave: runners) { Self.tellResumeFailed(s) }
+        case .alertSecondButtonReturn: telemetry.count(.resume); jumper.copyResume(s)
         default: break
         }
     }
@@ -582,8 +649,8 @@ final class AppModel {
     private static func tellResumeFailed(_ s: SessionState) {
         let alert = NSAlert()
         if let icon = BrandMark.image { alert.icon = icon }
-        alert.messageText = "没能在 Wave 里打开"
-        alert.informativeText = "原标签页或终端可能已关闭，Wave 的授权也可能已过期。恢复命令已复制，在 Wave 里新开一个终端粘贴即可继续 \(s.agent.displayName)。"
+        alert.messageText = String(localized: "Couldn’t open it in Wave")
+        alert.informativeText = String(localized: "The tab or terminal may be closed, or Wave’s authorization may have expired. The resume command is copied: open a new terminal in Wave and paste it to continue \(s.agent.displayName).")
         NSApp.activate(ignoringOtherApps: true)
         alert.runModal()
     }
@@ -592,17 +659,17 @@ final class AppModel {
     private static func askReopen(_ s: SessionState, cannotRun: (why: String, app: String)?) -> NSApplication.ModalResponse {
         let alert = NSAlert()
         if let icon = BrandMark.image { alert.icon = icon }
-        alert.messageText = "\(s.agent.displayName) 进程已不在"
+        alert.messageText = String(localized: "\(s.agent.displayName) is no longer running")
         if let (why, app) = cannotRun {
             // Nothing can type into that terminal: go there and paste.
-            alert.informativeText = "\(why)，无法自动打开。将切到\(app)并复制恢复命令，在原处新开一个终端粘贴即可继续。"
-            alert.addButton(withTitle: "切到\(app)并复制")
+            alert.informativeText = String(localized: "\(why), so it can’t be reopened automatically. YaaKanban will switch to \(app) and copy the resume command: open a new terminal there and paste it to continue.")
+            alert.addButton(withTitle: String(localized: "Switch to \(app) and Copy"))
         } else {
-            alert.informativeText = "是否在原终端重新打开这个会话？"
-            alert.addButton(withTitle: "重新打开")
+            alert.informativeText = String(localized: "Reopen this session in its original terminal?")
+            alert.addButton(withTitle: String(localized: "Reopen"))
         }
-        alert.addButton(withTitle: "复制恢复命令")
-        alert.addButton(withTitle: "取消")
+        alert.addButton(withTitle: String(localized: "Copy Resume Command"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         NSApp.activate(ignoringOtherApps: true)
         return alert.runModal()
     }
@@ -630,22 +697,49 @@ final class AppModel {
         }
     }
 
+    /// How far back the panel's search reaches.
+    static let searchDays = 14
+
+    /// Top-level sessions active in the last `searchDays` days that match `query` (all of them for
+    /// an empty one), most recent first: what the panel's search finds.
+    func search(_ query: String) -> [SessionState] {
+        let since = Date().addingTimeInterval(-Double(Self.searchDays) * 86400)
+        let q = query.trimmingCharacters(in: .whitespaces)
+        return sorted(sessions.values.filter {
+            $0.parentId == nil && !$0.isUnstarted && $0.quietSince >= since && (q.isEmpty || $0.matches(q))
+        })
+    }
+
+    /// Puts an ended session back on the boards as a reviewed card, with a fresh retention.
+    func restore(_ key: String) {
+        update(key, alert: false) { s in
+            guard var s else { return nil }
+            let now = Date()
+            s.dismissedAt = nil
+            s.unreadSince = nil
+            s.reviewedAt = now
+            s.restoredAt = now
+            return s
+        }
+    }
+
     /// Asks for a new name; an empty one goes back to the agent's title.
     func rename(_ key: String) {
         guard let s = sessions[key] else { return }
         let alert = NSAlert()
         if let icon = BrandMark.image { alert.icon = icon }
-        alert.messageText = "重命名会话"
-        alert.informativeText = "只改 YaaKanban 里显示的名字。留空则恢复为 agent 的标题。"
+        alert.messageText = String(localized: "Rename Session")
+        alert.informativeText = String(localized: "Only changes the name shown in YaaKanban. Leave it empty to go back to the agent’s title.")
         let field = NSTextField(string: s.customName ?? s.title)
         field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
         alert.accessoryView = field
-        alert.addButton(withTitle: "确定")
-        alert.addButton(withTitle: "取消")
+        alert.addButton(withTitle: String(localized: "OK"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         alert.window.initialFirstResponder = field
         NSApp.activate(ignoringOtherApps: true)
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        telemetry.count(.rename)
         update(key, alert: false) { s in
             guard var s else { return nil }
             s.customName = name.isEmpty ? nil : String(name.prefix(80))

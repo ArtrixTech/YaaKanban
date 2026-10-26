@@ -22,7 +22,7 @@ struct BoardHeader<Trailing: View>: View {
     private func row(named: Bool) -> some View {
         HStack(spacing: 6) {
             BrandMark(size: 20)
-            if named { Text("YaaKanban").font(.system(size: 13, weight: .bold)).lineLimit(1).fixedSize() }
+            if named { Text(verbatim: "YaaKanban").font(.system(size: 13, weight: .bold)).lineLimit(1).fixedSize() }
             Spacer(minLength: 4)
             HStack(spacing: 4) {
                 let counts = self.counts
@@ -76,7 +76,7 @@ struct BrandGlyph: View {
             }
         }
         .frame(width: 38 * u, height: 36 * u, alignment: .topLeading)
-        .accessibilityLabel("YaaKanban")
+        .accessibilityLabel(Text(verbatim: "YaaKanban"))
     }
 
     private func column(_ h: CGFloat, _ opacity: Double, _ u: CGFloat) -> some View {
@@ -96,28 +96,82 @@ struct MenuContent: View {
             if let err = model.serverError {
                 Text(err).font(.caption).foregroundStyle(.red).padding(.horizontal, 8)
             }
+            if !model.integrationIssues.isEmpty {
+                let names = model.integrationIssues.keys.map(\.displayName).sorted().formatted(.list(type: .and))
+                MenuRow(symbol: "exclamationmark.triangle.fill", title: String(localized: "\(names) hooks need approval")) { done { AppWindows.open(.settings) } }
+            }
             Divider().padding(.vertical, 3)
-            MenuRow(symbol: "rectangle.on.rectangle", title: model.settings.showPanel ? "隐藏悬浮窗" : "显示悬浮窗",
+            MenuRow(symbol: "rectangle.on.rectangle", title: model.settings.showPanel ? String(localized: "Hide floating panel") : String(localized: "Show floating panel"),
                     shortcut: "⌥⌘K") { panel.toggle() }
-            MenuRow(symbol: "macwindow", title: "主界面") { done { AppWindows.open(.main) } }
-            MenuRow(symbol: "gearshape", title: "设置…") { done { AppWindows.open(.settings) } }
+            MenuRow(symbol: "macwindow", title: String(localized: "Main window")) { done { AppWindows.open(.main) } }
+            MenuRow(symbol: "gearshape", title: String(localized: "Settings…")) { done { AppWindows.open(.settings) } }
+            MenuRow(symbol: "bubble.left", title: String(localized: "Feedback…")) { done { FeedbackPrompt.present(model) } }
+            if case .ready(let p) = model.updater.phase {
+                MenuRow(symbol: "arrow.down.circle.fill", title: String(localized: "Update to \(p.version)…")) { model.updater.installReady() }
+            }
             Divider().padding(.vertical, 3)
-            MenuRow(symbol: "power", title: "退出 YaaKanban") { NSApp.terminate(nil) }
+            MenuRow(symbol: "power", title: String(localized: "Quit YaaKanban")) { NSApp.terminate(nil) }
         }
         .padding(6)
         .frame(width: 230)
     }
 
     private var summary: String {
-        let parts = [("运行中", model.runningCount), ("待验收", model.reviewCount),
-                     ("需要你", model.attentionCount)].filter { $0.1 > 0 }.map { "\($0.0) \($0.1)" }
-        return parts.isEmpty ? "没有进行中的会话" : parts.joined(separator: " · ")
+        let parts = [(String(localized: "Running"), model.runningCount), (String(localized: "To review"), model.reviewCount),
+                     (String(localized: "Needs you"), model.attentionCount)].filter { $0.1 > 0 }.map { "\($0.0) \($0.1)" }
+        return parts.isEmpty ? String(localized: "No active sessions") : parts.joined(separator: " · ")
     }
 
-    /// Closes the popover, then acts (a window opened behind it would be hidden by it).
+    /// Closes the popover, then acts (a window opened behind it would be hidden by it). Not a GCD
+    /// block: a modal alert run inside one stalls every main-actor Task until it is closed.
     private func done(_ action: @escaping () -> Void) {
         NSApp.keyWindow?.close()
-        DispatchQueue.main.async(execute: action)
+        nonisolated(unsafe) let action = action
+        RunLoop.main.perform(inModes: [.common]) { MainActor.assumeIsolated { action() } }
+    }
+}
+
+/// One line on the floating panel about an update: ready to install, or just installed. Closing
+/// it hides it; the menu and settings still offer a ready update.
+struct UpdateNotice: View {
+    @Environment(AppModel.self) private var model
+    let notice: Updater.Notice
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon).font(.system(size: 11, weight: .semibold)).foregroundStyle(.blue)
+            Text(text).font(.system(size: 11.5)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+            Spacer(minLength: 4)
+            Button(action: act) { Text(actionTitle).font(.system(size: 11.5, weight: .semibold)) }
+                .buttonStyle(.plain).foregroundStyle(.blue)
+            IconButton(symbol: "xmark", help: String(localized: "Close")) { withAnimation(.snappy) { model.updater.dismiss() } }
+        }
+        .padding(.leading, 9).padding(.trailing, 2).frame(height: 26)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.blue.opacity(0.08)))
+    }
+
+    private var icon: String {
+        if case .ready = notice { "arrow.down.circle.fill" } else { "checkmark.circle.fill" }
+    }
+
+    private var text: String {
+        switch notice {
+        case .ready(let p): String(localized: "Version \(p.version) is downloaded")
+        case .updated(let v): String(localized: "Updated to \(v.description)")
+        }
+    }
+
+    private var actionTitle: String {
+        if case .ready = notice { String(localized: "Restart to Update") } else { String(localized: "What's New") }
+    }
+
+    private func act() {
+        switch notice {
+        case .ready(let p): model.updater.install(p)
+        case .updated(let v):
+            NSWorkspace.shared.open(Updater.notes(for: v))
+            model.updater.dismiss()
+        }
     }
 }
 
@@ -132,7 +186,7 @@ struct MenuHeader: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 7) {
                     BrandMark(size: 18)
-                    Text("YaaKanban").font(.system(size: 12.5, weight: .bold))
+                    Text(verbatim: "YaaKanban").font(.system(size: 12.5, weight: .bold))
                     Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)
                     Spacer(minLength: 0)
                 }
@@ -145,7 +199,7 @@ struct MenuHeader: View {
         }
         .buttonStyle(.plain)
         .onHover { hover = $0 }
-        .help("打开主界面")
+        .help("Open main window")
     }
 }
 
@@ -179,9 +233,73 @@ struct EmptyBoard: View {
     var body: some View {
         VStack(spacing: 6) {
             Image(systemName: "moon.zzz.fill").font(.system(size: 22)).foregroundStyle(.tertiary)
-            Text("没有进行中的任务").font(.system(size: 12)).foregroundStyle(.secondary)
+            Text("No active tasks").font(.system(size: 12)).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity).padding(.vertical, 18)
+    }
+}
+
+/// Sessions of the last two weeks matching the panel's search, most recent first.
+struct SearchResults: View {
+    @Environment(AppModel.self) private var model
+    let query: String
+    var onPick: () -> Void
+
+    var body: some View {
+        let found = model.search(query)
+        let onBoard = Set(model.activeSessions.map(\.id))
+        if found.isEmpty {
+            Text("No matches").font(.system(size: 12)).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity).padding(.vertical, 18)
+        } else {
+            LazyVStack(spacing: 2) {
+                ForEach(found) { PickRow(session: $0, onBoard: onBoard.contains($0.id), onPick: onPick) }
+            }
+        }
+    }
+}
+
+/// One session in the search. Clicking it goes to it when it is on the panel,
+/// else puts it back there.
+struct PickRow: View {
+    @Environment(AppModel.self) private var model
+    let session: SessionState
+    let onBoard: Bool
+    var onPick: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        let s = session
+        HStack(spacing: 8) {
+            AgentLogo(agent: s.agent, size: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(s.title).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                Text(s.projectName ?? s.agent.displayName).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            if onBoard { StatusGlyph(status: model.display(s), size: 14) }
+            Text(relative(s.lastEventAt)).font(.system(size: 10).monospacedDigit()).foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.primary.opacity(hover ? 0.08 : 0)))
+        .contentShape(Rectangle())
+        .onHover { hover = $0 }
+        .onTapGesture(perform: pick)
+        .help(onBoard ? String(localized: "Jump to terminal") : String(localized: "Put back on the floating panel"))
+        .contextMenu {
+            if onBoard {
+                Button("Jump to terminal", action: pick)
+            } else {
+                Button("Restore to floating panel", action: pick)
+            }
+            Button("Copy resume command") { model.jumper.copyResume(s) }
+            Button("Delete from history", role: .destructive) { model.remove(s.id) }
+        }
+    }
+
+    private func pick() {
+        onPick()
+        if onBoard { model.jump(session.id) } else { withAnimation(.snappy) { model.restore(session.id) } }
     }
 }
 
@@ -201,10 +319,15 @@ struct FloatingPanelView: View {
     /// List height when a resize drag began.
     @State private var dragStart: CGFloat?
     @State private var widthStart: CGFloat?
-    /// Where the list's bottom is in the scroll view, to fade the bottom edge while more is below.
+    /// Where the list's top and bottom are in the scroll view, to fade an edge while more is past it.
+    @State private var listTop: CGFloat = 0
     @State private var listBottom: CGFloat = 0
+    /// The search replaces the list with sessions of the last two weeks.
+    @State private var searching = false
+    @State private var query = ""
 
     static let minList: CGFloat = 120
+    private static let listTopId = "listTop"
     static let maxList: CGFloat = 1400
     static let minWidth: CGFloat = 300
     static let maxWidth: CGFloat = 720
@@ -218,6 +341,9 @@ struct FloatingPanelView: View {
             // instead of growing the frame, which the window would center, pushing the header up.
             .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: anchor)
             .clipped()
+            .onChange(of: searching && room?.isKey == true, initial: true) { room?.holdOpen = $1 }
+            // Folded back (the user clicked elsewhere, then left): the rail shows cards again.
+            .onChange(of: folded) { if $1 { closeSearch() } }
     }
 
     /// Docked to a side and neither hovered nor unfolded.
@@ -246,11 +372,13 @@ struct FloatingPanelView: View {
             }
             // Folded too (narrower), so the cards keep their place when the rail unfolds.
             if settings.showRecentStats { RecentFigures(folded: folded, slim: slim) }
+            if !folded, let n = model.updater.notice { UpdateNotice(notice: n).transition(.opacity) }
             list
+            if !folded { bottomBar }
         }
         // Folded, the sides match the gap between cards.
         .padding(.horizontal, folded ? inset : 10).padding(.top, 10)
-        .padding(.bottom, folded ? inset : settings.panelCollapsed || model.activeSessions.isEmpty ? 10 : 0)
+        .padding(.bottom, folded ? inset : 4)
         // Cards are measured as wide as in the normal rail plus its extra, so either rail keeps their height.
         .environment(\.railExtra, folded ? settings.panelWidth - 2 * Rail.inset - (railWidth - 2 * inset) : nil)
         .environment(\.railSlim, slim)
@@ -285,82 +413,165 @@ struct FloatingPanelView: View {
         return BoardHeader {
                 if let edge = room?.dock {
                     if room?.peek == true && !settings.sidebarExpanded {
-                        IconButton(symbol: "pin", help: "固定展开") {
+                        IconButton(symbol: "pin", help: String(localized: "Pin open")) {
                             settings.sidebarExpanded = true
                             room?.peek = false
                         }
                     } else {
-                        IconButton(symbol: edge == .right ? "chevron.right.2" : "chevron.left.2", help: "收进侧边栏") {
+                        IconButton(symbol: edge == .right ? "chevron.right.2" : "chevron.left.2", help: String(localized: "Fold into sidebar")) {
                             settings.sidebarExpanded = false
                         }
                     }
                 }
-                IconButton(symbol: "macwindow", help: "主界面") { AppWindows.open(.main) }
-                IconButton(symbol: "gearshape", help: "设置") { AppWindows.open(.settings) }
+                IconButton(symbol: "macwindow", help: String(localized: "Main window")) { AppWindows.open(.main) }
+                IconButton(symbol: "gearshape", help: String(localized: "Settings")) { AppWindows.open(.settings) }
                 IconButton(symbol: settings.panelCollapsed ? "chevron.down" : "chevron.up",
-                           help: settings.panelCollapsed ? "展开" : "收起") {
+                           help: settings.panelCollapsed ? String(localized: "Expand") : String(localized: "Collapse")) {
                     room?.holdTop()
                     withAnimation(.snappy) { settings.panelCollapsed.toggle() }
                 }
-                IconButton(symbol: "xmark", help: "隐藏（⌥⌘K）", action: onHide)
+                IconButton(symbol: "xmark", help: String(localized: "Hide (⌥⌘K)"), action: onHide)
             }
     }
 
     @ViewBuilder private var list: some View {
         @Bindable var settings = model.settings
-            if !settings.panelCollapsed {
+            if searchShown {
+                scrolling {
+                    SearchResults(query: query) { closeSearch() }
+                }
+                .id("search")
+            } else if !settings.panelCollapsed {
                 if model.activeSessions.isEmpty {
                     EmptyBoard().transition(.opacity)
                 } else {
-                    ScrollView {
+                    scrolling {
                         BoardList(expanded: expanded) { s in
                             withAnimation(.spring(duration: 0.3, bounce: 0.15)) { expanded = expanded == s.id ? nil : s.id }
                         }
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { grow(to: $0) }
-                        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .scrollView).maxY } action: { listBottom = $0 }
-                    }
-                    .scrollIndicators(.never)
-                    .frame(height: shownList)
-                    // More below the bottom edge: it fades out instead of being cut.
-                    .mask {
-                        VStack(spacing: 0) {
-                            Color.black
-                            LinearGradient(colors: [.black, .black.opacity(moreBelow ? 0 : 1)], startPoint: .top, endPoint: .bottom)
-                                .frame(height: 28)
-                        }
-                        .animation(.easeOut(duration: 0.15), value: moreBelow)
                     }
                     .transition(.opacity)
-                    // Folded, the bottom is an edge like the sides; the height is set unfolded.
-                    if !folded {
-                        ResizeGrip { delta in
-                            room?.holdTop()
-                            guard let delta else {
-                                // Let go at the minimum: back to following the content.
-                                dragStart = nil
-                                if (settings.panelListHeight ?? .infinity) <= Self.minList { settings.panelListHeight = nil }
-                                return
-                            }
-                            let start = dragStart ?? shownList
-                            dragStart = start
-                            settings.panelListHeight = min(Self.maxList, max(Self.minList, start + delta))
-                        }
-                    }
                 }
             }
     }
 
+    /// The list area: as tall as `shownList`, scrolling, each edge fading out instead of being cut
+    /// while more is past it. Folding scrolls it back to the top.
+    private func scrolling(@ViewBuilder _ content: () -> some View) -> some View {
+        let content = content()
+        return ScrollViewReader { proxy in
+            ScrollView {
+                content
+                    .id(Self.listTopId)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { grow(to: $0) }
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .scrollView) } action: {
+                        listTop = $0.minY
+                        listBottom = $0.maxY
+                    }
+            }
+            .onChange(of: folded) { if $1 { proxy.scrollTo(Self.listTopId, anchor: .top) } }
+        }
+        .scrollIndicators(.never)
+        .frame(height: shownList)
+        .mask {
+            VStack(spacing: 0) {
+                LinearGradient(colors: [.black.opacity(moreAbove ? 0 : 1), .black], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 28)
+                Color.black
+                LinearGradient(colors: [.black, .black.opacity(moreBelow ? 0 : 1)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 28)
+            }
+            .animation(.easeOut(duration: 0.15), value: moreAbove)
+            .animation(.easeOut(duration: 0.15), value: moreBelow)
+        }
+    }
+
+    /// One row under the list: the height grip centred, the search on the right. Searching, the
+    /// row is the search field.
+    @ViewBuilder private var bottomBar: some View {
+        if searchShown {
+            SearchField(query: $query, onClose: closeSearch).frame(height: 22).padding(.bottom, 2)
+        } else {
+            HStack(spacing: 0) {
+                Color.clear.frame(maxWidth: .infinity)
+                if listShown { heightGrip.frame(width: 80) }
+                IconButton(symbol: "magnifyingglass", help: String(localized: "Search the last \(AppModel.searchDays) days"), action: openSearch)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .frame(height: 22)
+        }
+    }
+
+    private var searchShown: Bool { searching && !folded }
+
+    private func openSearch() {
+        room?.holdTop()
+        room?.makeKey()
+        withAnimation(.snappy) { searching = true }
+    }
+
+    private func closeSearch() {
+        guard searching else { return }
+        room?.holdTop()
+        withAnimation(.snappy) { searching = false }
+        query = ""
+    }
+
+    private var heightGrip: some View {
+        @Bindable var settings = model.settings
+        return ResizeGrip { delta in
+            room?.holdTop()
+            guard let delta else {
+                // Let go at the minimum: back to following the content.
+                dragStart = nil
+                if (settings.panelListHeight ?? .infinity) <= Self.minList { settings.panelListHeight = nil }
+                return
+            }
+            let start = dragStart ?? shownList
+            dragStart = start
+            settings.panelListHeight = min(Self.maxList, max(Self.minList, start + delta))
+        }
+        .frame(height: 22)
+    }
+
+    private var moreAbove: Bool { listTop < -1 }
     private var moreBelow: Bool { listBottom > shownList + 1 }
 
     /// The list's natural height changed. Without a height set by hand the panel follows it both
     /// ways; with one, the panel keeps it and the list scrolls.
     private func grow(to h: CGFloat) { listHeight = h }
 
-    private var listShown: Bool { !model.settings.panelCollapsed && !model.activeSessions.isEmpty }
+    private var listShown: Bool { searchShown || (!model.settings.panelCollapsed && !model.activeSessions.isEmpty) }
 
     private var shownList: CGFloat {
         let fits = room.map { max(Self.minList, $0.height - chrome) } ?? .infinity
         return min(model.settings.panelListHeight ?? min(listHeight, Self.maxList), fits)
+    }
+}
+
+/// The panel's search field, focused when it appears; Esc or the cross closes the search.
+struct SearchField: View {
+    @Binding var query: String
+    var onClose: () -> Void
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "magnifyingglass").font(.system(size: 10.5, weight: .semibold)).foregroundStyle(.secondary)
+            TextField("Search the last \(AppModel.searchDays) days", text: $query)
+                .textFieldStyle(.plain).font(.system(size: 11.5))
+                .focused($focused)
+                .onExitCommand(perform: onClose)
+            Button(action: onClose) {
+                Image(systemName: "xmark.circle.fill").font(.system(size: 11)).foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
+            .help("Close search")
+        }
+        .padding(.horizontal, 8)
+        .frame(maxHeight: .infinity)
+        .background(Capsule().fill(.primary.opacity(0.07)))
+        .onAppear { focused = true }
     }
 }
 
@@ -372,11 +583,18 @@ final class PanelRoom {
     var dock: DockEdge?
     /// The folded rail is shown unfolded while the pointer is over it.
     var peek = false
+    /// The panel is the key window (the search field has the keyboard).
+    var isKey = false
     /// The width grip is being dragged: resize at once instead of sliding.
     var resizing = false
     /// Snapshots render the rail folded whatever the user pinned, and slim if asked.
     var snapshotFolded = false
     var snapshotSlim = false
+    /// The search is open and needs the panel to stay unfolded while the pointer is elsewhere: a
+    /// peeking rail would fold and take it away.
+    var holdOpen = false
+    /// Makes the panel the key window, so the search field takes typing without a click.
+    @ObservationIgnored var makeKey: () -> Void = {}
     /// Until when a height change keeps the top edge still: the user is resizing or folding the
     /// list by hand. Otherwise the panel grows and shrinks about its middle.
     @ObservationIgnored var topHeldUntil: CFTimeInterval = 0
@@ -399,7 +617,7 @@ struct ResizeGrip: View {
             .overlay(GripTracker(axis: .vertical, onDrag: onDrag))
             .onHover { hover = $0 }
             .animation(.easeOut(duration: 0.12), value: hover)
-            .help("拖动调整高度")
+            .help("Drag to resize height")
     }
 }
 
@@ -410,7 +628,7 @@ struct EdgeGrip: View {
     var onDrag: (CGFloat?) -> Void
 
     var body: some View {
-        GripTracker(axis: axis, onDrag: onDrag).help("拖动调整宽度")
+        GripTracker(axis: axis, onDrag: onDrag).help("Drag to resize width")
     }
 }
 
@@ -475,14 +693,14 @@ struct MainWindow: View {
         @Bindable var model = model
         NavigationSplitView {
             List(selection: $model.selection) {
-                Label("概览", systemImage: "chart.xyaxis.line").tag(AppModel.overview)
-                section("活跃", model.board)
-                section("历史", model.allSessions.filter { s in !model.activeSessions.contains { $0.id == s.id } })
+                Label("Overview", systemImage: "chart.xyaxis.line").tag(AppModel.overview)
+                section(String(localized: "Active"), model.board)
+                section(String(localized: "History"), model.allSessions.filter { s in !model.activeSessions.contains { $0.id == s.id } })
             }
-            .searchable(text: $query, placement: .sidebar, prompt: "项目 / prompt")
+            .searchable(text: $query, placement: .sidebar, prompt: "Project / prompt")
             .toolbar {
                 Picker("Agent", selection: $filter) {
-                    Text("全部").tag(AgentKind?.none)
+                    Text("All").tag(AgentKind?.none)
                     ForEach(AgentKind.allCases, id: \.self) { Text($0.displayName).tag(AgentKind?.some($0)) }
                 }
             }
@@ -521,10 +739,10 @@ struct MainWindow: View {
                     .padding(.vertical, 3)
                     .tag(s.id)
                     .contextMenu {
-                        if s.display == .review { Button("标记已验收") { model.markRead(s.id) } }
-                        if s.dismissedAt != nil { Button("恢复到悬浮窗") { model.undismiss(s.id) } }
-                        Button("重命名…") { model.rename(s.id) }
-                        Button("从历史删除", role: .destructive) { model.remove(s.id) }
+                        if s.display == .review { Button("Mark as reviewed") { model.markRead(s.id) } }
+                        if s.dismissedAt != nil { Button("Restore to floating panel") { model.undismiss(s.id) } }
+                        Button("Rename…") { model.rename(s.id) }
+                        Button("Delete from history", role: .destructive) { model.remove(s.id) }
                     }
                 }
             }
@@ -546,6 +764,7 @@ struct SettingsView: View {
     @State private var integrationMessage: String?
     @State private var refresh = 0
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var language = AppLanguage.override
 
     static let size = NSSize(width: 500, height: 640)
 
@@ -554,47 +773,63 @@ struct SettingsView: View {
         Form {
             Section { AboutHeader() }
             Section {
-                ForEach(Integrations.all, id: \.agent) { i in
-                    let status = i.status(home: Paths.home(), yaak: Self.yaak)
+                // Only agents found on this Mac (or with our hooks still in place) are listed.
+                let found = Integrations.all.map { ($0, $0.status(home: Paths.home(), yaak: Self.yaak)) }
+                    .filter { $0.1 != .notDetected }
+                if found.isEmpty {
+                    Text("No supported agents found. Install one, then reopen Settings.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                }
+                ForEach(found, id: \.0.agent) { i, status in
                     LabeledContent {
                         HStack(spacing: 8) {
                             StatusBadge(status: status)
-                            if status == .outdated {
-                                Button("更新") { apply(i, install: true) }.buttonStyle(.borderedProminent)
+                            if status == .needsAuthorization {
+                                Button("Recheck") { recheck() }
                             }
-                            if status == .installed || status == .outdated {
-                                Button("卸载") { apply(i, install: false) }
+                            if status == .outdated {
+                                Button("Update") { apply(i, install: true) }.buttonStyle(.borderedProminent)
+                            }
+                            if status == .installed || status == .outdated || status == .needsAuthorization {
+                                Button("Uninstall") { apply(i, install: false) }
                             } else if status == .notInstalled {
-                                Button("安装") { apply(i, install: true) }.buttonStyle(.borderedProminent)
+                                Button("Install") { apply(i, install: true) }.buttonStyle(.borderedProminent)
                             }
                         }
                         .controlSize(.small)
                     } label: {
-                        HStack(spacing: 8) {
-                            AgentLogo(agent: i.agent, size: 16)
-                                .frame(width: 22, height: 22)
-                                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.06)))
-                            Text(i.agent.displayName)
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 8) {
+                                AgentLogo(agent: i.agent, size: 16)
+                                    .frame(width: 22, height: 22)
+                                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.06)))
+                                Text(i.agent.displayName)
+                            }
+                            if status == .needsAuthorization {
+                                AuthorizationSteps(steps: i.pendingSteps(home: Paths.home()))
+                            } else if let note = i.postInstallNote {
+                                Text(note).font(.system(size: 11)).foregroundStyle(.secondary).padding(.leading, 30)
+                            }
                         }
                     }
                 }
                 .id(refresh)
             } header: {
-                Text("Agent 接入")
+                Text("Agent integrations")
             } footer: {
-                Text(integrationMessage ?? "安装后，agent 通过 hook 把会话状态和审批请求发给 YaaKanban。")
+                Text(integrationMessage ?? String(localized: "Once installed, the agent sends session status and approval requests to YaaKanban through hooks."))
                     .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Section("提醒") {
+            Section("Alerts") {
                 LabeledContent {
-                    Stepper("\(Int(settings.stuckMinutes)) 分钟", value: $settings.stuckMinutes, in: 1...60)
-                } label: { SettingLabel("卡住阈值", symbol: "hourglass", tint: .orange) }
+                    Stepper("\(Int(settings.stuckMinutes)) min", value: $settings.stuckMinutes, in: 1...60)
+                } label: { SettingLabel(String(localized: "Stuck threshold"), symbol: "hourglass", tint: .orange) }
                 LabeledContent {
-                    Stepper("\(Int(settings.approvalTimeout)) 秒", value: $settings.approvalTimeout, in: 5...25)
-                } label: { SettingLabel("审批等待", symbol: "hand.raised.fill", tint: .red) }
+                    Stepper("\(Int(settings.approvalTimeout)) s", value: $settings.approvalTimeout, in: 5...25)
+                } label: { SettingLabel(String(localized: "Approval wait"), symbol: "hand.raised.fill", tint: .red) }
                 Toggle(isOn: $settings.suppressWhenWaveFrontmost) {
-                    SettingLabel("Wave 在前台时不发系统通知", symbol: "bell.slash.fill", tint: .gray)
+                    SettingLabel(String(localized: "No system notifications while Wave is in front"), symbol: "bell.slash.fill", tint: .gray)
                 }
             }
             Section {
@@ -606,44 +841,44 @@ struct SettingsView: View {
                     .onChange(of: settings.idleVisibleMinutes) {
                         settings.staleAfterMinutes = min(settings.staleAfterMinutes, settings.idleVisibleMinutes - 1)
                     }
-                } label: { SettingLabel("已验收会话保留", symbol: "checkmark.circle.fill", tint: .green) }
+                } label: { SettingLabel(String(localized: "Keep reviewed sessions"), symbol: "checkmark.circle.fill", tint: .green) }
                 Toggle(isOn: $settings.flashEnabled) {
-                    SettingLabel("需要输入时闪烁", symbol: "light.beacon.max.fill", tint: .red)
+                    SettingLabel(String(localized: "Flash when input is needed"), symbol: "light.beacon.max.fill", tint: .red)
                 }
                 if settings.flashEnabled {
                     LabeledContent {
-                        Stepper("\(Int(settings.flashAfterSeconds)) 秒未点击", value: $settings.flashAfterSeconds, in: 5...600, step: 5)
-                    } label: { Text("开始闪烁").padding(.leading, 30) }
+                        Stepper("After \(Int(settings.flashAfterSeconds)) s without a click", value: $settings.flashAfterSeconds, in: 5...600, step: 5)
+                    } label: { Text("Start flashing").padding(.leading, 30) }
                 }
                 Toggle(isOn: $settings.reviewFlashEnabled) {
-                    SettingLabel("待验收久未查看时闪烁", symbol: "light.beacon.max.fill", tint: .green)
+                    SettingLabel(String(localized: "Flash when a review waits too long"), symbol: "light.beacon.max.fill", tint: .green)
                 }
                 if settings.reviewFlashEnabled {
                     LabeledContent {
-                        Stepper("在电脑前 \(Int(settings.reviewFlashMinutes)) 分钟未查看", value: $settings.reviewFlashMinutes, in: 1...60)
-                    } label: { Text("开始闪烁").padding(.leading, 30) }
+                        Stepper("After \(Int(settings.reviewFlashMinutes)) min at the computer unviewed", value: $settings.reviewFlashMinutes, in: 1...60)
+                    } label: { Text("Start flashing").padding(.leading, 30) }
                 }
                 Toggle(isOn: $settings.staleTintEnabled) {
-                    SettingLabel("看过未跟进的会话变蓝", symbol: "drop.fill", tint: .blue)
+                    SettingLabel(String(localized: "Tint seen but idle sessions blue"), symbol: "drop.fill", tint: .blue)
                 }
                 if settings.staleTintEnabled {
                     LabeledContent {
-                        Stepper("结束 \(Self.duration(settings.staleAfterMinutes)) 后", value: $settings.staleAfterMinutes,
+                        Stepper("\(Self.duration(settings.staleAfterMinutes)) after it ends", value: $settings.staleAfterMinutes,
                                 in: 1...max(1, settings.idleVisibleMinutes - 1), step: settings.staleAfterMinutes < 60 ? 5 : 15)
-                    } label: { Text("开始变蓝").padding(.leading, 30) }
-                    LabeledContent("最蓝") {
-                        Text("结束 \(Self.duration(settings.stalePeakMinutes)) 后").foregroundStyle(.secondary)
+                    } label: { Text("Start tinting").padding(.leading, 30) }
+                    LabeledContent("Bluest") {
+                        Text("\(Self.duration(settings.stalePeakMinutes)) after it ends").foregroundStyle(.secondary)
                     }
                     .padding(.leading, 30)
                 }
             } header: {
-                Text("会话提醒")
+                Text("Session reminders")
             } footer: {
-                Text("待验收闪烁只计你在电脑前的时间（2 分钟无键鼠操作或睡眠算离开）。已验收、之后没再运行的会话：从「开始变蓝」起逐渐变蓝，在它与「已验收会话保留」的正中最蓝，到保留时长结束时褪回灰色并离开悬浮窗。时间从会话结束或你最后一次点开它算起，再点开一次就重新计时。")
+                Text("Review flashing counts only time you're at the computer (2 minutes without keyboard or mouse, or sleep, counts as away). A reviewed session that hasn't run since turns gradually blue from \u{201C}Start tinting\u{201D}, is bluest halfway between that and \u{201C}Keep reviewed sessions\u{201D}, and fades back to gray and leaves the floating panel when the retention ends. Time counts from when the session ended or you last opened it; opening it again restarts the clock.")
                     .font(.caption).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Section("悬浮窗") {
+            Section("Floating panel") {
                 LabeledContent {
                     HStack(spacing: 8) {
                         Slider(value: $settings.panelOpacity, in: 0.4...1).frame(width: 150)
@@ -651,62 +886,137 @@ struct SettingsView: View {
                         Text("\(Int(settings.panelOpacity * 100))%").monospacedDigit().foregroundStyle(.secondary)
                             .frame(width: 36, alignment: .trailing)
                     }
-                } label: { SettingLabel("透明度", symbol: "circle.lefthalf.filled", tint: .indigo) }
+                } label: { SettingLabel(String(localized: "Opacity"), symbol: "circle.lefthalf.filled", tint: .indigo) }
                 LabeledContent {
-                    Text("⌥⌘K").font(.system(size: 12, weight: .medium)).padding(.horizontal, 7).padding(.vertical, 2)
+                    Text(verbatim: "⌥⌘K").font(.system(size: 12, weight: .medium)).padding(.horizontal, 7).padding(.vertical, 2)
                         .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.primary.opacity(0.08)))
-                } label: { SettingLabel("显示 / 隐藏", symbol: "command", tint: .blue) }
+                } label: { SettingLabel(String(localized: "Show / hide"), symbol: "command", tint: .blue) }
                 Toggle(isOn: $settings.showRecentStats) {
-                    SettingLabel("顶部显示杠杆和今日工时", symbol: "chart.bar.fill", tint: .orange)
-                }
-                if settings.showRecentStats {
-                    Picker(selection: $settings.recentMinutes) {
-                        ForEach(Preferences.recentChoices, id: \.self) { Text(Self.duration($0)).tag($0) }
-                    } label: { Text("杠杆统计最近").padding(.leading, 30) }
+                    SettingLabel(String(localized: "Show leverage and today's work time on top"), symbol: "chart.bar.fill", tint: .orange)
                 }
                 Toggle(isOn: $settings.slimRail) {
                     VStack(alignment: .leading, spacing: 2) {
-                        SettingLabel("超窄侧边栏（实验性）", symbol: "sidebar.right", tint: .teal)
-                        Text("吸附到屏幕左右边并收起后，变成一条细条，每个会话只显示状态、agent 和时间，运行中的有流光，高度不变。鼠标移上去（推到屏幕边也行）展开。")
+                        SettingLabel(String(localized: "Slim sidebar (experimental)"), symbol: "sidebar.right", tint: .teal)
+                        Text("When snapped to the left or right edge and folded, the panel becomes a thin strip: each session shows only its status, agent and time, running ones shimmer, and the height stays the same. Hover it (or push the pointer to the screen edge) to expand.")
                             .font(.system(size: 11)).foregroundStyle(.secondary).padding(.leading, 30)
                     }
                 }
             }
             Section {
+                Toggle(isOn: $settings.claudeBackgroundAgents) {
+                    SettingLabel(String(localized: "Wait for background agents (beta)"), symbol: "person.2.wave.2.fill", tint: .orange)
+                }
+                .onChange(of: settings.claudeBackgroundAgents) { _, on in if !on { model.forgetBackgroundTasks() } }
+            } header: {
+                Text("Claude Code compatibility")
+            } footer: {
+                Text("When the main agent has replied but background agents haven't returned, the session stays running; it moves to review only after the last background agent returns and the main agent has handled its result. When off, every reply from the main agent counts as ready for review.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Section {
                 Toggle(isOn: $settings.waveTabSwitching) {
-                    SettingLabel("跳转时切换到对应标签页", symbol: "rectangle.stack.fill", tint: .teal)
+                    SettingLabel(String(localized: "Switch to the matching tab when jumping"), symbol: "rectangle.stack.fill", tint: .teal)
                 }
             } header: {
-                Text("Wave Terminal")
+                Text(verbatim: "Wave Terminal")
             } footer: {
-                Text("需要在 系统设置 › 隐私与安全性 › 辅助功能 里允许 YaaKanban。第一次跳转时会弹出请求。")
+                Text("Allow YaaKanban in System Settings › Privacy & Security › Accessibility. You'll be asked on the first jump.")
                     .font(.caption).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             Section {
                 Toggle(isOn: $settings.piAutoTitle) {
-                    SettingLabel("自动生成会话标题", symbol: "character.cursor.ibeam", tint: .purple)
+                    SettingLabel(String(localized: "Generate session titles"), symbol: "character.cursor.ibeam", tint: .purple)
                 }
             } header: {
-                Text("pi 兼容性")
+                Text("pi compatibility")
             } footer: {
-                Text("pi 只有 /name 才会给会话起名。开启后，未命名的会话会在第一条消息时用当前模型生成一个短标题（每个会话多一次很小的模型调用），并写入 pi 的会话名，/resume 里也能看到。需要安装或更新 pi 接入后生效。")
+                Text("pi names a session only through /name. When on, an unnamed session gets a short title from the current model on its first message (one small extra model call per session), saved as pi's session name so /resume shows it too. Takes effect after you install or update the pi integration.")
                     .font(.caption).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Section("通用") {
-                Toggle(isOn: $launchAtLogin) { SettingLabel("登录时启动", symbol: "power", tint: .gray) }
+            Section("General") {
+                Toggle(isOn: $launchAtLogin) { SettingLabel(String(localized: "Launch at login"), symbol: "power", tint: .gray) }
                     .onChange(of: launchAtLogin) { _, on in
                         do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } }
-                        catch { integrationMessage = "登录项设置失败：\(error.localizedDescription)" }
+                        catch { integrationMessage = String(localized: "Couldn't change the login item: \(error.localizedDescription)") }
                     }
+                Picker(selection: Binding(get: { language ?? "" }, set: { language = $0.isEmpty ? nil : $0; AppLanguage.override = language })) {
+                    Text("Follow system").tag("")
+                    ForEach(AppLanguage.all, id: \.code) { Text(verbatim: $0.name).tag($0.code) }
+                } label: { SettingLabel(String(localized: "Language"), symbol: "globe", tint: .blue) }
+                if language != AppLanguage.atLaunch {
+                    LabeledContent {
+                        Button("Restart Now") { AppLanguage.relaunch() }.controlSize(.small)
+                    } label: {
+                        Text("Takes effect after YaaKanban restarts.").padding(.leading, 30).foregroundStyle(.secondary)
+                    }
+                }
             }
-            Section("关于") {
-                LabeledContent("版本", value: AboutHeader.version)
-                LabeledContent("许可证", value: "GPL-3.0")
-                LabeledContent("源代码") { Link("github.com/ArtrixTech/YaaKanban", destination: AboutHeader.repo) }
-                LabeledContent("问题反馈") { Link("提交 Issue", destination: AboutHeader.repo.appendingPathComponent("issues")) }
-                Text("© 2026 Artrix · 以 GPL-3.0 开源发布").font(.caption).foregroundStyle(.secondary)
+            Section {
+                Toggle(isOn: Binding(get: { model.telemetry.isOn }, set: { model.telemetry.set(enabled: $0) })) {
+                    SettingLabel(String(localized: "Send anonymous usage statistics"), symbol: "chart.line.uptrend.xyaxis", tint: .blue)
+                }
+                .disabled(!model.telemetry.available)
+                if model.telemetry.isOn {
+                    LabeledContent {
+                        HStack(spacing: 8) {
+                            Button("View") { FeedbackPrompt.show(title: String(localized: "Today's statistics (sent tomorrow)"), text: model.telemetry.preview()) }
+                            Button("Reset") { model.telemetry.resetId() }
+                        }
+                        .controlSize(.small)
+                    } label: {
+                        Text("Anonymous ID \(model.telemetry.installId?.prefix(8) ?? "")…").padding(.leading, 30)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                LabeledContent {
+                    Button("Feedback…") { FeedbackPrompt.present(model) }.controlSize(.small)
+                } label: { SettingLabel(String(localized: "Issues and ideas"), symbol: "bubble.left.fill", tint: .green) }
+            } header: {
+                Text("Privacy and feedback")
+            } footer: {
+                Text(model.telemetry.doNotTrack ? "DO_NOT_TRACK is set, so no statistics are sent."
+                     : !model.telemetry.available ? "This build has no statistics service configured and sends no data."
+                     : "Off by default. When on, sends Aptabase one anonymous report a day: version, system, integration status, and rough ranges of feature use and session counts. No prompts, code, paths, project or session names. Command line: yaak telemetry status|on|off.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Section {
+                Toggle(isOn: Binding(get: { model.updater.automatic }, set: { model.updater.automatic = $0 })) {
+                    SettingLabel(String(localized: "Check for updates automatically"), symbol: "arrow.down.circle.fill", tint: .blue)
+                }
+                .disabled(!model.updater.available)
+                LabeledContent {
+                    if case .ready = model.updater.phase {
+                        Button("Install and Restart") { model.updater.installReady() }.controlSize(.small).buttonStyle(.borderedProminent)
+                    } else {
+                        Button("Check Now") { Task { await model.updater.check(manual: true) } }.controlSize(.small)
+                            .disabled(!model.updater.available || model.updater.busy)
+                    }
+                } label: {
+                    Text(updateStatus).padding(.leading, 30).foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Updates")
+            } footer: {
+                Text(model.updater.available
+                     ? "Updates come from GitHub Releases. A new version downloads in the background, then YaaKanban asks before installing it and restarting."
+                     : "This build isn't signed for updates (built from source), so it doesn't update itself.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Section("About") {
+                LabeledContent("Version") {
+                    HStack(spacing: 8) {
+                        Text(AboutHeader.version).foregroundStyle(.secondary)
+                        if let v = model.updater.current { Link("What's New", destination: Updater.notes(for: v)) }
+                    }
+                }
+                LabeledContent("License", value: "GPL-3.0")
+                LabeledContent("Source code") { Link(destination: AboutHeader.repo) { Text(verbatim: "github.com/ArtrixTech/YaaKanban") } }
+                Text("© 2026 Artrix · Open source under GPL-3.0").font(.caption).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
             }
         }
@@ -716,38 +1026,59 @@ struct SettingsView: View {
 
     static func duration(_ minutes: Double) -> String {
         let m = Int(minutes)
-        if m < 60 { return "\(m) 分钟" }
-        return m % 60 == 0 ? "\(m / 60) 小时" : "\(m / 60) 小时 \(m % 60) 分"
+        if m < 60 { return String(localized: "\(m) min") }
+        return m % 60 == 0 ? String(localized: "\(m / 60) h") : String(localized: "\(m / 60) h \(m % 60) min")
     }
 
-    static var yaak: String { Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/yaak").path }
+    static var yaak: String { AppModel.yaakPath }
+
+    private var updateStatus: String {
+        switch model.updater.phase {
+        case .idle: String(localized: "Not checked yet")
+        case .checking: String(localized: "Checking…")
+        case .downloading(let v): String(localized: "Downloading \(v)…")
+        case .ready(let p): String(localized: "\(p.version) is ready to install")
+        case .upToDate: String(localized: "Up to date")
+        case .failed(let why): String(localized: "Couldn't update: \(why)")
+        }
+    }
 
     private func apply(_ i: any Integration, install: Bool) {
         do {
             try Installer.apply(try i.plan(install: install, home: Paths.home(), yaak: Self.yaak))
-            integrationMessage = "\(i.agent.displayName) 已\(install ? "安装" : "卸载")。" + (install ? (i.postInstallNote ?? "") : "")
+            model.telemetry.count(install ? .integrationInstall : .integrationUninstall)
+            let name = i.agent.displayName
+            integrationMessage = !install ? String(localized: "\(name) uninstalled.")
+                : i.pendingSteps(home: Paths.home()).isEmpty ? String(localized: "\(name) installed.")
+                : String(localized: "\(name) installed. You still need to approve it in \(name); the steps are above.")
         } catch {
-            integrationMessage = "\(i.agent.displayName)：\(error)"
+            model.telemetry.count(.integrationFail)
+            integrationMessage = "\(i.agent.displayName): \(error)"
         }
+        recheck()
+    }
+
+    private func recheck() {
+        model.checkIntegrations()
         refresh += 1
     }
 }
 
 /// Top of the settings window: logo, name, version, one-line pitch.
 struct AboutHeader: View {
-    static let repo = URL(string: "https://github.com/ArtrixTech/YaaKanban")!
+    static let repo = Feedback.repo
     static var version: String {
         let info = Bundle.main.infoDictionary
-        guard let v = info?["CFBundleShortVersionString"] as? String else { return "开发版" }
+        guard let v = info?["CFBundleShortVersionString"] as? String else { return String(localized: "Development build") }
         return "\(v) (\(info?["CFBundleVersion"] as? String ?? "?"))"
     }
 
     var body: some View {
         VStack(spacing: 6) {
             BrandMark(size: 64).shadow(color: .black.opacity(0.15), radius: 6, y: 2)
-            Text("YaaKanban").font(.system(size: 20, weight: .bold))
-            Text("版本 \(Self.version)").font(.caption).foregroundStyle(.secondary)
-            Text("盯着你的 coding agent：完成、卡住、需要你时第一时间知道。")
+            Text(verbatim: "YaaKanban").font(.system(size: 20, weight: .bold))
+            Text("Version \(Self.version)").font(.caption).foregroundStyle(.secondary)
+            Text("Keeps an eye on your coding agents: know the moment one finishes, gets stuck, or needs you.")
                 .font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
@@ -772,16 +1103,32 @@ struct SettingLabel: View {
     }
 }
 
+/// Numbered steps for authorizing hooks in the agent, under its row in Settings.
+struct AuthorizationSteps: View {
+    let steps: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(Array(steps.enumerated()), id: \.offset) { n, step in
+                Text("\(n + 1). \(step)").font(.system(size: 11)).foregroundStyle(.secondary)
+                    .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.leading, 30)
+    }
+}
+
 /// Integration status as a small colored capsule.
 struct StatusBadge: View {
     let status: IntegrationStatus
 
     var body: some View {
         let (text, color): (String, Color) = switch status {
-        case .installed: ("已安装", .green)
-        case .outdated: ("需更新", .orange)
-        case .notInstalled: ("未安装", .secondary)
-        case .notDetected: ("未检测到", .secondary)
+        case .installed: (String(localized: "Installed"), .green)
+        case .outdated: (String(localized: "Update available"), .orange)
+        case .needsAuthorization: (String(localized: "Needs approval"), .yellow)
+        case .notInstalled: (String(localized: "Not installed"), .secondary)
+        case .notDetected: (String(localized: "Not detected"), .secondary)
         }
         Text(text).font(.system(size: 11, weight: .medium)).foregroundStyle(color)
             .padding(.horizontal, 7).padding(.vertical, 2)

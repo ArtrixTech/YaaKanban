@@ -1,8 +1,339 @@
 # Devlog
 
+## feat(update): update from GitHub Releases with an in-app message
+
+`pending` | 2026-10-26
+
+- **Changes**: `YaaCore/Update.swift` (`AppVersion`, `GitHubRelease.offer`, `ReleaseNotes` section/excerpt) + tests; `YaaKanban/Updater.swift` (check at launch and every 6 h, background download to `~/Library/Caches/com.artrix.yaakanban/Updates/<v>/`, bundle id/version/team-signature check, sh helper swaps the app after quit with rollback and relaunches, `lastRunVersion` detects a finished update); `UpdateNotice` line on the floating panel, menu item, Settings › Updates, About › What's New; strings in 9 tables; `CHANGELOG.md`; `scripts/release.sh` + `make release`; spec §6, Architecture, AGENTS repo rule.
+- **Reason**: releases must reach users without a manual download; 0.1.1 is the first release, so it has to ship the updater.
+- **User feedback**: "等一下。需要先做自动更新机制"; "有更新自动下载最新release并问用户是否要更新。每次release做好更新条目管理。"; "更新提醒不要做这么明显的弹窗，app内一条消息就够了。"
+- **Process**: first version used NSAlerts, replaced by the panel line on feedback. E2E with a fake team-signed 0.1.2 served via `updateFeedURL` (file://): downloaded and verified, line "新版本 0.1.2 已下载 · 重启以更新" shown, click swapped and relaunched (new PID, 0.1.2, cache cleared), then "已更新到 0.1.2 · 新功能". An ad-hoc-signed build was not offered. `make test` (173), `make l10n` clean.
+- **Result**: works end to end; environment restored to the real 0.1.1.
+- **Notes**: `updateFeedURL` default overrides the feed for testing. Translocated or read-only installs open the release page instead. Builds without a team id (from source) never update. Release notes are cut at `---` (install footer). The panel's SwiftUI controls are not exposed to AX; tests clicked by coordinates with CGEvent.
+
+## chore(release): bump the version to 0.1.1
+
+`14a1476` | 2026-10-26
+
+- **Changes**: `Info.plist` `CFBundleShortVersionString` 0.1.0 → 0.1.1, `CFBundleVersion` 1 → 2.
+- **Reason**: first tagged release; develop goes to main through a PR, tagged `v0.1.1` with the built app attached.
+- **User feedback**: "帮我pr到main，并开新的release V0.1.1"
+- **Process**: `make test`, `make app`.
+- **Result**: see the PR and the release.
+- **Notes**: no earlier tag or GitHub release exists (0.1.0 was never tagged). The app is signed with an Apple Development identity, not notarized; downloaders have to clear quarantine.
+
+## fix(panel): restore the floating panel where and as big as it was left
+
+`b797da8` | 2026-10-26
+
+- **Changes**: `FloatingPanelController` saves `panel.frame` itself (`floatingPanelFrame`, `NSStringFromRect`) on move, resize and the end of a slide (never mid-slide, when the window is the union of both shapes), and restores it at launch if it still meets a screen; AppKit's `setFrameAutosaveName` dropped, its old "NSWindow Frame YaaFloatingPanel" value read once as a fallback and removed. At launch the top is held 3 s (was not held).
+- **Reason**: two drifts. (1) AppKit's autosave restores only the top-left corner of a non-resizable window: the docked 28 pt rail came back 340 × 120, off the right edge, so undocked and clamped. (2) The cards lay out ~0.7 s after launch; the list growing from short to full height grew the panel about its middle, so it moved up by half the growth and hit the top of the screen. Measured: saved y 1124 came back 1288 (the top).
+- **User feedback**: "还有悬浮位置要记忆，下次启动按照上次悬浮位置/尺寸来"
+- **Process**: logged `fit` with timestamps around a relaunch (temporary, removed) to find both steps. After: relaunching twice from `{{2143, 1124}, {28, 1070}}` (docked rail, mid-height) and `{{1200, 1500}, {300, 600}}` (free) keeps the top and the side; `make test` 170 pass, `make install`.
+- **Result**: position (top edge, docked side) and width come back; height follows the list height the user set with the grip (already saved), as before.
+- **Notes**: the 3 s launch hold is a margin on the ~0.7 s measured; a slower first layout would grow about the middle again. A saved frame on a screen no longer attached falls back to the default top-right spot.
+
+## feat(panel): scroll the list back to the top when the rail folds
+
+`137d908` | 2026-10-26
+
+- **Changes**: `FloatingPanelView.scrolling` wraps its `ScrollView` in a `ScrollViewReader`; the content carries a fixed id, and `folded` turning true scrolls it to the top. Spec board bullet.
+- **Reason**: a rail folded while scrolled down kept the offset, so the folded rail and the next peek started mid-list instead of at the pinned / waiting cards.
+- **User feedback**: "收起悬浮窗的时候，要自动回到顶部。"
+- **Process**: `make build`, `make test` 170 pass, `make install`.
+- **Result**: folding (peek ending, or the fold button) resets the scroll.
+- **Notes**: read "收起" as folding into the side rail; collapsing (header chevron) or hiding already rebuilds the list at the top. Not checked on a real screen (snapshots can't scroll).
+
+## refactor(panel): drop the ended list in favour of the search
+
+`db71d3a` | 2026-10-26
+
+- **Changes**: removed `EndedButton`, `EndedList`, `AppModel.endedSessions` and the panel's `endedOpen`; `holdOpen` now only follows the search. Bottom bar: an empty flexible slot on the left keeps the grip centred, magnifier right. 3 strings × 9 tables removed; spec board bullet (search replaces the ended list).
+- **Reason**: the search with an empty query already lists every session of the last 14 days, ended ones included, and restores them on click.
+- **User feedback**: "你这个搜索已经起到了已结束归档的作用，把左下角归档列表干掉吧。"
+- **Process**: `make build`, `make test` 170 pass, `make l10n` 0 problems, `make install`.
+- **Result**: one way back for ended sessions instead of two.
+- **Notes**: sessions ended more than 14 days ago are no longer reachable from the panel; the main window's History still has them.
+
+## feat(panel): search two weeks of history and keep the rail open for popovers
+
+`8bd3683` | 2026-10-26
+
+- **Changes**: `PanelRoom.holdOpen` (ended popover open, or searching while the panel is key) stops `checkPeek` from folding a peeking rail; `isKey` from window delegate, `makeKey` set by the controller. `EndedButton` takes its `open` binding from the panel. Bottom bar: 已结束 left, grip (80 pt) centred, magnifier right (`IconButton`), replacing the hidden twin. Search: the bottom row becomes `SearchField` (focused on appear, Esc/× close), the list area shows `SearchResults` (`AppModel.search`: top-level, started, `quietSince` within `searchDays` = 14, `SessionState.matches`: name/title, cwd, projectDir, id, agent, peek prompt/reply, turns' prompts/replies, case-insensitive). `EndedRow` → `PickRow` (on the board: status glyph, click = jump; else click = restore). List scroll area factored into `scrolling`, fading the top edge too while scrolled. Recent figures trend: `trendStep` 24, `trendPoints` 25 → the curve spans the 4 h window (was 36 points × 20 min ≈ 12 h); help text uses the window. 3 strings × 9 tables; spec board + efficiency bullets; test `Search.matchesNamePathPromptsAndReplies`.
+- **Reason**: the user's panel sits folded at the right edge (slim, 28 pt); opening 已结束 while peeking put the pointer on the popover, outside the hot zone, so the rail folded and took the popover (its anchor) away: the "crash and reappear / auto-collapse". No crash report exists for the app.
+- **User feedback**: "目前点击已结束菜单大概率会导致悬浮窗崩溃重新出现。（也可能是自动收起）另外：1，悬浮窗顶上也要和底下有渐变遮罩 2，杠杆在悬浮窗的曲线范围依然是最近4h，现在显示的太长了看不清楚趋势 3，右下角增加搜索按钮，能搜索近14天的所有历史"
+- **Process**: saved panel frame `… 2143 1288 28 1070 …` (28 pt wide at the right edge) supported the fold hypothesis. `make build`, `make test` 170 pass, `make l10n` 0 problems, `make install`, `yaak snapshot`: trend axis now ~4 h ending at 现在.
+- **Result**: see Changes.
+- **Notes**: popover hold, search focus in the non-activating panel and the top fade were not checked on a real screen (snapshots can't click or scroll). Searching hides the height grip; folding back closes the search. A search result already on the board jumps (may ask to reopen a gone session).
+
+## perf(store): skip saving sessions that did not change
+
+`f35774f` | 2026-10-26
+
+- **Changes**: `AppModel.update` saves to the store only when the new state differs from the old (`SessionState` is Equatable); everything else in it runs as before.
+- **Reason**: the 10 s tick (stuck detection) and the 5 s scan pass every session through `update`, which rewrote each one's full JSON: 145 sessions, 28 MB, every 10 s, on the main thread. macOS logged "disk writes" reports for YaaKanban daily (2.1 GB in 10–40 min; 137 GB over 15 h on 10-23), heaviest stack `scan → update → Store.save → sqlite WAL write/checkpoint`.
+- **User feedback**: none directly; found while looking into the panel "crash" report (no crash log exists, only these diagnostics).
+- **Process**: `proc_pid_rusage` logical writes over 60 s: 136 MB before, 10 MB after (`make install`). Diffing rows over 30 s afterwards: only the two running sessions change (hook events).
+- **Result**: about 13× less disk writing; the main thread no longer encodes 28 MB every tick.
+- **Notes**: what is left is real changes, but each rewrites the session's whole JSON blob (a busy session is ~800 KB because it keeps every tool's input/output); cutting that further needs a different storage layout (not done).
+
+## fix(telemetry): wait for a network and record each send's outcome
+
+`c2d098f` | 2026-10-26
+
+- **Changes**: `TelemetryReporter`: session `waitsForConnectivity`, resource timeout 1 h; the data task's completion writes `TelemetryLedger.lastResult` (`SendResult`: time, days, HTTP status, error domain+code; kept only while on, cleared by off). `yaak telemetry status` prints `last send: <time>, <days>: accepted | HTTP n | <error>`. docs/telemetry.md. Test `sendResult` (old ledger without the key decodes; 200 ok, 401 / -1009 not).
+- **Reason**: the day was marked sent before a fire-and-forget POST whose response was never read, so any failure vanished without trace; the first tick of a new day typically runs right after wake, when the default session fails at once with no network.
+- **User feedback**: "看一下telemetry，最近几天后台啥也没看到，修一下问题。"
+- **Process**: ledger: on, lastSent 2026-10-24 (then 2026-10-25 after midnight) → the app did attempt the sends. Captured the release app's exact request via a local server (temp HOME/YAAK_HOME, `-YaakTelemetryIngestURL`): well-formed, 42 props, all keys ≤40, isDebug false. Replayed it (isDebug true, day `curl-test`) to us.aptabase.com `/events` and `/event` (which returns validation errors) → 200 both. Aptabase source (EventsController): the batch endpoint returns 200 even when it drops invalid events; validation = timestamp within 1 day, session ≤7 days, key ≤40. No proxy; direct reach OK. pmset: Mac was awake at both midnights here, so the wake race is not proven to be what lost this user's events; unified log kept nothing for the app. End to end with the new build: capture server up → `last send …: accepted`; nothing listening → no result within 10 s (waiting for connectivity, as intended). `make test` 169 pass.
+- **Result**: sends survive a not-yet-connected wake, and a failed send is now visible in `yaak telemetry status`.
+- **Notes**: requests from this machine are valid and accepted, so if the dashboard is still empty check its Release/Debug switch (the first test event was Debug; app events are Release) and date range; events for day 2026-10-23/24/25 should be there. A 200 from the batch endpoint does not prove storage. Waiting for a network is not a retry; spec §6 unchanged.
+
+## feat(overview): count away work in leverage and split blocked from review
+
+`7861509` | 2026-10-25
+
+- **Changes**: `ActivityReport`: leverage = agentTime (away included) ÷ activeTime; `presentAgentBuckets` → `agentBuckets` (all running). Sweep splits waiting into blocked (needsInput/stuck) and review; `bottleneck` and `utilization` count only blocked. New `blockedAway`, `utilizationAway`, `pickups`/`pickupMedian`/`pickupP90` (closed review segments that started inside the measured range, away taken out), `interventions` (finished turns + needsInput→running) and `agentTimePerIntervention`. Overview: 4th headline 完成轮数 → 离开时被卡住; 你不在时 highlight shows away utilization with both durations; new tiles 接手速度 and 每次介入; the summary says how much of the agent time was away and how long agents were blocked then. Floating panel: leverage window fixed at 4 h (setting `recentMinutes` and its picker removed); the arrow and the trend's dashed line compare with today's leverage instead of the last window / 1×. Strings in all 9 tables; spec §5 efficiency bullet.
+- **Reason**: the old leverage left out everything agents did while the user was away, which is where most of the leverage comes from; it was really just parallelism while present. Waits mixed blocked-on-you with finished-and-unreviewed, and the most costly waste (blocked while away) was hidden.
+- **User feedback**: "我感觉你现在这个杠杆的计算不符合道理，只评估了我在的时候的效率，我不在的时候不是其实更重要？…现在的数据有什么要调整" → "关于杠杆，时间窗口的问题，直接做成4小时，悬浮窗显示的趋势也是相对于今日基线是更高还是相似还是更低。对于后面：全部执行。"
+- **Process**: new test `blockedReviewAndInterventions` caught that an ask carried in from before the range was not counted as an intervention (only pickup needs a known start); fixed. `make test` 168 pass, `make l10n` 0 problems, `make install`, `yaak snapshot`: today 2.3× (away 4.2 h of 9.4 h), blocked while away 3m26s, away utilization 99%, pickup 2m21s, 8m50s per intervention; two over-long captions shortened after the first snapshot.
+- **Result**: leverage rewards leaving agents running; the overview shows where agents were blocked by you vs only waiting for review.
+- **Notes**: with a 4 h window, a return after long away can still spike the panel figure (little present time); no floor added by choice. Running still includes waiting on background agents/shells, so agent hours run slightly high there. A needsInput answered by a new prompt can count twice (answer + turn). Telemetry `leverage` bucket now uses the new definition (no schema bump).
+
+## style(panel): merge the ended button and height grip into one bar
+
+`ae39f7b` | 2026-10-25
+
+- **Changes**: `EndedFooter` → `EndedButton` (no resting fill, tertiary text, hover capsule, popover arrow on top). The height grip moved out of `list` into `bottomBar`: one 22 pt row, button left, grip centred between it and a hidden twin; no grip when the list is hidden. Panel bottom padding 8 → 4.
+- **Reason**: the grip floated alone under the list with the capsule button a separate row below it, which looked disjointed.
+- **User feedback**: "这个ui太诡异了，要重新改。让底部协调。" (screenshot: grip, empty gap, then 已结束 · 74 capsule).
+- **Process**: `make build`, `make install`; `yaak snapshot` with the list height and recent stats temporarily changed so the bottom fits the 300 pt snapshot (both restored after).
+- **Result**: one bottom row: 已结束 · 74 on the left, grip in the middle.
+- **Notes**: popover still only verifiable on a real screen.
+
+## feat(panel): keep pinned cards and add an ended list
+
+`c239a3a` | 2026-10-25
+
+- **Changes**: `AppModel.isLive`: a top-level pinned session (not dismissed, started) is always live. New `SessionState.restoredAt` (optional, old rows decode); the "replaced by a later session of the same pid" check counts only sessions started after `max(lastEventAt, restoredAt)`. `AppModel.endedSessions` (top-level, started, not live; newest first) and `restore(_:)` (clears dismissed/unread, sets reviewedAt + restoredAt = now). Floating panel (unfolded) gets `EndedFooter` under the list: 已结束 · N capsule opening a popover `EndedList` (320 pt, max 420 pt, scrolls); click a row = restore; context menu restore / copy resume command / delete. Panel bottom padding fixed at 8. 4 strings × 9 tables. Spec board bullet.
+- **Reason**: pinned cards still timed out after the retention like any reviewed card; ended (retention over or ended on the panel) cards could only be found in the main window's History, whose restore only undid an explicit end.
+- **User feedback**: "1.置顶任务不会自动消失 2.需要在悬浮窗底部添加按钮，点击可以浏览已经结束（归档）的任务来找回。"
+- **Process**: `make build`, `make l10n` 0 problems, `make test` 167 pass, `make install`; `yaak snapshot`: two pinned cards 13 h 43 m old are back on the panel; with the panel collapsed (setting flipped and restored) the footer shows 已结束 · 74.
+- **Result**: pins stay until unpinned or ended; ended sessions are one click away from the panel.
+- **Notes**: popover not checked on a real screen (snapshots can't open it); it is a SwiftUI popover from a non-activating NSPanel. Not in the folded rail. A restored session uses the normal retention again, so it leaves after 24 h (default) unless pinned. Restoring a session past the 24 h Wave token TTL doesn't bring its JWT back; resume falls back to other tab tokens / copy.
+
+## fix(wave): resume in an ordinary terminal block
+
+`6cbfffb` | 2026-10-25
+
+- **Changes**: new `YaaCore/WaveResume.swift` builds `wsh createblock term controller=shell cmd:cwd=… cmd:initscript.{zsh,bash,fish}=…`; `WaveAdapter.resume` uses it instead of `wsh run -c '<swap>; "$SHELL" -ilc <cmd>; exec "$SHELL" -il'` (the swap-token workaround is gone, Wave's own rc now trades it). Init script arms a one-shot hook: zsh `add-zle-hook-widget line-init` puts the command in `BUFFER` and `.accept-line`; bash a `precmd_functions` entry (echo + `history -s` + eval); fish an `--on-event fish_prompt` function. Each first runs `wsh setmeta -b $WAVETERM_BLOCKID cmd:initscript.*=null` in the background. Tests `WaveResumeTests` (meta decoding, `-n` syntax, bash hook runs once with a fake wsh). Spec resume bullet, Architecture.
+- **Reason**: a `wsh run` block is a `cmd` controller block: its header shows the raw command (`[ -n "$WAVETERM_SWAPTOKEN" ] &&…`) instead of the host, and it isn't a normal shell; a user-opened terminal + paste looks different.
+- **User feedback**: "你在waveterm恢复的terminal和看起来用户自己打开粘贴恢复的不一样。请解决。" (screenshot: resumed block header with the swap-token command, next to a normal `artrix@…` terminal header).
+- **Process**: read Wave source (`wshcmd-term.go`, `wshcmd-createblock.go`, `shellcontroller.go`, `makeSwapToken`, `zsh_zshrc.sh`, `bash_bashrc.sh`): a shell block's `cmd:initscript.<shell>` comes back from `wsh token` and is sourced before `~/.zshrc`/`~/.bash_profile`, so running the agent there would miss PATH; hence the first-prompt hook. Live in Wave 0.14.5: zsh and bash (`term:localshellpath=/bin/bash`) blocks showed the command at a normal prompt, got their own `WAVETERM_BLOCKID`, found `claude` on PATH, and the init-script meta was gone afterwards; then the exact args from `createBlockArgs` gave the same. Test blocks deleted. `make test` 167 pass.
+- **Result**: resumed sessions open in a block indistinguishable from a user-opened terminal with the command pasted.
+- **Notes**: fish path untested (fish not installed). Shells other than zsh/bash/fish (sh, pwsh, nu) get no init script: the block opens but nothing runs; the command is still on the clipboard. zsh: a `.zshrc` that replaces `zle-line-init` without `add-zle-hook-widget` (old oh-my-zsh key-bindings) would drop the hook. `wsh createblock` is a hidden command (present in 0.14.5); it needs `WAVETERM_TABID` in the runner env, which `process(_:as:)` sets when known.
+
+## feat(settings): list only detected agents
+
+`6e14b56` | 2026-10-24
+
+- **Changes**: Settings › Agent integrations shows only integrations whose status is not `notDetected` (status checks installed first, so a row with our hooks left behind stays visible to uninstall); empty state "No supported agents found…" (+9 translations, 356 keys); dropped the now-dead `notDetected` note guard; spec §3 bullet.
+- **Reason**: all 17 supported agents were listed, mostly "Not detected" noise.
+- **User feedback**: "目前agent管理部分，所有支持的都显示出来了。需要只显示发现了的。同时审查是否能正常发现agents"
+- **Process**: audited detection on this Mac (existence checks only, no config reads): dirs found for claude, codex, cursor, opencode, pi, hermes, copilot, kiro; each matches a binary on PATH or app except copilot, whose `~/.copilot/logs` show the CLI running in stdio server mode (launched by a host app, not on PATH), so detection is right. The other 9 have neither dir nor binary. `yaak status` agrees. `make l10n` 0 problems, `make test` 165 pass, installed.
+- **Result**: 8 rows instead of 17 on this Mac.
+- **Notes**: detection is directory existence only (`isDetected`), HOME-relative; no env overrides (CLAUDE_CONFIG_DIR, CODEX_HOME, XDG_CONFIG_HOME) are honored, and an agent installed but never run (no dir yet) stays hidden; a leftover dir after uninstalling an agent still shows it. Rows re-evaluate on each Settings render.
+
+## feat(i18n): add 8 languages and a language setting
+
+`1fcb531` | 2026-10-24
+
+- **Changes**: translations for zh-Hant, ja, ko, es, fr, de, pt-BR, ru (`Resources/<code>.lproj/Localizable.strings` 355 keys + `InfoPlist.strings`); Info.plist `CFBundleLocalizations` lists all 10. New `AppLanguage.swift`: language list (endonyms), override written as this app's `AppleLanguages` (read from the app's persistent domain only), relaunch via `sh` waiting on the pid then `open`. Settings › General › Language picker (Follow system + 10), "Restart Now" row when the choice differs from the language at launch (`atLaunch` pinned in `applicationDidFinishLaunching`). `l10n-check.py` takes several tables; `make l10n` checks `Resources/*.lproj`. Spec §5 language bullet extended.
+- **Reason**: user asked for common world languages, selectable in Settings.
+- **User feedback**: "需要支持更多语言（世界常用语言，你和我确认列表）。需要在设置可选。" Chose tier 1 (8 languages) and restart-to-apply.
+- **Process**: one translator agent per language from a shared brief (keys copied from zh-Hans, Apple terminology, placeholders positional only when reordered). `make l10n` 355 keys × 9 tables, 0 problems; `make test` 165 pass; built bundle resolves each language to its own table; codesign ok.
+- **Result**: 10 UI languages, follow-system by default.
+- **Notes**: translations are machine-made, not native-reviewed; agents flagged uncertain terms (e.g. ja 終了済み to avoid 終了=Quit, ru counts as "label: N" to dodge plural agreement, fr gendered "terminés"). Dashboard summary is built from fragments, so ja/ko/ru reworded with positional placeholders; worth a native read. Longer languages (de, ru, fr) not yet checked on screen for truncation.
+
+## feat(i18n): localize the app UI with English source and zh-Hans
+
+`131087a` | 2026-10-24
+
+- **Changes**: every user-visible UI string is now an English key (SwiftUI literals, `String(localized:)` elsewhere) with zh-Hans in `Resources/zh-Hans.lproj/Localizable.strings` (351 keys) + `InfoPlist.strings`; `en.lproj`; Info.plist `CFBundleDevelopmentRegion` en, `CFBundleLocalizations` en/zh-Hans; `bundle.sh` copies `*.lproj`. `make l10n` + `scripts/l10n-check.py`: clean build with `-emit-localized-strings`, fails on missing/unused keys and placeholder mismatches. Consent prompt drops the sentence on Aptabase's IP-based country/region. Fragment-built sentences (install message, 前一/后一 天/周/月, durations, summary) rewritten whole; lists via `.formatted(.list(type: .and))`. Tests now expect English. Spec §5 records the language decision.
+- **Reason**: user asked for i18n; follows the macOS language (per-app language works).
+- **User feedback**: "Aptabase 会按 IP 记下国家和地区，但不保存 IP。这句话去掉。另外，项目做好i18n。"
+- **Process**: 4 forked agents converted file groups, parts merged (one conflict: "Turns" → 轮次). Adversarial review: added 3 missed English fallbacks (SessionReducer/Normalizer). Verified: `make l10n` 351/351, `make test` 165 pass, built bundle resolves zh-Hans / en tables, `yaak` (Contents/Helpers) still prints English.
+- **Result**: app shows Chinese on a zh system, English elsewhere.
+- **Notes**: `String(localized: c ? "a" : "b")` is not extracted (write the ternary outside); keys never have positional specifiers, only translations. Without Xcode there is no xcstrings compiler, hence `.strings`. Stored `stuckReason`/`needsInputMessage` keep the language they were made in; switching language while a session is stuck re-sends one stuck alert. zh list join is "A、B和C".
+
+## fix(claude): keep a turn running while a background shell is out
+
+`5339742` | 2026-10-24
+
+- **Changes**: `Normalizer.backgroundLaunch` also returns a main-agent tool response's `backgroundTaskId` (Bash run in / moved to the background), skipped when `backgroundEndsWithFinalResponse` is set; `backgroundStop` turns a successful TaskStop/KillShell (`task_id`, `shell_id`) into `.backgroundEnd`. Reuses the existing hold (`backgroundTasks`, setting 等待背景 agent（测试）). 3 tests in `ClaudeBackgroundAgents`. Spec line extended.
+- **Reason**: a background shell's Stop ended the turn as 待验收 while the main agent was still waiting for it.
+- **User feedback**: "目前claude在运行背景shell、等待结束的时候目前yaak也提示待验收。这是预期外的。请解决。"
+- **Process**: fields read from the Claude Code 2.1.309 binary: Bash output schema keeps `backgroundTaskId` (`backgroundEndsWithFinalResponse` = killed at final response, "no notification can follow"); completion is the same `<task-notification>` with `<task-id>` = that id (seen live this session); TaskStop input `task_id`/`shell_id`, output `task_id`. Hook payload not captured raw (no raw spool). `make test` 165 pass; ablation (Normalizer change removed) fails `stopWaitsForABackgroundShell`.
+- **Result**: held until the shell's notification turn stops.
+- **Notes**: a long-lived shell (dev server) keeps the session running, then 卡住 after the silence threshold instead of 待验收; stop it with TaskStop or turn the setting off. Settings label/footer still say background agents (Windows.swift left as is: concurrent l10n edits there).
+
+## chore: merge feature/telemetry-feedback (#3) into develop
+
+`158f919` | 2026-10-24
+
+- **Changes**: PR #3 (telemetry and feedback) merged with the 4 hook batches. Conflicts: `Windows.swift` install message keeps develop's 待授权 hint (the post-install note now shows in the row itself) plus the PR's install/uninstall counter; devlog blocks interleaved by commit time. Follow-ups: `needsAuthorization` listed as an `integrations` value (docs/telemetry.md, `TelemetryReport` doc); docs/telemetry.md and spec §6 said EU region, now US (the user chose US with the key).
+- **Reason**: make develop carry both lines of work.
+- **User feedback**: "帮我把#3合入dev，让dev成为最新。确保问题被解决。"
+- **Process**: `make test` 162 pass (146 + the PR's tests), including prop keys ≤40 chars over all 22 agents; `make build` ok. Aptabase `EventBody.IsValid` checked: no limit on prop count, so more agents only add props.
+- **Result**: develop has telemetry and every harness integration.
+- **Notes**: telemetry now reports `needsAuthorization` for integrations waiting on approval (sent as the status rawValue, no code change).
+
+## feat(telemetry): ship the Aptabase App Key in Info.plist
+
+`b2f026a` | 2026-10-23
+
+- **Changes**: `Resources/Info.plist` `YaakAptabaseAppKey` = `A-US-6250643896` (US region, us.aptabase.com). Plist test now requires the shipped key to resolve to the US host. docs/telemetry.md names the region.
+- **Reason**: release builds sent nothing while the key was empty.
+- **User feedback**: "为啥选eu" → chose US and sent the key.
+- **Process**: curl of a `daily` event (isDebug true, `day` = `curl-test`) to us.aptabase.com with the key → 200 `{}` (an unknown key returns `{"error":"Application not found…"}`), so the key is live. `make test` passes.
+- **Result**: telemetry is fully configured; opted-in release builds report to Aptabase US. The user confirmed the test event arrived in the dashboard ("收到数据了").
+- **Notes**: the App Key is public by design (shipped in every client). The curl test event shows under Debug in the dashboard, not Release. Changing region likely means a new app and key (not verified).
+
+## feat(integrations): add Cline, omp and Windsurf hooks
+
+`706afa8` | 2026-10-23
+
+- **Changes**: AgentKinds `cline` (`cline --id`), `omp` (`omp --resume <session file>`), `windsurf` (no resume). `Cline.swift`: one owned `#!/bin/sh` script per event in `~/Documents/Cline/Hooks` (no extension, 0755 via new `FileChange.executable`), prints `{}` and exits 0; a foreign file of the same name refuses. `OmpIntegration` (`Plugins.swift`): `~/.omp/agent/extensions/yaakanban.ts` sending the yaak plugin schema; sub-agent contexts skipped; turn ends at `agent_end` without `willContinue`; `tool_approval_requested/resolved` → needs_input / input_answered; the `ask` tool → needs_input. `WindsurfIntegration` (`JSONHooks.swift`): `~/.codeium/windsurf/hooks.json` entries `{command … || true, show_output:false}`, found by command (no marker field); non-object/non-list layouts refused. Normalizer: `clineSchema` (CLI `tool_call`/`tool_result` with ids and `sessionContext.rootSessionId`, VS Code `preToolUse`/`postToolUse` with synthetic ids and `taskId`; sub-agent tool calls kept, its task events dropped), `windsurfSchema` (actions → read/edit/bash/mcp tools, `trajectory_id` session). README, spec §3, Architecture.
+- **Reason**: batch 4 (last) of the harness rollout agreed with the user.
+- **User feedback**: "1-6都做。还要做deepseek harness/zcode/kimi code/omp（ohmypi）" / "完整实现。" / "继续"
+- **Process**: Cline and omp read from source (clones of cline 1619168b, oh-my-pi); Windsurf from docs. Adversarial review found: VS Code ts-proto `toJSON` omits `success:false` → now `failed` unless `success == true`; the SDK ask tool is `ask_question` → added to `askTools`; CLI Esc runs TaskCancel then SessionShutdown, which ended the card → SessionShutdown no longer installed or mapped. Test covers each. `make test` (146 pass).
+- **Result**: Cline, omp and Windsurf installable; the 4-batch rollout is complete.
+- **Notes**: No permission hook in any of the three (omp approvals only show as needs input, and only when an approval handler is registered). Cline VS Code: hooks gated by the in-app 「Enable Hooks」 switch (global state, not readable); TaskResume/TaskError/SessionShutdown not wired there, so an errored VS Code run waits for the stuck detector (said in the install note). Cline completion reminders fire UserPromptSubmit mid-run, splitting one run into turns (no fix on our side). Windsurf: no session start/end, hooks skipped in Restricted Mode, schema unverified against a running app. Windsurf post hooks fire only on success and `post_cascade_response` is async, so a late one could end the next turn. omp: `PI_CODING_AGENT_DIR`/profiles not followed, no auto-title, session file is written lazily so resume fails before the first reply, `plan_review_requested` unhandled.
+
+## feat(telemetry): send daily reports to Aptabase instead of TelemetryDeck
+
+`0c2e3a2` | 2026-10-23
+
+- **Changes**: `YaaCore/TelemetryDeck.swift` → `YaaCore/Aptabase.swift`: `AptabaseEvent` maps a `TelemetryReport` to one `daily` event (ingest `/api/v0/events`, header `App-Key`, body = array, dates `yyyy-MM-dd'T'HH:mm:ss'Z'` UTC, session id = start second × 10⁸ + random, one per report); system props carry version/build/macOS major/language/debug; props are strings without a prefix (`day`, `schema`, `arch`, `install` = SHA-256 of the install id, `integration.*`, `setting.*`, `count.*` bucketed, `figure.*`). Host from the key's region (`A-EU-…` → eu, `A-US-…` → us; others need `YaakTelemetryIngestURL`). Info.plist key `YaakAptabaseAppKey` (empty until the key is in), `bundle.sh` reads `YAAK_APTABASE_APP_KEY`. Reporter sends at most 25 events, sets a User-Agent like the SDK. Consent/settings text, `yaak telemetry status`, spec §6, Architecture, docs/telemetry.md say Aptabase.
+- **Reason**: TelemetryDeck's free plan indexes "between once an hour and once a day"; after ~6 h nothing had shown up and its namespace status endpoint answered 404. Aptabase's dashboard is real time, has an EU region and is open source (server AGPL, SDKs MIT); free tier 20k events/month.
+- **User feedback**: "还有没有别的平台 tmtdeck感觉很草台班子 你搜一下" → "先换aptabase".
+- **Process**: request format from aptabase-swift (EventDispatcher/Event.swift) and server validation from aptabase/aptabase (`EventBody.IsValid`: timestamp within the last day, ≤10 min ahead; numeric session id started ≤7 days ago; prop keys ≤40 chars; ≤25 events per request; invalid events dropped with 200). Tests: event shape and props, key lengths over every agent/setting/event, regions, shipped plist key usable if set. `make test` 131 pass. curl of the event shape to eu/us with an unknown key → 200 `{"error":"Application not found…"}`, so path and headers are accepted.
+- **Result**: telemetry needs only an Aptabase App Key in Info.plist.
+- **Notes**: not yet sent with a real key. Aptabase's daily user is a salted hash of IP and User-Agent (session id only caches it), so same-day reports from one network and macOS/locale count as one user; retention comes from the `install` prop. It stores country/region from the IP (now in the docs and consent text). Backlog days carry the send time (server rejects events > 1 day old); `day` is the covered day. Release builds send nothing until the App Key is in Info.plist.
+- **Review**: adversarial review: no drop/misattribution found; fixed the IP/country wording, the devlog hash note, and the footer/`yaak telemetry status` saying configured for a key with no known region. The TelemetryDeck version is in history at d6f4d4a.
+
+## feat(integrations): add ZCode, Kiro and Kimi hooks
+
+`c89b57c` | 2026-10-23
+
+- **Changes**: AgentKinds `zcode` (no resume), `kiro` (`kiro-cli chat --resume-id`), `kimi` (`kimi --session`). `ZCodeIntegration` (in `ClaudeCompatible.swift`): `hooks.events` of `~/.zcode/cli/config.json` edited through `ClaudeShapedHooks`, groups get `matcher: "*"`, `timeout` (s) plus `timeoutMs`, `hooks.enabled` set true only when unset and no foreign hooks exist (uninstall drops an `enabled: true` left beside no hooks), a hook of ours switched off stays off, non-object `hooks`/non-array event values refused; pending on `hooks.enabled != true` or a disabled hook of ours; PermissionRequest awaited (Claude decision format). `Kiro.swift`: owned `~/.kiro/hooks/yaak.json` (`version: v1`, named triggers), pending when `chat.agentEngine` (flat or nested) in `~/.kiro/settings/cli.json` is set and not v3, workspace-trust note. `Kimi.swift`: `[[hooks]]` tables (event/command/timeout only) removed and appended as text in `~/.kimi-code/config.toml`, keys the user added to our tables (matcher) carried to the new ones; any other form of `hooks` (inline, dotted, quoted, `[hooks]`, `[[hooks.x]]`) refused after normalising keys. Normalizer: kiro → `claudeSchema`; zcode drops its temporary `transcript_path`; `kimiSchema` maps `tool_call_id`/`tool_output`/error object, PermissionRequest never awaiting, PermissionResult → inputAnswered, Interrupt/StopFailure → Stop, ContentPart[] prompt joined, SubagentStart/Stop keyed by agent name. Reducer: a Kimi Stop while an `Agent` tool call runs is the sub-agent's and does not end the turn. README, spec §3, Architecture.
+- **Reason**: batch 3 of the harness rollout agreed with the user.
+- **User feedback**: "1-6都做。还要做deepseek harness/zcode/kimi code/omp（ohmypi）" / "完整实现。" / "继续"
+- **Process**: Kimi Code read from source (agent-core-v2 externalHooks: field whitelist, camelToSnake payload, notify-only PermissionRequest). ZCode from docs and Hindsight's installer (closed source). Kiro from docs; layout matches the user's existing adrafinil.json. Adversarial review found and fixed: Kimi prompt is a part array (title empty); Kimi sub-agents fire Stop/tool hooks under the parent session id (turn ended early); ZCode re-enabled a master switch the user had turned off and uninstall did not restore `{"hooks":{"enabled":false}}`; Kimi update dropped a user matcher; refusal missed `hooks.x =`, `"hooks" =`, `[ hooks ]`; ZCode non-array event value silently lost; Kiro nested engine key missed. `make test` (140 pass).
+- **Result**: ZCode, Kiro CLI and Kimi Code installable; ZCode permission prompts answerable from the app.
+- **Notes**: ZCode snapshots config per session (new sessions only); its PermissionRequest tool id is undocumented (synthetic-id fallback). Kiro V2 (agent-profile hooks) not supported; an unset `chat.agentEngine` is assumed v3. `KIMI_CODE_HOME` is not followed. Kimi has no last-message field (Stop carries none). Kimi sub-agent tool calls appear as the parent's (no agent id in payloads); an interrupt inside a sub-agent may still end the parent turn early. Text edits of config.toml: a UTF-8 BOM is lost (shared `Installer.read`), a multi-line string that looks like a header can cause a false refusal, never corruption.
+
+## fix(telemetry): send to the organization's TelemetryDeck namespace
+
+`d6f4d4a` | 2026-10-23
+
+- **Changes**: ingest URL `https://nom.telemetrydeck.com/v2/namespace/com.yaakanban/` (was `/v2/`); `Content-Type: application/json; charset=utf-8`. docs/telemetry.md names the namespace and the free-plan indexing lag.
+- **Reason**: TelemetryDeck's v2 docs ask organizations with a namespace to use the namespace endpoint (all organizations have one since July 2026); `/v2/` answers 200 even for a random App ID, so its 200 proves nothing.
+- **User feedback**: dashboard showed 0 events; "test mode在哪" / "再查查文档核对一下".
+- **Process**: via the dashboard (opencli): Test Mode is the "+ Test Mode" chip on Explore › Recent Events (not top left as the docs say); org namespace `com.yaakanban`; Namespace Status: unpaid orgs are processed round robin, "between once an hour and once a day", so 0 is expected for now. curl to the namespace endpoint → 200. `make test` 129 pass; debug bundle with temp HOME/YAAK_HOME sent a seeded day through the new URL.
+- **Result**: events go to the namespace TelemetryDeck documents; arrival still to be seen once the free tier indexes them.
+- **Notes**: real-time ingestion needs a paid plan. Ingest v3 exists (flat events, namespace required); v2 stays available.
+
+## feat(integrations): add Qwen, Droid, Copilot and Gemini hooks
+
+`b7cef5d` | 2026-10-23
+
+- **Changes**: AgentKinds `qwen`, `droid`, `copilot`, `gemini` (names, resume `<cli> --resume`, tint, symbol; no bundled logos yet). `ClaudeCompatible.swift`: `QwenIntegration` (`~/.qwen/settings.json`, PermissionRequest awaited, pending on `disableAllHooks`), `GeminiIntegration` (`~/.gemini/settings.json`, ms timeouts, named `yaakanban`, `|| true`, pending on `hooksConfig.enabled=false` / `disabled`, folder-trust note), `DroidIntegration` (hooks.json → legacy hooks/hooks.json → settings.json `hooks`; per-event placement so a settings-only event is not hidden; emptied hooks file deleted; pending on `hooksDisabled`; folder-trust note). `Copilot.swift`: owned `~/.copilot/hooks/yaak.json`, camelCase events, `bash … || true`, `timeoutSec`. Normalizer: qwen/droid use `claudeSchema`; `geminiAsClaude` and `copilotAsClaude` rename into it (toolArgs JSON string parsed, toolResult resultType failure → PostToolUseFailure). yaak: approval for qwen (Claude decision format) and copilot (`{behavior, message}`); tool lookup reads `toolName`. `status(home:yaak:)` reports 需更新 when an installed config can no longer be planned (e.g. JSONC comments). README table, spec §3, Architecture.
+- **Reason**: batch 2 of the harness rollout agreed with the user.
+- **User feedback**: "1-6都做。还要做deepseek harness/zcode/kimi code/omp（ohmypi）" / "2按照你的推荐" / "完整实现。" / "继续"
+- **Process**: Gemini and Qwen read from source (hookRegistry, hookRunner, settingsSchema, types.ts); Droid from binary strings (loadHooks merge `{...settings, ...hooksFile}`, `hooksDisabled`, events/payload); Copilot from earlier research (runtime is compressed native). Smoke: `yaak hook` for each agent under a temp HOME exits 0 in ~20 ms and spools. Adversarial review (temp HOMEs, 139 tests with its probes) found and fixed: Gemini turns exit 127 (missing yaak) into deny → `|| true`; status said installed when the plan throws on a commented settings file; Droid uninstall left `{}` hooks.json that would shadow the legacy file. `make test` (134 pass).
+- **Result**: Qwen, Droid, Copilot and Gemini installable; Qwen and Copilot permission prompts answerable from the app.
+- **Notes**: Known limits: a tool denied in the terminal (Copilot, also Claude) fires no post hook, so the card stays 需要输入 until the turn ends — clearing on the next PreToolUse would drop a parallel call's real request. Gemini/Droid interrupts emit no turn end (Droid: `idle_prompt` only, ignored within 1 s of the last event). Settings files with comments (JSONC, allowed by Gemini/Qwen/Droid) are refused. Copilot `disableAllHooks`/`disabledHooks` and `COPILOT_HOME` are not checked; Copilot payload field names and decision output are from the SDK types, not verified against the runtime.
+
+## feat(telemetry): ship the TelemetryDeck App ID in Info.plist
+
+`203e3c3` | 2026-10-23
+
+- **Changes**: `Resources/Info.plist` `YaakTelemetryDeckAppID` = the YaaKanban app's TelemetryDeck App ID (`YAAK_TELEMETRYDECK_APP_ID` still overrides at bundle time). Test that the shipped plist holds a UUID App ID. docs/telemetry.md says where the ID lives.
+- **Reason**: every `make app` / release build should ask and send without remembering an env var; the App ID is public (it ships in every bundle).
+- **User feedback**: "帮我改代码，确保未来版本可以正常使用。做pr。"
+- **Process**: before this, real ingest checked: debug bundle (App ID via env), temp HOME/YAAK_HOME, seeded yesterday: sent and marked `lastSent`; curl of the same signal shape to `nom.telemetrydeck.com/v2/` → 200 `OK`, malformed body → 422. `make test` 119 pass; ablation: blanking the plist ID fails the new test. `make app` bundle carries the ID; `yaak telemetry status` says configured.
+- **Result**: release builds from the repo send to TelemetryDeck once the user opts in.
+- **Notes**: the app does not check the ingest response (fire and forget, per spec); confirm arrivals in the TelemetryDeck dashboard (debug builds under Test Mode).
+
+## feat(integrations): add hook authorization checks, Hermes and DeepSeek
+
+`248ced6` | 2026-10-23
+
+- **Changes**: `IntegrationStatus.needsAuthorization` + `pendingSteps(home:)`; Settings badge 待授权, steps, 重新检查; menu row; card warning; `AppModel.checkIntegrations()` on launch and every 60 s. Codex: `CodexTrust` recomputes the `/hooks` trust hash per handler and reads `[hooks.state."…"]` / `[features] hooks` from config.toml (untrusted/modified/disabled). Hermes: `HermesIntegration` edits `hooks:` in config.yaml line by line (`# yaakanban` tags; `hooks: {}` reopened and restored), consent from `shell-hooks-allowlist.json` or `hooks_auto_accept`; `hermesSchema` normalizer; resume `hermes --resume`. DeepSeek: `DeepSeekIntegration` writes `~/.dsh/yaakanban/hooks.json` + a local bundle (bridge + protocol deps at the installed dsh version), pending until a profile depends on it. `StableYaak` link `~/.local/share/yaakanban/bin/yaak` used by the app and by `yaak install` from the .app. Dry-run redacts secret-looking values. Spec §3, Architecture updated.
+- **Reason**: support more harnesses and guide the user through each one's hook approval (Codex runs only hooks trusted in /hooks; Hermes asks per hook).
+- **User feedback**: "需要加入对主流harness的hook支持…参考adrafinil，加入对不同harness的hook授权的引导，例如codex需要用户手动授权，需要适配并检测授权状态，引导用户授权。" / "1ds，第一批就要做…完整实现。"
+- **Process**: Codex hash format read from codex-rs source and checked against its test fixtures (`sha256:c9ee…`, `sha256:9eef…`). Hermes consent and payloads read from hermes source. dsh verified end to end in an isolated HOME/DSH_HOME: `file:` bundle installs deps (`link:` does not); without the peer `dsh-hook-protocol` the entry silently does not activate; SessionStart/UserPromptSubmit fired with Claude-shaped payloads. Fixed while testing: Hermes strip settled `hooks:` before its event keys (now bottom-up); emptied file is deleted. Adversarial review (temp-HOME probes, Ruby YAML parse) found and fixed: quoted event key got a duplicate key (user hook lost); block-style item left `timeout:` behind (invalid YAML); CRLF refused; strip touched yaak items outside `hooks:`; `hooks:` as a list produced invalid YAML; loose `hooks_auto_accept` match; Codex `[features] hooks = false` reported installed; header with trailing comment misread; redaction missed Bearer, `x-api-key`, flow maps, block scalars, `--token X`, `export`, known key prefixes and over-masked `max_tokens`/`author`; any launched .app copy (build dir, DMG) took over the stable link (hooks exit 127 once it is gone); non-atomic link swap failed under concurrency. `IntegrationError.refused` replaces the misleading JSON message for non-JSON refusals. `make test` (127 pass).
+- **Result**: batch 1 of 4 done; Hermes and DeepSeek installable; Codex/Hermes/dsh show 待授权 until approved.
+- **Notes**: dsh changed from a managed block in the home cordis.patch.yml (applies to every profile, breaks profiles without the bridge) to a per-profile bundle. Hermes on_session_end goes into an existing list (YAML forbids duplicate keys), placed after another tool's `# <<<` closing marker so its rewrite leaves ours; if that tool reorders keys our item may follow a different key and status shows 需更新. The stable link is claimed only by copies in /Applications or ~/Applications (others only when the link is dead). dsh uninstall refuses while a profile depends on the bundle and prints the `dsh plugin --profile <p> remove yaakanban-dsh` command. Not handled: Codex inline `[hooks.state]` tables (Codex never writes them), CODEX_HOME. Existing installs pointing at the app bundle show 需更新 once and need Codex re-trust after reinstall. dsh has no CLI resume.
+
+## feat(telemetry): send daily reports to TelemetryDeck instead of a Worker
+
+`eb877fe` | 2026-10-23
+
+- **Changes**: new `YaaCore/TelemetryDeck.swift`: `TelemetryDeckSignal` maps a `TelemetryReport` to one `Yaak.daily` signal (ingest v2 `https://nom.telemetrydeck.com/v2/`, body = array of signals, dates `yyyy-MM-dd'T'HH:mm:ssZ` UTC), payload as string tags (`Yaak.day`, `Yaak.integration.*`, `Yaak.setting.*` on/off, `Yaak.count.*` bucketed, `Yaak.figure.*`, TelemetryDeck's own version/OS/arch/language names), `clientUser` = SHA-256 of the install id. Reporter: App ID from `Info.plist` `YaakTelemetryDeckAppID` (defaults override, plus `YaakTelemetryIngestURL` for testing), one POST per tick for all due days, debug builds in test mode, 查看 shows the signal. `bundle.sh` reads `YAAK_TELEMETRYDECK_APP_ID`. `yaak telemetry status` says whether an App ID is configured. Removed `server/telemetry` (Worker, validator, fixture test). Spec §6 backend revised; docs/telemetry.md, Architecture updated; consent and settings text name TelemetryDeck.
+- **Reason**: the user did not want to deploy and run a server.
+- **User feedback**: "有没有那种在线注册了就能用的tmt，省事点，不想自己部署服务器" / "修复问题，并支持tmtdeck"
+- **Process**: request format taken from TelemetryDeck's Swift SDK source (SignalManager/Signal.swift, commit 58f4362) instead of adding the SDK. `make test` 118 pass (server fixture test replaced by a signal test). End to end: release app, temp HOME/YAAK_HOME, App ID and ingest URL as launch arguments pointing at a local capture server: two due days arrived as one POST of two signals, counts bucketed, no raw install id; without an App ID nothing was sent; real defaults untouched.
+- **Result**: telemetry needs only a TelemetryDeck App ID at bundle time.
+- **Notes**: not yet sent to the real TelemetryDeck (no App ID). Counts are now buckets (payload values are strings in TelemetryDeck). The Worker is in history at 1415fb8 if self-hosting comes back.
+
+## fix(telemetry): address the adversarial review of the telemetry branch
+
+`1415fb8` | 2026-10-23
+
+- **Changes**: day keys use a fixed Gregorian calendar in the local zone (`Telemetry.calendar`); `pending` only returns days within the last 7 calendar days (`Telemetry.day(_:minus:)`); `TelemetryLedger.update` takes an `flock` on `telemetry.json.lock`; `tick` notes, picks and marks sent in one locked update; reporter re-marks today after an off/on from `yaak`. Consent prompt runs from a Timer, menu `done` from `RunLoop.main.perform`, instead of GCD blocks. `yaak telemetry status` says DO_NOT_TRACK in a shell does not reach the app; `doctor` reports the ledger state. Validator: bucket allow-list, real calendar dates, `+` in versions; comment states names are pattern-checked. docs/telemetry.md wording for DNT and 查看.
+- **Reason**: review findings: non-Gregorian system calendars produced keys like `2569-10-22` (all rejected, and `pending` stuck after switching back); a modal alert inside a main-queue block stalled every `@MainActor` Task (ingest, permission requests); days older than 10 were sent then refused; CLI/app lost updates could undo `off`.
+- **User feedback**: "修复问题，并支持tmtdeck"
+- **Process**: modal stall reproduced in a scratch app: modal from a GCD block ran 0 MainActor Tasks in 1.5 s, from a Timer or `RunLoop.perform` 15. Lock ablation: without `flock` 200 concurrent updates kept 33, with it 200. `make test` 118 pass; `npm test` 3 pass. End to end against local `wrangler dev`: yesterday sent (one D1 row), a 12-day-old day dropped unsent.
+- **Result**: all high/medium findings fixed; low ones fixed except the westward-midnight edge (a day can be skipped; safe for privacy).
+- **Notes**: alerts opened directly from SwiftUI button actions (AppModel rename etc.) are not inside a GCD block and were left as they are.
+
+## feat(feedback): add opt-in daily telemetry and prefilled issue feedback
+
+`440c4ee` | 2026-10-23
+
+- **Changes**: spec §6 (feedback & telemetry decisions), §1 notes the only network traffic. YaaCore `Telemetry.swift`: `TelemetryEvent` (fixed counters, jump by terminal kind), `TelemetrySetting`, `TelemetryReport` (schema 1), `TelemetryFigures` (sessions/turns per agent from turns started that day), buckets, day keys, `DO_NOT_TRACK`, `TelemetryLedger` (`Paths.telemetry` = `telemetry.json`: consent, asked, install id, per-day counts, lastSent; read-modify-write). YaaIntegrations `Feedback.swift`: `Diagnostics` (versions, integration status, app listening, spool, db size, telemetry; no paths) and `Feedback.issueURL` (issue-form template + `diagnostics` field). App: `TelemetryReporter` (counts, tick sends each finished day once via ephemeral URLSession, preview, consent alert 3 s after first launch of a build with an endpoint), `FeedbackPrompt` (diagnostics shown, optional, then GitHub issue), menu 反馈…, settings 隐私与反馈 (toggle, 查看, 重置 id, 反馈…; replaces the About issue link). Counters in AppModel (jump, resume, approvals, rename, pin, spool replay), panel toggle, settings installs. `yaak doctor`, `yaak telemetry status|on|off`. `Info.plist` `YaakTelemetryEndpoint` (empty), `bundle.sh` sets it from `YAAK_TELEMETRY_ENDPOINT`. `.github/ISSUE_TEMPLATE` bug/feature forms. `docs/telemetry.md` lists every field. README, Architecture updated.
+- **Reason**: understand usage anonymously and give users a feedback path, without breaking the local-first promise.
+- **User feedback**: "需要研究给本项目加入tlememetry，匿名了解用户使用情况，还要加入反馈功能。" / "先做1-2阶段。1可以默认关闭 2网站/hbrwcask都 3自建 4要" / "在新的分支+新的工作树实现。"
+- **Process**: `make test` (117 pass, +12). End to end: app built with `YAAK_TELEMETRY_ENDPOINT` pointing at a local `wrangler dev`, temp HOME/YAAK_HOME, ledger seeded with yesterday's counts → one row in local D1 with those counts, ledger `lastSent` = yesterday. `yaak doctor` / `telemetry status|on|off` and `DO_NOT_TRACK` refusal checked on a temp YAAK_HOME. Snapshots: menu shows 反馈…; settings section renders (endpoint-less build: toggle disabled, footer says so).
+- **Result**: telemetry off and unavailable until a release is built with an endpoint; feedback works now.
+- **Notes**: settings flags are as at send time, not per day. Consent asked once per `telemetry.json` (existing users see it on their first launch of a build with an endpoint). The feedback/consent dialogs (NSAlert accessory views) were not clicked through on screen. `fixture-report.json` ties the Swift report to the server validator; regenerate with `YAAK_UPDATE_FIXTURES=1 make test`.
+
+## feat(telemetry): add the Worker that stores daily reports
+
+`af5bf04` | 2026-10-23
+
+- **Changes**: `server/telemetry`: Cloudflare Worker (`POST /v1/daily`), strict validator (`src/validate.js`: known fields only, UUID id, day within −2…+10 days, short version strings, bounded maps, bucket-shaped figures), D1 schema with one row per (install_id, day), README covering deploy, queries and free-tier notes. Node tests, including a fixture the Swift tests write.
+- **Reason**: phase 2 of the telemetry plan; the user chose a self-hosted backend.
+- **User feedback**: "先做1-2阶段。… 3自建，免费用量应该足够？ 4要"
+- **Process**: `npm test` (3 pass); `wrangler@4.20.0 dev --local` + local D1: a valid report gives 204, a resend of the same day stays one row, an unknown field gives 400, GET gives 405.
+- **Result**: ready to deploy; `database_id` in `wrangler.toml` is a placeholder.
+- **Notes**: no IP stored; rate limiting is left to a Cloudflare WAF rule (README). Bump `schema` and update the validator and fixture together.
+
+## feat(claude): keep a turn running while background agents are out
+
+`c0314bc` | 2026-10-23
+
+- **Changes**: Normalizer emits `.backgroundStart` on a main-agent `Agent`/`Task` PostToolUse whose response has `isAsync` + `agentId`, or a SendMessage with `resumedAgentId` (Claude Code only), and `.backgroundEnd` for each `<task-id>` in a `<task-notification>` prompt. `SessionState.backgroundTasks` (optional, old rows decode). `endTurn` with tasks out: stamps the turn's end once, ends main-agent tools, keeps `.running`, no `unreadSince`; a background agent's pending permission/question is kept. `StuckDetector`'s "nothing after turn end" rule skips such sessions unless the process is gone; silence applies even with a started sub-agent. SessionEnd clears them. Setting 等待背景 agent（测试）(on); off drops launches in `AppModel.ingest` and `forgetBackgroundTasks()` clears the held ones. Suite `ClaudeBackgroundAgents`. Spec updated.
+- **Reason**: each background agent's result arrives as a new prompt; the main agent's reply to it fired Stop, so the card went 待验收 and notified done while other agents were still running.
+- **User feedback**: "某个背景agent返回，主agent回复完毕的时候会提示done待审查，但实际上还在等其他agent结束" / "这个加入测试功能，支持claudecode背景agent探测，默认打开。"
+- **Process**: history.sqlite (read-only): session c26ad093 turn 2 is a `<task-notification>` prompt whose reply says it is still waiting, yet ended 待验收. Live probe in this session: notification arrives as UserPromptSubmit mid-turn; `subagents` stayed empty for the async agent and its `tool_input` has no `run_in_background` (only the response's `isAsync`). Adversarial review found: exited process → stuck forever; held Stop wiped a sub-agent's permission; SubagentStart without SubagentStop disabled the silence fallback; resumed agents untracked. All fixed, each with a test that fails when its fix is removed (ablation). `make test` (115 pass), `make build`.
+- **Result**: the session finishes only after the last background agent's notification turn stops.
+- **Notes**: background Bash tasks are not tracked (dev servers may never report). A lost notification shows as stuck (silence), not as running forever. Known gaps: a held session is `.running`, so replayed old events are not dropped by the stale guard; a prompt typed while held shows running, not 待验收. Nested agents' own async launches are ignored (they notify their parent agent). A held Esc interrupt stays running until the agents report.
+
 ## feat(panel): show the leverage direction arrow on the panel
 
-`pending` | 2026-10-22
+`aeada89` | 2026-10-22
 
 - **Changes**: RecentFigures' unfolded branch puts the slim rail's direction arrow (up/level/down from `direction(trend)`) beside the 杠杆 caption; spec notes it.
 - **Reason**: the expanded panel showed the curve but not the at-a-glance direction.

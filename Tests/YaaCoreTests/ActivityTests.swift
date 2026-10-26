@@ -139,8 +139,9 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         let r = ActivityReport.compute(rows: rows, lanesBefore: [:], range: DateInterval(start: t0, duration: 400), now: at(500))
         #expect(r.agentTime == 360)
         #expect(r.agentTimeAway == 150)
-        // Present 150 s, agents ran 210 s of it.
-        #expect(abs(r.leverage! - 210.0 / 150) < 1e-9)
+        // Present 150 s; all 360 s of agent time count, the away part costing the user nothing.
+        #expect(abs(r.leverage! - 360.0 / 150) < 1e-9)
+        #expect(r.utilizationAway == 1 && r.blockedAway == 0)
         #expect(r.longestRun?.session == "claude-code:a")
         #expect(r.longestRun?.duration == 300)
         #expect(r.turnsBySession == ["claude-code:b": 1])
@@ -153,14 +154,36 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         let r = ActivityReport.compute(rows: rows, lanesBefore: [:], range: DateInterval(start: t0, duration: 400),
                                        now: at(500), buckets: 4)
         #expect(r.activeBuckets == [100, 0, 50, 0])
-        #expect(r.presentAgentBuckets == [160, 0, 50, 0])
+        #expect(r.agentBuckets == [160, 100, 100, 0])
         let trend = r.rollingLeverage(window: 2)
         #expect(trend.count == 3)
-        #expect(abs(trend[0]! - 1.6) < 1e-9)
+        #expect(abs(trend[0]! - 2.6) < 1e-9)
         // 50 s present is under a minute: no figure.
         #expect(trend[1] == nil && trend[2] == nil)
         // The whole range as one window is the report's own leverage.
         #expect(abs(r.rollingLeverage(window: 4)[0]! - r.leverage!) < 1e-9)
+    }
+
+    @Test func blockedReviewAndInterventions() {
+        // a runs 0–100, waits for review 100–160 (away 120–140 inside), then is looked at.
+        // b asks 0–50, is answered and runs to 80; one turn. c asks 200–400, user away 250–500.
+        let rows = [lane("a", 0, .running), lane("a", 100, .review), lane("a", 160, nil),
+                    lane("b", 0, .needsInput), lane("b", 50, .running), lane("b", 80, nil),
+                    ActivityRow(at: at(80), session: "claude-code:b", kind: .turn, value: 1),
+                    lane("c", 200, .needsInput), lane("c", 400, nil),
+                    ActivityRow(at: at(120), session: "", kind: .away, value: 20),
+                    ActivityRow(at: at(250), session: "", kind: .away, value: 250)]
+        let r = ActivityReport.compute(rows: rows, lanesBefore: ["d": .review], range: DateInterval(start: t0, duration: 600),
+                                       now: at(1000))
+        // Review is idle, not blocked: only c's present wait 200–250 stalls everything.
+        #expect(r.bottleneck == 50)
+        #expect(abs(r.utilization! - 130.0 / 230) < 1e-9)
+        #expect(r.blockedAway == 150)
+        #expect(r.utilizationAway == 0)
+        // a's review less the 20 s away; d's review was carried in, so its start is unknown.
+        #expect(r.pickups == [40])
+        #expect(r.interventions == 2)
+        #expect(r.agentTimePerIntervention == 65)
     }
 
     @Test func bucketsSpanTheWholeRange() {

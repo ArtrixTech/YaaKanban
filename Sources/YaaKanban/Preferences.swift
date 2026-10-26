@@ -26,14 +26,15 @@ final class Preferences {
     var sidebarExpanded: Bool { didSet { d.set(sidebarExpanded, forKey: "sidebarExpanded") } }
     /// Experimental: the folded rail is a thin strip of status colors, each card's block as tall as the card.
     var slimRail: Bool { didSet { d.set(slimRail, forKey: "slimRail") } }
+    /// Experimental: a Claude Code turn that stops with background agents still out stays running.
+    var claudeBackgroundAgents: Bool { didSet { d.set(claudeBackgroundAgents, forKey: "claudeBackgroundAgents") } }
     /// Height of the floating panel's list set with its resize grip, kept whatever the content; nil
     /// (the grip dragged all the way up) lets the list follow its content.
     var panelListHeight: CGFloat? { didSet { d.set(panelListHeight.map(Double.init), forKey: "panelListHeightManual") } }
     /// Width of the unfolded floating panel, set by dragging its side edge.
     var panelWidth: CGFloat { didSet { d.set(Double(panelWidth), forKey: "panelWidth") } }
-    /// The floating panel's strip of figures for the last `recentMinutes`, under its header.
+    /// The floating panel's strip of figures (`RecentFigures`), under its header.
     var showRecentStats: Bool { didSet { d.set(showRecentStats, forKey: "showRecentStats") } }
-    var recentMinutes: Double { didSet { d.set(recentMinutes, forKey: "recentMinutes") } }
     /// Session ids in the order the user arranged them (see `Board`).
     var manualOrder: [String] { didSet { d.set(Array(manualOrder.prefix(500)), forKey: "manualOrder") } }
     /// Pinned session ids, newest pin first; they sit above every status on the boards.
@@ -60,7 +61,7 @@ final class Preferences {
             "reviewFlashEnabled": true, "reviewFlashMinutes": Attention.reviewFlashAfter / 60,
             "staleTintEnabled": true, "staleAfterMinutes": Attention.staleAfter / 60,
             "showPanel": true, "suppressWhenWaveFrontmost": true, "waveTabJump": true,
-            "showRecentStats": true, "recentMinutes": 60.0,
+            "showRecentStats": true, "claudeBackgroundAgents": true,
         ])
         stuckMinutes = d.double(forKey: "stuckMinutes")
         approvalTimeout = d.double(forKey: "approvalTimeout")
@@ -78,11 +79,10 @@ final class Preferences {
         panelCollapsed = d.bool(forKey: "panelCollapsed")
         sidebarExpanded = d.bool(forKey: "sidebarExpanded")
         slimRail = d.bool(forKey: "slimRail")
+        claudeBackgroundAgents = d.bool(forKey: "claudeBackgroundAgents")
         panelListHeight = d.object(forKey: "panelListHeightManual") == nil ? nil : CGFloat(d.double(forKey: "panelListHeightManual"))
         panelWidth = d.object(forKey: "panelWidth") == nil ? 340 : CGFloat(d.double(forKey: "panelWidth"))
         showRecentStats = d.bool(forKey: "showRecentStats")
-        let recent = d.double(forKey: "recentMinutes")
-        recentMinutes = Self.recentChoices.min { abs($0 - recent) < abs($1 - recent) }!
         manualOrder = d.stringArray(forKey: "manualOrder") ?? []
         pinned = d.stringArray(forKey: "pinnedSessions") ?? []
         suppressWhenWaveFrontmost = d.bool(forKey: "suppressWhenWaveFrontmost")
@@ -94,8 +94,6 @@ final class Preferences {
     /// How long reviewed sessions stay on the board, in minutes: 4, 8, 12 or 24 hours.
     static let retentionChoices: [Double] = [240, 480, 720, 1440]
     var idleVisibleSeconds: TimeInterval { idleVisibleMinutes * 60 }
-    /// Windows the panel's recent figures can cover, in minutes.
-    static let recentChoices: [Double] = [15, 30, 60, 120, 240]
     /// When a reviewed turn is bluest: halfway between turning blue and leaving the board.
     var stalePeakMinutes: Double { (staleAfterMinutes + idleVisibleMinutes) / 2 }
 }

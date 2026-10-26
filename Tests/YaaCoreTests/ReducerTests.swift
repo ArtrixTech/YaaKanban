@@ -202,12 +202,12 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(299), config: cfg, isAlive: { _ in true }) == nil)
         let out = StuckDetector.evaluate(s, now: t0.addingTimeInterval(301), config: cfg, isAlive: { _ in true })
         #expect(out?.status == .stuck)
-        #expect(Alerts.between(s, out!) == .stuck("5 分钟无新事件"))
+        #expect(Alerts.between(s, out!) == .stuck("No new events for 5 min"))
     }
 
     @Test func longTool() {
         let out = StuckDetector.evaluate(running(tool: "Bash"), now: t0.addingTimeInterval(400), config: cfg, isAlive: { _ in true })
-        #expect(out?.stuckReason == "Bash 已运行 6 分钟")
+        #expect(out?.stuckReason == "Bash has been running for 6 min")
     }
 
     @Test func backgroundToolIsNotStuck() {
@@ -224,7 +224,7 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
 
     @Test func deadProcess() {
         let out = StuckDetector.evaluate(running(pid: 7), now: t0.addingTimeInterval(1), config: cfg, isAlive: { _ in false })
-        #expect(out?.stuckReason == "进程已退出")
+        #expect(out?.stuckReason == "Process exited")
         var idle = running(pid: 7)
         idle.status = .idle
         // A finished turn stays idle: the conversation is still there to reopen.
@@ -388,6 +388,8 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(cmd(.codex, "abc") == "codex resume 'abc'")
         #expect(cmd(.opencode, "ses_1") == "opencode --session 'ses_1'")
         #expect(cmd(.pi, "/s/it's.jsonl") == "pi --session '/s/it'\\''s.jsonl'")
+        #expect(cmd(.gemini, "abc") == "gemini --resume 'abc'")
+        #expect(cmd(.copilot, "abc") == "copilot --resume 'abc'")
         #expect(cmd(.claudeCode, "") == nil)
         #expect(cmd(.claudeCode, "--dangerously-skip-permissions") == nil)
     }
@@ -484,7 +486,7 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         ])
         #expect(s.status == .needsInput)
         #expect(s.pendingPermission == nil)
-        #expect(s.needsInputMessage == "TEC 驱动选哪种？（共 2 个问题）")
+        #expect(s.needsInputMessage == "TEC 驱动选哪种？ (2 questions)")
     }
 
     @Test func genericNoticeStillFlagsOtherwise() {
@@ -864,5 +866,474 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         let claude = HookEnvelope(agent: .claudeCode, event: "UserPromptSubmit", receivedAt: t0,
                                   payload: .object(["session_id": .string("c"), "prompt": .string("hi")]))
         #expect(Normalizer.normalize(claude).count == 1)
+    }
+}
+
+@Suite struct ClaudeBackgroundAgents {
+    private func launch(_ id: String, at: TimeInterval) -> HookEnvelope {
+        claude("PostToolUse", ["tool_name": .string("Agent"), "tool_use_id": .string("t-\(id)"),
+                               "tool_response": .object(["isAsync": .bool(true), "agentId": .string(id)])], at: at)
+    }
+
+    private func notify(_ id: String, at: TimeInterval) -> HookEnvelope {
+        claude("UserPromptSubmit", ["prompt": .string("<task-notification>\n<task-id>\(id)</task-id>\n<status>completed</status>\n</task-notification>")], at: at)
+    }
+
+    @Test func stopWaitsForTheLastBackgroundAgent() {
+        let launched = fold([
+            claude("UserPromptSubmit", ["prompt": .string("research both")]),
+            launch("a1", at: 1),
+            launch("a2", at: 2),
+        ])
+        #expect(launched.backgroundTasks == ["a1", "a2"])
+
+        // The main agent says "waiting on them" and stops.
+        let stopped = fold([claude("Stop", ["last_assistant_message": .string("Waiting.")], at: 3)], into: launched)
+        #expect(stopped.status == .running)
+        #expect(stopped.unreadSince == nil)
+        #expect(stopped.turns.last?.endedAt == t0.addingTimeInterval(3))
+        #expect(Alerts.between(launched, stopped) == nil)
+
+        // The first one reports back; the main agent handles it and stops again.
+        let first = fold([notify("a1", at: 10), claude("Stop", at: 12)], into: stopped)
+        #expect(first.turns.count == 2)
+        #expect(first.backgroundTasks == ["a2"])
+        #expect(first.status == .running)
+        #expect(Alerts.between(stopped, first) == nil)
+
+        // The last one: now the turn is done.
+        let beforeLast = fold([notify("a2", at: 20)], into: first)
+        let done = fold([claude("Stop", ["last_assistant_message": .string("All in.")], at: 22)], into: beforeLast)
+        #expect(done.backgroundTasks == nil)
+        #expect(done.status == .idle)
+        #expect(done.unreadSince == t0.addingTimeInterval(22))
+        #expect(Alerts.between(beforeLast, done) == .done("All in."))
+    }
+
+    @Test func heldTurnIsNotFinishedByTheStuckCheck() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1), claude("Stop", at: 2)])
+        let cfg = StuckConfig()
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(10), config: cfg, isAlive: { _ in true }) == nil)
+        // A lost notification still surfaces, as silence.
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: cfg, isAlive: { _ in true })?.status == .stuck)
+        // Forgetting it (setting turned off) lets the check finish the session.
+        var forgot = s
+        forgot.backgroundTasks = nil
+        #expect(StuckDetector.evaluate(forgot, now: t0.addingTimeInterval(10), config: cfg, isAlive: { _ in true })?.status == .idle)
+    }
+
+    @Test func idleNoticeKeepsTheHeldTurnsEnd() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1), claude("Stop", at: 2),
+                      claude("Notification", ["notification_type": .string("idle_prompt")], at: 62)])
+        #expect(s.status == .running)
+        #expect(s.turns.last?.endedAt == t0.addingTimeInterval(2))
+    }
+
+    @Test func onlyTheMainAgentsAsyncLaunchesCount() {
+        let sync = claude("PostToolUse", ["tool_name": .string("Agent"), "tool_use_id": .string("t"),
+                                          "tool_response": .object(["agentId": .string("a0"), "content": .string("ok")])])
+        let nested = claude("PostToolUse", ["agent_id": .string("a1"), "tool_name": .string("Agent"), "tool_use_id": .string("t2"),
+                                            "tool_response": .object(["isAsync": .bool(true), "agentId": .string("a3")])])
+        #expect(fold([claude("UserPromptSubmit", ["prompt": .string("x")]), sync, nested]).backgroundTasks == nil)
+    }
+
+    @Test func sessionEndForgetsThem() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1), claude("SessionEnd", at: 2)])
+        #expect(s.backgroundTasks == nil)
+        #expect(s.status == .ended)
+    }
+
+    @Test func exitedProcessFinishesAHeldSession() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1), claude("Stop", at: 2)])
+        let out = StuckDetector.evaluate(s, now: t0.addingTimeInterval(10), config: StuckConfig(), isAlive: { _ in false })
+        #expect(out?.status == .idle)
+    }
+
+    @Test func silenceAppliesWithAStartedBackgroundAgent() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1),
+                      claude("SubagentStart", ["agent_id": .string("a1")], at: 1), claude("Stop", at: 2)])
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: StuckConfig(), isAlive: { _ in true })?.status == .stuck)
+    }
+
+    @Test func stopKeepsABackgroundAgentsPermission() {
+        let input: JSONValue = .object(["command": .string("rm -rf x")])
+        let s = fold([
+            claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1),
+            claude("PreToolUse", ["agent_id": .string("a1"), "tool_name": .string("Bash"), "tool_use_id": .string("b1"),
+                                  "tool_input": input], at: 2),
+            claude("PermissionRequest", ["agent_id": .string("a1"), "tool_name": .string("Bash"), "tool_input": input,
+                                         Normalizer.awaitingKey: .bool(true)], at: 3),
+            claude("Stop", at: 4),
+        ])
+        #expect(s.status == .needsInput)
+        #expect(s.pendingPermission?.awaitingDecision == true)
+    }
+
+    @Test func resumedAgentIsWaitedForAgain() {
+        let resume = claude("PostToolUse", ["tool_name": .string("SendMessage"), "tool_use_id": .string("m"),
+                                            "tool_response": .object(["success": .bool(true), "resumedAgentId": .string("a1")])], at: 30)
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1), notify("a1", at: 20), resume,
+                      claude("Stop", at: 31)])
+        #expect(s.backgroundTasks == ["a1"])
+        #expect(s.status == .running)
+    }
+
+    @Test func notificationNamesEveryTask() {
+        let p = "<task-notification>\n<task-id>a1</task-id>\n</task-notification>\n<task-notification>\n<task-id>b2</task-id>\n</task-notification>"
+        #expect(Normalizer.notifiedTasks(p) == ["a1", "b2"])
+        #expect(Normalizer.notifiedTasks("see <task-id>a1</task-id>").isEmpty)
+    }
+
+    private func shell(_ id: String, at: TimeInterval, _ extra: [String: JSONValue] = [:], agent: String? = nil) -> HookEnvelope {
+        var resp: [String: JSONValue] = ["stdout": .string(""), "stderr": .string(""), "interrupted": .bool(false),
+                                         "backgroundTaskId": .string(id)]
+        resp.merge(extra) { $1 }
+        var f: [String: JSONValue] = ["tool_name": .string("Bash"), "tool_use_id": .string("t-\(id)"),
+                                      "tool_input": .object(["command": .string("make test"), "run_in_background": .bool(true)]),
+                                      "tool_response": .object(resp)]
+        f["agent_id"] = agent.map(JSONValue.string)
+        return claude("PostToolUse", f, at: at)
+    }
+
+    @Test func stopWaitsForABackgroundShell() {
+        let stopped = fold([claude("UserPromptSubmit", ["prompt": .string("run the tests")]), shell("b7", at: 1),
+                            claude("Stop", ["last_assistant_message": .string("Waiting for the tests.")], at: 2)])
+        #expect(stopped.backgroundTasks == ["b7"])
+        #expect(stopped.status == .running)
+        #expect(stopped.unreadSince == nil)
+
+        let beforeDone = fold([notify("b7", at: 60)], into: stopped)
+        let done = fold([claude("Stop", ["last_assistant_message": .string("Tests pass.")], at: 62)], into: beforeDone)
+        #expect(done.status == .idle)
+        #expect(Alerts.between(beforeDone, done) == .done("Tests pass."))
+    }
+
+    @Test func shellsThatCannotNotifyAreNotWaitedFor() {
+        // Killed with the final response; a sub-agent's shell reports to the sub-agent.
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]),
+                      shell("b1", at: 1, ["backgroundEndsWithFinalResponse": .bool(true)]),
+                      shell("b2", at: 1, agent: "a1"),
+                      claude("PostToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("t"),
+                                             "tool_response": .object(["stdout": .string("ok"), "interrupted": .bool(false)])], at: 1),
+                      claude("Stop", at: 2)])
+        #expect(s.backgroundTasks == nil)
+        #expect(s.status == .idle)
+    }
+
+    @Test func stoppedShellIsNotWaitedFor() {
+        let stop = claude("PostToolUse", ["tool_name": .string("TaskStop"), "tool_use_id": .string("k"),
+                                          "tool_input": .object(["task_id": .string("b7")]),
+                                          "tool_response": .object(["message": .string("Stopped"), "task_id": .string("b7")])], at: 5)
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), shell("b7", at: 1), stop, claude("Stop", at: 6)])
+        #expect(s.backgroundTasks == nil)
+        #expect(s.status == .idle)
+    }
+}
+
+@Suite struct HermesFlow {
+    private func hermes(_ event: String, _ extra: [String: JSONValue] = [:], tool: String? = nil,
+                        input: JSONValue = .null, at: TimeInterval = 0) -> HookEnvelope {
+        var p: [String: JSONValue] = ["hook_event_name": .string(event), "session_id": .string("h1"),
+                                      "cwd": .string("/tmp/proj"), "tool_input": input, "extra": .object(extra)]
+        p["tool_name"] = tool.map(JSONValue.string) ?? .null
+        return HookEnvelope(agent: .hermes, event: event, receivedAt: t0.addingTimeInterval(at), payload: .object(p))
+    }
+
+    @Test func turnWithToolAndInterrupt() {
+        let s = fold([
+            hermes("pre_llm_call", ["user_message": .string("list files"), "is_first_turn": .bool(true)]),
+            hermes("pre_tool_call", ["tool_call_id": .string("c1")], tool: "terminal",
+                   input: .object(["command": .string("ls")]), at: 1),
+            hermes("post_tool_call", ["tool_call_id": .string("c1"), "status": .string("ok"), "result": .string("a b")],
+                   tool: "terminal", input: .object(["command": .string("ls")]), at: 2),
+            hermes("post_llm_call", ["assistant_response": .string("Two files.")], at: 3),
+            hermes("on_session_end", ["completed": .bool(true)], at: 4),
+        ])
+        #expect(s.title == "list files")
+        #expect(s.latestTool?.isRunning == false)
+        #expect(s.status == .idle)
+        #expect(s.lastReply == "Two files.")
+        #expect(s.resumeCommand == "hermes --resume 'h1'" || s.resumeCommand == "hermes --resume h1")
+
+        let ended = fold([hermes("on_session_finalize", at: 5)], into: s)
+        #expect(ended.status == .ended)
+    }
+
+    @Test func failedToolAndEmptySession() {
+        let evs = Normalizer.normalize(hermes("post_tool_call", ["status": .string("error"), "error_message": .string("boom")],
+                                              tool: "terminal", input: .object(["command": .string("x")])))
+        guard case .toolEnd(_, _, let out, let isError) = evs.first?.kind else { Issue.record("no toolEnd"); return }
+        #expect(isError && out == "boom")
+        var e = hermes("pre_llm_call")
+        if case .object(var o) = e.payload { o["session_id"] = .string(""); e.payload = .object(o) }
+        #expect(Normalizer.normalize(e).isEmpty)
+    }
+}
+
+/// Gemini CLI and Copilot CLI are renamed into the Claude schema.
+@Suite struct RenamedSchemas {
+    private func env(_ agent: AgentKind, _ event: String, _ p: [String: JSONValue], at: TimeInterval = 0) -> HookEnvelope {
+        HookEnvelope(agent: agent, event: event, receivedAt: t0.addingTimeInterval(at), payload: .object(p))
+    }
+    private func gemini(_ event: String, _ fields: [String: JSONValue] = [:], at: TimeInterval = 0) -> HookEnvelope {
+        var p: [String: JSONValue] = ["session_id": .string("g1"), "cwd": .string("/tmp/proj"), "hook_event_name": .string(event)]
+        p.merge(fields) { $1 }
+        return env(.gemini, event, p, at: at)
+    }
+    private func copilot(_ event: String, _ fields: [String: JSONValue] = [:], at: TimeInterval = 0) -> HookEnvelope {
+        var p: [String: JSONValue] = ["sessionId": .string("c1"), "cwd": .string("/tmp/proj"), "timestamp": .number(1)]
+        p.merge(fields) { $1 }
+        return env(.copilot, event, p, at: at)
+    }
+
+    @Test func geminiTurn() {
+        let input: JSONValue = .object(["command": .string("ls")])
+        let s = fold([
+            gemini("SessionStart", ["source": .string("startup")]),
+            gemini("BeforeAgent", ["prompt": .string("list files")], at: 1),
+            gemini("BeforeTool", ["tool_name": .string("run_shell_command"), "tool_input": input], at: 2),
+            gemini("AfterTool", ["tool_name": .string("run_shell_command"), "tool_input": input,
+                                 "tool_response": .object(["llmContent": .string("a b"), "returnDisplay": .string("a b")])], at: 3),
+            gemini("AfterAgent", ["prompt": .string("list files"), "prompt_response": .string("Two files.")], at: 4),
+        ])
+        #expect(s.title == "list files")
+        #expect(s.latestTool?.isRunning == false && s.latestTool?.output == "a b" && s.latestTool?.isError == false)
+        #expect(s.status == .idle && s.lastReply == "Two files.")
+
+        let failed = fold([
+            gemini("BeforeTool", ["tool_name": .string("read_file"), "tool_input": input]),
+            gemini("AfterTool", ["tool_name": .string("read_file"), "tool_input": input,
+                                 "tool_response": .object(["llmContent": .object(["text": .string("x")]),
+                                                           "error": .object(["message": .string("no such file")])])], at: 1),
+        ])
+        #expect(failed.latestTool?.isError == true && failed.latestTool?.isRunning == false)
+
+        let asked = fold([gemini("Notification", ["notification_type": .string("ToolPermission"),
+                                                  "message": .string("Allow run_shell_command?")], at: 5)], into: s)
+        #expect(asked.status == .needsInput)
+    }
+
+    @Test func copilotTurnAndPermission() {
+        let args: JSONValue = .string(#"{"command":"rm -rf build"}"#)
+        let s = fold([
+            copilot("sessionStart", ["source": .string("new")]),
+            copilot("userPromptSubmitted", ["prompt": .string("clean up")], at: 1),
+            copilot("preToolUse", ["toolName": .string("bash"), "toolArgs": args], at: 2),
+            copilot("permissionRequest", ["toolName": .string("bash"), "toolArgs": args, Normalizer.awaitingKey: .bool(true)], at: 3),
+        ])
+        #expect(s.title == "clean up")
+        #expect(s.status == .needsInput && s.pendingPermission?.awaitingDecision == true)
+        #expect(s.needsInputMessage == "bash: rm -rf build")
+
+        let done = fold([
+            copilot("postToolUse", ["toolName": .string("bash"), "toolArgs": args,
+                                    "toolResult": .object(["resultType": .string("success"), "textResultForLlm": .string("ok")])], at: 4),
+            copilot("agentStop", ["transcriptPath": .string("/tmp/t.jsonl"), "stopReason": .string("end_turn")], at: 5),
+        ], into: s)
+        #expect(done.pendingPermission == nil)
+        #expect(done.latestTool?.isRunning == false && done.latestTool?.output == "ok")
+        #expect(done.status == .idle)
+
+        let failed = fold([
+            copilot("preToolUse", ["toolName": .string("bash"), "toolArgs": args]),
+            copilot("postToolUse", ["toolName": .string("bash"), "toolArgs": args,
+                                    "toolResult": .object(["resultType": .string("failure"), "textResultForLlm": .string("boom")])], at: 1),
+        ])
+        #expect(failed.latestTool?.isError == true && failed.latestTool?.output == "boom")
+        #expect(Normalizer.normalize(copilot("sessionEnd", ["sessionId": .null])).isEmpty)
+    }
+
+    private func kimi(_ event: String, _ fields: [String: JSONValue] = [:], at: TimeInterval = 0) -> HookEnvelope {
+        var p: [String: JSONValue] = ["session_id": .string("k1"), "cwd": .string("/tmp/proj"), "hook_event_name": .string(event)]
+        p.merge(fields) { $1 }
+        return env(.kimi, event, p, at: at)
+    }
+
+    @Test func kimiTurnAndPermission() {
+        let input: JSONValue = .object(["command": .string("rm -rf build")])
+        let tool: [String: JSONValue] = ["tool_name": .string("Shell"), "tool_input": input, "tool_call_id": .string("call_1")]
+        let s = fold([
+            kimi("SessionStart", ["source": .string("startup")]),
+            kimi("UserPromptSubmit", ["prompt": .string("clean up")], at: 1),
+            kimi("PreToolUse", tool, at: 2),
+            // Notify-only: never shown as waiting on the app, even if a stray awaiting key arrives.
+            kimi("PermissionRequest", tool.merging(["action": .string("run"), Normalizer.awaitingKey: .bool(true)]) { $1 }, at: 3),
+        ])
+        #expect(s.title == "clean up")
+        #expect(s.status == .needsInput && s.pendingPermission?.id == "call_1" && s.pendingPermission?.awaitingDecision == false)
+
+        let answered = fold([kimi("PermissionResult", ["tool_call_id": .string("call_1"), "decision": .string("approved")], at: 4)], into: s)
+        #expect(answered.status == .running && answered.pendingPermission == nil)
+
+        let done = fold([
+            kimi("PostToolUse", tool.merging(["tool_output": .string("removed")]) { $1 }, at: 5),
+            kimi("Stop", ["stop_hook_active": .bool(false)], at: 6),
+        ], into: answered)
+        #expect(done.latestTool?.isRunning == false && done.latestTool?.output == "removed")
+        #expect(done.status == .idle)
+
+        let failed = fold([
+            kimi("PreToolUse", tool),
+            kimi("PostToolUseFailure", tool.merging(["error": .object(["message": .string("denied")])]) { $1 }, at: 1),
+            kimi("Interrupt", at: 2),
+        ])
+        #expect(failed.latestTool?.isError == true && failed.latestTool?.output == "denied")
+        #expect(failed.status == .idle)
+    }
+
+    @Test func kimiPromptPartsAndSubagent() {
+        let parts: JSONValue = .array([.object(["type": .string("text"), "text": .string("fix")]),
+                                       .object(["type": .string("image_url"), "image_url": .string("x")]),
+                                       .object(["type": .string("text"), "text": .string("the build")])])
+        let agent: [String: JSONValue] = ["tool_name": .string("Agent"), "tool_input": .object([:]), "tool_call_id": .string("a1")]
+        let sub: [String: JSONValue] = ["tool_name": .string("Shell"), "tool_input": .object([:]), "tool_call_id": .string("s1")]
+        let s = fold([
+            kimi("UserPromptSubmit", ["prompt": parts]),
+            kimi("PreToolUse", agent, at: 1),
+            kimi("SubagentStart", ["agent_name": .string("coder")], at: 2),
+            kimi("PreToolUse", sub, at: 3),
+            kimi("PostToolUse", sub, at: 4),
+            // The sub-agent's own Stop: the parent turn goes on.
+            kimi("Stop", at: 5),
+        ])
+        #expect(s.title == "fix the build")
+        #expect(s.status == .running && s.subagents.map(\.id) == ["coder"])
+
+        let done = fold([
+            kimi("SubagentStop", ["agent_name": .string("coder")], at: 6),
+            kimi("PostToolUse", agent, at: 7),
+            kimi("Stop", at: 8),
+        ], into: s)
+        #expect(done.subagents.isEmpty && done.status == .idle)
+    }
+
+    @Test func clineCliAndVSCode() {
+        // CLI: the session is the root session; tool calls carry ids.
+        func cli(_ event: String, _ f: [String: JSONValue] = [:], at: TimeInterval = 0) -> HookEnvelope {
+            env(.cline, event, ["taskId": .string("t1"), "hookName": .string(event),
+                                "sessionContext": .object(["rootSessionId": .string("root1")]),
+                                "workspaceRoots": .array([.string("/tmp/proj")]), "agent_id": .string("main")]
+                .merging(f) { $1 }, at: at)
+        }
+        let call: JSONValue = .object(["id": .string("c1"), "name": .string("run_commands"), "input": .object(["commands": .string("ls")])])
+        let s = fold([
+            cli("TaskStart"),
+            cli("UserPromptSubmit", ["userPromptSubmit": .object(["prompt": .string("list files")])], at: 1),
+            cli("PreToolUse", ["tool_call": call], at: 2),
+            // A sub-agent's tool shows up under the root session; its task end does not end the turn.
+            cli("PreToolUse", ["parent_agent_id": .string("main"), "agent_id": .string("sub1"),
+                               "tool_call": .object(["id": .string("c2"), "name": .string("read_files"), "input": .object([:])])], at: 3),
+            cli("TaskComplete", ["parent_agent_id": .string("main"), "agent_id": .string("sub1")], at: 4),
+        ])
+        #expect(s.id == "cline:root1" && s.cwd == "/tmp/proj" && s.title == "list files")
+        #expect(s.status == .running)
+        let done = fold([
+            cli("PostToolUse", ["tool_result": .object(["id": .string("c1"), "name": .string("run_commands"),
+                                                        "output": .string("a b"), "error": .null])], at: 5),
+            cli("TaskComplete", ["turn": .object(["outputText": .string("Two files."), "status": .string("completed")])], at: 6),
+        ], into: s)
+        #expect(done.tools.first { $0.id == "c1" }?.isRunning == false && done.tools.first { $0.id == "c1" }?.output == "a b")
+        #expect(done.status == .idle && done.turns.last?.lastMessage == "Two files.")
+        // The SDK's ask tool waits on the user; a CLI shutdown after Esc is not a session end.
+        let asked = fold([
+            cli("UserPromptSubmit", ["userPromptSubmit": .object(["prompt": .string("next")])], at: 7),
+            cli("PreToolUse", ["tool_call": .object(["id": .string("c3"), "name": .string("ask_question"),
+                                                    "input": .object(["question": .string("Which?")])])], at: 8),
+        ], into: done)
+        #expect(asked.status == .needsInput)
+        let cancelled = fold([cli("TaskCancel", at: 9), cli("SessionShutdown", at: 10)], into: asked)
+        #expect(cancelled.status == .idle)
+
+        // VS Code: no tool id and no root session; start and end pair by input.
+        func vs(_ event: String, _ f: [String: JSONValue] = [:], at: TimeInterval = 0) -> HookEnvelope {
+            env(.cline, event, ["taskId": .string("t9"), "hookName": .string(event)].merging(f) { $1 }, at: at)
+        }
+        let params: JSONValue = .object(["path": .string("a.swift")])
+        let v = fold([
+            vs("PreToolUse", ["preToolUse": .object(["toolName": .string("read_file"), "parameters": params])]),
+            vs("PostToolUse", ["postToolUse": .object(["toolName": .string("read_file"), "parameters": params,
+                                                       "result": .string("denied")])], at: 1),
+            vs("PreToolUse", ["preToolUse": .object(["toolName": .string("ask_followup_question"),
+                                                     "parameters": .object(["question": .string("Which file?")])])], at: 2),
+        ])
+        #expect(v.id == "cline:t9")
+        #expect(v.tools.first?.isError == true && v.tools.first?.output == "denied")
+        #expect(v.status == .needsInput)
+        let ended = fold([vs("TaskComplete", ["taskComplete": .object(["taskMetadata": .object(["result": .string("ok")])])], at: 3)], into: v)
+        #expect(ended.turns.last?.lastMessage == "ok")
+    }
+
+    @Test func windsurfActions() {
+        func ws(_ action: String, _ info: [String: JSONValue], at: TimeInterval = 0) -> HookEnvelope {
+            env(.windsurf, action, ["agent_action_name": .string(action), "trajectory_id": .string("traj1"),
+                                    "execution_id": .string("x"), "tool_info": .object(info)], at: at)
+        }
+        let s = fold([
+            ws("pre_user_prompt", ["user_prompt": .string("build it")]),
+            ws("pre_run_command", ["command_line": .string("make"), "cwd": .string("/tmp/proj")], at: 1),
+        ])
+        #expect(s.id == "windsurf:traj1" && s.title == "build it" && s.cwd == "/tmp/proj")
+        #expect(s.latestTool?.name == "bash" && s.latestTool?.isRunning == true)
+        let done = fold([
+            ws("post_run_command", ["command_line": .string("make"), "cwd": .string("/tmp/proj")], at: 2),
+            ws("pre_mcp_tool_use", ["mcp_server_name": .string("gh"), "mcp_tool_name": .string("search"),
+                                    "mcp_tool_arguments": .object(["q": .string("x")])], at: 3),
+            ws("post_mcp_tool_use", ["mcp_server_name": .string("gh"), "mcp_tool_name": .string("search"),
+                                     "mcp_tool_arguments": .object(["q": .string("x")]), "mcp_result": .string("3 hits")], at: 4),
+            ws("post_cascade_response", ["response": .string("Built.")], at: 5),
+        ], into: s)
+        #expect(done.tools.allSatisfy { !$0.isRunning })
+        #expect(done.latestTool?.name == "mcp__gh__search" && done.latestTool?.output == "3 hits")
+        #expect(done.status == .idle && done.turns.last?.lastMessage == "Built.")
+    }
+
+    @Test func ompUsesPluginSchema() {
+        let p: [String: JSONValue] = ["session_id": .string("/s/omp.jsonl"), "transcript_path": .string("/s/omp.jsonl")]
+        let s = fold([
+            env(.omp, "prompt", p.merging(["prompt": .string("hi")]) { $1 }),
+            env(.omp, "tool_start", p.merging(["id": .string("t1"), "tool": .string("ask"), "input": .object([:])]) { $1 }, at: 1),
+            env(.omp, "needs_input", p.merging(["message": .string("Waiting for your answer")]) { $1 }, at: 2),
+        ])
+        #expect(s.status == .needsInput)
+        let done = fold([
+            env(.omp, "tool_end", p.merging(["id": .string("t1"), "tool": .string("ask")]) { $1 }, at: 3),
+            env(.omp, "turn_end", p.merging(["message": .string("Bye")]) { $1 }, at: 4),
+        ], into: s)
+        #expect(done.status == .idle && done.turns.last?.lastMessage == "Bye")
+    }
+
+    @Test func zcodeAndKiro() {
+        let tmp = "/var/folders/x/zcode-hook-123.jsonl"
+        let z = Normalizer.normalize(env(.zcode, "Stop", ["session_id": .string("z1"), "hook_event_name": .string("Stop"),
+                                                         "transcript_path": .string(tmp), "last_assistant_message": .string("Done.")]))
+        #expect(z.count == 1 && z[0].transcriptPath == nil)
+        #expect(z.first?.kind == .turnEnd(lastMessage: "Done."))
+
+        // Kiro sends no tool id: start and end pair through the synthetic one.
+        let input: JSONValue = .object(["path": .string("README.md")])
+        func kiro(_ event: String, _ f: [String: JSONValue] = [:], at: TimeInterval = 0) -> HookEnvelope {
+            env(.kiro, event, ["session_id": .string("r1"), "hook_event_name": .string(event)].merging(f) { $1 }, at: at)
+        }
+        let s = fold([
+            kiro("UserPromptSubmit", ["prompt": .string("read it")]),
+            kiro("PreToolUse", ["tool_name": .string("read"), "tool_input": input], at: 1),
+            kiro("PostToolUse", ["tool_name": .string("read"), "tool_input": input, "tool_response": .string("hi")], at: 2),
+            kiro("Stop", at: 3),
+        ])
+        #expect(s.tools.count == 1 && s.latestTool?.isRunning == false && s.latestTool?.output == "hi")
+        #expect(s.status == .idle)
+    }
+}
+
+@Suite struct Search {
+    @Test func matchesNamePathPromptsAndReplies() {
+        var s = SessionState(agent: .codex, sessionId: "abc123", at: Date())
+        s.cwd = "/Users/me/GitHub/YaaKanban"
+        s.turns = [Turn(id: 1, prompt: "fix the Telemetry send", startedAt: Date(), toolCount: 0, lastMessage: "Done: waits for a network")]
+        s.peek = TranscriptPeek(lastReply: "看一下悬浮窗")
+        for q in ["yaakanban", "TELEMETRY", "a network", "悬浮窗", "abc1", "codex"] { #expect(s.matches(q), "\(q)") }
+        #expect(!s.matches("leverage"))
+        s.customName = "Leverage rework"
+        #expect(s.matches("leverage"))
     }
 }

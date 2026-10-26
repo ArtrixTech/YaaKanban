@@ -9,6 +9,8 @@ usage:
   yaak install   [--agent <a>] [--dry-run] [--yaak <path>]
   yaak uninstall [--agent <a>] [--dry-run]
   yaak status
+  yaak doctor                          (diagnostics to paste into a bug report)
+  yaak telemetry [status|on|off]       (opt-in anonymous usage reports, sent by the app)
 
 agents: \(AgentKind.allCases.map(\.rawValue).joined(separator: ", "))
 """
@@ -31,7 +33,8 @@ func selfPath() -> String {
 // MARK: hook
 
 /// Agents whose permission hook can take a decision from the app.
-let approvalEvents: [AgentKind: String] = [.claudeCode: "PermissionRequest", .opencode: "permission"]
+let approvalEvents: [AgentKind: String] = [.claudeCode: "PermissionRequest", .qwen: "PermissionRequest", .zcode: "PermissionRequest",
+                                           .copilot: "permissionRequest", .opencode: "permission"]
 
 /// Hooks must return within ~100 ms: reading stdin and sending to the app share one budget from
 /// process start. Whatever misses it is dropped (stdin) or spooled (the send).
@@ -48,7 +51,7 @@ func runHook(agent: AgentKind, event: String) -> Never {
     var payload = Wire.trim(JSONValue.parse(stdin) ?? .object([:]))
     let pid = env["YAAK_AGENT_PID"].flatMap(Int32.init) ?? ProcessUtil.hookOwner()
     // Questions (AskUserQuestion) also arrive as permission requests; never hold those up.
-    let tool = (payload["tool_name"] ?? payload["tool"])?.string?.lowercased() ?? ""
+    let tool = (payload["tool_name"] ?? payload["toolName"] ?? payload["tool"])?.string?.lowercased() ?? ""
     let wantsDecision = approvalEvents[agent] == event && !Normalizer.askTools.contains(tool)
 
     if wantsDecision, case .object(var o) = payload {
@@ -85,10 +88,14 @@ func runHook(agent: AgentKind, event: String) -> Never {
 
 func decisionOutput(_ agent: AgentKind, _ d: PermissionDecision) -> String {
     switch agent {
-    case .claudeCode:
+    case .claudeCode, .qwen, .zcode:
         var decision: [String: Any] = ["behavior": d.rawValue]
         if d == .deny { decision["message"] = "Denied from YaaKanban" }
         let out: [String: Any] = ["hookSpecificOutput": ["hookEventName": "PermissionRequest", "decision": decision]]
+        return String(decoding: try! JSONSerialization.data(withJSONObject: out), as: UTF8.self)
+    case .copilot:
+        var out: [String: Any] = ["behavior": d.rawValue]
+        if d == .deny { out["message"] = "Denied from YaaKanban" }
         return String(decoding: try! JSONSerialization.data(withJSONObject: out), as: UTF8.self)
     default:
         return d.rawValue
@@ -107,11 +114,23 @@ func selected() -> [any Integration] {
 
 func runInstall(_ install: Bool) -> Never {
     let home = Paths.home(env)
-    let yaak = option("--yaak") ?? selfPath()
     let dry = args.contains("--dry-run")
     let explicit = option("--agent") != nil
+    let me = selfPath()
+    var yaak = option("--yaak") ?? me
     if install && !yaak.contains(".app/Contents/Helpers/") {
         print("warning: hooks will point at \(yaak), which is not inside YaaKanban.app")
+    } else if install && option("--yaak") == nil {
+        // Hooks call a fixed link, so moving the app does not make agents ask for trust again.
+        let link = StableYaak.link(home: home).path
+        let app = URL(fileURLWithPath: String(me[..<me.range(of: ".app/Contents/Helpers/")!.lowerBound]) + ".app")
+        if !StableYaak.mayClaim(bundle: app, home: home) {
+            // Another (installed) copy owns the link; leave it pointing there.
+            if FileManager.default.fileExists(atPath: link) { yaak = link }
+        } else if dry { yaak = link } else {
+            do { yaak = try StableYaak.ensure(home: home, target: me) }
+            catch { print("warning: \(error); hooks will point at \(yaak)") }
+        }
     }
     var failed = false
     for i in selected() {
@@ -125,6 +144,7 @@ func runInstall(_ install: Bool) -> Never {
                 try Installer.apply(changes)
                 print("\(i.agent.rawValue): \(install ? "installed" : "uninstalled")")
                 if install, let note = i.postInstallNote { print("  note: \(note)") }
+                if install { printSteps(i.pendingSteps(home: home)) }
             }
         } catch {
             failed = true
@@ -134,11 +154,69 @@ func runInstall(_ install: Bool) -> Never {
     exit(failed ? 1 : 0)
 }
 
+func printSteps(_ steps: [String]) {
+    guard !steps.isEmpty else { return }
+    print("  to authorize:")
+    for (n, s) in steps.enumerated() { print("    \(n + 1). \(s)") }
+}
+
 func runStatus() -> Never {
     let home = Paths.home(env)
-    for i in Integrations.all { print("\(i.agent.rawValue): \(i.status(home: home).rawValue)") }
+    for i in Integrations.all {
+        let s = i.status(home: home)
+        let steps = s == .installed ? i.pendingSteps(home: home) : []
+        print("\(i.agent.rawValue): \(steps.isEmpty ? s.rawValue : IntegrationStatus.needsAuthorization.rawValue)")
+        printSteps(steps)
+    }
     let up = UnixSocket.send(Wire.encode(["ping": true]), to: paths.socket.path).sent
     print("app: \(up ? "listening" : "not running") (\(paths.socket.path))")
+    exit(0)
+}
+
+// MARK: doctor / telemetry
+
+/// The YaaKanban.app this binary is bundled in, if any.
+func appBundle() -> Bundle? {
+    let app = URL(fileURLWithPath: selfPath()).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    return app.pathExtension == "app" ? Bundle(url: app) : nil
+}
+
+func runDoctor() -> Never {
+    let up = UnixSocket.send(Wire.encode(["ping": true]), to: paths.socket.path).sent
+    let d = Diagnostics.gather(paths: paths, home: Paths.home(env), yaak: selfPath(),
+                               env: TelemetryEnvironment.current(bundle: appBundle() ?? .main), appListening: up,
+                               telemetry: TelemetryLedger.load(paths.telemetry).enabled)
+    print(d.markdown)
+    exit(0)
+}
+
+func runTelemetry() -> Never {
+    switch args.dropFirst().first ?? "status" {
+    case "on":
+        if Telemetry.doNotTrack(env) { print("DO_NOT_TRACK is set; telemetry stays off"); exit(1) }
+        TelemetryLedger.update(paths.telemetry) { $0.set(enabled: true) }
+        print("telemetry: on (the app sends one anonymous report per day; see docs/telemetry.md)")
+    case "off":
+        TelemetryLedger.update(paths.telemetry) { $0.set(enabled: false) }
+        print("telemetry: off (counts cleared)")
+    case "status":
+        let l = TelemetryLedger.load(paths.telemetry)
+        // The app, launched from Finder or at login, does not see this shell's DO_NOT_TRACK.
+        let state = !l.enabled ? "off" : Telemetry.doNotTrack(env)
+            ? "on (DO_NOT_TRACK in this shell does not reach the app; run `yaak telemetry off`)" : "on"
+        print("telemetry: \(state)")
+        if l.enabled, let id = l.installId { print("install id: \(id)") }
+        if let s = l.lastSent { print("last reported day: \(s)") }
+        if let r = l.lastResult {
+            let outcome = r.ok ? "accepted" : r.error ?? "HTTP \(r.status.map(String.init) ?? "?")"
+            print("last send: \(r.at.formatted(date: .numeric, time: .shortened)), \(r.days.joined(separator: " ")): \(outcome)")
+        }
+        let appKey = appBundle()?.object(forInfoDictionaryKey: Telemetry.appKeyKey) as? String ?? ""
+        let usable = AptabaseEvent.ingestURL(appKey: appKey) != nil
+        print("Aptabase: \(usable ? "configured" : "no usable App Key in this build (nothing is sent)")")
+    default:
+        print(usage); exit(2)
+    }
     exit(0)
 }
 
@@ -150,6 +228,8 @@ case "hook":
 case "install": runInstall(true)
 case "uninstall": runInstall(false)
 case "status": runStatus()
+case "doctor": runDoctor()
+case "telemetry": runTelemetry()
 case "snapshot":
     // Debug: ask the running app to render its windows to PNGs.
     let dir = args.count > 1 ? args[1] : "/tmp/yaak-snapshot"
