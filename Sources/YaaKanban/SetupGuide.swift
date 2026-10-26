@@ -305,19 +305,16 @@ struct SetupGuide: View {
             if step != .finish {
                 Button("Skip Setup") { close(apply: false) }.buttonStyle(.borderless).foregroundStyle(.secondary)
             }
-            Group {
-                if step == .finish {
-                    Button { close(apply: true) } label: { Text("Done").frame(minWidth: 84) }
-                        .keyboardShortcut(.defaultAction)
-                } else if step == .connect, found.contains(where: { Self.pending($0.1) }) {
-                    // Return is the big connect button's; Continue stays a plain choice.
-                    Button { go(1) } label: { Text("Continue").frame(minWidth: 84) }.buttonStyle(.bordered)
-                } else {
-                    Button { go(1) } label: { Text("Continue").frame(minWidth: 84) }
-                        .keyboardShortcut(.defaultAction)
-                }
+            if step == .finish {
+                Button("Done") { close(apply: true) }
+                    .buttonStyle(PillButton(prominent: true)).keyboardShortcut(.defaultAction)
+            } else if step == .connect, found.contains(where: { Self.pending($0.1) }) {
+                // Return is the big connect button's; Continue stays a plain choice.
+                Button("Continue") { go(1) }.buttonStyle(PillButton(prominent: false))
+            } else {
+                Button("Continue") { go(1) }
+                    .buttonStyle(PillButton(prominent: true)).keyboardShortcut(.defaultAction)
             }
-            .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(.extraLarge)
         }
     }
 
@@ -414,6 +411,24 @@ struct SetupGuide: View {
 private struct Pressable: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .brightness(configuration.isPressed ? -0.05 : 0)
+            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
+/// The footer's main button. Drawn by hand so it keeps its colour when the window isn't key.
+private struct PillButton: ButtonStyle {
+    let prominent: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(prominent ? Color.white : Color.primary)
+            .frame(minWidth: 120, minHeight: 40)
+            .padding(.horizontal, 6)
+            .background(Capsule().fill(prominent ? AnyShapeStyle(Color.accentColor.gradient) : AnyShapeStyle(Color.primary.opacity(0.1))))
+            .contentShape(Capsule())
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .brightness(configuration.isPressed ? -0.05 : 0)
             .animation(.snappy(duration: 0.15), value: configuration.isPressed)

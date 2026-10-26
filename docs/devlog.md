@@ -1,8 +1,19 @@
 # Devlog
 
-## style(onboarding): unframe the guide's agent list and enlarge its button
+## style(onboarding): draw the guide's footer buttons by hand
 
 `pending` | 2026-10-27
+
+- **Changes**: Continue/Done use a new `PillButton` style (40 pt capsule, min width 120, semibold 14, accent gradient + white text when prominent, faint fill otherwise, press scale) instead of `.borderedProminent` + `.extraLarge`.
+- **Reason**: system prominent buttons turn grey when the window is not key, so both Done and Continue looked grey.
+- **User feedback**: "完成按钮和继续按钮都是。"
+- **Process**: `make build`, `make test` 180 pass; `yaak snapshot` (non-key windows) now shows both buttons blue.
+- **Result**: done.
+- **Notes**: the connect step's non-default Continue (agents still pending) keeps the faint style on purpose so the Connect All button stays the main action.
+
+## style(onboarding): unframe the guide's agent list and enlarge its button
+
+`d821001` | 2026-10-27
 
 - **Changes**: SetupGuide's agent list loses its rounded card (fill, clip, stroke); rows align to the page margins (row inset 0, divider inset 44), list padded 8 pt top and bottom and masked with an 18 pt fade at the top and 24 pt at the bottom. Footer primary buttons (Continue/Done) use `.controlSize(.extraLarge)`.
 - **Reason**: user asked for no frame around the list, fades at both edges, and a taller Continue button.
