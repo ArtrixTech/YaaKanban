@@ -227,7 +227,9 @@ struct SetupGuide: View {
                 case true?: Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
                 case false?:
                     Button("Open System Settings") {
-                        openURL(URL(string: "x-apple.systempreferences:com.apple.preference.notifications")!)
+                        // The system asks only once; after a "Don't Allow", go straight to this app's own page.
+                        let id = Bundle.main.bundleIdentifier ?? "com.artrix.yaakanban"
+                        openURL(URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(id)")!)
                     }
                     .buttonStyle(.borderedProminent)
                 case nil: Button("Allow…") { askNotifications() }.buttonStyle(.borderedProminent)

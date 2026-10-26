@@ -1,8 +1,19 @@
 # Devlog
 
-## style(onboarding): draw the guide's footer buttons by hand
+## fix(onboarding): open the app's own notification settings page
 
 `pending` | 2026-10-27
+
+- **Changes**: the guide's "Open System Settings" (notifications denied) opens `x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=<bundle id>` instead of the Notifications list.
+- **Reason**: user found searching for YaaKanban in Settings too much friction and expected an allow/deny prompt.
+- **User feedback**: "消息提醒，不是应该会有一个窗口让用户选择是否允许吗？现在似乎只有强制进入设置找yaakanban，阻力很大。"
+- **Process**: tried the URL with `open`: System Settings lands on YaaKanban's page (window "YaaKanban", "允许通知" switch). usernoted log showed settings changes for the app at 00:40, and its plist entry has `auth` 7.
+- **Result**: done; a new user still gets the system prompt automatically on step 2 (status notDetermined).
+- **Notes**: macOS shows the permission prompt once per bundle id; after a denial `requestAuthorization` returns false with no UI and no API can bring it back, so the deep link is the shortest path. Resetting it means deleting the app's entry from usernoted's plist, which only a developer should do.
+
+## style(onboarding): draw the guide's footer buttons by hand
+
+`a2b071f` | 2026-10-27
 
 - **Changes**: Continue/Done use a new `PillButton` style (40 pt capsule, min width 120, semibold 14, accent gradient + white text when prominent, faint fill otherwise, press scale) instead of `.borderedProminent` + `.extraLarge`.
 - **Reason**: system prominent buttons turn grey when the window is not key, so both Done and Continue looked grey.
