@@ -106,6 +106,9 @@ struct MenuContent: View {
             MenuRow(symbol: "macwindow", title: String(localized: "Main window")) { done { AppWindows.open(.main) } }
             MenuRow(symbol: "gearshape", title: String(localized: "Settings…")) { done { AppWindows.open(.settings) } }
             MenuRow(symbol: "bubble.left", title: String(localized: "Feedback…")) { done { FeedbackPrompt.present(model) } }
+            if case .ready(let p) = model.updater.phase {
+                MenuRow(symbol: "arrow.down.circle.fill", title: String(localized: "Update to \(p.version)…")) { model.updater.installReady() }
+            }
             Divider().padding(.vertical, 3)
             MenuRow(symbol: "power", title: String(localized: "Quit YaaKanban")) { NSApp.terminate(nil) }
         }
@@ -125,6 +128,50 @@ struct MenuContent: View {
         NSApp.keyWindow?.close()
         nonisolated(unsafe) let action = action
         RunLoop.main.perform(inModes: [.common]) { MainActor.assumeIsolated { action() } }
+    }
+}
+
+/// One line on the floating panel about an update: ready to install, or just installed. Closing
+/// it hides it; the menu and settings still offer a ready update.
+struct UpdateNotice: View {
+    @Environment(AppModel.self) private var model
+    let notice: Updater.Notice
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon).font(.system(size: 11, weight: .semibold)).foregroundStyle(.blue)
+            Text(text).font(.system(size: 11.5)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+            Spacer(minLength: 4)
+            Button(action: act) { Text(actionTitle).font(.system(size: 11.5, weight: .semibold)) }
+                .buttonStyle(.plain).foregroundStyle(.blue)
+            IconButton(symbol: "xmark", help: String(localized: "Close")) { withAnimation(.snappy) { model.updater.dismiss() } }
+        }
+        .padding(.leading, 9).padding(.trailing, 2).frame(height: 26)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.blue.opacity(0.08)))
+    }
+
+    private var icon: String {
+        if case .ready = notice { "arrow.down.circle.fill" } else { "checkmark.circle.fill" }
+    }
+
+    private var text: String {
+        switch notice {
+        case .ready(let p): String(localized: "Version \(p.version) is downloaded")
+        case .updated(let v): String(localized: "Updated to \(v.description)")
+        }
+    }
+
+    private var actionTitle: String {
+        if case .ready = notice { String(localized: "Restart to Update") } else { String(localized: "What's New") }
+    }
+
+    private func act() {
+        switch notice {
+        case .ready(let p): model.updater.install(p)
+        case .updated(let v):
+            NSWorkspace.shared.open(Updater.notes(for: v))
+            model.updater.dismiss()
+        }
     }
 }
 
@@ -325,6 +372,7 @@ struct FloatingPanelView: View {
             }
             // Folded too (narrower), so the cards keep their place when the rail unfolds.
             if settings.showRecentStats { RecentFigures(folded: folded, slim: slim) }
+            if !folded, let n = model.updater.notice { UpdateNotice(notice: n).transition(.opacity) }
             list
             if !folded { bottomBar }
         }
@@ -935,8 +983,37 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            Section {
+                Toggle(isOn: Binding(get: { model.updater.automatic }, set: { model.updater.automatic = $0 })) {
+                    SettingLabel(String(localized: "Check for updates automatically"), symbol: "arrow.down.circle.fill", tint: .blue)
+                }
+                .disabled(!model.updater.available)
+                LabeledContent {
+                    if case .ready = model.updater.phase {
+                        Button("Install and Restart") { model.updater.installReady() }.controlSize(.small).buttonStyle(.borderedProminent)
+                    } else {
+                        Button("Check Now") { Task { await model.updater.check(manual: true) } }.controlSize(.small)
+                            .disabled(!model.updater.available || model.updater.busy)
+                    }
+                } label: {
+                    Text(updateStatus).padding(.leading, 30).foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Updates")
+            } footer: {
+                Text(model.updater.available
+                     ? "Updates come from GitHub Releases. A new version downloads in the background, then YaaKanban asks before installing it and restarting."
+                     : "This build isn't signed for updates (built from source), so it doesn't update itself.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             Section("About") {
-                LabeledContent("Version", value: AboutHeader.version)
+                LabeledContent("Version") {
+                    HStack(spacing: 8) {
+                        Text(AboutHeader.version).foregroundStyle(.secondary)
+                        if let v = model.updater.current { Link("What's New", destination: Updater.notes(for: v)) }
+                    }
+                }
                 LabeledContent("License", value: "GPL-3.0")
                 LabeledContent("Source code") { Link(destination: AboutHeader.repo) { Text(verbatim: "github.com/ArtrixTech/YaaKanban") } }
                 Text("© 2026 Artrix · Open source under GPL-3.0").font(.caption).foregroundStyle(.secondary)
@@ -954,6 +1031,17 @@ struct SettingsView: View {
     }
 
     static var yaak: String { AppModel.yaakPath }
+
+    private var updateStatus: String {
+        switch model.updater.phase {
+        case .idle: String(localized: "Not checked yet")
+        case .checking: String(localized: "Checking…")
+        case .downloading(let v): String(localized: "Downloading \(v)…")
+        case .ready(let p): String(localized: "\(p.version) is ready to install")
+        case .upToDate: String(localized: "Up to date")
+        case .failed(let why): String(localized: "Couldn't update: \(why)")
+        }
+    }
 
     private func apply(_ i: any Integration, install: Bool) {
         do {

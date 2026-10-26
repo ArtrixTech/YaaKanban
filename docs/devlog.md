@@ -1,8 +1,19 @@
 # Devlog
 
-## chore(release): bump the version to 0.1.1
+## feat(update): update from GitHub Releases with an in-app message
 
 `pending` | 2026-10-26
+
+- **Changes**: `YaaCore/Update.swift` (`AppVersion`, `GitHubRelease.offer`, `ReleaseNotes` section/excerpt) + tests; `YaaKanban/Updater.swift` (check at launch and every 6 h, background download to `~/Library/Caches/com.artrix.yaakanban/Updates/<v>/`, bundle id/version/team-signature check, sh helper swaps the app after quit with rollback and relaunches, `lastRunVersion` detects a finished update); `UpdateNotice` line on the floating panel, menu item, Settings › Updates, About › What's New; strings in 9 tables; `CHANGELOG.md`; `scripts/release.sh` + `make release`; spec §6, Architecture, AGENTS repo rule.
+- **Reason**: releases must reach users without a manual download; 0.1.1 is the first release, so it has to ship the updater.
+- **User feedback**: "等一下。需要先做自动更新机制"; "有更新自动下载最新release并问用户是否要更新。每次release做好更新条目管理。"; "更新提醒不要做这么明显的弹窗，app内一条消息就够了。"
+- **Process**: first version used NSAlerts, replaced by the panel line on feedback. E2E with a fake team-signed 0.1.2 served via `updateFeedURL` (file://): downloaded and verified, line "新版本 0.1.2 已下载 · 重启以更新" shown, click swapped and relaunched (new PID, 0.1.2, cache cleared), then "已更新到 0.1.2 · 新功能". An ad-hoc-signed build was not offered. `make test` (173), `make l10n` clean.
+- **Result**: works end to end; environment restored to the real 0.1.1.
+- **Notes**: `updateFeedURL` default overrides the feed for testing. Translocated or read-only installs open the release page instead. Builds without a team id (from source) never update. Release notes are cut at `---` (install footer). The panel's SwiftUI controls are not exposed to AX; tests clicked by coordinates with CGEvent.
+
+## chore(release): bump the version to 0.1.1
+
+`14a1476` | 2026-10-26
 
 - **Changes**: `Info.plist` `CFBundleShortVersionString` 0.1.0 → 0.1.1, `CFBundleVersion` 1 → 2.
 - **Reason**: first tagged release; develop goes to main through a PR, tagged `v0.1.1` with the built app attached.

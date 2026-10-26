@@ -7,7 +7,7 @@ TEST_FLAGS := $(if $(wildcard $(CLT_DEV)/Frameworks/Testing.framework), \
 APP := build/YaaKanban.app
 INSTALL_DIR := $(HOME)/Applications
 
-.PHONY: build test l10n app install run clean
+.PHONY: build test l10n app install run release clean
 
 build:
 	swift build
@@ -37,6 +37,10 @@ install: app
 run: app
 	pkill -x YaaKanban || true
 	open $(APP)
+
+# Publishes the Info.plist version as a GitHub release (see scripts/release.sh).
+release:
+	scripts/release.sh
 
 clean:
 	rm -rf .build build

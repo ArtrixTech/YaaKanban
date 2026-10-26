@@ -34,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = AppLanguage.atLaunch  // pin the language this process loaded before Settings can change it
         model.start()
+        model.updater.start()
         if model.settings.showPanel { panel.setVisible(true) }
         hotKey = HotKey { [weak self] in Task { @MainActor in self?.panel.toggle() } }
         model.onSnapshot = { [weak self] dir in self?.snapshot(to: dir) }

@@ -12,7 +12,8 @@
 - **YaaKanban app** — menu-bar app: socket server, session model, notifications, floating panel, main window (overview dashboard in `DashboardView.swift`), terminal jump adapters. `Sources/YaaKanban/`
 - **Telemetry & feedback**: opt-in daily report model, bucketing and consent ledger (`YaaCore/Telemetry.swift`) and its Aptabase event (`YaaCore/Aptabase.swift`); diagnostics and prefilled issue links (`YaaIntegrations/Feedback.swift`); the sender and consent prompt (`YaaKanban/TelemetryReporter.swift`) and the feedback dialog (`YaaKanban/FeedbackPrompt.swift`); issue forms in `.github/ISSUE_TEMPLATE/`.
 - **Localization**: English source strings in code; one `Resources/<lang>.lproj/` per translation (`Localizable.strings`, `InfoPlist.strings`), copied into the bundle by `scripts/bundle.sh`; the in-app language choice and relaunch in `Sources/YaaKanban/AppLanguage.swift`; `make l10n` (`scripts/l10n-check.py`) checks the compiler-extracted keys against every table.
-- **Packaging** — `Makefile`, `scripts/bundle.sh`, `Resources/Info.plist`.
+- **Updates**: version comparison, release offer and changelog excerpts (`YaaCore/Update.swift`); the checker, downloader, signature check, installer and the panel notice state (`YaaKanban/Updater.swift`), shown by `UpdateNotice` and the Updates settings in `YaaKanban/Windows.swift`.
+- **Packaging & release** — `Makefile`, `scripts/bundle.sh`, `Resources/Info.plist`; `scripts/release.sh` (`make release`) tags and publishes a GitHub release from `CHANGELOG.md`.
 
 ## Key Relationships
 

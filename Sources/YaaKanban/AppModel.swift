@@ -27,6 +27,7 @@ final class AppModel {
     @ObservationIgnored private let scanner = ClaudeSessionScanner()
     /// Opt-in anonymous daily reports (off unless the user turned them on).
     let telemetry: TelemetryReporter
+    let updater = Updater()
 
     var serverError: String?
     /// Installed integrations whose hooks the agent will not run yet, with what the user has to do.

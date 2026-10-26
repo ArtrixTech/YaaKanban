@@ -140,3 +140,4 @@ Local additions and overrides belong here and take precedence over shared defaul
 - Never touch the real `~/.claude`, `~/.codex`, `~/.cursor`, `~/.config/opencode`, or `~/.pi` from tests or exploration. Integration tests use a temporary HOME. The only sanctioned writer of real agent configs is `yaak install`/`yaak uninstall` run deliberately by the user (or by the agent when the user asks).
 - Hooks must never block or fail an agent: every `yaak hook` path exits 0 and returns within ~100 ms, except the bounded permission wait.
 - When appending to Codex `hooks.json`, only append; never reorder existing entries (Codex trust hashes are keyed by index).
+- User-facing changes get a line under `## [Unreleased]` in `CHANGELOG.md`. To release: rename that section to `## [x.y.z] - date`, bump `Resources/Info.plist`, merge to main, then `make release` on main (it publishes the section as the release notes the app shows).
