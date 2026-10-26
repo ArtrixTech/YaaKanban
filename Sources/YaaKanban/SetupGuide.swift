@@ -33,6 +33,8 @@ struct SetupGuide: View {
     @State private var wantCLI = true
     @State private var shareStats = true
     @State private var closed = false
+    /// The hidden title bar's height, which the window adds on top of the content.
+    @State private var titleBar: CGFloat = 0
     /// False for `yaak snapshot` renders, which must not count as the user finishing the guide.
     private let live: Bool
     // Authorization happens in the agent or System Settings, out of our sight.
@@ -51,11 +53,13 @@ struct SetupGuide: View {
             Spacer(minLength: 0)
             footer
         }
-        .padding(.horizontal, 28).padding(.top, 22).padding(.bottom, 18)
+        .padding(.horizontal, 28).padding(.top, 22).padding(.bottom, 24)
         .frame(width: Self.size.width, height: Self.size.height, alignment: .top)
         .ignoresSafeArea()
+        // The content draws under the title bar, but the window still sizes itself to content + bar.
+        .frame(height: Self.size.height - titleBar, alignment: .bottom)
         .background(Backdrop())
-        .background(FramelessWindow())
+        .background(FramelessWindow(titleBar: $titleBar))
         .onReceive(poll) { _ in recheck() }
         .task(id: step) { await readPermissions() }
         .onAppear(perform: loadChoices)
@@ -150,8 +154,14 @@ struct SetupGuide: View {
                         connectRow(item.0, item.1, heard: heard.contains(item.0.agent))
                     }
                 }
+                .padding(.bottom, 6)
             }
             .scrollIndicators(.automatic)
+            // Rows fade out at the bottom edge instead of being cut.
+            .mask(VStack(spacing: 0) {
+                Color.black
+                LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .top, endPoint: .bottom).frame(height: 18)
+            })
             .frame(maxHeight: .infinity)
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.primary.opacity(0.045)))
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -437,13 +447,22 @@ private struct Backdrop: View {
 /// Turns the hosting window frameless: content under a transparent, empty title bar, no traffic
 /// lights, movable by its background. Keeps `.titled` so it still takes key and keeps its corners.
 private struct FramelessWindow: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { Probe() }
+    @Binding var titleBar: CGFloat
+
+    func makeNSView(context: Context) -> NSView { let p = Probe(); p.report = { titleBar = $0 }; return p }
     func updateNSView(_ v: NSView, context: Context) {}
 
     private final class Probe: NSView {
+        var report: ((CGFloat) -> Void)?
+
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             guard let w = window else { return }
+            // Only a window that grows to fit its content (the scene) adds the bar; snapshot ones are fixed.
+            if w.identifier != nil {
+                let bar = w.frame.height - w.contentLayoutRect.height
+                DispatchQueue.main.async { [report] in report?(bar) }
+            }
             w.styleMask.insert(.fullSizeContentView)
             w.titlebarAppearsTransparent = true
             w.titleVisibility = .hidden

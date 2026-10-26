@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(onboarding): merge the guide's connect and check steps
+## fix(onboarding): drop the empty band under the guide's footer
 
 `pending` | 2026-10-27
+
+- **Changes**: SetupGuide reads the hidden title bar's height from its window (`frame − contentLayoutRect`, scene windows only: `identifier != nil`) and gives the content that much less height; the content still draws under the bar via `ignoresSafeArea`. Bottom padding 24 (was 18) to match the sides; the agent list fades out over 18 pt at its bottom edge instead of cutting a row.
+- **Reason**: user screenshot showed a band of empty space below the footer.
+- **User feedback**: "ui底下有问题。帮我优化排版细节"
+- **Process**: CGWindowList: the window was 632 pt for 600 pt of content, since `.hiddenTitleBar` still sizes the window as content + 32 pt bar; after the fix it is 600. `make test` 180 pass; `yaak snapshot` checked the fade.
+- **Result**: done; window size verified, the on-screen look not (screen recording is not allowed for this shell).
+- **Notes**: snapshot windows are fixed-size and keep a title-bar inset, so they still show a gap at the bottom; it isn't in the real window.
+
+## feat(onboarding): merge the guide's connect and check steps
+
+`0fafe2c` | 2026-10-27
 
 - **Changes**: SetupGuide down to 2 steps (`Step.verify` and its view removed); each agent row goes Install → Installed ("Ticked by itself the next time you use X. Sessions already running need a restart.") → Connected (`model.connectedAgents`), approvals inline; banner "All installed…" / "Every agent below is connected." when nothing is pending. Layout: page fixed at 560×600, no outer ScrollView, only the agent list scrolls inside its card; header = logo + title, progress dots and ✕ at the top right, lead below; `.ignoresSafeArea()` drops the top gap. `setup-verify` snapshot removed. Spec, README, CHANGELOG; 2 new / 8 removed strings × 9 languages.
 - **Reason**: user: page cut off and scrolled as a whole, wasted top space; installing all then waiting on a separate verify page felt bad, and asking to send an OpenCode message to verify was confusing.
