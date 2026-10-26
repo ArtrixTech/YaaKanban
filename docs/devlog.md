@@ -1,8 +1,19 @@
 # Devlog
 
-## refactor(panel): drop the ended list in favour of the search
+## feat(panel): scroll the list back to the top when the rail folds
 
 `pending` | 2026-10-26
+
+- **Changes**: `FloatingPanelView.scrolling` wraps its `ScrollView` in a `ScrollViewReader`; the content carries a fixed id, and `folded` turning true scrolls it to the top. Spec board bullet.
+- **Reason**: a rail folded while scrolled down kept the offset, so the folded rail and the next peek started mid-list instead of at the pinned / waiting cards.
+- **User feedback**: "收起悬浮窗的时候，要自动回到顶部。"
+- **Process**: `make build`, `make test` 170 pass, `make install`.
+- **Result**: folding (peek ending, or the fold button) resets the scroll.
+- **Notes**: read "收起" as folding into the side rail; collapsing (header chevron) or hiding already rebuilds the list at the top. Not checked on a real screen (snapshots can't scroll).
+
+## refactor(panel): drop the ended list in favour of the search
+
+`db71d3a` | 2026-10-26
 
 - **Changes**: removed `EndedButton`, `EndedList`, `AppModel.endedSessions` and the panel's `endedOpen`; `holdOpen` now only follows the search. Bottom bar: an empty flexible slot on the left keeps the grip centred, magnifier right. 3 strings × 9 tables removed; spec board bullet (search replaces the ended list).
 - **Reason**: the search with an empty query already lists every session of the last 14 days, ended ones included, and restores them on click.

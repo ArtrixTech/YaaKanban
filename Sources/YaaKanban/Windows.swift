@@ -280,6 +280,7 @@ struct FloatingPanelView: View {
     @State private var query = ""
 
     static let minList: CGFloat = 120
+    private static let listTopId = "listTop"
     static let maxList: CGFloat = 1400
     static let minWidth: CGFloat = 300
     static let maxWidth: CGFloat = 720
@@ -407,15 +408,20 @@ struct FloatingPanelView: View {
     }
 
     /// The list area: as tall as `shownList`, scrolling, each edge fading out instead of being cut
-    /// while more is past it.
+    /// while more is past it. Folding scrolls it back to the top.
     private func scrolling(@ViewBuilder _ content: () -> some View) -> some View {
-        ScrollView {
-            content()
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { grow(to: $0) }
-                .onGeometryChange(for: CGRect.self) { $0.frame(in: .scrollView) } action: {
-                    listTop = $0.minY
-                    listBottom = $0.maxY
-                }
+        let content = content()
+        return ScrollViewReader { proxy in
+            ScrollView {
+                content
+                    .id(Self.listTopId)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { grow(to: $0) }
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .scrollView) } action: {
+                        listTop = $0.minY
+                        listBottom = $0.maxY
+                    }
+            }
+            .onChange(of: folded) { if $1 { proxy.scrollTo(Self.listTopId, anchor: .top) } }
         }
         .scrollIndicators(.never)
         .frame(height: shownList)
