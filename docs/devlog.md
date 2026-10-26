@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(onboarding): point a new user to connecting their agents
+## feat(onboarding): add a first-run setup guide
 
 `pending` | 2026-10-27
+
+- **Changes**: new `SetupGuide.swift` window (scene id `setup`): step 1 detected agents with Install / Install All, approval steps, 2 s recheck; step 2 ticks each installed agent once `AppModel.connectedAgents` (agents of `hooked` sessions) has it, waiting hints otherwise; step 3 notifications (status via `Notifier.isAuthorized`), launch at login, Accessibility, link `~/.local/bin/yaak` → stable yaak link (only when missing; replaces only a symlink), statistics toggle applied on Done. `Preferences.setupDone`; `AppModel.start` sets `showSetupAtLaunch` when not done and nothing installed (else marks done), and then skips the launch notification request; AppDelegate opens the guide after 1 s instead of the telemetry alert. `Notifier.requestAuthorization` split into `setUp()` (delegate, categories) and the request. Install logic moved from SettingsView to `AppModel.applyIntegration`. Connect agents… (panel, menu) and Settings › General › Setup guide open it. Spec, CHANGELOG, README, Architecture; 33 strings × 9 languages.
+- **Reason**: the earlier hints still left a new user to find Settings, with no way to see that an agent reports and permission prompts arriving unexplained at launch.
+- **User feedback**: "onboarding做了吗？没做的话用什么方案做？目标是让新用户能顺利完成初始化设置"; chose the guide ("按照建议做"); "开新分支，完成后pr".
+- **Process**: `make test` 180 pass, `make l10n` 0 problems; temp HOME (with `.claude`, `.codex`) + DO_NOT_TRACK run: the guide window (540 pt) opened by itself; `yaak snapshot` rendered all three steps. Adversarial review agent: found reopening + Done turned statistics off (toggle started false; turning off also clears counts) → toggle now starts from `telemetry.isOn`; snapshot renders could finish setup → `live: false` for them.
+- **Result**: done on `feature/onboarding-wizard`; clicking through on a real screen (install, first-event tick, permission prompts) not done.
+- **Notes**: quitting with the guide open leaves setupDone false, so it opens again next launch if still nothing is installed (intended). Unverified: whether SwiftUI restores the open guide window on relaunch. Snapshot runs with a temp HOME still write the real defaults domain; export/import around them and `defaults delete` keys the backup lacked.
+
+## feat(onboarding): point a new user to connecting their agents
+
+`13846ce` | 2026-10-27
 
 - **Changes**: `AppModel.checkIntegrations` also tracks `unhookedAgents` (detected, not installed) and `noIntegrations`; `EmptyBoard` shows "No agents connected yet" with 连接 Agent… (opens Settings) while nothing is installed, and the menu has the same row; a card of an unhooked agent shows a plug mark (status approximate, no approvals or done alerts); the install message says only sessions started afterwards report; README gains a DMG install section, a first-run walkthrough and how to link `yaak` without `make install`; spec §Integrations and CHANGELOG updated; 9 translations.
 - **Reason**: an onboarding review found no first-run guidance: a new user saw "No active tasks" and had to discover Settings; Claude sessions found by the scan looked connected without hooks; running sessions don't pick up new hooks; README covered only building from source and its CLI commands assumed `make install`.

@@ -14,7 +14,8 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         Bundle.main.bundleIdentifier == nil ? nil : UNUserNotificationCenter.current()
     }
 
-    func requestAuthorization() {
+    /// Actions and delegate; asks for nothing (the setup guide asks with an explanation).
+    func setUp() {
         guard let center else { return }
         center.delegate = self
         let allow = UNNotificationAction(identifier: "allow", title: String(localized: "Allow once"))
@@ -23,7 +24,22 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
             UNNotificationCategory(identifier: "permission", actions: [allow, deny], intentIdentifiers: []),
             UNNotificationCategory(identifier: "session", actions: [], intentIdentifiers: []),
         ])
-        center.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+    }
+
+    /// Shows the system prompt once; later calls only report the answer.
+    func requestAuthorization(_ done: (@Sendable (Bool) -> Void)? = nil) {
+        guard let center else { done?(false); return }
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { ok, _ in done?(ok) }
+    }
+
+    /// nil while the user has not been asked yet.
+    func isAuthorized() async -> Bool? {
+        guard let center else { return false }
+        switch await center.notificationSettings().authorizationStatus {
+        case .notDetermined: return nil
+        case .denied: return false
+        default: return true
+        }
     }
 
     func post(_ alert: Alert, for s: SessionState, settings: Preferences) {

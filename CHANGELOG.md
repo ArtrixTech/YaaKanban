@@ -8,7 +8,8 @@ the update.
 ## [Unreleased]
 
 ### Added
-- First-run guidance: until an agent is connected, the floating panel and the menu offer **Connect agents…**, which opens the integrations in Settings. Cards of an agent without its integration show a plug mark, and installing says to restart sessions already running.
+- A setup guide on first launch: install the integrations for the agents found on this Mac, see each one report its first session, then allow notifications, choose launch at login and Accessibility, and link the `yaak` command. Reopen it from the menu or Settings › General.
+- Until an agent is connected, the floating panel and the menu offer **Connect agents…**, which opens the guide. Cards of an agent without its integration show a plug mark, and installing says to restart sessions already running.
 
 ### Changed
 - An agent that another agent runs as a tool (Claude calling Codex, for example) no longer gets a card of its own: it shows under the calling session, which also shows when it needs your input.

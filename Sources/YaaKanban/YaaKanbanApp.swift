@@ -19,6 +19,11 @@ struct YaaKanbanApp: App {
         }
         .defaultSize(width: 960, height: 620)
 
+        Window(String(localized: "Set Up YaaKanban"), id: SetupGuide.id) {
+            SetupGuide().environment(delegate.model)
+        }
+        .windowResizability(.contentSize)
+
         Settings {
             SettingsView(panel: delegate.panel).environment(delegate.model)
         }
@@ -40,8 +45,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.onSnapshot = { [weak self] dir in self?.snapshot(to: dir) }
         // A timer, not a GCD block: a modal alert run inside a main-queue block stalls every
         // main-actor Task (ingest, permission requests) until it is answered.
-        Timer.scheduledTimer(withTimeInterval: 3, repeats: false) { [model] _ in
-            MainActor.assumeIsolated { model.telemetry.askIfNeeded() }
+        // The setup guide asks about statistics itself; the menu-bar label must exist to open it.
+        let guide = model.showSetupAtLaunch
+        Timer.scheduledTimer(withTimeInterval: guide ? 1 : 3, repeats: false) { [model] _ in
+            MainActor.assumeIsolated { if guide { AppWindows.open(.setup) } else { model.telemetry.askIfNeeded() } }
         }
     }
 
@@ -59,6 +66,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("menu", AnyView(MenuContent(panel: panel).environment(model)), NSSize(width: 230, height: 230)),
             ("main", AnyView(MainWindow().environment(model)), NSSize(width: 1000, height: 640)),
             ("settings", AnyView(SettingsView(panel: panel).environment(model)), SettingsView.size),
+            ("setup", AnyView(SetupGuide(live: false).environment(model)), SetupGuide.size),
+            ("setup-verify", AnyView(SetupGuide(step: .verify, live: false).environment(model)), SetupGuide.size),
+            ("setup-finish", AnyView(SetupGuide(step: .finish, live: false).environment(model)), SetupGuide.size),
             ("dashboard", AnyView(DashboardView().environment(model)), NSSize(width: 1000, height: 900)),
             ("dashboard-week", AnyView(DashboardView(period: .week).environment(model)), NSSize(width: 1000, height: 900)),
             ("dashboard-month", AnyView(DashboardView(period: .month).environment(model)), NSSize(width: 1000, height: 900)),

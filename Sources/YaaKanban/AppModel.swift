@@ -34,8 +34,12 @@ final class AppModel {
     private(set) var integrationIssues: [AgentKind: [String]] = [:]
     /// Agents found on this Mac without our hooks: their sessions show only what a scan can see.
     private(set) var unhookedAgents: Set<AgentKind> = []
-    /// No integration installed at all: the panel and menu point to Settings.
+    /// No integration installed at all: the panel and menu point to the setup guide.
     private(set) var noIntegrations = false
+    /// Opens the setup guide once launch is done: a first launch with nothing connected.
+    @ObservationIgnored private(set) var showSetupAtLaunch = false
+    /// Agents that have reached YaaKanban through their hooks (the setup guide's check).
+    var connectedAgents: Set<AgentKind> { Set(sessions.values.filter(\.hooked).map(\.agent)) }
     /// Debug hook: render windows to PNGs (`yaak snapshot <dir>`), for verification without screen recording.
     @ObservationIgnored var onSnapshot: ((URL) -> Void)?
     /// Session selected in the main window, or `overview` (the home page).
@@ -194,9 +198,15 @@ final class AppModel {
         notifier.onAction = { [weak self] key, requestId, action in
             self?.handleNotificationAction(key: key, requestId: requestId, action: action)
         }
-        notifier.requestAuthorization()
+        notifier.setUp()
 
         checkIntegrations()
+        if !settings.setupDone {
+            // Someone who already connected agents (an older version) needs no guide.
+            if noIntegrations { showSetupAtLaunch = true } else { settings.setupDone = true }
+        }
+        // Without the guide nothing else asks; asking again is a no-op.
+        if !showSetupAtLaunch { notifier.requestAuthorization() }
         timers.append(Timer(timeInterval: 10, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         })
@@ -235,6 +245,29 @@ final class AppModel {
         if issues != integrationIssues { integrationIssues = issues }
         if unhooked != unhookedAgents { unhookedAgents = unhooked }
         if (installed == 0) != noIntegrations { noIntegrations = installed == 0 }
+    }
+
+    /// Installs or removes `i`'s hooks; the message to show, nil on success with nothing to add.
+    @discardableResult
+    func applyIntegration(_ i: any Integration, install: Bool) -> String {
+        let name = i.agent.displayName
+        defer { checkIntegrations() }
+        do {
+            try Installer.apply(try i.plan(install: install, home: Paths.home(), yaak: Self.yaakPath))
+            telemetry.count(install ? .integrationInstall : .integrationUninstall)
+            return !install ? String(localized: "\(name) uninstalled.")
+                : i.pendingSteps(home: Paths.home()).isEmpty ? String(localized: "\(name) installed. Sessions you start from now on report to YaaKanban; restart ones already running.")
+                : String(localized: "\(name) installed. You still need to approve it in \(name); the steps are above.")
+        } catch {
+            telemetry.count(.integrationFail)
+            return "\(name): \(error)"
+        }
+    }
+
+    /// The guide was finished or closed: it stays closed, and notifications are asked for if not yet.
+    func finishSetup() {
+        settings.setupDone = true
+        notifier.requestAuthorization()
     }
 
     /// Path the hooks call: the stable link to this app's yaak, made or re-pointed on first use.

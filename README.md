@@ -27,13 +27,17 @@ the same diagnostics.
 macOS 14+. Download the `.dmg` from [Releases](https://github.com/ArtrixTech/YaaKanban/releases/latest),
 open it and drag YaaKanban into Applications, then launch it.
 
-Until an agent is connected, the floating panel shows **Connect agents…**: it opens Settings →
-Agent integrations, which lists the agents found on this Mac. Click **Install** for each one you
-use. Only sessions started after that report to YaaKanban, so restart any that are already
-running. Some agents also ask you to approve the hooks; Settings shows the steps and checks when
-it is done. To check it works, send a message in a new session: its card appears on the panel.
+On first launch a setup guide walks you through it:
 
-Allow notifications when asked, so finished and waiting sessions can alert you.
+1. **Connect** — the agents found on this Mac; install the integration for the ones you use. Some
+   agents also ask you to approve the hooks; the guide shows the steps and ticks them when done.
+2. **Check** — start a new session in each agent and send a message; the guide ticks each agent
+   as its first event arrives. Sessions already running don't load the hooks; restart them.
+3. **Alerts and preferences** — notifications, launch at login, Accessibility (for jumping to the
+   exact window or Wave tab) and the `yaak` command.
+
+Reopen it any time from the menu (**Connect agents…** while nothing is connected) or Settings →
+General → Setup guide. Settings → Agent integrations manages the integrations afterwards.
 
 ## Build from source
 

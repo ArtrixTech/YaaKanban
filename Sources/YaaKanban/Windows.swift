@@ -97,7 +97,7 @@ struct MenuContent: View {
                 Text(err).font(.caption).foregroundStyle(.red).padding(.horizontal, 8)
             }
             if model.noIntegrations {
-                MenuRow(symbol: "powerplug.fill", title: String(localized: "Connect agents…")) { done { AppWindows.open(.settings) } }
+                MenuRow(symbol: "powerplug.fill", title: String(localized: "Connect agents…")) { done { AppWindows.open(.setup) } }
             }
             if !model.integrationIssues.isEmpty {
                 let names = model.integrationIssues.keys.map(\.displayName).sorted().formatted(.list(type: .and))
@@ -244,7 +244,7 @@ struct EmptyBoard: View {
                 Text("Install the integration for the agents you use; sessions you start afterwards show up here.")
                     .font(.system(size: 11)).foregroundStyle(.secondary).multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 16)
-                Button("Connect agents…") { AppWindows.open(.settings) }
+                Button("Connect agents…") { AppWindows.open(.setup) }
                     .controlSize(.small).buttonStyle(.borderedProminent).padding(.top, 2)
             } else {
                 Image(systemName: "moon.zzz.fill").font(.system(size: 22)).foregroundStyle(.tertiary)
@@ -679,7 +679,7 @@ private struct GripTracker: NSViewRepresentable {
 /// Opens the SwiftUI windows from AppKit code (the floating panel is outside any scene, so it has
 /// no `openWindow`). `WindowOpener`, living in the menu-bar label, does the opening.
 enum AppWindows {
-    enum Kind: String { case main, settings }
+    enum Kind: String { case main, settings, setup }
     static let request = Notification.Name("YaaOpenWindow")
     static func open(_ k: Kind) { NotificationCenter.default.post(name: request, object: k.rawValue) }
 }
@@ -694,6 +694,7 @@ struct WindowOpener: ViewModifier {
             switch AppWindows.Kind(rawValue: n.object as? String ?? "") {
             case .main: openWindow(id: "main")
             case .settings: openSettings()
+            case .setup: openWindow(id: SetupGuide.id)
             case nil: break
             }
         }
@@ -953,6 +954,9 @@ struct SettingsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             Section("General") {
+                LabeledContent {
+                    Button("Open…") { AppWindows.open(.setup) }.controlSize(.small)
+                } label: { SettingLabel(String(localized: "Setup guide"), symbol: "list.bullet.clipboard.fill", tint: .indigo) }
                 Toggle(isOn: $launchAtLogin) { SettingLabel(String(localized: "Launch at login"), symbol: "power", tint: .gray) }
                     .onChange(of: launchAtLogin) { _, on in
                         do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } }
@@ -1060,18 +1064,8 @@ struct SettingsView: View {
     }
 
     private func apply(_ i: any Integration, install: Bool) {
-        do {
-            try Installer.apply(try i.plan(install: install, home: Paths.home(), yaak: Self.yaak))
-            model.telemetry.count(install ? .integrationInstall : .integrationUninstall)
-            let name = i.agent.displayName
-            integrationMessage = !install ? String(localized: "\(name) uninstalled.")
-                : i.pendingSteps(home: Paths.home()).isEmpty ? String(localized: "\(name) installed. Sessions you start from now on report to YaaKanban; restart ones already running.")
-                : String(localized: "\(name) installed. You still need to approve it in \(name); the steps are above.")
-        } catch {
-            model.telemetry.count(.integrationFail)
-            integrationMessage = "\(i.agent.displayName): \(error)"
-        }
-        recheck()
+        integrationMessage = model.applyIntegration(i, install: install)
+        refresh += 1
     }
 
     private func recheck() {
