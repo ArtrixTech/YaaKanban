@@ -1,8 +1,30 @@
 # Devlog
 
-## feat(update): update from GitHub Releases with an in-app message
+## chore(release): bump the version to 0.1.2
 
 `pending` | 2026-10-26
+
+- **Changes**: `Info.plist` 0.1.1 (2) → 0.1.2 (3); CHANGELOG Unreleased → `[0.1.2]`.
+- **Reason**: ship the DMG and app icon; 0.1.1 (zip only, no icon) stays as published.
+- **User feedback**: chose "A" (new 0.1.2 rather than re-cutting 0.1.1).
+- **Process**: `make test`, then PR develop → main and `make release` on main.
+- **Result**: see the release.
+- **Notes**: installed 0.1.1 builds should pick up 0.1.2 through the in-app updater, the first real update.
+
+## feat(release): ship a drag-to-install DMG and an app icon
+
+`19e5236` | 2026-10-26
+
+- **Changes**: `scripts/icon.swift` renders `logo.svg` into an iconset on Apple's grid → `AppIcon.icns` in the bundle (`bundle.sh`, `CFBundleIconFile`); `scripts/dmg.sh` + `make dmg` build `YaaKanban.dmg` (app left, Applications link right, 640×400 window laid out by Finder via AppleScript, hidden `.background/background.tiff` @1x+@2x, app icon as volume icon, UDZO); `scripts/dmg-background.swift` draws the light backdrop, brand mark + name, green arrow and a grey chip under each label; `release.sh` uploads DMG + zip and the install footer now describes the DMG and Open Anyway.
+- **Reason**: unzip + `xattr` was unfriendly; a DMG is the usual Mac install.
+- **User feedback**: "这个逻辑不太友好了。有没有办法做安装器？那种，打开之后直接拖动并安装的。"; "先做1。"; "这个DMG的UI要好看一点"
+- **Process**: preview mode of the background script renders icons with white and black labels to check both appearances (no screen recording permission for Finder screenshots). Built the DMG, checked `.DS_Store` has the icon-view/background records, inner app passes `codesign --verify --deep --strict`.
+- **Result**: `make dmg` works; the updater still uses only the zip asset.
+- **Notes**: Finder deletes a `.VolumeIcon.icns` present while it lays out the window, so it is copied afterwards. Finder labels follow the system appearance (white in dark mode), hence the mid-grey chips. Not notarized: the DMG does not remove the first-launch Gatekeeper prompt; that needs a Developer ID certificate + notarytool.
+
+## feat(update): update from GitHub Releases with an in-app message
+
+`61a42af` | 2026-10-26
 
 - **Changes**: `YaaCore/Update.swift` (`AppVersion`, `GitHubRelease.offer`, `ReleaseNotes` section/excerpt) + tests; `YaaKanban/Updater.swift` (check at launch and every 6 h, background download to `~/Library/Caches/com.artrix.yaakanban/Updates/<v>/`, bundle id/version/team-signature check, sh helper swaps the app after quit with rollback and relaunches, `lastRunVersion` detects a finished update); `UpdateNotice` line on the floating panel, menu item, Settings › Updates, About › What's New; strings in 9 tables; `CHANGELOG.md`; `scripts/release.sh` + `make release`; spec §6, Architecture, AGENTS repo rule.
 - **Reason**: releases must reach users without a manual download; 0.1.1 is the first release, so it has to ship the updater.

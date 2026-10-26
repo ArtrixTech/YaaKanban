@@ -1,7 +1,8 @@
 #!/bin/sh
 # Usage: release.sh
 # Publishes the version in Resources/Info.plist as GitHub release v<version>: checks the tree and
-# CHANGELOG.md, tests, builds and signs the app, zips it, tags HEAD and creates the release with
+# CHANGELOG.md, tests, builds and signs the app, zips it (for in-app updates) and makes the
+# drag-to-install DMG (for people), tags HEAD and creates the release with
 # the changelog section as notes. Run on main after the release PR is merged.
 set -eu
 cd "$(dirname "$0")/.."
@@ -11,6 +12,7 @@ TAG="v$VERSION"
 # The app only accepts an update signed by the team that signed it (Updater.verify).
 TEAM="${YAAK_RELEASE_TEAM:-5KZD8GBF7G}"
 ZIP="build/YaaKanban-$VERSION.zip"
+DMG="build/YaaKanban-$VERSION.dmg"
 NOTES="build/release-notes.md"
 
 fail() { echo "release: $*" >&2; exit 1; }
@@ -42,6 +44,7 @@ BUILT=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" build/Yaa
 
 rm -f "$ZIP"
 ditto -c -k --keepParent build/YaaKanban.app "$ZIP"
+scripts/dmg.sh build/YaaKanban.app "$DMG"
 
 # The app shows the notes above the rule when it offers the update.
 {
@@ -49,11 +52,11 @@ ditto -c -k --keepParent build/YaaKanban.app "$ZIP"
   echo
   echo "---"
   echo
-  echo "**Install**: download \`YaaKanban-$VERSION.zip\`, unzip, move YaaKanban.app to Applications. It is not notarized yet, so the first time run \`xattr -dr com.apple.quarantine /Applications/YaaKanban.app\` (or allow it in System Settings › Privacy & Security). Later versions update from inside the app."
+  echo "**Install**: open \`YaaKanban-$VERSION.dmg\` and drag YaaKanban into Applications. It is not notarized yet, so the first time macOS blocks it: open System Settings › Privacy & Security and click Open Anyway. Later versions update from inside the app."
 } > "$NOTES"
 rm -f "$NOTES.body"
 
 git tag -a "$TAG" -m "YaaKanban $VERSION"
 git push -q origin "$TAG"
-gh release create "$TAG" "$ZIP" --title "YaaKanban $VERSION" --notes-file "$NOTES" --verify-tag
+gh release create "$TAG" "$DMG" "$ZIP" --title "YaaKanban $VERSION" --notes-file "$NOTES" --verify-tag
 echo "released $TAG"
