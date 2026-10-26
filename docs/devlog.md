@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(release): ship a drag-to-install DMG and an app icon
+## chore(release): bump the version to 0.1.2
 
 `pending` | 2026-10-26
+
+- **Changes**: `Info.plist` 0.1.1 (2) → 0.1.2 (3); CHANGELOG Unreleased → `[0.1.2]`.
+- **Reason**: ship the DMG and app icon; 0.1.1 (zip only, no icon) stays as published.
+- **User feedback**: chose "A" (new 0.1.2 rather than re-cutting 0.1.1).
+- **Process**: `make test`, then PR develop → main and `make release` on main.
+- **Result**: see the release.
+- **Notes**: installed 0.1.1 builds should pick up 0.1.2 through the in-app updater, the first real update.
+
+## feat(release): ship a drag-to-install DMG and an app icon
+
+`19e5236` | 2026-10-26
 
 - **Changes**: `scripts/icon.swift` renders `logo.svg` into an iconset on Apple's grid → `AppIcon.icns` in the bundle (`bundle.sh`, `CFBundleIconFile`); `scripts/dmg.sh` + `make dmg` build `YaaKanban.dmg` (app left, Applications link right, 640×400 window laid out by Finder via AppleScript, hidden `.background/background.tiff` @1x+@2x, app icon as volume icon, UDZO); `scripts/dmg-background.swift` draws the light backdrop, brand mark + name, green arrow and a grey chip under each label; `release.sh` uploads DMG + zip and the install footer now describes the DMG and Open Anyway.
 - **Reason**: unzip + `xattr` was unfriendly; a DMG is the usual Mac install.
