@@ -49,6 +49,8 @@ final class TelemetryReporter {
     /// This build has somewhere to send to, and the user's environment does not forbid it.
     var available: Bool { appKey != nil && ingestURL != nil && !doNotTrack }
     var isOn: Bool { enabled && available }
+    /// The user has answered once, here, in Settings or from the CLI.
+    var asked: Bool { TelemetryLedger.load(url).asked }
 
     func set(enabled on: Bool) {
         apply(TelemetryLedger.update(url) { $0.set(enabled: on) })

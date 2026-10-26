@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(onboarding): add a first-run setup guide
+## feat(onboarding): restyle the setup guide and default its choices on
 
 `pending` | 2026-10-27
+
+- **Changes**: SetupGuide frameless (`.hiddenTitleBar`, a probe hides traffic lights, transparent title bar, movable by background; own ✕ and Esc = skip), translucent `.sidebar` backdrop with an accent glow, hero header (step n of 3, 26 pt title, lead), cards with 32 pt icons; step 1 a full-width gradient "Connect All Agents" button (Return) while anything is not installed, a green banner when all are; step 2 each waiting agent says "No events yet. Open a new X session and send a message." with "Listening…", or "approve the hook first"; step 3 launch at login, Accessibility, CLI, statistics all toggles starting on, applied only on Done (reopened guide shows current login item / statistics; a statistics no given before stands via new `TelemetryReporter.asked`); notifications requested automatically on reaching step 3, denied shows a warning and a prominent Open System Settings. Spec, CHANGELOG; 13 new / 9 removed strings × 9 languages.
+- **Reason**: user review of the first version.
+- **User feedback**: "界面太丑了 不够现代。不要有mac标准顶栏，无边框设计"; "等待对话是啥意思？看不明白"; "hook全部允许的按钮不够明显…引导用户点全部"; "最后一页的选项…帮我默认打开，用户明确关闭再说"; "没有看到请求通知权限".
+- **Process**: log stream showed `Requested authorization [ didGrant: 0 hasError: 1 ]` and the usernoted entry for com.artrix.yaakanban exists: notifications were already denied on this Mac, so macOS shows no prompt again; the old guide showed only a small button for that. `make l10n` 0 problems, `make test`; `yaak snapshot` of the 3 steps checked.
+- **Result**: done; the frameless window on a real screen (dragging, focus) seen only by the user.
+- **Notes**: snapshot renders draw toggles/buttons as inactive (grey) since the offscreen window is not key. Skip/✕/Esc apply nothing from step 3 but still ask for notifications (finishSetup).
+
+## feat(onboarding): add a first-run setup guide
+
+`6be9985` | 2026-10-27
 
 - **Changes**: new `SetupGuide.swift` window (scene id `setup`): step 1 detected agents with Install / Install All, approval steps, 2 s recheck; step 2 ticks each installed agent once `AppModel.connectedAgents` (agents of `hooked` sessions) has it, waiting hints otherwise; step 3 notifications (status via `Notifier.isAuthorized`), launch at login, Accessibility, link `~/.local/bin/yaak` → stable yaak link (only when missing; replaces only a symlink), statistics toggle applied on Done. `Preferences.setupDone`; `AppModel.start` sets `showSetupAtLaunch` when not done and nothing installed (else marks done), and then skips the launch notification request; AppDelegate opens the guide after 1 s instead of the telemetry alert. `Notifier.requestAuthorization` split into `setUp()` (delegate, categories) and the request. Install logic moved from SettingsView to `AppModel.applyIntegration`. Connect agents… (panel, menu) and Settings › General › Setup guide open it. Spec, CHANGELOG, README, Architecture; 33 strings × 9 languages.
 - **Reason**: the earlier hints still left a new user to find Settings, with no way to see that an agent reports and permission prompts arriving unexplained at launch.

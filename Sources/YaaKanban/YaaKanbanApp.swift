@@ -22,6 +22,7 @@ struct YaaKanbanApp: App {
         Window(String(localized: "Set Up YaaKanban"), id: SetupGuide.id) {
             SetupGuide().environment(delegate.model)
         }
+        .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
 
         Settings {

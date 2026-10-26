@@ -7,11 +7,12 @@ import YaaIntegrations
 
 /// First-run window in three steps: connect the agents, see each one report, then alerts and
 /// preferences. Opens by itself on a first launch with nothing connected; the menu, the empty
-/// panel and Settings open it again. Closing it at any step counts as done.
+/// panel and Settings open it again. Closing it at any step counts as done. Frameless: no title
+/// bar or traffic lights, its own close button, dragged by the background.
 struct SetupGuide: View {
     enum Step: Int, CaseIterable { case connect, verify, finish }
     static let id = "setup"
-    static let size = NSSize(width: 540, height: 600)
+    static let size = NSSize(width: 560, height: 640)
 
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -21,13 +22,15 @@ struct SetupGuide: View {
     @State private var message: String?
     /// nil until the user has been asked.
     @State private var notifications: Bool?
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var askedNotifications = false
+    // The last step's choices start on and apply on Done; the user turns off what they don't want.
+    @State private var launchAtLogin = true
     @State private var accessibility = AXIsProcessTrusted()
-    /// Shown while the CLI was missing when the guide opened, so its result stays in view.
+    @State private var wantAccessibility = true
+    /// Shown while the CLI was missing when the guide opened.
     @State private var offerCLI = !SetupGuide.cliLinked
-    @State private var cliMessage: String?
-    /// Starts from the current choice, so reopening the guide and pressing Done changes nothing.
-    @State private var shareStats = false
+    @State private var wantCLI = true
+    @State private var shareStats = true
     @State private var closed = false
     /// False for `yaak snapshot` renders, which must not count as the user finishing the guide.
     private let live: Bool
@@ -39,54 +42,73 @@ struct SetupGuide: View {
     var body: some View {
         let _ = refresh
         VStack(spacing: 0) {
-            header
-            Divider()
+            topBar
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 18) {
+                    hero
                     switch step {
                     case .connect: connect
                     case .verify: verify
                     case .finish: finish
                     }
                 }
-                .padding(20)
+                .padding(.horizontal, 28).padding(.bottom, 20)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Divider()
             footer
         }
         .frame(width: Self.size.width, height: Self.size.height)
+        .background(Backdrop())
+        .background(FramelessWindow())
         .onReceive(poll) { _ in recheck() }
         .task(id: step) { await readPermissions() }
-        .onAppear { shareStats = model.telemetry.isOn }
+        .onAppear(perform: loadChoices)
         .onDisappear { if live, !closed { model.finishSetup() } }
+        .onExitCommand { close(apply: false) }
     }
-
     // MARK: Parts
 
-    private var header: some View {
-        HStack(spacing: 12) {
-            BrandMark(size: 40)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Set Up YaaKanban").font(.system(size: 17, weight: .bold))
-                Text(subtitle).font(.system(size: 12)).foregroundStyle(.secondary)
+    private var topBar: some View {
+        HStack(spacing: 6) {
+            ForEach(Step.allCases, id: \.self) { s in
+                Capsule().fill(s.rawValue <= step.rawValue ? Color.accentColor : Color.primary.opacity(0.15))
+                    .frame(width: s == step ? 22 : 8, height: 8)
             }
             Spacer()
-            HStack(spacing: 5) {
-                ForEach(Step.allCases, id: \.self) { s in
-                    Capsule().fill(s.rawValue <= step.rawValue ? Color.accentColor : Color.primary.opacity(0.15))
-                        .frame(width: s == step ? 18 : 7, height: 7)
-                }
+            Button { close(apply: false) } label: {
+                Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
+                    .frame(width: 24, height: 24)
+                    .background(Circle().fill(Color.primary.opacity(0.08)))
             }
+            .buttonStyle(.plain).help(String(localized: "Skip Setup"))
         }
-        .padding(20)
+        .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 4)
     }
 
-    private var subtitle: String {
+    private var hero: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            BrandMark(size: 52).shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+                .padding(.bottom, 6)
+            Text("Step \(step.rawValue + 1) of 3").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.accentColor)
+            Text(title).font(.system(size: 26, weight: .bold))
+            Text(lead).font(.system(size: 13)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.top, 6)
+    }
+
+    private var title: String {
         switch step {
-        case .connect: String(localized: "Step 1 of 3 · Connect your agents")
-        case .verify: String(localized: "Step 2 of 3 · Check that they report")
-        case .finish: String(localized: "Step 3 of 3 · Alerts and preferences")
+        case .connect: String(localized: "Connect your agents")
+        case .verify: String(localized: "Check that they report")
+        case .finish: String(localized: "Alerts and preferences")
+        }
+    }
+
+    private var lead: String {
+        switch step {
+        case .connect: String(localized: "YaaKanban adds a small hook to each agent's own settings (a backup is kept), so the agent tells it when a session runs, finishes or needs you. Install it for the agents you use.")
+        case .verify: String(localized: "Hooks load when a session starts. Open a new session in each agent and send one message; the agent is ticked here once its first event arrives. Sessions that were already running need a restart.")
+        case .finish: String(localized: "Everything here can be changed later in Settings, which also opens this guide again.")
         }
     }
 
@@ -95,24 +117,43 @@ struct SetupGuide: View {
         Integrations.all.map { ($0, $0.status(home: Paths.home(), yaak: AppModel.yaakPath)) }.filter { $0.1 != .notDetected }
     }
 
+    private static func pending(_ s: IntegrationStatus) -> Bool { s == .notInstalled || s == .outdated }
+
     @ViewBuilder private var connect: some View {
-        Text("YaaKanban adds a small hook to each agent's own settings (a backup is kept), so the agent tells it when a session runs, finishes or needs you. Install it for the agents you use.")
-            .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         let list = found
         if list.isEmpty {
             Text("No supported agents found on this Mac. Install one (Claude Code, Codex, Cursor, OpenCode, pi and more are supported), then come back here.")
-                .font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
+                .font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
         } else {
-            if list.contains(where: { $0.1 == .notInstalled || $0.1 == .outdated }) {
-                Button("Install All") { installAll() }.buttonStyle(.borderedProminent)
+            if list.contains(where: { Self.pending($0.1) }) {
+                Button { installAll() } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "link.circle.fill").font(.system(size: 30))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Connect All Agents").font(.system(size: 16, weight: .bold))
+                            Text("Recommended · installs the hook in every agent below at once")
+                                .font(.system(size: 11)).opacity(0.85)
+                        }
+                        Spacer()
+                        Image(systemName: "arrow.right").font(.system(size: 15, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 18).padding(.vertical, 16)
+                    .frame(maxWidth: .infinity)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.accentColor.gradient))
+                    .shadow(color: Color.accentColor.opacity(0.35), radius: 10, y: 4)
+                }
+                .buttonStyle(Pressable())
+                .keyboardShortcut(.defaultAction)
+            } else if list.allSatisfy({ $0.1 == .installed }) {
+                banner(String(localized: "Every agent below is connected."), symbol: "checkmark.seal.fill", tint: .green)
             }
-            VStack(spacing: 0) {
+            card {
                 ForEach(Array(list.enumerated()), id: \.element.0.agent) { n, item in
-                    if n > 0 { Divider() }
+                    if n > 0 { Divider().padding(.leading, 56) }
                     connectRow(item.0, item.1)
                 }
             }
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.04)))
         }
         if let message {
             Text(message).font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled)
@@ -122,8 +163,9 @@ struct SetupGuide: View {
 
     private func connectRow(_ i: any Integration, _ status: IntegrationStatus) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                agentLabel(i.agent)
+            HStack(spacing: 12) {
+                agentLogo(i.agent)
+                Text(i.agent.displayName).font(.system(size: 13, weight: .medium))
                 Spacer()
                 StatusBadge(status: status)
                 switch status {
@@ -133,169 +175,216 @@ struct SetupGuide: View {
                 }
             }
             if status == .needsAuthorization {
-                AuthorizationSteps(steps: i.pendingSteps(home: Paths.home()))
+                AuthorizationSteps(steps: i.pendingSteps(home: Paths.home())).padding(.leading, 14)
             } else if status == .installed || status == .outdated, let note = i.postInstallNote {
-                Text(note).font(.system(size: 11)).foregroundStyle(.secondary).padding(.leading, 30)
+                Text(note).font(.system(size: 11)).foregroundStyle(.secondary).padding(.leading, 44)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 9)
+        .padding(.horizontal, 14).padding(.vertical, 11)
     }
 
-    private func agentLabel(_ agent: AgentKind) -> some View {
-        HStack(spacing: 8) {
-            AgentLogo(agent: agent, size: 16)
-                .frame(width: 22, height: 22)
-                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.06)))
-            Text(agent.displayName)
-        }
+    private func agentLogo(_ agent: AgentKind) -> some View {
+        AgentLogo(agent: agent, size: 18)
+            .frame(width: 32, height: 32)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.07)))
     }
-
     @ViewBuilder private var verify: some View {
-        Text("Agents load hooks when a session starts. Open a new session in each agent and send it a message; it is ticked here as soon as YaaKanban hears from it, and its card appears on the floating panel. Restart sessions that were already running.")
-            .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         let installed = found.filter { $0.1 != .notInstalled }
         if installed.isEmpty {
             Text("No agent is connected yet. Go back to install one, or skip this for now.")
-                .font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
+                .font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
         } else {
             let heard = model.connectedAgents
-            VStack(spacing: 0) {
+            card {
                 ForEach(Array(installed.enumerated()), id: \.element.0.agent) { n, item in
-                    if n > 0 { Divider() }
+                    if n > 0 { Divider().padding(.leading, 56) }
                     verifyRow(item.0, item.1, heard: heard.contains(item.0.agent))
                 }
             }
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.04)))
             if installed.contains(where: { !heard.contains($0.0.agent) }) {
-                Text("Nothing yet? Check that the session was started after installing, that the agent trusts the folder you opened, and that any approval it asks for is done. You can finish now; it is ticked whenever the first event arrives.")
+                Text("Still waiting after sending a message? Check that the agent trusts the folder you opened and that any approval it asks for is done. You can finish now; the tick appears whenever the first event arrives.")
                     .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
     private func verifyRow(_ i: any Integration, _ status: IntegrationStatus, heard: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                agentLabel(i.agent)
-                Spacer()
-                if heard {
-                    Label("Connected", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-                } else if status == .needsAuthorization {
-                    Label("Needs approval", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
-                } else {
-                    HStack(spacing: 6) {
-                        ProgressView().controlSize(.small)
-                        Text("Waiting for a session…").foregroundStyle(.secondary)
+        let name = i.agent.displayName
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 12) {
+                agentLogo(i.agent)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name).font(.system(size: 13, weight: .medium))
+                    if !heard {
+                        Text(status == .needsAuthorization
+                             ? String(localized: "Approve the hook in \(name) first (steps below).")
+                             : String(localized: "No events yet. Open a new \(name) session and send a message."))
+                            .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
                 }
+                Spacer(minLength: 8)
+                Group {
+                    if heard {
+                        Label("Connected", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                    } else if status == .needsAuthorization {
+                        Label("Needs approval", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
+                    } else {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text("Listening…").foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .font(.system(size: 12, weight: .medium)).fixedSize()
             }
-            .font(.system(size: 12))
             if !heard, status == .needsAuthorization {
-                AuthorizationSteps(steps: i.pendingSteps(home: Paths.home()))
+                AuthorizationSteps(steps: i.pendingSteps(home: Paths.home())).padding(.leading, 14)
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 9)
+        .padding(.horizontal, 14).padding(.vertical, 11)
     }
 
     @ViewBuilder private var finish: some View {
-        row(String(localized: "Notifications"), symbol: "bell.badge.fill", tint: .red,
-            detail: String(localized: "Alerts when a session finishes, gets stuck or needs you; approve or deny requests right from them.")) {
-            switch notifications {
-            case true?: Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-            case false?:
-                Button("Open System Settings") {
-                    openURL(URL(string: "x-apple.systempreferences:com.apple.preference.notifications")!)
-                }
-            case nil: Button("Allow…") { model.notifier.requestAuthorization() }.buttonStyle(.borderedProminent)
-            }
-        }
-        row(String(localized: "Launch at login"), symbol: "power", tint: .gray,
-            detail: String(localized: "Keeps watching after a restart. Events from while it is closed are kept and shown later.")) {
-            Toggle("", isOn: $launchAtLogin).labelsHidden().toggleStyle(.switch)
-                .onChange(of: launchAtLogin) { _, on in
-                    do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } }
-                    catch {
-                        cliMessage = String(localized: "Couldn't change the login item: \(error.localizedDescription)")
-                        launchAtLogin = SMAppService.mainApp.status == .enabled
+        card {
+            row(String(localized: "Notifications"), symbol: "bell.badge.fill", tint: .red,
+                detail: notifications == false
+                    ? String(localized: "Notifications are off for YaaKanban. Turn them on in System Settings, or you will miss done alerts and approval requests.")
+                    : String(localized: "Alerts when a session finishes, gets stuck or needs you; approve or deny requests right from them.")) {
+                switch notifications {
+                case true?: Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                case false?:
+                    Button("Open System Settings") {
+                        openURL(URL(string: "x-apple.systempreferences:com.apple.preference.notifications")!)
                     }
-                }
-        }
-        row(String(localized: "Accessibility (optional)"), symbol: "accessibility", tint: .blue,
-            detail: String(localized: "Lets a click on a card bring the agent's exact window or Wave tab to the front. Without it, YaaKanban only activates the app.")) {
-            if accessibility {
-                Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-            } else {
-                Button("Allow…") {
-                    _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
+                    .buttonStyle(.borderedProminent)
+                case nil: Button("Allow…") { askNotifications() }.buttonStyle(.borderedProminent)
                 }
             }
-        }
-        if offerCLI {
-            row(String(localized: "Command line (optional)"), symbol: "terminal.fill", tint: .black,
-                detail: String(localized: "Links yaak to ~/.local/bin for yaak status, install and doctor.")) {
-                if Self.cliLinked {
-                    Label("Installed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+            Divider().padding(.leading, 56)
+            row(String(localized: "Launch at login"), symbol: "power", tint: .gray,
+                detail: String(localized: "Keeps watching after a restart. Events from while it is closed are kept and shown later.")) {
+                Toggle("", isOn: $launchAtLogin).labelsHidden().toggleStyle(.switch)
+            }
+            Divider().padding(.leading, 56)
+            row(String(localized: "Accessibility (optional)"), symbol: "accessibility", tint: .blue,
+                detail: String(localized: "Lets a click on a card bring the agent's exact window or Wave tab to the front. Without it, YaaKanban only activates the app.")) {
+                if accessibility {
+                    Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
                 } else {
-                    Button("Install") { linkCLI() }
+                    Toggle("", isOn: $wantAccessibility).labelsHidden().toggleStyle(.switch)
+                }
+            }
+            if offerCLI {
+                Divider().padding(.leading, 56)
+                row(String(localized: "Command line (optional)"), symbol: "terminal.fill", tint: .black,
+                    detail: String(localized: "Links yaak to ~/.local/bin for yaak status, install and doctor.")) {
+                    Toggle("", isOn: $wantCLI).labelsHidden().toggleStyle(.switch)
+                }
+            }
+            if model.telemetry.available {
+                Divider().padding(.leading, 56)
+                row(String(localized: "Send anonymous usage statistics"), symbol: "chart.line.uptrend.xyaxis", tint: .blue,
+                    detail: String(localized: "One report a day of versions, connected agents and rough usage ranges. Never prompts, code, paths or names. Change it any time in Settings.")) {
+                    Toggle("", isOn: $shareStats).labelsHidden().toggleStyle(.switch)
                 }
             }
         }
-        if model.telemetry.available {
-            row(String(localized: "Send anonymous usage statistics"), symbol: "chart.line.uptrend.xyaxis", tint: .blue,
-                detail: String(localized: "One report a day of versions, connected agents and rough usage ranges. Never prompts, code, paths or names. Change it any time in Settings.")) {
-                Toggle("", isOn: $shareStats).labelsHidden().toggleStyle(.switch)
-            }
-        }
-        if let cliMessage {
-            Text(cliMessage).font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled)
-        }
-        Text("Everything here can be changed later in Settings, which also opens this guide again.")
-            .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
     }
 
     private func row(_ title: String, symbol: String, tint: Color, detail: String,
                      @ViewBuilder trailing: () -> some View) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                SettingLabel(title, symbol: symbol, tint: tint)
-                Text(detail).font(.system(size: 11)).foregroundStyle(.secondary).padding(.leading, 30)
-                    .fixedSize(horizontal: false, vertical: true)
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: symbol).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
+                .frame(width: 32, height: 32)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tint.gradient))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.system(size: 13, weight: .medium))
+                Text(detail).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
             trailing().controlSize(.small).font(.system(size: 12))
         }
+        .padding(.horizontal, 14).padding(.vertical, 11)
+    }
+
+    private func card(@ViewBuilder _ content: () -> some View) -> some View {
+        VStack(spacing: 0, content: content)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.primary.opacity(0.045)))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.primary.opacity(0.07)))
+    }
+
+    private func banner(_ text: String, symbol: String, tint: Color) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol).font(.system(size: 18)).foregroundStyle(tint)
+            Text(text).font(.system(size: 13, weight: .medium))
+            Spacer()
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(tint.opacity(0.12)))
     }
 
     private var footer: some View {
-        HStack {
+        HStack(spacing: 10) {
             if step != .connect {
-                Button("Back") { go(-1) }
+                Button("Back") { go(-1) }.buttonStyle(.borderless).foregroundStyle(.secondary)
             }
             Spacer()
-            if step == .finish {
-                Button("Done") { close(applyStats: true) }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
-            } else {
-                Button("Skip Setup") { close(applyStats: false) }
-                Button("Continue") { go(1) }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+            if step != .finish {
+                Button("Skip Setup") { close(apply: false) }.buttonStyle(.borderless).foregroundStyle(.secondary)
             }
+            Group {
+                if step == .finish {
+                    Button { close(apply: true) } label: { Text("Done").frame(minWidth: 84) }
+                        .keyboardShortcut(.defaultAction)
+                } else if step == .connect, found.contains(where: { Self.pending($0.1) }) {
+                    // Return is the big connect button's; Continue stays a plain choice.
+                    Button { go(1) } label: { Text("Continue").frame(minWidth: 84) }.buttonStyle(.bordered)
+                } else {
+                    Button { go(1) } label: { Text("Continue").frame(minWidth: 84) }
+                        .keyboardShortcut(.defaultAction)
+                }
+            }
+            .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(.large)
         }
-        .padding(.horizontal, 20).padding(.vertical, 14)
+        .padding(.horizontal, 24).padding(.vertical, 16)
     }
-
     // MARK: Actions
+
+    /// First run starts every choice on; a reopened guide shows what is set now.
+    private func loadChoices() {
+        if model.settings.setupDone {
+            launchAtLogin = SMAppService.mainApp.status == .enabled
+            shareStats = model.telemetry.isOn
+        } else {
+            // A "no" given before (CLI or Settings) stands.
+            shareStats = model.telemetry.isOn || !model.telemetry.asked
+        }
+    }
 
     private func go(_ delta: Int) {
         guard let next = Step(rawValue: step.rawValue + delta) else { return }
         withAnimation(.snappy) { step = next }
     }
 
-    /// Done applies the statistics choice; skipping leaves it to the usual question next launch.
-    private func close(applyStats: Bool) {
-        if applyStats, model.telemetry.available { model.telemetry.set(enabled: shareStats) }
+    /// Done applies the last step's choices; skipping or closing leaves everything as it is.
+    private func close(apply: Bool) {
+        if apply { applyChoices() }
         closed = true
         model.finishSetup()
         dismiss()
+    }
+
+    private func applyChoices() {
+        let service = SMAppService.mainApp
+        if launchAtLogin != (service.status == .enabled) {
+            if launchAtLogin { try? service.register() } else { try? service.unregister() }
+        }
+        if offerCLI, wantCLI, !Self.cliLinked { linkCLI() }
+        if model.telemetry.available { model.telemetry.set(enabled: shareStats) }
+        if wantAccessibility, !accessibility {
+            _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
+        }
     }
 
     private func install(_ i: any Integration) {
@@ -304,11 +393,10 @@ struct SetupGuide: View {
     }
 
     private func installAll() {
-        let todo = found.filter { $0.1 == .notInstalled || $0.1 == .outdated }.map(\.0)
+        let todo = found.filter { Self.pending($0.1) }.map(\.0)
         let failed = todo.compactMap { i -> String? in
             let m = model.applyIntegration(i, install: true)
-            let s = i.status(home: Paths.home(), yaak: AppModel.yaakPath)
-            return s == .notInstalled || s == .outdated ? m : nil
+            return Self.pending(i.status(home: Paths.home(), yaak: AppModel.yaakPath)) ? m : nil
         }
         message = failed.isEmpty
             ? String(localized: "Installed. Sessions you start from now on report to YaaKanban; restart ones already running.")
@@ -323,8 +411,17 @@ struct SetupGuide: View {
         refresh += 1
     }
 
+    /// On the last step, the system prompt comes up by itself the first time, next to its reason.
     private func readPermissions() async {
         notifications = await model.notifier.isAuthorized()
+        if live, step == .finish, notifications == nil, !askedNotifications { askNotifications() }
+    }
+
+    private func askNotifications() {
+        askedNotifications = true
+        model.notifier.requestAuthorization { _ in
+            Task { @MainActor in refresh += 1 }
+        }
     }
 
     // MARK: Command line
@@ -334,15 +431,60 @@ struct SetupGuide: View {
 
     private func linkCLI() {
         let fm = FileManager.default, link = Self.cliLink
-        do {
-            try fm.createDirectory(at: link.deletingLastPathComponent(), withIntermediateDirectories: true)
-            // A link left dangling by a moved app is replaced; a real file there is not ours.
-            if (try? fm.destinationOfSymbolicLink(atPath: link.path)) != nil { try fm.removeItem(at: link) }
-            try fm.createSymbolicLink(atPath: link.path, withDestinationPath: AppModel.yaakPath)
-            cliMessage = String(localized: "Linked \(link.path). If yaak isn't found, add ~/.local/bin to your PATH.")
-        } catch {
-            cliMessage = String(localized: "Couldn't link yaak: \(error.localizedDescription)")
+        try? fm.createDirectory(at: link.deletingLastPathComponent(), withIntermediateDirectories: true)
+        // A link left dangling by a moved app is replaced; a real file there is not ours.
+        if (try? fm.destinationOfSymbolicLink(atPath: link.path)) != nil { try? fm.removeItem(at: link) }
+        try? fm.createSymbolicLink(atPath: link.path, withDestinationPath: AppModel.yaakPath)
+    }
+}
+
+/// Presses in slightly, for a custom-drawn button.
+private struct Pressable: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .brightness(configuration.isPressed ? -0.05 : 0)
+            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
+/// Translucent window background with a faint accent glow at the top.
+private struct Backdrop: View {
+    var body: some View {
+        ZStack {
+            Blur()
+            LinearGradient(colors: [Color.accentColor.opacity(0.16), .clear], startPoint: .top, endPoint: .center)
         }
-        refresh += 1
+        .ignoresSafeArea()
+    }
+
+    private struct Blur: NSViewRepresentable {
+        func makeNSView(context: Context) -> NSVisualEffectView {
+            let v = NSVisualEffectView()
+            v.material = .sidebar
+            v.blendingMode = .behindWindow
+            v.state = .active
+            return v
+        }
+        func updateNSView(_ v: NSVisualEffectView, context: Context) {}
+    }
+}
+
+/// Turns the hosting window frameless: content under a transparent, empty title bar, no traffic
+/// lights, movable by its background. Keeps `.titled` so it still takes key and keeps its corners.
+private struct FramelessWindow: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { Probe() }
+    func updateNSView(_ v: NSView, context: Context) {}
+
+    private final class Probe: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let w = window else { return }
+            w.styleMask.insert(.fullSizeContentView)
+            w.titlebarAppearsTransparent = true
+            w.titleVisibility = .hidden
+            w.isMovableByWindowBackground = true
+            for b in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] { w.standardWindowButton(b)?.isHidden = true }
+        }
     }
 }
