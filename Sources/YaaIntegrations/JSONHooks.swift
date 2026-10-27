@@ -116,7 +116,6 @@ public struct ClaudeIntegration: Integration {
 public struct CodexIntegration: Integration {
     public let agent = AgentKind.codex
     public init() {}
-    public var postInstallNote: String? { String(localized: "Codex runs only the hooks you trusted: Settings → Hooks in the app, /hooks in the terminal.") }
     public var approvesInEitherPlace: Bool { true }
 
     /// The desktop app's steps by default: it is what most people use.

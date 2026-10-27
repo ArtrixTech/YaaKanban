@@ -211,7 +211,6 @@
 "Session reminders" = "Sitzungshinweise";
 "Review flashing counts only time you're at the computer (2 minutes without keyboard or mouse, or sleep, counts as away). A reviewed session that hasn't run since turns gradually blue from “Start tinting”, is bluest halfway between that and “Keep reviewed sessions”, and fades back to gray and leaves the floating panel when the retention ends. Time counts from when the session ended or you last opened it; opening it again restarts the clock." = "Das Prüf-Blinken zählt nur Zeit, in der du am Computer bist (2 Minuten ohne Tastatur oder Maus oder Ruhezustand gelten als abwesend). Eine geprüfte Sitzung, die seitdem nicht mehr lief, färbt sich ab „Färben ab“ allmählich blau, ist auf halbem Weg bis „Geprüfte behalten“ am blauesten und wird wieder grau und verlässt das Schwebefenster, wenn die Aufbewahrung endet. Die Zeit zählt ab dem Ende der Sitzung oder ab dem letzten Öffnen. Erneutes Öffnen startet sie neu.";
 "Floating panel" = "Schwebefenster";
-"Opacity" = "Deckkraft";
 "Show / hide" = "Ein-/Ausblenden";
 "Show leverage and today's work time on top" = "Hebel und heutige Arbeitszeit oben zeigen";
 "Wait for background agents (beta)" = "Auf Hintergrund-Agenten warten (Beta)";
@@ -432,7 +431,6 @@
 "Continue" = "Weiter";
 "Done" = "Fertig";
 "Everything here can be changed later in Settings, which also opens this guide again." = "Alles hier lässt sich später in den Einstellungen ändern, wo du diese Anleitung auch wieder öffnen kannst.";
-"Installed. Sessions you start from now on report to YaaKanban; restart ones already running." = "Installiert. Ab jetzt gestartete Sitzungen melden sich bei YaaKanban; laufende Sitzungen neu starten.";
 "Keeps watching after a restart. Events from while it is closed are kept and shown later." = "Beobachtet auch nach einem Neustart weiter. Ereignisse, während die App geschlossen ist, bleiben erhalten und erscheinen später.";
 "Lets a click on a card bring the agent's exact window or Wave tab to the front. Without it, YaaKanban only activates the app." = "Ein Klick auf eine Karte holt das Fenster oder den Wave-Tab des Agenten nach vorn. Ohne diese Freigabe aktiviert YaaKanban nur die App.";
 "Links yaak to ~/.local/bin for yaak status, install and doctor." = "Verlinkt yaak nach ~/.local/bin für yaak status, install und doctor.";
@@ -451,11 +449,14 @@
 "Every agent below is connected." = "Alle Agenten unten sind verbunden.";
 "Notifications are off for YaaKanban. Turn them on in System Settings, or you will miss done alerts and approval requests." = "Mitteilungen für YaaKanban sind aus. Schalte sie in den Systemeinstellungen ein, sonst verpasst du Fertig-Hinweise und Freigabeanfragen.";
 "Recommended · installs the hook in every agent below at once" = "Empfohlen · installiert den Hook in allen Agenten unten auf einmal";
-"All installed. Each agent is ticked by itself the next time you use it; restart sessions already running." = "Alles installiert. Jeder Agent wird abgehakt, sobald du ihn das nächste Mal benutzt; laufende Sitzungen neu starten.";
-"Ticked by itself the next time you use %@. Sessions already running need a restart." = "Wird abgehakt, sobald du %@ das nächste Mal benutzt. Laufende Sitzungen müssen neu gestartet werden.";
-"Codex runs only the hooks you trusted: Settings → Hooks in the app, /hooks in the terminal." = "Codex führt nur Hooks aus, denen du vertraut hast: in der App unter „Einstellungen“ → „Hooks“, im Terminal mit /hooks.";
 "In the Codex app, open Settings → Hooks." = "Öffne in der Codex-App „Einstellungen“ → „Hooks“.";
 "%@ app" = "%@-App";
 "Not Now" = "Nicht jetzt";
-"Allow YaaKanban to bring the right window forward?" = "Darf YaaKanban das richtige Fenster nach vorne holen?";
-"To bring the agent's exact window or Wave tab to the front, YaaKanban needs Accessibility access. macOS will ask next; turn on YaaKanban in System Settings, then click the card again. Without it, YaaKanban only switches to the app." = "Um das genaue Fenster des Agents oder seinen Wave-Tab nach vorne zu holen, braucht YaaKanban Zugriff auf die Bedienungshilfen. macOS fragt gleich danach; aktiviere YaaKanban in den Systemeinstellungen und klicke dann erneut auf die Karte. Ohne den Zugriff wechselt YaaKanban nur zur App.";
+"Waiting for first use" = "Wartet auf erste Nutzung";
+"An agent is ticked by itself the next time you use it. Sessions already running need a restart." = "Ein Agent wird bei seiner nächsten Nutzung von selbst abgehakt. Laufende Sitzungen müssen neu gestartet werden.";
+"Still needs approval" = "Freigabe noch ausstehend";
+"Not Yet" = "Noch nicht";
+"Continue Anyway" = "Trotzdem fortfahren";
+"%@ won’t report to YaaKanban until you approve its hooks." = "%@ meldet nichts an YaaKanban, bis du seine Hooks freigibst.";
+"Allow Accessibility access?" = "Zugriff auf Bedienungshilfen erlauben?";
+"Needed to jump to the exact window or Wave tab. Without it, only the app comes forward." = "Nötig, um zum genauen Fenster oder Wave-Tab zu springen. Ohne ihn kommt nur die App nach vorn.";

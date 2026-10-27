@@ -13,8 +13,15 @@ struct TerminalJumper {
 
     @discardableResult
     func jump(to s: SessionState) -> Outcome {
+        // Asked from the click itself, the alert stalls the panel mid-fold (the rail stays wide);
+        // it comes up just after, and the jump goes ahead once it is answered.
+        if needsAccessibility(s), shouldAsk {
+            Self.askedThisLaunch = true
+            DispatchQueue.main.async { explainAccessibility(); jump(to: s) }
+            return .activated("")
+        }
         if let t = s.terminal, t.isWave, let wave = NSRunningApplication.runningApplications(withBundleIdentifier: Self.waveBundleId).first {
-            let tabs = settings.waveTabSwitching && t.waveTabId != nil && accessibility()
+            let tabs = settings.waveTabSwitching && t.waveTabId != nil && AXIsProcessTrusted()
             WaveAdapter(terminal: t, switchTabs: tabs).jump(app: wave)
             return .activated("Wave")
         }
@@ -33,7 +40,6 @@ struct TerminalJumper {
             if Self.isEditor(app) {
                 // Raise the window that has the project (opening the folder would make a new editor
                 // window when the session lives in Cursor's separate Agents window).
-                _ = accessibility()
                 app.activate()
                 EditorWindows.raise(pid: app.processIdentifier, project: s.projectName, agentsFirst: s.agent == .cursor)
             } else {
@@ -89,16 +95,28 @@ struct TerminalJumper {
         }
     }
 
-    /// Whether Accessibility is allowed. If not, and the user hasn't said "Not Now" before, says
-    /// first what it is for and then has the system ask, so its prompt never comes out of the blue.
-    /// False until the user has allowed it in System Settings: this jump goes ahead without it.
-    private func accessibility() -> Bool {
-        if AXIsProcessTrusted() { return true }
-        guard !settings.accessibilityDeclined else { return false }
+    /// Asked once a launch at most, and never again after "Not Now".
+    private static var askedThisLaunch = false
+    private var shouldAsk: Bool { !AXIsProcessTrusted() && !settings.accessibilityDeclined && !Self.askedThisLaunch }
+
+    /// Whether this jump would use Accessibility: a Wave tab, or an editor's project window.
+    private func needsAccessibility(_ s: SessionState) -> Bool {
+        if let t = s.terminal, t.isWave {
+            return settings.waveTabSwitching && t.waveTabId != nil
+                && !NSRunningApplication.runningApplications(withBundleIdentifier: Self.waveBundleId).isEmpty
+        }
+        guard let app = s.agentPid.flatMap(Self.hostApp(of:)) ?? s.terminal?.termProgram.flatMap(Self.app(forTermProgram:))
+        else { return false }
+        return app.bundleIdentifier != Self.codexBundleId && Self.isEditor(app)
+    }
+
+    /// Says what Accessibility is for before the system asks, so its prompt never comes out of the
+    /// blue. Until the user has allowed it in System Settings, jumps go ahead without it.
+    private func explainAccessibility() {
         let alert = NSAlert()
         if let icon = BrandMark.image { alert.icon = icon }
-        alert.messageText = String(localized: "Allow YaaKanban to bring the right window forward?")
-        alert.informativeText = String(localized: "To bring the agent's exact window or Wave tab to the front, YaaKanban needs Accessibility access. macOS will ask next; turn on YaaKanban in System Settings, then click the card again. Without it, YaaKanban only switches to the app.")
+        alert.messageText = String(localized: "Allow Accessibility access?")
+        alert.informativeText = String(localized: "Needed to jump to the exact window or Wave tab. Without it, only the app comes forward.")
         alert.addButton(withTitle: String(localized: "Continue"))
         alert.addButton(withTitle: String(localized: "Not Now"))
         NSApp.activate(ignoringOtherApps: true)
@@ -107,7 +125,6 @@ struct TerminalJumper {
         } else {
             settings.accessibilityDeclined = true
         }
-        return false
     }
 
     /// Whether `resume` runs the command itself; otherwise it only raises a terminal and copies it.

@@ -156,7 +156,6 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
                                                object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.updateRoom() }
         }
-        applyOpacity()
         // The gap between the folded rail and the screen edge is outside the window, so tracking
         // misses a pointer pushed against the edge. Watch moves there too, ours and other apps'.
         NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] _ in
@@ -200,13 +199,11 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         UserDefaults.standard.set(NSStringFromRect(panel.frame), forKey: Self.frameKey)
     }
 
-    func applyOpacity() { panel.alphaValue = model.settings.panelOpacity }
-
     func setVisible(_ on: Bool) {
         if on {
             panel.alphaValue = 0
             panel.orderFrontRegardless()
-            NSAnimationContext.runAnimationGroup { $0.duration = 0.18; panel.animator().alphaValue = model.settings.panelOpacity }
+            NSAnimationContext.runAnimationGroup { $0.duration = 0.18; panel.animator().alphaValue = 1 }
         } else {
             NSAnimationContext.runAnimationGroup({ $0.duration = 0.15; panel.animator().alphaValue = 0 },
                                                  completionHandler: { [panel] in Task { @MainActor in panel.orderOut(nil) } })

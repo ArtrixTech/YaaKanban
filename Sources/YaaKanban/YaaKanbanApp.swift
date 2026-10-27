@@ -26,7 +26,7 @@ struct YaaKanbanApp: App {
         .windowResizability(.contentSize)
 
         Settings {
-            SettingsView(panel: delegate.panel).environment(delegate.model)
+            SettingsView().environment(delegate.model)
         }
     }
 }
@@ -65,7 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
              NSSize(width: model.settings.panelWidth, height: 600)),
             ("menu", AnyView(MenuContent(panel: panel).environment(model)), NSSize(width: 230, height: 230)),
             ("main", AnyView(MainWindow().environment(model)), NSSize(width: 1000, height: 640)),
-            ("settings", AnyView(SettingsView(panel: panel).environment(model)), SettingsView.size),
+            ("settings", AnyView(SettingsView().environment(model)), SettingsView.size),
             ("setup", AnyView(SetupGuide(live: false).environment(model)), SetupGuide.size),
             ("setup-finish", AnyView(SetupGuide(step: .finish, live: false).environment(model)), SetupGuide.size),
             ("dashboard", AnyView(DashboardView().environment(model)), NSSize(width: 1000, height: 900)),

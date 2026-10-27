@@ -779,7 +779,6 @@ struct MainWindow: View {
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
-    let panel: FloatingPanelController
     @State private var integrationMessage: String?
     @State private var refresh = 0
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -895,14 +894,6 @@ struct SettingsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             Section("Floating panel") {
-                LabeledContent {
-                    HStack(spacing: 8) {
-                        Slider(value: $settings.panelOpacity, in: 0.4...1).frame(width: 150)
-                            .onChange(of: settings.panelOpacity) { panel.applyOpacity() }
-                        Text("\(Int(settings.panelOpacity * 100))%").monospacedDigit().foregroundStyle(.secondary)
-                            .frame(width: 36, alignment: .trailing)
-                    }
-                } label: { SettingLabel(String(localized: "Opacity"), symbol: "circle.lefthalf.filled", tint: .indigo) }
                 LabeledContent {
                     Text(verbatim: "⌥⌘K").font(.system(size: 12, weight: .medium)).padding(.horizontal, 7).padding(.vertical, 2)
                         .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.primary.opacity(0.08)))

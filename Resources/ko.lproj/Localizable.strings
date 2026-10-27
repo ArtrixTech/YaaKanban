@@ -211,7 +211,6 @@
 "Session reminders" = "세션 알림";
 "Review flashing counts only time you're at the computer (2 minutes without keyboard or mouse, or sleep, counts as away). A reviewed session that hasn't run since turns gradually blue from “Start tinting”, is bluest halfway between that and “Keep reviewed sessions”, and fades back to gray and leaves the floating panel when the retention ends. Time counts from when the session ended or you last opened it; opening it again restarts the clock." = "검토 대기 깜박임은 컴퓨터 앞에 있는 시간만 계산합니다(키보드나 마우스 입력이 2분간 없거나 잠자기 상태이면 자리 비움으로 간주). 검토 완료 후 다시 실행되지 않은 세션은 “파란색 표시 시작”부터 점점 파랗게 변하고, 그 시점과 “검토 완료 세션 보관”의 중간에서 가장 파랗게 되며, 보관 기간이 끝나면 다시 회색으로 돌아가 플로팅 패널에서 사라집니다. 시간은 세션이 종료되었거나 마지막으로 열어 본 시점부터 계산되며, 다시 열면 처음부터 다시 계산됩니다.";
 "Floating panel" = "플로팅 패널";
-"Opacity" = "불투명도";
 "Show / hide" = "보기 / 가리기";
 "Show leverage and today's work time on top" = "상단에 레버리지와 오늘 작업 시간 표시";
 "Wait for background agents (beta)" = "백그라운드 에이전트 기다리기(베타)";
@@ -432,7 +431,6 @@
 "Continue" = "계속";
 "Done" = "완료";
 "Everything here can be changed later in Settings, which also opens this guide again." = "여기 있는 항목은 나중에 설정에서 바꿀 수 있고, 설정에서 이 안내를 다시 열 수도 있습니다.";
-"Installed. Sessions you start from now on report to YaaKanban; restart ones already running." = "설치됨. 이제부터 시작하는 세션이 YaaKanban에 보고됩니다. 실행 중인 세션은 다시 시작하세요.";
 "Keeps watching after a restart. Events from while it is closed are kept and shown later." = "재시동 후에도 계속 지켜봅니다. 꺼져 있는 동안의 이벤트는 보관했다가 나중에 보여 줍니다.";
 "Lets a click on a card bring the agent's exact window or Wave tab to the front. Without it, YaaKanban only activates the app." = "카드를 클릭하면 에이전트의 창이나 Wave 탭을 앞으로 가져옵니다. 허용하지 않으면 앱만 활성화합니다.";
 "Links yaak to ~/.local/bin for yaak status, install and doctor." = "yaak status, install, doctor를 위해 yaak을 ~/.local/bin에 연결합니다.";
@@ -451,11 +449,14 @@
 "Every agent below is connected." = "아래 에이전트가 모두 연결되었습니다.";
 "Notifications are off for YaaKanban. Turn them on in System Settings, or you will miss done alerts and approval requests." = "YaaKanban 알림이 꺼져 있습니다. 시스템 설정에서 켜지 않으면 완료 알림과 승인 요청을 놓치게 됩니다.";
 "Recommended · installs the hook in every agent below at once" = "추천 · 아래 모든 에이전트에 hook을 한 번에 설치";
-"All installed. Each agent is ticked by itself the next time you use it; restart sessions already running." = "모두 설치했습니다. 각 에이전트는 다음에 사용할 때 자동으로 체크 표시됩니다. 실행 중인 세션은 다시 시작해야 합니다.";
-"Ticked by itself the next time you use %@. Sessions already running need a restart." = "다음에 %@을(를) 사용할 때 자동으로 체크 표시됩니다. 실행 중인 세션은 다시 시작해야 합니다.";
-"Codex runs only the hooks you trusted: Settings → Hooks in the app, /hooks in the terminal." = "Codex는 신뢰한 훅만 실행합니다. 앱에서는 설정 → Hooks, 터미널에서는 /hooks에서 신뢰하세요.";
 "In the Codex app, open Settings → Hooks." = "Codex 앱에서 설정 → Hooks를 여세요.";
 "%@ app" = "%@ 앱";
 "Not Now" = "나중에";
-"Allow YaaKanban to bring the right window forward?" = "YaaKanban이 올바른 창을 앞으로 가져오도록 허용할까요?";
-"To bring the agent's exact window or Wave tab to the front, YaaKanban needs Accessibility access. macOS will ask next; turn on YaaKanban in System Settings, then click the card again. Without it, YaaKanban only switches to the app." = "에이전트의 정확한 창이나 Wave 탭을 앞으로 가져오려면 YaaKanban에 손쉬운 사용 권한이 필요합니다. 이어서 macOS가 묻습니다. 시스템 설정에서 YaaKanban을 켠 다음 카드를 다시 클릭하세요. 권한이 없으면 YaaKanban은 앱으로만 전환합니다.";
+"Waiting for first use" = "처음 사용 대기 중";
+"An agent is ticked by itself the next time you use it. Sessions already running need a restart." = "다음에 에이전트를 사용하면 자동으로 체크됩니다. 실행 중인 세션은 재시작해야 합니다.";
+"Still needs approval" = "아직 승인이 필요합니다";
+"Not Yet" = "나중에";
+"Continue Anyway" = "그래도 계속";
+"%@ won’t report to YaaKanban until you approve its hooks." = "hook을 승인하기 전까지 %@은(는) YaaKanban에 보고하지 않습니다.";
+"Allow Accessibility access?" = "손쉬운 사용 권한을 허용할까요?";
+"Needed to jump to the exact window or Wave tab. Without it, only the app comes forward." = "정확한 창이나 Wave 탭으로 이동하는 데 필요합니다. 허용하지 않으면 앱만 앞으로 가져옵니다.";

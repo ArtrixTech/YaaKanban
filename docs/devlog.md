@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(onboarding): keep the guide reachable and ask for access in place
+## fix(onboarding): tidy agent states, ask before leaving unapproved
 
 `pending` | 2026-10-27
+
+- **Changes**: Guide agent rows: one capsule style (`GuideBadge`, icon + text) for 已连接 (green), 等待首次使用 (gray clock; was the green 已安装 badge), 待授权 (orange); per-row "ticked next time" subtitles and the "All installed" banner replaced by one footnote under the list while any row waits; success messages after Install / Connect All dropped (failures still shown); Codex `postInstallNote` removed (its trust state is already the status + steps). Rows needing approval sort first. Continue on the agents step with any `needsAuthorization` opens an alert naming them (暂不 / 仍然继续); Skip Setup does not. Accessibility pre-prompt: shorter text, and shown on the next main-queue turn instead of inside the card's tap (then the jump runs), at most once a launch. Panel opacity setting removed: the panel is always fully opaque (`panelOpacity` pref, slider, `applyOpacity`, and the now-unused `SettingsView.panel` gone). 8 strings added, 7 removed ×9 languages.
+- **Reason**: the guide mixed a plain green label, a green capsule meaning "not yet" and a yellow capsule, with the same explanation repeated per row and again below; the pre-prompt alert was a paragraph.
+- **User feedback**: "已完成/已安装/待验证状态看起来非常不协调" → "都用胶囊" / "点击下一步需要提醒xx仍需授权，除非用户明确跳过" / alert "文字太多了，看不明白。同时右侧侧边栏内容已经是超窄版本但窗口宽度还是宽的" / "不再允许调整透明度，一律100%不透明度。选项去掉。"
+- **Process**: `make build`, `make l10n` 0 problems, `make test` 183 pass. Snapshot (temp HOME, zh-Hans; codex needsAuthorization, claude installed, cursor not installed): Codex first with 待授权, Claude 等待首次使用, Cursor 安装, footnote once. A probe app showed a common-mode display link keeps firing under `NSAlert.runModal` (57 vs 47 ticks/s), so the slide itself is not stopped by the modal.
+- **Result**: done for the guide, alert text and opacity. The wide-window-with-slim-rail state was not reproduced (live panel frame read 28×907 via CGWindowList); moving the alert out of the tap is a likely but unverified fix.
+- **Notes**: stale `panelOpacity` stays in users' defaults, unread. Accessibility was reset by `tccutil` during onboarding testing and is not in the backup, so the user has to allow it again.
+
+## fix(onboarding): keep the guide reachable and ask for access in place
+
+`ea13764` | 2026-10-27
 
 - **Changes**: SetupGuide sets `.regular` activation policy while live and open (back to `.accessory` on disappear); `applicationShouldHandleReopen` reopens the guide when in the Dock. The 2 s poll is replaced by `View.onComeBack` (app didBecomeActive / window didBecomeKey), used by the guide and Settings; Settings' Recheck button and all "click “Recheck”" wording are gone ("then come back here"). `ApprovalPlace` + `pendingSteps(home:in:)` / `approvesInEitherPlace`: Codex defaults to the desktop app ("Settings → Hooks"), `AuthorizationSteps` (now takes the integration) shows an app/terminal switch; `yaak status/install` print the terminal steps. Guide's Accessibility row is an Allow… button that prompts at once (no apply-on-Done toggle). `TerminalJumper.accessibility()` shows an explanatory alert (Continue / Not Now, `accessibilityDeclined` pref) before `AXIsProcessTrustedWithOptions` for Wave tab switching and editor window raising; `WaveAdapter` no longer prompts itself. 6 new/changed strings ×9 languages, 13 obsolete removed.
 - **Reason**: onboarding testing after a reset to defaults.
@@ -13,7 +24,7 @@
 
 ## fix(panel): hide sub-agents whose parent is not on the board
 
-`9f07ebf` | 2026-10-27
+`eb02be6` | 2026-10-27
 
 - **Changes**: `AppModel.activeSessions` drops a session with `parentId` set unless its parent is on the board or it needs input (was: only when the parent was on the board). Spec and CHANGELOG updated.
 - **Reason**: pi-subagents async-workflow scouts (`…/<parent>/<run>/run-0/session.jsonl`, header `parentSession`) were linked to their parent but showed as top-level cards because the parent pi session (pid 85048, started 10:28:20, one minute before the app was reinstalled at 10:29:22) never reached YaaKanban, so it was not on the board to fold into.

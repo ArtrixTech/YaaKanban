@@ -211,7 +211,6 @@
 "Session reminders" = "会话提醒";
 "Review flashing counts only time you're at the computer (2 minutes without keyboard or mouse, or sleep, counts as away). A reviewed session that hasn't run since turns gradually blue from “Start tinting”, is bluest halfway between that and “Keep reviewed sessions”, and fades back to gray and leaves the floating panel when the retention ends. Time counts from when the session ended or you last opened it; opening it again restarts the clock." = "待验收闪烁只计你在电脑前的时间（2 分钟无键鼠操作或睡眠算离开）。已验收、之后没再运行的会话：从「开始变蓝」起逐渐变蓝，在它与「已验收会话保留」的正中最蓝，到保留时长结束时褪回灰色并离开悬浮窗。时间从会话结束或你最后一次点开它算起，再点开一次就重新计时。";
 "Floating panel" = "悬浮窗";
-"Opacity" = "透明度";
 "Show / hide" = "显示 / 隐藏";
 "Show leverage and today's work time on top" = "顶部显示杠杆和今日工时";
 "Wait for background agents (beta)" = "等待背景 agent（测试）";
@@ -432,7 +431,6 @@
 "Continue" = "继续";
 "Done" = "完成";
 "Everything here can be changed later in Settings, which also opens this guide again." = "这里的设置之后都能在设置里修改，设置里也能再次打开本向导。";
-"Installed. Sessions you start from now on report to YaaKanban; restart ones already running." = "已安装。从现在起新开的会话会上报给 YaaKanban；正在运行的会话需要重启。";
 "Keeps watching after a restart. Events from while it is closed are kept and shown later." = "重启电脑后继续监控。关闭期间的事件会保留，之后再显示。";
 "Lets a click on a card bring the agent's exact window or Wave tab to the front. Without it, YaaKanban only activates the app." = "点击卡片时，把 Agent 所在的窗口或 Wave 标签页切到前面。没有这项权限时，YaaKanban 只能激活对应的应用。";
 "Links yaak to ~/.local/bin for yaak status, install and doctor." = "把 yaak 链接到 ~/.local/bin，用于 yaak status、install 和 doctor。";
@@ -451,11 +449,14 @@
 "Every agent below is connected." = "下面的 Agent 都已连接。";
 "Notifications are off for YaaKanban. Turn them on in System Settings, or you will miss done alerts and approval requests." = "YaaKanban 的通知已关闭。请到系统设置里打开，否则会错过完成提醒和权限请求。";
 "Recommended · installs the hook in every agent below at once" = "推荐 · 一次为下面所有 Agent 安装 hook";
-"All installed. Each agent is ticked by itself the next time you use it; restart sessions already running." = "已全部安装。下次使用各个 Agent 时会自动打勾；正在运行的会话需要重启。";
-"Ticked by itself the next time you use %@. Sessions already running need a restart." = "下次使用 %@ 时自动打勾。正在运行的会话需要重启。";
-"Codex runs only the hooks you trusted: Settings → Hooks in the app, /hooks in the terminal." = "Codex 只运行你信任过的 hook：App 里在 设置 → Hooks，终端里用 /hooks。";
 "In the Codex app, open Settings → Hooks." = "在 Codex App 里打开 设置 → Hooks。";
 "%@ app" = "%@ App";
 "Not Now" = "以后再说";
-"Allow YaaKanban to bring the right window forward?" = "允许 YaaKanban 把对应的窗口带到前面？";
-"To bring the agent's exact window or Wave tab to the front, YaaKanban needs Accessibility access. macOS will ask next; turn on YaaKanban in System Settings, then click the card again. Without it, YaaKanban only switches to the app." = "要把 agent 所在的窗口或 Wave 标签页准确带到前面，YaaKanban 需要辅助功能权限。接下来 macOS 会询问；请在系统设置里打开 YaaKanban，再点一次卡片。不授权的话，YaaKanban 只会切换到对应的 App。";
+"Waiting for first use" = "等待首次使用";
+"An agent is ticked by itself the next time you use it. Sessions already running need a restart." = "下次使用 Agent 时会自动打勾。正在运行的会话需要重启。";
+"Still needs approval" = "仍需授权";
+"Not Yet" = "暂不";
+"Continue Anyway" = "仍然继续";
+"%@ won’t report to YaaKanban until you approve its hooks." = "授权 hook 之前，%@ 不会向 YaaKanban 上报。";
+"Allow Accessibility access?" = "允许辅助功能权限？";
+"Needed to jump to the exact window or Wave tab. Without it, only the app comes forward." = "用于精确跳到对应的窗口或 Wave 标签页。不授权的话，只会切换到对应的 App。";

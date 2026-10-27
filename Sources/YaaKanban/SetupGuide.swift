@@ -34,6 +34,8 @@ struct SetupGuide: View {
     @State private var wantCLI = true
     @State private var shareStats = true
     @State private var closed = false
+    /// Agents still waiting for approval when the user pressed Continue.
+    @State private var unapproved: [String] = []
     /// The hidden title bar's height, which the window adds on top of the content.
     @State private var titleBar: CGFloat = 0
     /// False for `yaak snapshot` renders, which must not count as the user finishing the guide.
@@ -113,9 +115,11 @@ struct SetupGuide: View {
         }
     }
 
-    /// Agents found on this Mac, or with our hooks still in place, with their status now.
+    /// Agents found on this Mac, or with our hooks still in place, with their status now. Those
+    /// waiting for the user's approval come first, so their steps are not below the fold.
     private var found: [(any Integration, IntegrationStatus)] {
-        Integrations.all.map { ($0, $0.status(home: Paths.home(), yaak: AppModel.yaakPath)) }.filter { $0.1 != .notDetected }
+        let all = Integrations.all.map { ($0, $0.status(home: Paths.home(), yaak: AppModel.yaakPath)) }.filter { $0.1 != .notDetected }
+        return all.filter { $0.1 == .needsAuthorization } + all.filter { $0.1 != .needsAuthorization }
     }
 
     private static func pending(_ s: IntegrationStatus) -> Bool { s == .notInstalled || s == .outdated }
@@ -148,9 +152,6 @@ struct SetupGuide: View {
                 .keyboardShortcut(.defaultAction)
             } else if list.allSatisfy({ heard.contains($0.0.agent) }) {
                 banner(String(localized: "Every agent below is connected."), symbol: "checkmark.seal.fill", tint: .green)
-            } else if list.allSatisfy({ $0.1 == .installed }) {
-                banner(String(localized: "All installed. Each agent is ticked by itself the next time you use it; restart sessions already running."),
-                       symbol: "checkmark.circle.fill", tint: .green)
             }
             // Only the list scrolls; it sits on the page with no card around it.
             ScrollView {
@@ -170,6 +171,11 @@ struct SetupGuide: View {
                 LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .top, endPoint: .bottom).frame(height: 24)
             })
             .frame(maxHeight: .infinity)
+            // Said once for every row still waiting, instead of under each.
+            if list.contains(where: { Self.waiting($0.1, heard: heard.contains($0.0.agent)) }) {
+                Text("An agent is ticked by itself the next time you use it. Sessions already running need a restart.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
         }
         if let message {
             Text(message).font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled)
@@ -179,29 +185,23 @@ struct SetupGuide: View {
 
     /// One agent from install to its first event: Install → Installed (waiting) → Connected.
     private func connectRow(_ i: any Integration, _ status: IntegrationStatus, heard: Bool) -> some View {
-        let name = i.agent.displayName
-        let waiting = !heard && (status == .installed || status == .outdated)
+        let waiting = Self.waiting(status, heard: heard)
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 12) {
                 agentLogo(i.agent)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(name).font(.system(size: 13, weight: .medium))
-                    if waiting {
-                        Text("Ticked by itself the next time you use \(name). Sessions already running need a restart.")
-                            .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    }
-                }
+                Text(i.agent.displayName).font(.system(size: 13, weight: .medium))
                 Spacer(minLength: 8)
                 Group {
                     switch status {
                     case .notInstalled: Button("Install") { install(i) }
                     case .outdated: Button("Update") { install(i) }
-                    case .needsAuthorization: StatusBadge(status: status)
+                    case .needsAuthorization:
+                        GuideBadge(text: String(localized: "Needs approval"), symbol: "exclamationmark.circle.fill", tint: .orange)
                     default:
                         if heard {
-                            Label("Connected", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                            GuideBadge(text: String(localized: "Connected"), symbol: "checkmark.circle.fill", tint: .green)
                         } else {
-                            StatusBadge(status: status)
+                            GuideBadge(text: String(localized: "Waiting for first use"), symbol: "clock", tint: .secondary)
                         }
                     }
                 }
@@ -216,6 +216,9 @@ struct SetupGuide: View {
         }
         .padding(.vertical, 10)
     }
+
+    /// Installed, and not heard from yet.
+    private static func waiting(_ s: IntegrationStatus, heard: Bool) -> Bool { !heard && s == .installed }
 
     private func agentLogo(_ agent: AgentKind) -> some View {
         AgentLogo(agent: agent, size: 18)
@@ -320,12 +323,27 @@ struct SetupGuide: View {
                     .buttonStyle(PillButton(prominent: true)).keyboardShortcut(.defaultAction)
             } else if step == .connect, found.contains(where: { Self.pending($0.1) }) {
                 // Return is the big connect button's; Continue stays a plain choice.
-                Button("Continue") { go(1) }.buttonStyle(PillButton(prominent: false))
+                Button("Continue") { proceed() }.buttonStyle(PillButton(prominent: false))
             } else {
-                Button("Continue") { go(1) }
+                Button("Continue") { proceed() }
                     .buttonStyle(PillButton(prominent: true)).keyboardShortcut(.defaultAction)
             }
         }
+        .alert(String(localized: "Still needs approval"), isPresented: Binding(get: { !unapproved.isEmpty }, set: { if !$0 { unapproved = [] } })) {
+            Button("Not Yet", role: .cancel) {}
+            Button("Continue Anyway") { go(1) }
+        } message: {
+            Text("\(ListFormatter.localizedString(byJoining: unapproved)) won’t report to YaaKanban until you approve its hooks.")
+        }
+    }
+
+    /// Leaving the agents step with some still unapproved asks first; Skip Setup does not.
+    private func proceed() {
+        if step == .connect {
+            unapproved = found.filter { $0.1 == .needsAuthorization }.map(\.0.agent.displayName)
+            if !unapproved.isEmpty { return }
+        }
+        go(1)
     }
 
     // MARK: Actions
@@ -363,8 +381,10 @@ struct SetupGuide: View {
         if model.telemetry.available { model.telemetry.set(enabled: shareStats) }
     }
 
+    /// Only a failure is said here; the row shows the rest (its badge, or the steps left to do).
     private func install(_ i: any Integration) {
-        message = model.applyIntegration(i, install: true)
+        let m = model.applyIntegration(i, install: true)
+        message = Self.pending(i.status(home: Paths.home(), yaak: AppModel.yaakPath)) ? m : nil
         refresh += 1
     }
 
@@ -374,9 +394,7 @@ struct SetupGuide: View {
             let m = model.applyIntegration(i, install: true)
             return Self.pending(i.status(home: Paths.home(), yaak: AppModel.yaakPath)) ? m : nil
         }
-        message = failed.isEmpty
-            ? String(localized: "Installed. Sessions you start from now on report to YaaKanban; restart ones already running.")
-            : failed.joined(separator: "\n")
+        message = failed.isEmpty ? nil : failed.joined(separator: "\n")
         refresh += 1
     }
 
@@ -411,6 +429,20 @@ struct SetupGuide: View {
         // A link left dangling by a moved app is replaced; a real file there is not ours.
         if (try? fm.destinationOfSymbolicLink(atPath: link.path)) != nil { try? fm.removeItem(at: link) }
         try? fm.createSymbolicLink(atPath: link.path, withDestinationPath: AppModel.yaakPath)
+    }
+}
+
+/// An agent's state in the guide, the same capsule for each: connected, waiting, or needing approval.
+private struct GuideBadge: View {
+    let text: String
+    let symbol: String
+    let tint: Color
+
+    var body: some View {
+        Label(text, systemImage: symbol).labelStyle(.titleAndIcon)
+            .font(.system(size: 11, weight: .medium)).foregroundStyle(tint)
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(Capsule().fill(tint.opacity(0.14)))
     }
 }
 

@@ -211,7 +211,6 @@
 "Session reminders" = "Напоминания о сеансах";
 "Review flashing counts only time you're at the computer (2 minutes without keyboard or mouse, or sleep, counts as away). A reviewed session that hasn't run since turns gradually blue from “Start tinting”, is bluest halfway between that and “Keep reviewed sessions”, and fades back to gray and leaves the floating panel when the retention ends. Time counts from when the session ended or you last opened it; opening it again restarts the clock." = "Мигание проверки учитывает только время, когда вы за компьютером (2 минуты без клавиатуры и мыши или режим сна считаются отсутствием). Проверенный сеанс, который с тех пор не запускался, постепенно синеет, начиная с момента «Начало окрашивания», становится самым синим посередине между ним и «Хранить проверенные сеансы», а к концу срока хранения снова сереет и уходит с плавающей панели. Время отсчитывается с момента завершения сеанса или последнего его открытия; повторное открытие запускает отсчет заново.";
 "Floating panel" = "Плавающая панель";
-"Opacity" = "Непрозрачность";
 "Show / hide" = "Показать / скрыть";
 "Show leverage and today's work time on top" = "Показывать вверху множитель и время работы за сегодня";
 "Wait for background agents (beta)" = "Ждать фоновых агентов (бета)";
@@ -432,7 +431,6 @@
 "Continue" = "Продолжить";
 "Done" = "Готово";
 "Everything here can be changed later in Settings, which also opens this guide again." = "Всё это можно изменить позже в настройках, там же можно снова открыть этот мастер.";
-"Installed. Sessions you start from now on report to YaaKanban; restart ones already running." = "Установлено. Сессии, запущенные с этого момента, будут видны в YaaKanban; уже запущенные перезапустите.";
 "Keeps watching after a restart. Events from while it is closed are kept and shown later." = "Продолжает следить после перезагрузки. События, пока приложение закрыто, сохраняются и показываются позже.";
 "Lets a click on a card bring the agent's exact window or Wave tab to the front. Without it, YaaKanban only activates the app." = "По клику на карточку выводит на передний план окно агента или вкладку Wave. Без этого YaaKanban только активирует приложение.";
 "Links yaak to ~/.local/bin for yaak status, install and doctor." = "Создаёт ссылку на yaak в ~/.local/bin для yaak status, install и doctor.";
@@ -451,11 +449,14 @@
 "Every agent below is connected." = "Все агенты ниже подключены.";
 "Notifications are off for YaaKanban. Turn them on in System Settings, or you will miss done alerts and approval requests." = "Уведомления YaaKanban выключены. Включите их в Системных настройках, иначе вы пропустите оповещения о завершении и запросы на одобрение.";
 "Recommended · installs the hook in every agent below at once" = "Рекомендуется · устанавливает хук во все агенты ниже сразу";
-"All installed. Each agent is ticked by itself the next time you use it; restart sessions already running." = "Всё установлено. Каждый агент отметится сам, когда вы в следующий раз им воспользуетесь; уже запущенные сессии перезапустите.";
-"Ticked by itself the next time you use %@. Sessions already running need a restart." = "Отметится сам, когда вы в следующий раз воспользуетесь %@. Уже запущенные сессии нужно перезапустить.";
-"Codex runs only the hooks you trusted: Settings → Hooks in the app, /hooks in the terminal." = "Codex запускает только хуки, которым вы доверились: Settings → Hooks в приложении, /hooks в терминале.";
 "In the Codex app, open Settings → Hooks." = "В приложении Codex откройте Settings → Hooks.";
 "%@ app" = "Приложение %@";
 "Not Now" = "Не сейчас";
-"Allow YaaKanban to bring the right window forward?" = "Разрешить YaaKanban выводить нужное окно на передний план?";
-"To bring the agent's exact window or Wave tab to the front, YaaKanban needs Accessibility access. macOS will ask next; turn on YaaKanban in System Settings, then click the card again. Without it, YaaKanban only switches to the app." = "Чтобы выводить на передний план нужное окно агента или его вкладку Wave, YaaKanban нужен универсальный доступ. Сейчас macOS спросит об этом; включите YaaKanban в Системных настройках и снова нажмите на карточку. Без этого YaaKanban только переключается на приложение.";
+"Waiting for first use" = "Ждёт первого использования";
+"An agent is ticked by itself the next time you use it. Sessions already running need a restart." = "Агент отметится сам, когда вы в следующий раз им воспользуетесь. Запущенные сеансы нужно перезапустить.";
+"Still needs approval" = "Ещё нужно одобрение";
+"Not Yet" = "Не сейчас";
+"Continue Anyway" = "Всё равно продолжить";
+"%@ won’t report to YaaKanban until you approve its hooks." = "%@ не будет сообщать в YaaKanban, пока вы не одобрите его hooks.";
+"Allow Accessibility access?" = "Разрешить доступ к универсальному доступу?";
+"Needed to jump to the exact window or Wave tab. Without it, only the app comes forward." = "Нужен, чтобы переходить точно к окну или вкладке Wave. Без него на передний план выходит только приложение.";

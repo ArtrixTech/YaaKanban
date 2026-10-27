@@ -19,7 +19,6 @@ final class Preferences {
     /// A reviewed turn left alone turns blue from this long after it ended (see `Attention.staleness`).
     var staleTintEnabled: Bool { didSet { d.set(staleTintEnabled, forKey: "staleTintEnabled") } }
     var staleAfterMinutes: Double { didSet { d.set(staleAfterMinutes, forKey: "staleAfterMinutes") } }
-    var panelOpacity: Double { didSet { d.set(panelOpacity, forKey: "panelOpacity") } }
     var showPanel: Bool { didSet { d.set(showPanel, forKey: "showPanel") } }
     var panelCollapsed: Bool { didSet { d.set(panelCollapsed, forKey: "panelCollapsed") } }
     /// Snapped to a side, the panel folds into a rail unless the user unfolded it.
@@ -59,7 +58,7 @@ final class Preferences {
 
     init() {
         d.register(defaults: [
-            "stuckMinutes": 5.0, "approvalTimeout": 20.0, "idleVisibleMinutes": 1440.0, "panelOpacity": 0.95,
+            "stuckMinutes": 5.0, "approvalTimeout": 20.0, "idleVisibleMinutes": 1440.0,
             "flashEnabled": true, "flashAfterSeconds": Attention.flashAfter,
             "reviewFlashEnabled": true, "reviewFlashMinutes": Attention.reviewFlashAfter / 60,
             "staleTintEnabled": true, "staleAfterMinutes": Attention.staleAfter / 60,
@@ -77,7 +76,6 @@ final class Preferences {
         reviewFlashMinutes = d.double(forKey: "reviewFlashMinutes")
         staleTintEnabled = d.bool(forKey: "staleTintEnabled")
         staleAfterMinutes = d.double(forKey: "staleAfterMinutes")
-        panelOpacity = d.double(forKey: "panelOpacity")
         showPanel = d.bool(forKey: "showPanel")
         panelCollapsed = d.bool(forKey: "panelCollapsed")
         sidebarExpanded = d.bool(forKey: "sidebarExpanded")
