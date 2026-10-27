@@ -56,20 +56,44 @@ public struct TerminalContext: Codable, Equatable, Sendable {
     public var waveTabId: String?
     public var waveWorkspaceId: String?
     public var waveJWT: String?
+    /// The pane or tab inside other terminals, for telling whether the user is looking at it
+    /// (`TerminalFocus`): iTerm2's session UUID, the agent's tty, WezTerm's pane id, and tmux's
+    /// pane id and server socket.
+    public var itermSession: String?
+    public var tty: String?
+    public var weztermPane: String?
+    public var tmuxPane: String?
+    public var tmuxSocket: String?
 
     public init(termProgram: String? = nil, waveBlockId: String? = nil, waveTabId: String? = nil,
-                waveWorkspaceId: String? = nil, waveJWT: String? = nil) {
+                waveWorkspaceId: String? = nil, waveJWT: String? = nil, itermSession: String? = nil,
+                tty: String? = nil, weztermPane: String? = nil, tmuxPane: String? = nil, tmuxSocket: String? = nil) {
         self.termProgram = termProgram
         self.waveBlockId = waveBlockId
         self.waveTabId = waveTabId
         self.waveWorkspaceId = waveWorkspaceId
         self.waveJWT = waveJWT
+        self.itermSession = itermSession
+        self.tty = tty
+        self.weztermPane = weztermPane
+        self.tmuxPane = tmuxPane
+        self.tmuxSocket = tmuxSocket
     }
 
-    public init(environment env: [String: String]) {
-        self.init(termProgram: env["TERM_PROGRAM"], waveBlockId: env["WAVETERM_BLOCKID"],
+    public init(environment env: [String: String], tty: String? = nil) {
+        // Each id only when TERM_PROGRAM names its terminal: an app started from a shell there
+        // (`cursor .`, another terminal) inherits them.
+        let program = env["TERM_PROGRAM"]
+        // ITERM_SESSION_ID is "w0t1p0:<UUID>"; AppleScript's `unique id` is the UUID.
+        let iterm = program != "iTerm.app" ? nil
+            : env["ITERM_SESSION_ID"].map { $0.split(separator: ":", maxSplits: 1).last.map(String.init) ?? $0 }
+        // TMUX is "<socket>,<server pid>,<session>".
+        let socket = program != "tmux" ? nil : env["TMUX"].flatMap { $0.split(separator: ",").first.map(String.init) }
+        self.init(termProgram: program, waveBlockId: env["WAVETERM_BLOCKID"],
                   waveTabId: env["WAVETERM_TABID"], waveWorkspaceId: env["WAVETERM_WORKSPACEID"],
-                  waveJWT: env["WAVETERM_JWT"])
+                  waveJWT: env["WAVETERM_JWT"], itermSession: iterm, tty: tty,
+                  weztermPane: program == "WezTerm" ? env["WEZTERM_PANE"] : nil,
+                  tmuxPane: socket == nil ? nil : env["TMUX_PANE"], tmuxSocket: socket)
     }
 
     public var isWave: Bool { waveBlockId != nil }

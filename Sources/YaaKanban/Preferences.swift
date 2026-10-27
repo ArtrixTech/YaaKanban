@@ -25,6 +25,8 @@ final class Preferences {
     var sidebarExpanded: Bool { didSet { d.set(sidebarExpanded, forKey: "sidebarExpanded") } }
     /// Experimental: a Claude Code turn that stops with background agents still out stays running.
     var claudeBackgroundAgents: Bool { didSet { d.set(claudeBackgroundAgents, forKey: "claudeBackgroundAgents") } }
+    /// Experimental: a finished turn counts as reviewed once its terminal pane is in front (`FocusWatcher`).
+    var autoReviewOnFocus: Bool { didSet { d.set(autoReviewOnFocus, forKey: "autoReviewOnFocus") } }
     /// Height of the floating panel's list set with its resize grip, kept whatever the content; nil
     /// (the grip dragged all the way up) lets the list follow its content.
     var panelListHeight: CGFloat? { didSet { d.set(panelListHeight.map(Double.init), forKey: "panelListHeightManual") } }
@@ -64,6 +66,7 @@ final class Preferences {
             "staleTintEnabled": true, "staleAfterMinutes": Attention.staleAfter / 60,
             "showPanel": true, "suppressWhenWaveFrontmost": true, "waveTabJump": true,
             "showRecentStats": true, "claudeBackgroundAgents": true,
+            "autoReviewOnFocus": true,
         ])
         stuckMinutes = d.double(forKey: "stuckMinutes")
         approvalTimeout = d.double(forKey: "approvalTimeout")
@@ -80,6 +83,7 @@ final class Preferences {
         panelCollapsed = d.bool(forKey: "panelCollapsed")
         sidebarExpanded = d.bool(forKey: "sidebarExpanded")
         claudeBackgroundAgents = d.bool(forKey: "claudeBackgroundAgents")
+        autoReviewOnFocus = d.bool(forKey: "autoReviewOnFocus")
         panelListHeight = d.object(forKey: "panelListHeightManual") == nil ? nil : CGFloat(d.double(forKey: "panelListHeightManual"))
         panelWidth = d.object(forKey: "panelWidth") == nil ? 340 : CGFloat(d.double(forKey: "panelWidth"))
         showRecentStats = d.bool(forKey: "showRecentStats")

@@ -1,1 +1,1 @@
-"NSAppleEventsUsageDescription" = "YaaKanban change d’onglet Wave quand vous accédez à un agent (expérimental).";
+"NSAppleEventsUsageDescription" = "YaaKanban lit l’onglet iTerm2 ou Terminal au premier plan pour marquer l’agent qui s’y trouve comme revu, et change d’onglet Wave quand vous accédez à un agent (expérimental).";

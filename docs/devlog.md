@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(jump): refresh transcript usage and switch to the Tabby tab
+## feat(review): mark a turn reviewed when its terminal pane is in front
 
 `pending` | 2026-10-27
+
+- **Changes**: Hook records more pane ids in `TerminalContext` (`itermSession` from ITERM_SESSION_ID's UUID, agent `tty` via `ProcessUtil.tty(of:)`, `weztermPane`, `tmuxPane` + `tmuxSocket` from TMUX), each only when TERM_PROGRAM names that terminal. `YaaCore/TerminalFocus` (what is in front + `shows(_:)` matching + parsers for Wave layout, `wezterm cli list-clients`, `tmux list-clients`). `YaaKanban/FocusWatcher`: probes the frontmost terminal off the main thread: Wave DB (window→workspace.activetabid→tab.layoutstate→focusednodeid→leaforder blockid; only with one window row), iTerm2/Terminal AppleScript (only if `AEDeterminePermissionToAutomateTarget` already allows; `AutomationAccessRows` in Settings has Allow…), WezTerm bundled CLI, tmux clients with each client's own env read via `KERN_PROCARGS2`. `AppModel.checkFocus` on app activation + 1 s timer: present (not away, screen not locked, input < 2 min), `display == .review`, pane shown → `markRead`. tty-only panes require the agent alive and still on that tty. Pref `autoReviewOnFocus` (default on, beta toggle in Session reminders). `WaveDB.query` made internal. NSAppleEventsUsageDescription updated ×10; 3 strings ×9.
+- **Reason**: a turn the user already read in its terminal kept showing 待验收 until its card was clicked.
+- **User feedback**: "如果用户主动查看了某个terminal/对话，则自动标记已经验收。调研各个harness/terminal怎么实现。" → "1,打开就算 2，按照上面你推荐、认为效果比较好、主流的terminal做。3，默认开，作为实验功能。"
+- **Process**: research agent on each host's API (iTerm2/Terminal AppleScript, WezTerm list-clients, kitty/zellij/ghostty skipped; no agent harness has a focus hook). Wave DB join run live: `focusednodeid` followed the focused block within seconds. `environment(of:)` probe: claude process returned 52 vars incl. WAVETERM_BLOCKID, tty `/dev/ttys002`; unreadable pids return nil (fixed a crash when the second sysctl returned ≤4 bytes). Adversarial review found: inherited ids under another TERM_PROGRAM, tty reuse after a crashed agent, background Wave windows, lock screen within 2 min, iTerm `tab` resolving to its class (now `"\t"`), tmux in non-probed terminals never matching (list trimmed to 4), null WezTerm focused pane; all fixed. `make test` 190 pass, `make l10n` 0 problems.
+- **Result**: built and unit-tested; not exercised in the running app on any terminal. iTerm2 and WezTerm are not installed here (paths untested live).
+- **Notes**: sessions started before this build lack the new ids until their next hook through the new `yaak`. tmux pane match needs the client process env readable (same user). Several Wave windows → no auto review at all. Auto review equals 标记为已验收 (no `acknowledged`/jump row).
+
+## fix(jump): refresh transcript usage and switch to the Tabby tab
+
+`07527f4` | 2026-10-27
 
 - **Changes**: `URL.currentModificationDate` (YaaCore/Usage.swift) drops the URL's cached resource values before reading the mtime; used by `UsageTracker.refresh`, `ClaudeSessionScanner.peek` and the Codex index reload. Tabby: `TerminalContext.isTabby` (TERM_PROGRAM=Tabby), `titleSequence` (OSC 0), `ProcessUtil.tty(of:)` (sysctl `e_tdev` → devname); `TabbyAdapter` writes a `yaak-<uuid8>` title to the agent's tty, finds it among `.tabs` children via AX, presses that tab-header and raises its window, then restores the tab's previous name (or the session title if the marker never showed). Gated by the existing `waveTabSwitching` setting + Accessibility; section header "Wave Terminal · Tabby"; `Tabby` → `org.tabby` in `termProgramIds`.
 - **Reason**: cards showed 0 for every token count while the agent ran; only Wave switched tabs.

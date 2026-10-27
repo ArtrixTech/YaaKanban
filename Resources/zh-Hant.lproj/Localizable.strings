@@ -460,3 +460,8 @@
 "%@ won’t report to YaaKanban until you approve its hooks." = "授權 hook 之前，%@ 不會向 YaaKanban 回報。";
 "Allow Accessibility access?" = "允許輔助使用權限？";
 "Needed to jump to the exact window or Wave tab. Without it, only the app comes forward." = "用於精確跳到對應的視窗或 Wave 分頁。不授權的話，只會切換到對應的 App。";
+
+/* FocusWatcher.swift */
+"Mark reviewed when its terminal is in front (beta)" = "終端機在前景即標記為已驗收（測試）";
+"Works in Wave, iTerm2, Terminal, WezTerm and tmux inside them. Opening the pane counts, like clicking its card." = "適用於 Wave、iTerm2、終端機，以及在其中執行的 WezTerm 和 tmux。打開所在面板就算驗收，與點按卡片相同。";
+"%@ needs Automation access to tell which tab is in front" = "%@ 需要「自動化」權限才能知道前景是哪個標籤頁";

@@ -349,7 +349,7 @@ enum WaveDB {
         return nil
     }
 
-    private static func query(_ sql: String) -> [JSONValue] {
+    static func query(_ sql: String) -> [JSONValue] {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
         p.arguments = ["-readonly", "file:\(path)?mode=ro", sql]

@@ -886,6 +886,10 @@ struct SettingsView: View {
                     }
                     .padding(.leading, 30)
                 }
+                Toggle(isOn: $settings.autoReviewOnFocus) {
+                    SettingLabel(String(localized: "Mark reviewed when its terminal is in front (beta)"), symbol: "eye.fill", tint: .green)
+                }
+                if settings.autoReviewOnFocus { AutomationAccessRows().padding(.leading, 30) }
             } header: {
                 Text("Session reminders")
             } footer: {

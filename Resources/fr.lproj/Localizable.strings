@@ -460,3 +460,8 @@
 "%@ won’t report to YaaKanban until you approve its hooks." = "%@ ne signalera rien à YaaKanban tant que vous n’aurez pas approuvé ses hooks.";
 "Allow Accessibility access?" = "Autoriser l’accès Accessibilité ?";
 "Needed to jump to the exact window or Wave tab. Without it, only the app comes forward." = "Nécessaire pour aller à la fenêtre ou à l’onglet Wave exact. Sans lui, seule l’app passe au premier plan.";
+
+/* FocusWatcher.swift */
+"Mark reviewed when its terminal is in front (beta)" = "Marquer comme revu quand son terminal est au premier plan (bêta)";
+"Works in Wave, iTerm2, Terminal, WezTerm and tmux inside them. Opening the pane counts, like clicking its card." = "Fonctionne dans Wave, iTerm2, Terminal, WezTerm et tmux à l’intérieur. Ouvrir le volet compte comme un clic sur sa carte.";
+"%@ needs Automation access to tell which tab is in front" = "%@ a besoin de l’accès Automatisation pour savoir quel onglet est au premier plan";

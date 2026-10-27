@@ -225,6 +225,53 @@ final class AppModel {
         ws.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.awaySince = self?.awaySince ?? Date() }
         }
+        // Auto review: on switching apps at once, then every second while a terminal is in front.
+        ws.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.checkFocus() }
+        }
+        let focus = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.checkFocus() }
+        }
+        RunLoop.main.add(focus, forMode: .common)
+        timers.append(focus)
+    }
+
+    // MARK: Auto review
+
+    @ObservationIgnored private var probingFocus = false
+
+    /// Experimental: a finished turn whose pane the user has in front counts as reviewed, as if
+    /// its card was clicked. Only while the user is at the Mac, and only for terminals that can
+    /// say which pane is in front (`FocusWatcher`).
+    private func checkFocus() {
+        guard settings.autoReviewOnFocus, !probingFocus,
+              let front = NSWorkspace.shared.frontmostApplication,
+              let bundle = front.bundleIdentifier, FocusWatcher.terminals.contains(bundle),
+              awaySince == nil, !Self.screenLocked,
+              CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!) < Self.awayAfter
+        else { return }
+        let waiting = sessions.values.filter { s in s.display == .review && s.terminal.map { Self.focusable($0, of: s) } == true }
+        guard !waiting.isEmpty else { return }
+        probingFocus = true
+        FocusWatcher.probe(front: front, wanted: waiting.compactMap(\.terminal)) { [weak self] focus in
+            guard let self else { return }
+            probingFocus = false
+            for s in waiting where s.terminal.map(focus.shows) == true && sessions[s.id]?.display == .review {
+                markRead(s.id)
+            }
+        }
+    }
+
+    /// A pane known only by its tty counts while the agent still holds that tty: once it is gone,
+    /// macOS hands the tty to the next new tab.
+    private static func focusable(_ t: TerminalContext, of s: SessionState) -> Bool {
+        if t.isWave || t.itermSession != nil || t.weztermPane != nil || t.tmuxPane != nil { return true }
+        guard let tty = t.tty, let pid = s.agentPid else { return false }
+        return ProcessUtil.isAlive(pid) && ProcessUtil.tty(of: pid) == tty
+    }
+
+    private static var screenLocked: Bool {
+        (CGSessionCopyCurrentDictionary() as? [String: Any])?["CGSSessionScreenIsLocked"] as? Bool ?? false
     }
 
     /// Re-reads each installed integration's authorization state from the agents' own files.

@@ -1,1 +1,1 @@
-"NSAppleEventsUsageDescription" = "YaaKanbanは、エージェントへ移動するときにWaveのタブを切り替えます（実験的）。";
+"NSAppleEventsUsageDescription" = "YaaKanbanは、iTerm2やターミナルで前面にあるタブを読み取ってそこのエージェントをレビュー済みにし、エージェントへ移動するときにWaveのタブを切り替えます（実験的）。";

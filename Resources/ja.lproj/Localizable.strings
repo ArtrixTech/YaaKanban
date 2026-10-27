@@ -460,3 +460,8 @@
 "%@ won’t report to YaaKanban until you approve its hooks." = "フックを承認するまで、%@ は YaaKanban に報告しません。";
 "Allow Accessibility access?" = "アクセシビリティを許可しますか？";
 "Needed to jump to the exact window or Wave tab. Without it, only the app comes forward." = "正確なウインドウや Wave のタブにジャンプするために必要です。許可しない場合は、アプリが前面に出るだけです。";
+
+/* FocusWatcher.swift */
+"Mark reviewed when its terminal is in front (beta)" = "ターミナルが前面にあればレビュー済みにする（ベータ）";
+"Works in Wave, iTerm2, Terminal, WezTerm and tmux inside them. Opening the pane counts, like clicking its card." = "Wave、iTerm2、ターミナル、WezTerm と、それらの中の tmux で使えます。そのペインを開くと、カードをクリックしたのと同じくレビュー済みになります。";
+"%@ needs Automation access to tell which tab is in front" = "前面のタブを知るには、%@ への「オートメーション」アクセスが必要です";

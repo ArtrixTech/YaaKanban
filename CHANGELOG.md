@@ -13,6 +13,7 @@ the update.
 - In the setup guide, Continue warns when an agent still needs its hooks approved; Skip Setup does not.
 - Until an agent is connected, the floating panel and the menu offer **Connect agents…**, which opens the guide. Cards of an agent without its integration show a plug mark, and installing says to restart sessions already running.
 - Tabby: clicking a card brings up the agent's own Tabby tab (with "Switch to the matching tab when jumping" on and Accessibility allowed). Tabs with a custom name, unfocused split panes and tmux still only bring Tabby forward.
+- Experimental, on by default: a finished turn is marked reviewed as soon as you bring up its terminal pane in Wave, iTerm2, Terminal or WezTerm (tmux inside them too), as if you had clicked its card. iTerm2 and Terminal need Automation access, which Settings › Session reminders asks for with an Allow… button.
 
 ### Changed
 - The slim side rail is no longer experimental and is now the only folded rail: snapped to a screen edge, the panel folds into a thin strip of status, agent and time. The wider folded rail and its setting are gone.

@@ -1,1 +1,1 @@
-"NSAppleEventsUsageDescription" = "跳转到 agent 时，YaaKanban 会切换 Wave 的标签页（实验性）。";
+"NSAppleEventsUsageDescription" = "YaaKanban 会读取 iTerm2 或终端前台的标签页，以把其中的 agent 标为已验收；跳转到 agent 时还会切换 Wave 的标签页（实验性）。";

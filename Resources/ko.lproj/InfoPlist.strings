@@ -1,1 +1,1 @@
-"NSAppleEventsUsageDescription" = "YaaKanban은 에이전트로 이동할 때 Wave 탭을 전환합니다(실험적).";
+"NSAppleEventsUsageDescription" = "YaaKanban은 iTerm2 또는 터미널에서 앞에 있는 탭을 읽어 해당 에이전트를 검토 완료로 표시하고, 에이전트로 이동할 때 Wave 탭을 전환합니다(실험적).";

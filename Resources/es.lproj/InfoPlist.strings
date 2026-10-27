@@ -1,1 +1,1 @@
-"NSAppleEventsUsageDescription" = "YaaKanban cambia de pestaña en Wave cuando vas a un agente (experimental).";
+"NSAppleEventsUsageDescription" = "YaaKanban lee qué pestaña de iTerm2 o Terminal está delante para marcar como revisado al agente que hay en ella, y cambia de pestaña en Wave cuando vas a un agente (experimental).";
