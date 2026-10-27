@@ -12,6 +12,7 @@ the update.
 - Clicking a card that needs Accessibility (to bring up the right Wave tab or editor window) first says, in one line, why and that macOS will ask, instead of the system prompt appearing out of nowhere. "Not Now" is remembered.
 - In the setup guide, Continue warns when an agent still needs its hooks approved; Skip Setup does not.
 - Until an agent is connected, the floating panel and the menu offer **Connect agents…**, which opens the guide. Cards of an agent without its integration show a plug mark, and installing says to restart sessions already running.
+- Tabby: clicking a card brings up the agent's own Tabby tab (with "Switch to the matching tab when jumping" on and Accessibility allowed). Tabs with a custom name, unfocused split panes and tmux still only bring Tabby forward.
 
 ### Changed
 - The slim side rail is no longer experimental and is now the only folded rail: snapped to a screen edge, the panel folds into a thin strip of status, agent and time. The wider folded rail and its setting are gone.

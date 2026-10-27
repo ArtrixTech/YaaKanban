@@ -6,6 +6,7 @@ import YaaCore
 @MainActor
 struct TerminalJumper {
     static let waveBundleId = "dev.commandline.waveterm"
+    static let tabbyBundleId = "org.tabby"
     static let codexBundleId = "com.openai.codex"
     let settings: Preferences
 
@@ -24,6 +25,13 @@ struct TerminalJumper {
             let tabs = settings.waveTabSwitching && t.waveTabId != nil && AXIsProcessTrusted()
             WaveAdapter(terminal: t, switchTabs: tabs).jump(app: wave)
             return .activated("Wave")
+        }
+        if s.terminal?.isTabby == true, let tabby = NSRunningApplication.runningApplications(withBundleIdentifier: Self.tabbyBundleId).first {
+            tabby.activate()
+            if settings.waveTabSwitching, AXIsProcessTrusted(), let tty = s.agentPid.flatMap(ProcessUtil.tty(of:)) {
+                TabbyAdapter(pid: tabby.processIdentifier, tty: tty, fallbackTitle: s.title).selectTab()
+            }
+            return .activated("Tabby")
         }
         // The app the agent runs under: Cursor's own agent has no terminal at all, and an editor's
         // built-in terminal says TERM_PROGRAM=vscode whether it is VS Code or Cursor.
@@ -99,11 +107,15 @@ struct TerminalJumper {
     private static var askedThisLaunch = false
     private var shouldAsk: Bool { !AXIsProcessTrusted() && !settings.accessibilityDeclined && !Self.askedThisLaunch }
 
-    /// Whether this jump would use Accessibility: a Wave tab, or an editor's project window.
+    /// Whether this jump would use Accessibility: a Wave or Tabby tab, or an editor's project window.
     private func needsAccessibility(_ s: SessionState) -> Bool {
         if let t = s.terminal, t.isWave {
             return settings.waveTabSwitching && t.waveTabId != nil
                 && !NSRunningApplication.runningApplications(withBundleIdentifier: Self.waveBundleId).isEmpty
+        }
+        if s.terminal?.isTabby == true {
+            return settings.waveTabSwitching && s.agentPid != nil
+                && !NSRunningApplication.runningApplications(withBundleIdentifier: Self.tabbyBundleId).isEmpty
         }
         guard let app = s.agentPid.flatMap(Self.hostApp(of:)) ?? s.terminal?.termProgram.flatMap(Self.app(forTermProgram:))
         else { return false }
@@ -198,7 +210,7 @@ struct TerminalJumper {
     static let termProgramIds: [String: String] = [
         "iTerm.app": "com.googlecode.iterm2", "Apple_Terminal": "com.apple.Terminal",
         "ghostty": "com.mitchellh.ghostty", "WezTerm": "com.github.wez.wezterm", "vscode": "com.microsoft.VSCode", "cursor": "com.todesktop.230313mzl4w4u92",
-        "waveterm": waveBundleId,
+        "waveterm": waveBundleId, "Tabby": tabbyBundleId,
     ]
 
     static func app(forTermProgram p: String) -> NSRunningApplication? {
@@ -390,6 +402,82 @@ struct WaveTabBar {
     private func label(_ e: AXUIElement) -> String {
         let scalars = text(e).unicodeScalars.filter { !(0xE000...0xF8FF).contains($0.value) }
         return String(String.UnicodeScalarView(scalars)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func text(_ e: AXUIElement) -> String {
+        ((attr(e, kAXValueAttribute) as? String) ?? "") + children(e).map(text).joined()
+    }
+
+    private func children(_ e: AXUIElement) -> [AXUIElement] { (attr(e, kAXChildrenAttribute) as? [AXUIElement]) ?? [] }
+    private func classes(_ e: AXUIElement) -> [String] { (attr(e, "AXDOMClassList") as? [String]) ?? [] }
+
+    private func attr(_ e: AXUIElement, _ name: String) -> AnyObject? {
+        var v: AnyObject?
+        return AXUIElementCopyAttributeValue(e, name as CFString, &v) == .success ? v : nil
+    }
+}
+
+/// Tabby: no tab ids and no external control, and tab names are whatever the shell or agent set.
+/// The agent's tab is found by writing a one-off title to its tty (OSC 0), looking for it in the
+/// tab bar through Accessibility (Electron exposes the DOM, the tab names included), pressing that
+/// tab and putting the old name back. A tab with a custom name, a split pane that is not focused,
+/// or tmux never shows the marker; then Tabby only comes forward.
+struct TabbyAdapter {
+    let pid: pid_t
+    let tty: String
+    /// Restored when the marker never showed up, so it doesn't linger on that tab.
+    let fallbackTitle: String
+
+    func selectTab() {
+        let pid = pid, tty = tty, fallback = fallbackTitle
+        DispatchQueue.global(qos: .userInitiated).async {
+            let fd = open(tty, O_WRONLY | O_NOCTTY | O_NONBLOCK)
+            guard fd >= 0 else { return }
+            defer { close(fd) }
+            func setTitle(_ t: String) { _ = TerminalContext.titleSequence(t).withCString { write(fd, $0, strlen($0)) } }
+            let bar = TabbyTabBar(pid: pid)
+            let before = bar.tabs().map(\.name)
+            let marker = "yaak-" + UUID().uuidString.prefix(8)
+            for attempt in 0..<12 {
+                if attempt > 0 { usleep(100_000) }
+                // A busy agent rewrites its title all the time; write the marker again on each try.
+                setTitle(marker)
+                usleep(50_000)
+                let tabs = bar.tabs()
+                guard let i = tabs.firstIndex(where: { $0.name.contains(marker) }) else { continue }
+                AXUIElementPerformAction(tabs[i].window, kAXRaiseAction as CFString)
+                AXUIElementPerformAction(tabs[i].header, kAXPressAction as CFString)
+                setTitle(before.count == tabs.count ? before[i] : fallback)
+                return
+            }
+            setTitle(fallback)
+        }
+    }
+}
+
+/// Tabby's tab bar through Accessibility: `tab-header` elements under the `.tabs` list, the name in
+/// the `.name` child.
+struct TabbyTabBar {
+    let pid: pid_t
+
+    struct Tab { let window: AXUIElement; let header: AXUIElement; let name: String }
+
+    func tabs() -> [Tab] {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        let windows = (attr(app, kAXWindowsAttribute) as? [AXUIElement]) ?? []
+        return windows.flatMap { w in
+            (list(in: w) ?? []).map { h in
+                Tab(window: w, header: h, name: children(h).first { classes($0).contains("name") }.map(text) ?? text(h))
+            }
+        }
+    }
+
+    private func list(in e: AXUIElement, depth: Int = 0) -> [AXUIElement]? {
+        if depth > 16 { return nil }
+        if classes(e).contains("tabs") { return children(e) }
+        for c in children(e) { if let t = list(in: c, depth: depth + 1) { return t } }
+        return nil
     }
 
     private func text(_ e: AXUIElement) -> String {

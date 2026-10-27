@@ -919,7 +919,7 @@ struct SettingsView: View {
                     SettingLabel(String(localized: "Switch to the matching tab when jumping"), symbol: "rectangle.stack.fill", tint: .teal)
                 }
             } header: {
-                Text(verbatim: "Wave Terminal")
+                Text(verbatim: "Wave Terminal · Tabby")
             } footer: {
                 Text("Allow YaaKanban in System Settings › Privacy & Security › Accessibility. You'll be asked on the first jump.")
                     .font(.caption).foregroundStyle(.secondary)

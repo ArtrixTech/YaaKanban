@@ -31,7 +31,7 @@ final class ClaudeSessionScanner {
     /// Reads the transcript of a session when it changed since the last call; nil otherwise.
     func peek(_ s: SessionState) -> TranscriptPeek? {
         guard let url = transcriptURL(s),
-              let mtime = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate,
+              let mtime = url.currentModificationDate,
               transcripts[s.sessionId]?.mtime != mtime else { return nil }
         transcripts[s.sessionId] = (url, mtime)
         return TranscriptPeek.read(url)
@@ -43,7 +43,7 @@ final class ClaudeSessionScanner {
 
     func codexTitle(_ sessionId: String) -> String? {
         let url = Paths.home().appendingPathComponent(".codex/session_index.jsonl")
-        if let m = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate, m != codexIndexMtime,
+        if let m = url.currentModificationDate, m != codexIndexMtime,
            let data = try? Data(contentsOf: url) {
             codexIndexMtime = m
             for line in data.split(separator: UInt8(ascii: "\n")) {
@@ -103,7 +103,7 @@ final class UsageTracker: @unchecked Sendable {
                     entry = (url, TranscriptTally(format: format), nil)
                 }
                 guard var e = entry else { continue }
-                let mtime = (try? e.url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+                let mtime = e.url.currentModificationDate
                 guard mtime != e.mtime else { continue }
                 e.mtime = mtime
                 let changed = e.tally.update(from: e.url)

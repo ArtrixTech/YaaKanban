@@ -153,6 +153,16 @@ public struct TranscriptTally: Sendable {
     private func int(_ v: JSONValue?) -> Int { v?.number.map { Int($0) } ?? 0 }
 }
 
+extension URL {
+    /// The file's current mtime. `resourceValues` caches on the URL instance, so a URL kept across
+    /// reads would report the first mtime forever.
+    public var currentModificationDate: Date? {
+        var u = self
+        u.removeAllCachedResourceValues()
+        return (try? u.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+    }
+}
+
 extension Data.SubSequence {
     /// Values of `"key":"…"` pairs, in order (no escape handling; meant for ids).
     func stringValues(of key: String) -> [String] {

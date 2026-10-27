@@ -632,6 +632,15 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(t.lastReply == nil && t.usage.output == 10)
     }
 
+    @Test func modificationDateFollowsWritesOnAKeptURL() throws {
+        // The usage tracker keeps one URL per transcript; a cached mtime froze the tokens at 0.
+        let url = tmp("a\n")
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_000)], ofItemAtPath: url.path)
+        #expect(url.currentModificationDate == Date(timeIntervalSince1970: 1_000))
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 2_000)], ofItemAtPath: url.path)
+        #expect(url.currentModificationDate == Date(timeIntervalSince1970: 2_000))
+    }
+
     @Test func lineLongerThanAChunkIsSkipped() throws {
         // An image or huge tool result on one line must not hold up the lines after it.
         let huge = #"{"type":"user","message":{"content":[{"type":"tool_result","content":""# +
@@ -1418,6 +1427,44 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         let chain = ProcessUtil.ancestors(of: getpid())
         #expect(chain.first == getppid())
         #expect(!chain.contains(1) && !chain.contains(getpid()))
+    }
+
+    @Test func ttyOfAProcess() throws {
+        #expect(ProcessUtil.tty(of: -1) == nil)
+        #expect(ProcessUtil.tty(of: 1) == nil)  // launchd has no terminal
+        // script(1) runs its child on a new pty; the child's tty is what ps reports for it.
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/script")
+        p.arguments = ["-q", "/dev/null", "/bin/sleep", "5"]
+        p.standardInput = Pipe()
+        p.standardOutput = FileHandle.nullDevice
+        try p.run()
+        defer { p.terminate() }
+        func run(_ tool: String, _ args: [String]) throws -> String {
+            let q = Process()
+            q.executableURL = URL(fileURLWithPath: tool)
+            q.arguments = args
+            let out = Pipe()
+            q.standardOutput = out
+            try q.run()
+            q.waitUntilExit()
+            return String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        var child: Int32?
+        for _ in 0..<50 where child == nil {
+            usleep(50_000)
+            child = Int32(try run("/usr/bin/pgrep", ["-P", "\(p.processIdentifier)"]))
+        }
+        let pid = try #require(child)
+        let name = try run("/bin/ps", ["-o", "tty=", "-p", "\(pid)"])
+        #expect(name.hasPrefix("ttys"))
+        #expect(ProcessUtil.tty(of: pid) == "/dev/" + name)
+    }
+
+    @Test func titleSequenceDropsControlCharacters() {
+        #expect(TerminalContext.titleSequence("a\u{07}b\u{1b}]c\nd") == "\u{1b}]0;ab]cd\u{07}")
+        #expect(TerminalContext(environment: ["TERM_PROGRAM": "Tabby"]).isTabby)
     }
 
     /// Spooled envelopes from before the field decode unchanged.

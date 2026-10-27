@@ -19,6 +19,17 @@ public enum ProcessUtil {
         return String(cString: buf)
     }
 
+    /// The controlling terminal of `pid` (`/dev/ttys003`), if it has one.
+    public static func tty(of pid: Int32) -> String? {
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        guard pid > 0, sysctl(&mib, 4, &info, &size, nil, 0) == 0, size > 0 else { return nil }
+        let dev = info.kp_eproc.e_tdev
+        guard dev != -1, let name = devname(dev, S_IFCHR) else { return nil }
+        return "/dev/" + String(cString: name)
+    }
+
     /// Parents of `pid`, nearest first, up to (not including) launchd.
     public static func ancestors(of pid: Int32, limit: Int = 16) -> [Int32] {
         var out: [Int32] = []

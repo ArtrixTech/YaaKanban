@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(onboarding): tidy agent states, ask before leaving unapproved
+## fix(jump): refresh transcript usage and switch to the Tabby tab
 
 `pending` | 2026-10-27
+
+- **Changes**: `URL.currentModificationDate` (YaaCore/Usage.swift) drops the URL's cached resource values before reading the mtime; used by `UsageTracker.refresh`, `ClaudeSessionScanner.peek` and the Codex index reload. Tabby: `TerminalContext.isTabby` (TERM_PROGRAM=Tabby), `titleSequence` (OSC 0), `ProcessUtil.tty(of:)` (sysctl `e_tdev` → devname); `TabbyAdapter` writes a `yaak-<uuid8>` title to the agent's tty, finds it among `.tabs` children via AX, presses that tab-header and raises its window, then restores the tab's previous name (or the session title if the marker never showed). Gated by the existing `waveTabSwitching` setting + Accessibility; section header "Wave Terminal · Tabby"; `Tabby` → `org.tabby` in `termProgramIds`.
+- **Reason**: cards showed 0 for every token count while the agent ran; only Wave switched tabs.
+- **User feedback**: "这里没数据但任务正常运行。另外，需要对tabby进行支持，支持自动切换" / "目前只有wave支持切换tab。tabby也要支持。"
+- **Process**: app DB showed live Claude sessions with correct transcriptPath and all-zero usage; the same transcript tallied correctly from scratch and in random growing chunks, so the parser was fine. A probe showed `resourceValues` on a kept URL returns the first mtime forever (fresh URL / `removeAllCachedResourceValues` sees the new one). New test fails without the flush, passes with it. Tabby 1.0.238: no tab id env or select-tab CLI; tab names are shell/agent titles (duplicates). Marker on ttys025 appeared in the AX tab bar after ~0.2 s; AXPress selected it (`current-tab-indicator` moved). `make test` 186 pass on the staged tree in a separate worktree.
+- **Result**: tokens update live (after reinstalling the app); Tabby jumps select the agent's tab. Not verified: a real card click in the rebuilt app.
+- **Notes**: Tabby shows `customTitle` over the terminal title, so renamed tabs, unfocused split panes and tmux never show the marker → app only activated. Another session was editing Models.swift / yaak main.swift / TerminalJumper.swift (terminal focus tracking) at the same time; only this change's hunks were committed.
+
+## fix(onboarding): tidy agent states, ask before leaving unapproved
+
+`c546e60` | 2026-10-27
 
 - **Changes**: Guide agent rows: one capsule style (`GuideBadge`, icon + text) for 已连接 (green), 等待首次使用 (gray clock; was the green 已安装 badge), 待授权 (orange); per-row "ticked next time" subtitles and the "All installed" banner replaced by one footnote under the list while any row waits; success messages after Install / Connect All dropped (failures still shown); Codex `postInstallNote` removed (its trust state is already the status + steps). Rows needing approval sort first. Continue on the agents step with any `needsAuthorization` opens an alert naming them (暂不 / 仍然继续); Skip Setup does not. Accessibility pre-prompt: shorter text, and shown on the next main-queue turn instead of inside the card's tap (then the jump runs), at most once a launch. Panel opacity setting removed: the panel is always fully opaque (`panelOpacity` pref, slider, `applyOpacity`, and the now-unused `SettingsView.panel` gone). 8 strings added, 7 removed ×9 languages.
 - **Reason**: the guide mixed a plain green label, a green capsule meaning "not yet" and a yellow capsule, with the same explanation repeated per row and again below; the pre-prompt alert was a paragraph.

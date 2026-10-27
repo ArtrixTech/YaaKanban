@@ -73,6 +73,12 @@ public struct TerminalContext: Codable, Equatable, Sendable {
     }
 
     public var isWave: Bool { waveBlockId != nil }
+    public var isTabby: Bool { termProgram == "Tabby" }
+
+    /// OSC 0: sets the tab title of the terminal it is written to (control characters dropped).
+    public static func titleSequence(_ title: String) -> String {
+        "\u{1b}]0;" + String(String.UnicodeScalarView(title.unicodeScalars.filter { $0.value >= 0x20 && $0.value != 0x7f })) + "\u{07}"
+    }
 }
 
 /// What a hook invocation sends to the app: the raw agent payload plus local context.
