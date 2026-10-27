@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(panel): make the slim rail the only folded rail
+## fix(panel): hide sub-agents whose parent is not on the board
 
 `pending` | 2026-10-27
+
+- **Changes**: `AppModel.activeSessions` drops a session with `parentId` set unless its parent is on the board or it needs input (was: only when the parent was on the board). Spec and CHANGELOG updated.
+- **Reason**: pi-subagents async-workflow scouts (`…/<parent>/<run>/run-0/session.jsonl`, header `parentSession`) were linked to their parent but showed as top-level cards because the parent pi session (pid 85048, started 10:28:20, one minute before the app was reinstalled at 10:29:22) never reached YaaKanban, so it was not on the board to fold into.
+- **User feedback**: "这种scout是明显的async workflow，看看怎么处理避免直接显示。应该被判定为subagent。"
+- **Process**: read history.sqlite (read-only): both scouts had `parentId` = the parent transcript key; no row or activity for that key. `make build`, `make test` 183 pass.
+- **Result**: orphaned sub-agents stay off the board; one waiting on the user still gets a card and alert.
+- **Notes**: why that pi process never reported is unverified (its extension file is identical to the current one); restarting that pi session brings the parent card back, and the scouts fold into it. Hidden orphans also skip the peek/usage refresh, which is keyed to `activeSessions`.
+
+## feat(panel): make the slim rail the only folded rail
+
+`9f07ebf` | 2026-10-27
 
 - **Changes**: removed the 120 pt folded rail and the `slimRail` preference/Settings toggle; `Rail.width/inset` are the old slim values; `railSlim` environment, `RailHeader`'s unfold button, the wide `NarrowSessionCard` body (and `FitStack`, `NarrowSubagents`, `UsageBadge.toolCalls`, used only there), `RecentFigures`' wide folded variant and the `rail-slim` snapshot are gone. Telemetry drops the `slim_rail` setting (docs/telemetry.md). Spec and Architecture updated; 3 unused strings removed from all tables.
 - **Reason**: user decision.

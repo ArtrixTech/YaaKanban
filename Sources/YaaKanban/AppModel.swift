@@ -55,7 +55,8 @@ final class AppModel {
 
     /// Active sessions for the floating panel; idle and ended ones only for a while (24 h by default).
     /// Sub-agents of a session on the board show inside its card instead; one waiting on the user
-    /// shows its parent as waiting too, since the whole call is held up.
+    /// shows its parent as waiting too, since the whole call is held up. A sub-agent whose parent is
+    /// not on the board (it never reported, or has left) gets no card unless it waits on the user.
     var activeSessions: [SessionState] {
         let now = Date()
         let live = sessions.values.filter { isLive($0, now: now) }
@@ -63,7 +64,7 @@ final class AppModel {
         var waiting: [String: SessionState] = [:]
         for c in live where c.status == .needsInput { if let p = c.parentId { waiting[p] = c } }
         return sorted(live.compactMap { s in
-            if let p = s.parentId, shown.contains(p) { return nil }
+            if let p = s.parentId, shown.contains(p) || s.status != .needsInput { return nil }
             guard let c = waiting[s.id], s.status != .needsInput else { return s }
             var shownAs = s
             shownAs.status = .needsInput
