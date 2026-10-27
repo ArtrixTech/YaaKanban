@@ -216,8 +216,6 @@
 "Opacity" = "불투명도";
 "Show / hide" = "보기 / 가리기";
 "Show leverage and today's work time on top" = "상단에 레버리지와 오늘 작업 시간 표시";
-"Slim sidebar (experimental)" = "슬림 사이드바(실험적)";
-"When snapped to the left or right edge and folded, the panel becomes a thin strip: each session shows only its status, agent and time, running ones shimmer, and the height stays the same. Hover it (or push the pointer to the screen edge) to expand." = "화면 왼쪽이나 오른쪽 가장자리에 붙여 접으면 패널이 가는 막대로 바뀝니다. 각 세션은 상태, 에이전트, 시간만 표시하고 실행 중인 세션은 반짝이며 높이는 그대로 유지됩니다. 포인터를 올리거나 화면 가장자리로 밀면 펼쳐집니다.";
 "Wait for background agents (beta)" = "백그라운드 에이전트 기다리기(베타)";
 "Claude Code compatibility" = "Claude Code 호환성";
 "When the main agent has replied but background agents haven't returned, the session stays running; it moves to review only after the last background agent returns and the main agent has handled its result. When off, every reply from the main agent counts as ready for review." = "메인 에이전트가 응답했지만 백그라운드 에이전트가 아직 돌아오지 않았으면 세션은 실행 중 상태를 유지합니다. 마지막 백그라운드 에이전트가 돌아오고 메인 에이전트가 그 결과를 처리한 후에야 검토 대기로 넘어갑니다. 끄면 메인 에이전트의 모든 응답이 검토 대기로 처리됩니다.";
@@ -365,7 +363,6 @@
 "agent hours" = "에이전트 작업 시간";
 "Reply" = "응답";
 "Today. Click to open Overview in the main window." = "오늘. 클릭하여 메인 윈도우에서 개요를 엽니다.";
-"Today %@" = "오늘 %@";
 "Agent hours today" = "오늘 에이전트 작업 시간";
 "All agents' running time today, added up" = "오늘 모든 에이전트의 실행 시간 합계";
 "Leverage trend" = "레버리지 추이";

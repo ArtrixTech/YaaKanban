@@ -216,8 +216,6 @@
 "Opacity" = "透明度";
 "Show / hide" = "显示 / 隐藏";
 "Show leverage and today's work time on top" = "顶部显示杠杆和今日工时";
-"Slim sidebar (experimental)" = "超窄侧边栏（实验性）";
-"When snapped to the left or right edge and folded, the panel becomes a thin strip: each session shows only its status, agent and time, running ones shimmer, and the height stays the same. Hover it (or push the pointer to the screen edge) to expand." = "吸附到屏幕左右边并收起后，变成一条细条，每个会话只显示状态、agent 和时间，运行中的有流光，高度不变。鼠标移上去（推到屏幕边也行）展开。";
 "Wait for background agents (beta)" = "等待背景 agent（测试）";
 "Claude Code compatibility" = "Claude Code 兼容性";
 "When the main agent has replied but background agents haven't returned, the session stays running; it moves to review only after the last background agent returns and the main agent has handled its result. When off, every reply from the main agent counts as ready for review." = "主 agent 回复完但还有背景 agent 没返回时，会话保持运行中，等最后一个背景 agent 返回、主 agent 处理完它的结果后才算待验收。关闭后，主 agent 每次回复完都算待验收。";
@@ -365,7 +363,6 @@
 "agent hours" = "agent 工时";
 "Reply" = "回复";
 "Today. Click to open Overview in the main window." = "今天，点击打开主界面「概览」";
-"Today %@" = "今日 %@";
 "Agent hours today" = "今日工时";
 "All agents' running time today, added up" = "今天所有 agent 在跑的时间相加";
 "Leverage trend" = "杠杆走势";

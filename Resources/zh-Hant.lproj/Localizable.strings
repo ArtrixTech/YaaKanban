@@ -216,8 +216,6 @@
 "Opacity" = "不透明度";
 "Show / hide" = "顯示 / 隱藏";
 "Show leverage and today's work time on top" = "在頂端顯示槓桿與今日工時";
-"Slim sidebar (experimental)" = "極窄側邊欄（實驗性）";
-"When snapped to the left or right edge and folded, the panel becomes a thin strip: each session shows only its status, agent and time, running ones shimmer, and the height stays the same. Hover it (or push the pointer to the screen edge) to expand." = "貼齊螢幕左右邊緣並收起後，面板會變成細長條：每個工作階段只顯示狀態、agent 與時間，執行中的會有流光，高度維持不變。將游標移到上方（或推到螢幕邊緣）即可展開。";
 "Wait for background agents (beta)" = "等待背景 agent（測試版）";
 "Claude Code compatibility" = "Claude Code 相容性";
 "When the main agent has replied but background agents haven't returned, the session stays running; it moves to review only after the last background agent returns and the main agent has handled its result. When off, every reply from the main agent counts as ready for review." = "主 agent 已回覆但仍有背景 agent 尚未返回時，工作階段會維持執行中；要等最後一個背景 agent 返回、且主 agent 處理完其結果後，才會變成待驗收。關閉後，主 agent 每次回覆完都視為待驗收。";
@@ -365,7 +363,6 @@
 "agent hours" = "agent 工時";
 "Reply" = "回覆";
 "Today. Click to open Overview in the main window." = "今天。按一下以在主視窗中打開「總覽」";
-"Today %@" = "今日 %@";
 "Agent hours today" = "今日工時";
 "All agents' running time today, added up" = "今天所有 agent 執行時間的總和";
 "Leverage trend" = "槓桿走勢";

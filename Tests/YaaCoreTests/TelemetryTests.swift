@@ -110,7 +110,7 @@ private let env = TelemetryEnvironment(app: "0.1.0", build: "1", os: "15", arch:
         f.parallelPeak = 3
         f.leverage = 1.7
         let r = Telemetry.makeReport(installId: "id", day: "1970-01-04", env: env,
-                                     integrations: [.claudeCode: "installed"], settings: [.slimRail: true],
+                                     integrations: [.claudeCode: "installed"], settings: [.showPanel: true],
                                      counts: ["jump_wave": 2, "made_up": 5, "rename": 0], figures: f)
         #expect(r.counts == ["jump_wave": 2])
         #expect(r.figures == ["sessions.claude-code": "1", "turns.claude-code": "6-20", "agent_hours": "1-3",
@@ -139,14 +139,14 @@ private let env = TelemetryEnvironment(app: "0.1.0", build: "1", os: "15", arch:
         f.sessions = [.claudeCode: 3]
         f.agentHours = 4.2
         let r = Telemetry.makeReport(installId: "e617184b-ea01-4296-a57c-3a770a5f8ef8", day: "2026-10-22", env: env,
-                                     integrations: [.claudeCode: "installed"], settings: [.slimRail: true],
+                                     integrations: [.claudeCode: "installed"], settings: [.showPanel: true],
                                      counts: ["jump_wave": 7], figures: f)
         let at = Date(timeIntervalSince1970: 1_800_000_000)
         let e = AptabaseEvent(report: r, at: at, debug: true)
         #expect(e.props["install"]?.count == 64 && e.props["install"] != r.installId)
         #expect(e.props["count.jump_wave"] == "6-20")
         #expect(e.props["figure.sessions.claude-code"] == "2-5")
-        #expect(e.props["setting.slim_rail"] == "on")
+        #expect(e.props["setting.show_panel"] == "on")
         #expect(e.props["integration.claude-code"] == "installed")
         #expect(e.props["day"] == "2026-10-22")
         #expect(e.systemProps.appVersion == "0.1.0" && e.systemProps.osName == "macOS" && e.systemProps.isDebug)

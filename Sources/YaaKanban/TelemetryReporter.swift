@@ -153,7 +153,7 @@ extension AppModel {
         let home = Paths.home()
         let s = settings
         let flags: [TelemetrySetting: Bool] = [
-            .showPanel: s.showPanel, .slimRail: s.slimRail, .showRecentStats: s.showRecentStats,
+            .showPanel: s.showPanel, .showRecentStats: s.showRecentStats,
             .flash: s.flashEnabled, .reviewFlash: s.reviewFlashEnabled, .staleTint: s.staleTintEnabled,
             .waveTabSwitching: s.waveTabSwitching, .piAutoTitle: s.piAutoTitle,
             .launchAtLogin: SMAppService.mainApp.status == .enabled,

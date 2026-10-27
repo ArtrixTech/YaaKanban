@@ -828,12 +828,11 @@ struct TodayFigures: View {
 
 /// The floating panel's figures: leverage over the last `window` as the hero with its trend
 /// behind, and today's agent hours. The arrow and the dashed line read against today's leverage.
-/// The slim rail keeps only the leverage. Windows move by whole minutes so the report cache holds
+/// The folded rail keeps only the leverage. Windows move by whole minutes so the report cache holds
 /// between redraws.
 struct RecentFigures: View {
     @Environment(AppModel.self) private var model
     var folded = false
-    var slim = false
 
     /// Fixed, so the panel's cards sit at the same height folded or not.
     static let height: CGFloat = 52
@@ -858,7 +857,7 @@ struct RecentFigures: View {
             let arrow = Self.direction(leverage, against: baseline)
             let help = String(localized: "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage.")
             Group {
-                if slim {
+                if folded {
                     // 20 pt wide: the number alone, and an arrow for its trend instead of the chart.
                     VStack(spacing: 2) {
                         Text("Leverage").font(.system(size: 8, weight: .medium)).foregroundStyle(.secondary)
@@ -871,15 +870,10 @@ struct RecentFigures: View {
                     }
                     .padding(.horizontal, 1)
                     .help(help)
-                } else if folded {
-                    VStack(spacing: 3) {
-                        value(leverage, size: 17).help(help)
-                        caption(String(localized: "Today \(duration(today.agentTime))"))
-                    }
                 } else {
                     HStack(alignment: .center, spacing: 0) {
                         VStack(alignment: .leading, spacing: 0) {
-                            // The same arrow as the slim rail's, beside the caption so the figure keeps its room.
+                            // The same arrow as the folded rail's, beside the caption so the figure keeps its room.
                             HStack(spacing: 3) {
                                 caption(String(localized: "Leverage"))
                                 if let (symbol, tint) = arrow {
@@ -912,7 +906,7 @@ struct RecentFigures: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .frame(height: Self.height)
-            .background(RecentFigures.plate(radius: slim ? 6 : 9))
+            .background(RecentFigures.plate(radius: folded ? 6 : 9))
         }
     }
 

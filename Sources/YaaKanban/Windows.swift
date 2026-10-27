@@ -378,27 +378,24 @@ struct FloatingPanelView: View {
     private var panel: some View {
         @Bindable var settings = model.settings
         let folded = self.folded
-        let slim = folded && (settings.slimRail || room?.snapshotSlim == true)
-        let railWidth = Rail.width(slim: slim), inset = Rail.inset(slim: slim)
         return VStack(alignment: .leading, spacing: 10) {
-            if folded, let edge = room?.dock {
-                RailHeader(edge: edge) { settings.sidebarExpanded = true }
+            if folded {
+                RailHeader()
             } else {
                 header
             }
             // Folded too (narrower), so the cards keep their place when the rail unfolds.
-            if settings.showRecentStats { RecentFigures(folded: folded, slim: slim) }
+            if settings.showRecentStats { RecentFigures(folded: folded) }
             if !folded, let n = model.updater.notice { UpdateNotice(notice: n).transition(.opacity) }
             list
             if !folded { bottomBar }
         }
         // Folded, the sides match the gap between cards.
-        .padding(.horizontal, folded ? inset : 10).padding(.top, 10)
-        .padding(.bottom, folded ? inset : 4)
-        // Cards are measured as wide as in the normal rail plus its extra, so either rail keeps their height.
-        .environment(\.railExtra, folded ? settings.panelWidth - 2 * Rail.inset - (railWidth - 2 * inset) : nil)
-        .environment(\.railSlim, slim)
-        .frame(width: folded ? railWidth : settings.panelWidth, alignment: .top)
+        .padding(.horizontal, folded ? Rail.inset : 10).padding(.top, 10)
+        .padding(.bottom, folded ? Rail.inset : 4)
+        // Folded cards are measured as wide as their full cards, so they keep their height.
+        .environment(\.railExtra, folded ? settings.panelWidth - 16 - (Rail.width - 2 * Rail.inset) : nil)
+        .frame(width: folded ? Rail.width : settings.panelWidth, alignment: .top)
         .fixedSize(horizontal: false, vertical: true)
         .overlay(alignment: widthGripSide) { if !folded { widthGrip } }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
@@ -603,9 +600,8 @@ final class PanelRoom {
     var isKey = false
     /// The width grip is being dragged: resize at once instead of sliding.
     var resizing = false
-    /// Snapshots render the rail folded whatever the user pinned, and slim if asked.
+    /// Snapshots render the rail folded whatever the user pinned.
     var snapshotFolded = false
-    var snapshotSlim = false
     /// The search is open and needs the panel to stay unfolded while the pointer is elsewhere: a
     /// peeking rail would fold and take it away.
     var holdOpen = false
@@ -916,13 +912,6 @@ struct SettingsView: View {
                 } label: { SettingLabel(String(localized: "Show / hide"), symbol: "command", tint: .blue) }
                 Toggle(isOn: $settings.showRecentStats) {
                     SettingLabel(String(localized: "Show leverage and today's work time on top"), symbol: "chart.bar.fill", tint: .orange)
-                }
-                Toggle(isOn: $settings.slimRail) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        SettingLabel(String(localized: "Slim sidebar (experimental)"), symbol: "sidebar.right", tint: .teal)
-                        Text("When snapped to the left or right edge and folded, the panel becomes a thin strip: each session shows only its status, agent and time, running ones shimmer, and the height stays the same. Hover it (or push the pointer to the screen edge) to expand.")
-                            .font(.system(size: 11)).foregroundStyle(.secondary).padding(.leading, 30)
-                    }
                 }
             }
             Section {

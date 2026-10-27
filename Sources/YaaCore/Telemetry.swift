@@ -30,7 +30,7 @@ public enum TelemetryEvent: String, Codable, CaseIterable, Sendable {
 
 /// Setting flags a report may carry; anything else is dropped.
 public enum TelemetrySetting: String, CaseIterable, Sendable {
-    case showPanel = "show_panel", slimRail = "slim_rail", showRecentStats = "recent_stats"
+    case showPanel = "show_panel", showRecentStats = "recent_stats"
     case flash, reviewFlash = "review_flash", staleTint = "stale_tint"
     case waveTabSwitching = "wave_tab_switching", piAutoTitle = "pi_auto_title", launchAtLogin = "launch_at_login"
 }

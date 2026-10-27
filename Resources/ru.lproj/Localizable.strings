@@ -216,8 +216,6 @@
 "Opacity" = "Непрозрачность";
 "Show / hide" = "Показать / скрыть";
 "Show leverage and today's work time on top" = "Показывать вверху множитель и время работы за сегодня";
-"Slim sidebar (experimental)" = "Узкая боковая панель (экспериментально)";
-"When snapped to the left or right edge and folded, the panel becomes a thin strip: each session shows only its status, agent and time, running ones shimmer, and the height stays the same. Hover it (or push the pointer to the screen edge) to expand." = "Если панель прикреплена к левому или правому краю экрана и свернута, она превращается в узкую полоску: у каждого сеанса видны только статус, агент и время, работающие переливаются, а высота не меняется. Наведите на нее указатель (или подведите его к краю экрана), чтобы развернуть.";
 "Wait for background agents (beta)" = "Ждать фоновых агентов (бета)";
 "Claude Code compatibility" = "Совместимость с Claude Code";
 "When the main agent has replied but background agents haven't returned, the session stays running; it moves to review only after the last background agent returns and the main agent has handled its result. When off, every reply from the main agent counts as ready for review." = "Если главный агент ответил, но фоновые агенты еще не вернулись, сеанс остается в статусе «Работает»; к проверке он переходит только после возврата последнего фонового агента и обработки его результата главным агентом. Если выключено, каждый ответ главного агента считается готовым к проверке.";
@@ -365,7 +363,6 @@
 "agent hours" = "агенто-часы";
 "Reply" = "Ответ";
 "Today. Click to open Overview in the main window." = "Сегодня. Нажмите, чтобы открыть «Обзор» в главном окне.";
-"Today %@" = "Сегодня %@";
 "Agent hours today" = "Агенто-часы за сегодня";
 "All agents' running time today, added up" = "Суммарное время работы всех агентов за сегодня";
 "Leverage trend" = "Тренд множителя";

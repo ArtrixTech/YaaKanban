@@ -216,8 +216,6 @@
 "Opacity" = "不透明度";
 "Show / hide" = "表示 / 非表示";
 "Show leverage and today's work time on top" = "上部にレバレッジと今日の作業時間を表示";
-"Slim sidebar (experimental)" = "スリムサイドバー（実験的）";
-"When snapped to the left or right edge and folded, the panel becomes a thin strip: each session shows only its status, agent and time, running ones shimmer, and the height stays the same. Hover it (or push the pointer to the screen edge) to expand." = "画面の左右の端に吸着させて折りたたむと、パネルは細い帯になります。各セッションにはステータス、エージェント、時間だけが表示され、実行中のものには光が流れ、高さはそのままです。ポインタを重ねる（または画面の端まで動かす）と展開します。";
 "Wait for background agents (beta)" = "バックグラウンドエージェントを待つ（ベータ）";
 "Claude Code compatibility" = "Claude Code互換性";
 "When the main agent has replied but background agents haven't returned, the session stays running; it moves to review only after the last background agent returns and the main agent has handled its result. When off, every reply from the main agent counts as ready for review." = "メインエージェントが返信を終えても、バックグラウンドエージェントが戻っていない間はセッションを実行中のままにします。最後のバックグラウンドエージェントが戻り、メインエージェントがその結果を処理した後にレビュー待ちになります。オフにすると、メインエージェントが返信するたびにレビュー待ちになります。";
@@ -365,7 +363,6 @@
 "agent hours" = "エージェント稼働時間";
 "Reply" = "返信";
 "Today. Click to open Overview in the main window." = "今日。クリックするとメインウインドウの「概要」を開きます。";
-"Today %@" = "今日%@";
 "Agent hours today" = "今日の稼働時間";
 "All agents' running time today, added up" = "今日の全エージェントの実行時間の合計";
 "Leverage trend" = "レバレッジの推移";

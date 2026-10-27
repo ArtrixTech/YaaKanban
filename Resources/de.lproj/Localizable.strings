@@ -216,8 +216,6 @@
 "Opacity" = "Deckkraft";
 "Show / hide" = "Ein-/Ausblenden";
 "Show leverage and today's work time on top" = "Hebel und heutige Arbeitszeit oben zeigen";
-"Slim sidebar (experimental)" = "Schmale Seitenleiste (experimentell)";
-"When snapped to the left or right edge and folded, the panel becomes a thin strip: each session shows only its status, agent and time, running ones shimmer, and the height stays the same. Hover it (or push the pointer to the screen edge) to expand." = "Am linken oder rechten Rand angedockt und eingeklappt wird das Fenster zu einem schmalen Streifen: Jede Sitzung zeigt nur Status, Agent und Zeit, laufende schimmern, und die Höhe bleibt gleich. Zum Ausklappen darauf zeigen (oder den Zeiger an den Bildschirmrand schieben).";
 "Wait for background agents (beta)" = "Auf Hintergrund-Agenten warten (Beta)";
 "Claude Code compatibility" = "Kompatibilität mit Claude Code";
 "When the main agent has replied but background agents haven't returned, the session stays running; it moves to review only after the last background agent returns and the main agent has handled its result. When off, every reply from the main agent counts as ready for review." = "Hat der Haupt-Agent geantwortet, sind aber noch Hintergrund-Agenten unterwegs, läuft die Sitzung weiter. Sie wechselt erst zu „Zu prüfen“, wenn der letzte Hintergrund-Agent zurück ist und der Haupt-Agent dessen Ergebnis verarbeitet hat. Wenn deaktiviert, gilt jede Antwort des Haupt-Agenten als bereit zur Prüfung.";
@@ -365,7 +363,6 @@
 "agent hours" = "Agentenstunden";
 "Reply" = "Antwort";
 "Today. Click to open Overview in the main window." = "Heute. Klicken, um die Übersicht im Hauptfenster zu öffnen.";
-"Today %@" = "Heute %@";
 "Agent hours today" = "Agentenstunden heute";
 "All agents' running time today, added up" = "Laufzeit aller Agenten heute zusammen";
 "Leverage trend" = "Hebel-Verlauf";

@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(core): fix reply waits, oversized lines, spool and pi links
+## feat(panel): make the slim rail the only folded rail
 
 `pending` | 2026-10-27
+
+- **Changes**: removed the 120 pt folded rail and the `slimRail` preference/Settings toggle; `Rail.width/inset` are the old slim values; `railSlim` environment, `RailHeader`'s unfold button, the wide `NarrowSessionCard` body (and `FitStack`, `NarrowSubagents`, `UsageBadge.toolCalls`, used only there), `RecentFigures`' wide folded variant and the `rail-slim` snapshot are gone. Telemetry drops the `slim_rail` setting (docs/telemetry.md). Spec and Architecture updated; 3 unused strings removed from all tables.
+- **Reason**: user decision.
+- **User feedback**: "超窄模式不再是实验性功能，直接成为默认。原来的宽侧边栏模式去掉"
+- **Process**: `make build`, `make l10n` (0 problems), `make test` 183 pass.
+- **Result**: done.
+- **Notes**: card measuring width kept as before (`panelWidth - 16 - (Rail.width - 2·inset)` extra), so folded heights don't change. The stale `slimRail` UserDefaults key is left alone (unread).
+
+## fix(core): fix reply waits, oversized lines, spool and pi links
+
+`9caac1d` | 2026-10-27
 
 - **Changes**: `Store.activity` also returns away rows reaching into the wait of any reply in the range; `TranscriptTally.update` skips a line longer than its 8 MiB chunk instead of stopping; `Wire.drainSpool` takes a handler and deletes each file after it is ingested (unreadable files stay); `SubagentLink.header` tells "header not written yet" (nil) from "no parent", and `linkParent` caches only the former; MainWindow's History builds the active-id set once. Tests for each.
 - **Reason**: fixes chosen from a Codex (gpt-6-astra, medium, read-only) review, each re-checked against the code.

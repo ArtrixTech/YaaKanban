@@ -216,8 +216,6 @@
 "Opacity" = "Opacité";
 "Show / hide" = "Afficher / masquer";
 "Show leverage and today's work time on top" = "Afficher le levier et le temps de travail du jour en haut";
-"Slim sidebar (experimental)" = "Barre latérale fine (expérimental)";
-"When snapped to the left or right edge and folded, the panel becomes a thin strip: each session shows only its status, agent and time, running ones shimmer, and the height stays the same. Hover it (or push the pointer to the screen edge) to expand." = "Quand le panneau est aimanté au bord gauche ou droit et replié, il devient une fine bande : chaque session n’affiche que son état, son agent et sa durée, celles en cours scintillent, et la hauteur reste la même. Survolez-la (ou poussez le pointeur contre le bord de l’écran) pour la développer.";
 "Wait for background agents (beta)" = "Attendre les agents en arrière-plan (bêta)";
 "Claude Code compatibility" = "Compatibilité Claude Code";
 "When the main agent has replied but background agents haven't returned, the session stays running; it moves to review only after the last background agent returns and the main agent has handled its result. When off, every reply from the main agent counts as ready for review." = "Quand l’agent principal a répondu mais que des agents en arrière-plan ne sont pas revenus, la session reste « En cours » ; elle passe « À vérifier » seulement après le retour du dernier agent en arrière-plan et le traitement de son résultat par l’agent principal. Si l’option est désactivée, chaque réponse de l’agent principal est considérée comme prête à vérifier.";
@@ -365,7 +363,6 @@
 "agent hours" = "heures d’agent";
 "Reply" = "Réponse";
 "Today. Click to open Overview in the main window." = "Aujourd’hui. Cliquez pour ouvrir la Vue d’ensemble dans la fenêtre principale.";
-"Today %@" = "Aujourd’hui %@";
 "Agent hours today" = "Heures d’agent du jour";
 "All agents' running time today, added up" = "Temps d’exécution de tous les agents aujourd’hui, cumulé";
 "Leverage trend" = "Tendance du levier";

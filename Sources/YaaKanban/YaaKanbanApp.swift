@@ -63,7 +63,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("rail", AnyView(FloatingPanelView(room: { let r = PanelRoom(dock: .right); r.snapshotFolded = true; return r }()).environment(model)), NSSize(width: Rail.width, height: 600)),
             ("rail-wide", AnyView(FloatingPanelView(room: PanelRoom(dock: .right, peek: true)).environment(model)),
              NSSize(width: model.settings.panelWidth, height: 600)),
-            ("rail-slim", AnyView(FloatingPanelView(room: { let r = PanelRoom(dock: .right); r.snapshotFolded = true; r.snapshotSlim = true; return r }()).environment(model)), NSSize(width: Rail.slimWidth, height: 600)),
             ("menu", AnyView(MenuContent(panel: panel).environment(model)), NSSize(width: 230, height: 230)),
             ("main", AnyView(MainWindow().environment(model)), NSSize(width: 1000, height: 640)),
             ("settings", AnyView(SettingsView(panel: panel).environment(model)), SettingsView.size),

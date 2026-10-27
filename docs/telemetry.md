@@ -23,7 +23,7 @@ network error) and whether this build has an Aptabase App Key. Turning it off de
 | `arch` | `arm64` / `x86_64` |
 | `lang` | language code only, e.g. `zh` |
 | `integrations` | per agent: `installed`, `outdated`, `needsAuthorization`, `notInstalled`, `notDetected` |
-| `settings` | on/off: `show_panel`, `slim_rail`, `recent_stats`, `flash`, `review_flash`, `stale_tint`, `wave_tab_switching`, `pi_auto_title`, `launch_at_login` (as at send time) |
+| `settings` | on/off: `show_panel`, `recent_stats`, `flash`, `review_flash`, `stale_tint`, `wave_tab_switching`, `pi_auto_title`, `launch_at_login` (as at send time) |
 | `counts` | times that day, bucketed like `sessions` below: `panel_toggle`, `jump_wave`, `jump_iterm`, `jump_terminal`, `jump_editor`, `jump_other`, `jump_unknown`, `resume`, `approval_allow`, `approval_deny`, `approval_timeout`, `rename`, `pin`, `feedback_open`, `integration_install`, `integration_uninstall`, `integration_fail`, `spool_replay` |
 | `figures` | ranges, not values: `sessions.<agent>` and `turns.<agent>` (`1`, `2-5`, `6-20`, `21-100`, `100+`), `agent_hours` (`0`, `<1`, `1-3`, `3-8`, `8-24`, `24+`), `parallel_peak` (as sessions), `leverage` (`<0.5`, `0.5-1`, `1-2`, `2-4`, `4+`) |
 

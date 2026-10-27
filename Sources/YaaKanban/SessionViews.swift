@@ -445,9 +445,8 @@ extension SessionState {
 /// Card-sized stats: tool calls and tokens, when there are any.
 struct UsageBadge: View {
     let session: SessionState
-    var toolCalls = true
     var body: some View {
-        let tools = toolCalls ? session.toolCallCount : 0
+        let tools = session.toolCallCount
         HStack(spacing: 7) {
             if tools > 0 {
                 Label(compactCount(tools), systemImage: "wrench.and.screwdriver").help("Tool calls: \(tools)")
