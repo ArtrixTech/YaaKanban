@@ -34,6 +34,8 @@ public struct TranscriptTally: Sendable {
     static let finishedLimit = 100
     /// Claude repeats one message's usage on each of its content-block lines.
     private var lastMessageId: String?
+    /// The read is in the middle of an oversized line; drop bytes up to its newline.
+    private var skipping = false
 
     public init(format: Format) { self.format = format }
 
@@ -51,8 +53,20 @@ public struct TranscriptTally: Sendable {
             try? h.seek(toOffset: offset)
             guard let data = try? h.read(upToCount: Self.chunk), !data.isEmpty else { break }
             // Only whole lines; a partial last line is read next time.
-            guard let end = data.lastIndex(of: UInt8(ascii: "\n")) else { break }
-            consume(data[data.startIndex...end])
+            guard let end = data.lastIndex(of: UInt8(ascii: "\n")) else {
+                // A line longer than a chunk (an image, a huge tool result) is skipped, or it
+                // would hold up everything after it.
+                guard data.count >= Self.chunk else { break }
+                offset += UInt64(data.count)
+                skipping = true
+                continue
+            }
+            var lines = data[data.startIndex...end]
+            if skipping, let first = lines.firstIndex(of: UInt8(ascii: "\n")) {
+                lines = lines[lines.index(after: first)...]
+                skipping = false
+            }
+            consume(lines)
             offset += UInt64(end - data.startIndex + 1)
             changed = true
         }

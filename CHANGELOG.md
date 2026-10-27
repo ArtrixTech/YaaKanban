@@ -14,6 +14,13 @@ the update.
 ### Changed
 - An agent that another agent runs as a tool (Claude calling Codex, for example) no longer gets a card of its own: it shows under the calling session, which also shows when it needs your input.
 
+### Fixed
+- Reply times on the dashboard no longer count time you were away when the wait began before the day, week or month shown (an overnight wait answered in the morning, for example).
+- A session whose transcript has one very large line (an image, a huge tool result) keeps updating its tokens, reply and tool results instead of freezing there.
+- Events recorded while the app was closed are no longer lost if it quits while replaying them at launch.
+- A pi sub-agent caught before its transcript header is fully written still shows under its parent.
+- The main window's History list stays quick with many past sessions.
+
 ## [0.1.2] - 2026-10-26
 
 ### Added

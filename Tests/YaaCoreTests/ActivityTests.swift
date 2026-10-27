@@ -266,6 +266,21 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         #expect(store.meta("heartbeat") == 42)
         #expect(store.meta("nope") == nil)
     }
+
+    @Test func replyWaitStartingBeforeTheRangeTakesItsAwayOut() throws {
+        // Waiting since 0, away 10–90, replied at 110: the day starting at 100 sees a 30 s reply.
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("yaak-\(UUID().uuidString).sqlite")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = try Store(path: url)
+        store.record([ActivityRow(at: at(10), session: "", kind: .away, value: 80),
+                      ActivityRow(at: at(110), session: "claude-code:a", kind: .reply, value: 110)])
+        let range = DateInterval(start: at(100), end: at(200))
+        let r = ActivityReport.compute(rows: store.activity(from: range.start, to: range.end), lanesBefore: [:],
+                                       range: range, now: at(200))
+        #expect(r.replies == [30])
+        // The earlier away row only serves the reply; the range's own away is unchanged.
+        #expect(r.away.isEmpty)
+    }
 }
 
 @Suite struct Backfill {

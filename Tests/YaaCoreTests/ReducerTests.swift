@@ -632,6 +632,20 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(t.lastReply == nil && t.usage.output == 10)
     }
 
+    @Test func lineLongerThanAChunkIsSkipped() throws {
+        // An image or huge tool result on one line must not hold up the lines after it.
+        let huge = #"{"type":"user","message":{"content":[{"type":"tool_result","content":""# +
+            String(repeating: "x", count: TranscriptTally.chunk + 100) + "\"}]}}\n"
+        let reply = #"{"type":"assistant","message":{"id":"m9","content":[{"type":"text","text":"之后"}],"usage":{"output_tokens":4}}}"# + "\n"
+        let url = tmp(huge + reply)
+        defer { try? FileManager.default.removeItem(at: url) }
+        var t = TranscriptTally(format: .claude)
+        let read = t.update(from: url)
+        #expect(read)
+        #expect(t.lastReply == "之后" && t.usage.output == 4)
+        #expect(t.offset == UInt64(Data((huge + reply).utf8).count))
+    }
+
     @Test func codexCumulativeTokensAndReply() {
         let lines = [
             #"{"type":"event_msg","payload":{"type":"task_started"}}"#,
@@ -682,14 +696,25 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         let u = try file(#"{"type":"session","version":3,"id":"c","cwd":"/x","parentSession":"/s/parent.jsonl"}"# + "\n" +
                          #"{"type":"model_change","id":"1"}"# + "\n")
         defer { try? FileManager.default.removeItem(at: u) }
-        #expect(SubagentLink.parentSession(transcript: u) == "/s/parent.jsonl")
+        #expect(SubagentLink.header(transcript: u)?.parentSession == "/s/parent.jsonl")
     }
 
     @Test func topLevelSessionHasNoParent() throws {
         let u = try file(#"{"type":"session","version":3,"id":"p","cwd":"/x"}"# + "\n")
         defer { try? FileManager.default.removeItem(at: u) }
-        #expect(SubagentLink.parentSession(transcript: u) == nil)
-        #expect(SubagentLink.parentSession(transcript: u.appendingPathExtension("missing")) == nil)
+        let h = SubagentLink.header(transcript: u)
+        #expect(h != nil && h?.parentSession == nil)
+    }
+
+    @Test func unwrittenHeaderIsRetried() throws {
+        // No file yet, or the first line still being written: nil, so the caller looks again.
+        let u = try file(#"{"type":"session","version":3,"id":"c","parentSe"#)
+        defer { try? FileManager.default.removeItem(at: u) }
+        #expect(SubagentLink.header(transcript: u.appendingPathExtension("missing")) == nil)
+        #expect(SubagentLink.header(transcript: u) == nil)
+        try (#"{"type":"session","version":3,"id":"c","parentSession":"/s/p.jsonl"}"# + "\n")
+            .write(to: u, atomically: true, encoding: .utf8)
+        #expect(SubagentLink.header(transcript: u)?.parentSession == "/s/p.jsonl")
     }
 }
 

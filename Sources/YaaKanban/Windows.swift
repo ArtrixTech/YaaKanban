@@ -706,13 +706,19 @@ struct MainWindow: View {
     @State private var filter: AgentKind?
     @State private var query = ""
 
+    /// Sessions not on the boards; the active set is computed once, not per session.
+    private var history: [SessionState] {
+        let active = Set(model.activeSessions.map(\.id))
+        return model.allSessions.filter { !active.contains($0.id) }
+    }
+
     var body: some View {
         @Bindable var model = model
         NavigationSplitView {
             List(selection: $model.selection) {
                 Label("Overview", systemImage: "chart.xyaxis.line").tag(AppModel.overview)
                 section(String(localized: "Active"), model.board)
-                section(String(localized: "History"), model.allSessions.filter { s in !model.activeSessions.contains { $0.id == s.id } })
+                section(String(localized: "History"), history)
             }
             .searchable(text: $query, placement: .sidebar, prompt: "Project / prompt")
             .toolbar {

@@ -94,14 +94,21 @@ public struct TranscriptPeek: Codable, Equatable, Sendable {
 /// Sub-agents that run as sessions of their own name their parent in the transcript's header line
 /// (pi: `{"type":"session",…,"parentSession":"<parent transcript>"}`).
 public enum SubagentLink {
-    /// The parent's session id, or nil when the header has none (or is not written yet).
-    public static func parentSession(transcript url: URL) -> String? {
+    public struct Header: Sendable { public let parentSession: String? }
+
+    /// The transcript's header, or nil while it is not written yet (no file, or no whole first line).
+    public static func header(transcript url: URL) -> Header? {
         guard let h = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? h.close() }
-        guard let head = try? h.read(upToCount: 4096),
-              let line = head.split(separator: UInt8(ascii: "\n"), maxSplits: 1).first,
-              let j = JSONValue.parse(Data(line)), j["type"]?.string == "session" else { return nil }
-        return j["parentSession"]?.string
+        guard let head = try? h.read(upToCount: 4096) else { return nil }
+        guard let nl = head.firstIndex(of: UInt8(ascii: "\n")) else {
+            // A first line this long is not a pi header; there is nothing to wait for.
+            return head.count >= 4096 ? Header(parentSession: nil) : nil
+        }
+        guard let j = JSONValue.parse(Data(head[head.startIndex..<nl])), j["type"]?.string == "session" else {
+            return Header(parentSession: nil)
+        }
+        return Header(parentSession: j["parentSession"]?.string)
     }
 }
 

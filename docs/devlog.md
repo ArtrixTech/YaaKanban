@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(onboarding): open the app's own notification settings page
+## fix(core): fix reply waits, oversized lines, spool and pi links
 
 `pending` | 2026-10-27
+
+- **Changes**: `Store.activity` also returns away rows reaching into the wait of any reply in the range; `TranscriptTally.update` skips a line longer than its 8 MiB chunk instead of stopping; `Wire.drainSpool` takes a handler and deletes each file after it is ingested (unreadable files stay); `SubagentLink.header` tells "header not written yet" (nil) from "no parent", and `linkParent` caches only the former; MainWindow's History builds the active-id set once. Tests for each.
+- **Reason**: fixes chosen from a Codex (gpt-6-astra, medium, read-only) review, each re-checked against the code.
+- **User feedback**: "让codex分析并评估当前项目可能的性能优化、代码实现质量问题。" then "按照你认为关键的来修。"
+- **Process**: with Usage.swift/Store.swift reverted, the new tests fail (reply 110 s instead of 30; tally offset stuck at 0); with the fixes, 183/183 pass.
+- **Result**: done.
+- **Notes**: findings left open on purpose: unchecked SQLite results, hook end-to-end deadline, toolEnd name fallback, lane correlated subquery, installer stale plan / read errors, OpenCode permission ordering, full-history loadAll and main-actor scans, and retention vs. spec (`toolHistoryLimit` 200 drops metadata that spec says is kept forever — a spec decision for the user). Spool is still replayed only at launch: replaying mid-run could apply stale events after newer live ones.
+
+## fix(onboarding): open the app's own notification settings page
+
+`e44e218` | 2026-10-27
 
 - **Changes**: the guide's "Open System Settings" (notifications denied) opens `x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=<bundle id>` instead of the Notifications list.
 - **Reason**: user found searching for YaaKanban in Settings too much friction and expected an allow/deny prompt.

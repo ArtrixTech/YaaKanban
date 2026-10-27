@@ -191,9 +191,8 @@ final class AppModel {
         } catch {
             serverError = "Cannot listen on \(paths.socket.path): \(error)"
         }
-        let spooled = Wire.drainSpool(paths: paths)
-        for req in spooled { ingest(req.envelope, alert: false) }
-        telemetry.count(.spoolReplay, by: spooled.count)
+        let spooled = Wire.drainSpool(paths: paths) { ingest($0.envelope, alert: false) }
+        telemetry.count(.spoolReplay, by: spooled)
 
         notifier.onAction = { [weak self] key, requestId, action in
             self?.handleNotificationAction(key: key, requestId: requestId, action: action)
@@ -632,9 +631,9 @@ final class AppModel {
               let path = s.transcriptPath else { return }
         let url = URL(fileURLWithPath: path)
         // Not written yet: try again on the next event or scan.
-        guard FileManager.default.fileExists(atPath: path) else { return }
+        guard let header = SubagentLink.header(transcript: url) else { return }
         linkChecked.insert(key)
-        guard let parent = SubagentLink.parentSession(transcript: url) else { return }
+        guard let parent = header.parentSession else { return }
         let pk = SessionState.key(s.agent, parent)
         guard pk != key else { return }
         update(key, alert: false) { s in
