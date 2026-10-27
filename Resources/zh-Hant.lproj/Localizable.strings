@@ -55,48 +55,47 @@
 "No new events for %lld min" = "%lld 分鐘沒有新事件";
 /* ClaudeCompatible.swift */
 "~/.qwen/settings.json has \"disableAllHooks\": true, so Qwen Code runs no hooks." = "~/.qwen/settings.json 中寫著 \"disableAllHooks\": true，Qwen Code 不會執行任何 hook。";
-"Remove it (or set it to false), restart qwen, then come back and click “Recheck”." = "刪除這一項（或改成 false），重新啟動 qwen，再回到這裡按一下「重新檢查」。";
+"Remove it (or set it to false), restart qwen, then come back here." = "刪除這一項（或改成 false），重新啟動 qwen，再回到這裡即可。";
 "Gemini CLI runs hooks only in trusted folders: choose to trust the folder the first time you open gemini in a project." = "Gemini CLI 只會在信任的資料夾中執行 hook：第一次在專案中開啟 gemini 時，選擇信任該資料夾。";
 "hooksConfig.enabled is false in ~/.gemini/settings.json, so Gemini CLI runs no hooks." = "~/.gemini/settings.json 中的 hooksConfig.enabled 為 false，Gemini CLI 不會執行任何 hook。";
-"Set it to true (or remove it), restart gemini, then come back and click “Recheck”." = "改成 true（或刪除這一項），重新啟動 gemini，再回到這裡按一下「重新檢查」。";
+"Set it to true (or remove it), restart gemini, then come back here." = "改成 true（或刪除這一項），重新啟動 gemini，再回到這裡即可。";
 "The yaak hook is disabled in Gemini CLI (hooksConfig.disabled)." = "yaak hook 在 Gemini CLI 中已停用（hooksConfig.disabled）。";
-"In gemini, run /hooks enable %@, or remove it from hooksConfig.disabled in ~/.gemini/settings.json, then come back and click “Recheck”." = "在 gemini 中輸入 /hooks enable %@，或從 ~/.gemini/settings.json 的 hooksConfig.disabled 中刪除它，再回到這裡按一下「重新檢查」。";
+"In gemini, run /hooks enable %@, or remove it from hooksConfig.disabled in ~/.gemini/settings.json, then come back here." = "在 gemini 中輸入 /hooks enable %@，或從 ~/.gemini/settings.json 的 hooksConfig.disabled 中刪除它，再回到這裡即可。";
 "Droid runs no hooks in untrusted folders: choose to trust the folder the first time you open droid in a project." = "Droid 不會在未信任的資料夾中執行任何 hook：第一次在專案中開啟 droid 時，選擇信任該資料夾。";
 "Droid has hooksDisabled set to true (~/.factory/settings.json or hooks.json), so it runs no hooks." = "Droid 的 hooksDisabled 為 true（~/.factory/settings.json 或 hooks.json），不會執行任何 hook。";
-"Re-enable them with /hooks in droid, or remove the setting, then come back and click “Recheck”." = "在 droid 中輸入 /hooks 重新啟用，或刪除這項設定，再回到這裡按一下「重新檢查」。";
+"Re-enable them with /hooks in droid, or remove the setting, then come back here." = "在 droid 中輸入 /hooks 重新啟用，或刪除這項設定，再回到這裡即可。";
 "ZCode reads its hook config when a session starts: only sessions opened after installing will report." = "ZCode 在工作階段開始時讀取 hook 設定：安裝後新開啟的工作階段才會回報。";
 "ZCode's main hook switch is off (hooks.enabled in ~/.zcode/cli/config.json)." = "ZCode 的 hook 總開關未開啟（~/.zcode/cli/config.json 中的 hooks.enabled）。";
-"Turn it on in ZCode under Settings → Hooks, or set hooks.enabled to true, then come back and click “Recheck”." = "在 ZCode 的「設定 → Hooks」中開啟，或將 hooks.enabled 改成 true，再回到這裡按一下「重新檢查」。";
+"Turn it on in ZCode under Settings → Hooks, or set hooks.enabled to true, then come back here." = "在 ZCode 的「設定 → Hooks」中開啟，或將 hooks.enabled 改成 true，再回到這裡即可。";
 "YaaKanban's %@ hooks are disabled in ZCode." = "YaaKanban 的 %@ hook 在 ZCode 中已停用。";
-"Turn them back on in ZCode under Settings → Hooks, then come back and click “Recheck”." = "在 ZCode 的「設定 → Hooks」中重新開啟，再回到這裡按一下「重新檢查」。";
+"Turn them back on in ZCode under Settings → Hooks, then come back here." = "在 ZCode 的「設定 → Hooks」中重新開啟，再回到這裡即可。";
 /* Cline.swift */
 "Cline's hooks in VS Code follow its “Enable Hooks” switch (on by default). Cline has no permission-request hook, so approvals still happen in Cline. A task that errors in VS Code fires no hook, so its card ends only when stuck detection kicks in." = "Cline 在 VS Code 中的 hook 受「Enable Hooks」開關控制（預設開啟）。Cline 沒有權限請求 hook，因此仍需在 Cline 中核准。VS Code 中出錯的任務不會觸發 hook，卡片要等到卡住偵測生效才會結束。";
 /* DeepSeek.swift */
 "dsh hooks are an experimental interface: no approvals, no session-end event, and no transcript." = "dsh 的 hook 是實驗性介面：沒有核准、工作階段結束事件，也沒有 transcript。";
 "In a terminal, run: dsh plugin --profile web add file:%@" = "在終端機中執行：dsh plugin --profile web add file:%@";
 "For another profile, replace web with its name (headless, acp…); add it once for each profile you use." = "若使用其他 profile，將 web 換成它的名稱（headless、acp…）；每個使用的 profile 都要加入一次。";
-"Restart dsh, then come back and click “Recheck”." = "重新啟動 dsh，再回到這裡按一下「重新檢查」。";
+"Restart dsh, then come back here." = "重新啟動 dsh，再回到這裡即可。";
 /* Hermes.swift */
 "Before Hermes first runs a new hook, it asks you in the terminal to allow each one." = "Hermes 第一次執行新的 hook 前，會在終端機中逐一詢問你是否允許。";
 "Run hermes once in a terminal." = "在終端機中執行一次 hermes。";
 "It asks about each YaaKanban hook (%lld in total); answer y to all." = "它會逐一詢問是否允許 YaaKanban 的 hook（共 %lld 個），全部回答 y。";
-"Come back and click “Recheck”." = "回到這裡按一下「重新檢查」。";
+"Come back here." = "回到這裡即可。";
 /* JSONHooks.swift */
-"Codex runs only the hooks you trusted in /hooks." = "Codex 只會執行你在 /hooks 中信任的 hook。";
 "~/.codex/config.toml has hooks = false under [features], so Codex runs no hooks." = "~/.codex/config.toml 的 [features] 中寫著 hooks = false，Codex 不會執行任何 hook。";
-"Remove that line (or set it to true), restart Codex, then come back and click “Recheck”." = "刪除這一行（或改成 true），重新啟動 Codex，再回到這裡按一下「重新檢查」。";
+"Remove that line (or set it to true), restart Codex, then come back here." = "刪除這一行（或改成 true），重新啟動 Codex，再回到這裡即可。";
 "Open codex in a terminal and enter /hooks." = "在終端機中開啟 codex，輸入 /hooks。";
 "Trust the untrusted yaak hooks (%lld)." = "信任 %lld 個未信任的 yaak hook。";
 "Yaak hooks changed since you trusted them (%lld; yaak path or arguments): trust them again." = "%lld 個 yaak hook 在你信任後已變更（yaak 路徑或參數），請重新信任它們。";
 "Re-enable the disabled yaak hooks (%lld)." = "重新啟用 %lld 個已停用的 yaak hook。";
-"Come back and click “Recheck”. Codex sessions already open need a restart to pick them up." = "回到這裡按一下「重新檢查」。已開啟的 Codex 工作階段需要重新啟動才會套用。";
+"Come back here. Codex sessions already open need a restart to pick them up." = "回到這裡即可。已開啟的 Codex 工作階段需要重新啟動才會套用。";
 "Windsurf runs no hooks in Restricted Mode; Cascade has no permission-request hook and no session start/end events." = "Windsurf 在 Restricted Mode 下不會執行 hook；Cascade 沒有權限請求 hook，也沒有工作階段開始/結束事件。";
 /* Kimi.swift */
 "Kimi Code hooks can't answer permission requests: the card shows it's waiting on you, but you approve in the terminal. If you changed KIMI_CODE_HOME, the hooks aren't installed there." = "Kimi Code 的 hook 無法回應權限請求：卡片會顯示正在等你，但需要回到終端機核准。若你更改過 KIMI_CODE_HOME，hook 不會安裝到該處。";
 /* Kiro.swift */
 "Kiro CLI runs no hooks in untrusted workspaces: choose to trust the workspace the first time you open kiro-cli in a project." = "Kiro CLI 不會在未信任的工作區中執行 hook：第一次在專案中開啟 kiro-cli 時，選擇信任該工作區。";
 "Kiro CLI uses the %@ engine (chat.agentEngine in ~/.kiro/settings/cli.json); only the V3 engine reads ~/.kiro/hooks." = "Kiro CLI 使用的是 %@ 引擎（~/.kiro/settings/cli.json 中的 chat.agentEngine），只有 V3 引擎會讀取 ~/.kiro/hooks。";
-"Run kiro-cli settings chat.agentEngine v3 (or start it with --v3), then come back and click “Recheck”." = "執行 kiro-cli settings chat.agentEngine v3（或啟動時加上 --v3），再回到這裡按一下「重新檢查」。";
+"Run kiro-cli settings chat.agentEngine v3 (or start it with --v3), then come back here." = "執行 kiro-cli settings chat.agentEngine v3（或啟動時加上 --v3），再回到這裡即可。";
 /* Plugins.swift */
 "omp's extension directory is assumed to be the default ~/.omp/agent; PI_CODING_AGENT_DIR and profiles aren't followed." = "omp 的擴充功能目錄假定為預設的 ~/.omp/agent；不會依循 PI_CODING_AGENT_DIR 或 profile。";
 
@@ -188,7 +187,6 @@
 "All" = "全部";
 "Restore to floating panel" = "恢復到浮動面板";
 "Delete from history" = "從歷史記錄中刪除";
-"Recheck" = "重新檢查";
 "Update" = "更新";
 "Uninstall" = "解除安裝";
 "Install" = "安裝";
@@ -455,3 +453,9 @@
 "Recommended · installs the hook in every agent below at once" = "推薦 · 一次為下面所有 Agent 安裝 hook";
 "All installed. Each agent is ticked by itself the next time you use it; restart sessions already running." = "已全部安裝。下次使用各個 Agent 時會自動打勾；正在執行的工作階段需要重新啟動。";
 "Ticked by itself the next time you use %@. Sessions already running need a restart." = "下次使用 %@ 時自動打勾。正在執行的工作階段需要重新啟動。";
+"Codex runs only the hooks you trusted: Settings → Hooks in the app, /hooks in the terminal." = "Codex 只會執行你信任的 hook：App 中在「設定 → Hooks」，終端機中用 /hooks。";
+"In the Codex app, open Settings → Hooks." = "在 Codex App 中開啟「設定 → Hooks」。";
+"%@ app" = "%@ App";
+"Not Now" = "稍後再說";
+"Allow YaaKanban to bring the right window forward?" = "允許 YaaKanban 將對應的視窗帶到最前面？";
+"To bring the agent's exact window or Wave tab to the front, YaaKanban needs Accessibility access. macOS will ask next; turn on YaaKanban in System Settings, then click the card again. Without it, YaaKanban only switches to the app." = "若要將 agent 所在的視窗或 Wave 分頁準確帶到最前面，YaaKanban 需要輔助使用權限。接下來 macOS 會詢問；請在系統設定中開啟 YaaKanban，再按一下卡片。未授權時，YaaKanban 只會切換到對應的 App。";

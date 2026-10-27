@@ -59,7 +59,7 @@ public struct DeepSeekIntegration: Integration {
         guard isInstalled(home: home), Self.profilesWithBundle(home: home).isEmpty else { return [] }
         return [String(localized: "In a terminal, run: dsh plugin --profile web add file:\(bundle(home).path)"),
                 String(localized: "For another profile, replace web with its name (headless, acp…); add it once for each profile you use."),
-                String(localized: "Restart dsh, then come back and click “Recheck”.")]
+                String(localized: "Restart dsh, then come back here.")]
     }
 
     static func packageJSON(version: String) -> String {

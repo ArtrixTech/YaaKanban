@@ -9,7 +9,9 @@ import YaaIntegrations
 /// arrives, whenever that is), then alerts and preferences. Opens by itself on a first launch with
 /// nothing connected; the menu, the empty panel and Settings open it again. Closing it at any step
 /// counts as done. Frameless: no title bar or traffic lights, its own close button, dragged by the
-/// background. The page itself never scrolls; only the agent list does.
+/// background. The page itself never scrolls; only the agent list does. While it is open the app
+/// shows in the Dock and the app switcher, so the user can get back to it after going to an agent.
+/// What the user does elsewhere (approving hooks, permissions) is read again when they come back.
 struct SetupGuide: View {
     enum Step: Int, CaseIterable { case connect, finish }
     static let id = "setup"
@@ -27,7 +29,6 @@ struct SetupGuide: View {
     // The last step's choices start on and apply on Done; the user turns off what they don't want.
     @State private var launchAtLogin = true
     @State private var accessibility = AXIsProcessTrusted()
-    @State private var wantAccessibility = true
     /// Shown while the CLI was missing when the guide opened.
     @State private var offerCLI = !SetupGuide.cliLinked
     @State private var wantCLI = true
@@ -37,8 +38,6 @@ struct SetupGuide: View {
     @State private var titleBar: CGFloat = 0
     /// False for `yaak snapshot` renders, which must not count as the user finishing the guide.
     private let live: Bool
-    // Authorization happens in the agent or System Settings, out of our sight.
-    private let poll = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
     init(step: Step = .connect, live: Bool = true) { _step = State(initialValue: step); self.live = live }
 
@@ -60,10 +59,17 @@ struct SetupGuide: View {
         .frame(height: Self.size.height - titleBar, alignment: .bottom)
         .background(Backdrop())
         .background(FramelessWindow(titleBar: $titleBar))
-        .onReceive(poll) { _ in recheck() }
+        .onComeBack(perform: recheck)
         .task(id: step) { await readPermissions() }
-        .onAppear(perform: loadChoices)
-        .onDisappear { if live, !closed { model.finishSetup() } }
+        .onAppear {
+            loadChoices()
+            if live { NSApp.setActivationPolicy(.regular); NSApp.activate() }
+        }
+        .onDisappear {
+            guard live else { return }
+            NSApp.setActivationPolicy(.accessory)
+            if !closed { model.finishSetup() }
+        }
         .onExitCommand { close(apply: false) }
     }
 
@@ -202,7 +208,7 @@ struct SetupGuide: View {
                 .controlSize(.small).font(.system(size: 12, weight: .medium)).fixedSize()
             }
             if status == .needsAuthorization {
-                AuthorizationSteps(steps: i.pendingSteps(home: Paths.home())).padding(.leading, 14)
+                AuthorizationSteps(integration: i).padding(.leading, 14)
             } else if waiting, let note = i.postInstallNote {
                 Text(note).font(.system(size: 11)).foregroundStyle(.secondary).padding(.leading, 44)
                     .fixedSize(horizontal: false, vertical: true)
@@ -246,7 +252,9 @@ struct SetupGuide: View {
                 if accessibility {
                     Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
                 } else {
-                    Toggle("", isOn: $wantAccessibility).labelsHidden().toggleStyle(.switch)
+                    // Asked here, next to its reason, not later when a card is clicked.
+                    Button("Allow…") { _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary) }
+                        .buttonStyle(.borderedProminent)
                 }
             }
             if offerCLI {
@@ -353,9 +361,6 @@ struct SetupGuide: View {
         }
         if offerCLI, wantCLI, !Self.cliLinked { linkCLI() }
         if model.telemetry.available { model.telemetry.set(enabled: shareStats) }
-        if wantAccessibility, !accessibility {
-            _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
-        }
     }
 
     private func install(_ i: any Integration) {

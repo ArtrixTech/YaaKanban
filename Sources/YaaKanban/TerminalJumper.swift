@@ -14,7 +14,8 @@ struct TerminalJumper {
     @discardableResult
     func jump(to s: SessionState) -> Outcome {
         if let t = s.terminal, t.isWave, let wave = NSRunningApplication.runningApplications(withBundleIdentifier: Self.waveBundleId).first {
-            WaveAdapter(terminal: t, switchTabs: settings.waveTabSwitching).jump(app: wave)
+            let tabs = settings.waveTabSwitching && t.waveTabId != nil && accessibility()
+            WaveAdapter(terminal: t, switchTabs: tabs).jump(app: wave)
             return .activated("Wave")
         }
         // The app the agent runs under: Cursor's own agent has no terminal at all, and an editor's
@@ -32,6 +33,7 @@ struct TerminalJumper {
             if Self.isEditor(app) {
                 // Raise the window that has the project (opening the folder would make a new editor
                 // window when the session lives in Cursor's separate Agents window).
+                _ = accessibility()
                 app.activate()
                 EditorWindows.raise(pid: app.processIdentifier, project: s.projectName, agentsFirst: s.agent == .cursor)
             } else {
@@ -85,6 +87,27 @@ struct TerminalJumper {
             }
             return .copied
         }
+    }
+
+    /// Whether Accessibility is allowed. If not, and the user hasn't said "Not Now" before, says
+    /// first what it is for and then has the system ask, so its prompt never comes out of the blue.
+    /// False until the user has allowed it in System Settings: this jump goes ahead without it.
+    private func accessibility() -> Bool {
+        if AXIsProcessTrusted() { return true }
+        guard !settings.accessibilityDeclined else { return false }
+        let alert = NSAlert()
+        if let icon = BrandMark.image { alert.icon = icon }
+        alert.messageText = String(localized: "Allow YaaKanban to bring the right window forward?")
+        alert.informativeText = String(localized: "To bring the agent's exact window or Wave tab to the front, YaaKanban needs Accessibility access. macOS will ask next; turn on YaaKanban in System Settings, then click the card again. Without it, YaaKanban only switches to the app.")
+        alert.addButton(withTitle: String(localized: "Continue"))
+        alert.addButton(withTitle: String(localized: "Not Now"))
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
+        } else {
+            settings.accessibilityDeclined = true
+        }
+        return false
     }
 
     /// Whether `resume` runs the command itself; otherwise it only raises a terminal and copies it.
@@ -204,8 +227,8 @@ struct WaveAdapter {
     func jump(app: NSRunningApplication) {
         app.activate()
         badge(on: true)
-        guard switchTabs, let tab = terminal.waveTabId else { return }
-        guard AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary) else { return }
+        // `switchTabs` is only set once Accessibility is allowed (`TerminalJumper.accessibility`).
+        guard switchTabs, let tab = terminal.waveTabId, AXIsProcessTrusted() else { return }
         let pid = app.processIdentifier
         let block = terminal.waveBlockId
         DispatchQueue.global(qos: .userInitiated).async {

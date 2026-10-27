@@ -116,23 +116,28 @@ public struct ClaudeIntegration: Integration {
 public struct CodexIntegration: Integration {
     public let agent = AgentKind.codex
     public init() {}
-    public var postInstallNote: String? { String(localized: "Codex runs only the hooks you trusted in /hooks.") }
+    public var postInstallNote: String? { String(localized: "Codex runs only the hooks you trusted: Settings → Hooks in the app, /hooks in the terminal.") }
+    public var approvesInEitherPlace: Bool { true }
 
-    public func pendingSteps(home: URL) -> [String] {
+    /// The desktop app's steps by default: it is what most people use.
+    public func pendingSteps(home: URL) -> [String] { pendingSteps(home: home, in: .app) }
+
+    public func pendingSteps(home: URL, in place: ApprovalPlace) -> [String] {
         if CodexTrust.hooksOff(home: home) {
             return [String(localized: "~/.codex/config.toml has hooks = false under [features], so Codex runs no hooks."),
-                    String(localized: "Remove that line (or set it to true), restart Codex, then come back and click “Recheck”.")]
+                    String(localized: "Remove that line (or set it to true), restart Codex, then come back here.")]
         }
         let states = CodexTrust.states(home: home)
         let untrusted = states.filter { $0.state == .untrusted }.count
         let modified = states.filter { $0.state == .modified }.count
         let disabled = states.filter { $0.state == .disabled }.count
         guard untrusted + modified + disabled > 0 else { return [] }
-        var steps = [String(localized: "Open codex in a terminal and enter /hooks.")]
+        var steps = [place == .app ? String(localized: "In the Codex app, open Settings → Hooks.")
+                                   : String(localized: "Open codex in a terminal and enter /hooks.")]
         if untrusted > 0 { steps.append(String(localized: "Trust the untrusted yaak hooks (\(untrusted)).")) }
         if modified > 0 { steps.append(String(localized: "Yaak hooks changed since you trusted them (\(modified); yaak path or arguments): trust them again.")) }
         if disabled > 0 { steps.append(String(localized: "Re-enable the disabled yaak hooks (\(disabled)).")) }
-        steps.append(String(localized: "Come back and click “Recheck”. Codex sessions already open need a restart to pick them up."))
+        steps.append(String(localized: "Come back here. Codex sessions already open need a restart to pick them up."))
         return steps
     }
 

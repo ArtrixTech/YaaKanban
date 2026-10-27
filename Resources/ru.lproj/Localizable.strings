@@ -55,48 +55,47 @@
 "No new events for %lld min" = "Нет новых событий %lld мин";
 /* ClaudeCompatible.swift */
 "~/.qwen/settings.json has \"disableAllHooks\": true, so Qwen Code runs no hooks." = "В ~/.qwen/settings.json указано \"disableAllHooks\": true, поэтому Qwen Code не запускает хуки.";
-"Remove it (or set it to false), restart qwen, then come back and click “Recheck”." = "Удалите этот параметр (или задайте false), перезапустите qwen, затем вернитесь и нажмите «Проверить снова».";
+"Remove it (or set it to false), restart qwen, then come back here." = "Удалите этот параметр (или задайте false), перезапустите qwen, затем вернитесь сюда.";
 "Gemini CLI runs hooks only in trusted folders: choose to trust the folder the first time you open gemini in a project." = "Gemini CLI запускает хуки только в доверенных папках: при первом запуске gemini в проекте выберите доверие к папке.";
 "hooksConfig.enabled is false in ~/.gemini/settings.json, so Gemini CLI runs no hooks." = "В ~/.gemini/settings.json hooksConfig.enabled имеет значение false, поэтому Gemini CLI не запускает хуки.";
-"Set it to true (or remove it), restart gemini, then come back and click “Recheck”." = "Задайте true (или удалите параметр), перезапустите gemini, затем вернитесь и нажмите «Проверить снова».";
+"Set it to true (or remove it), restart gemini, then come back here." = "Задайте true (или удалите параметр), перезапустите gemini, затем вернитесь сюда.";
 "The yaak hook is disabled in Gemini CLI (hooksConfig.disabled)." = "Хук yaak отключен в Gemini CLI (hooksConfig.disabled).";
-"In gemini, run /hooks enable %@, or remove it from hooksConfig.disabled in ~/.gemini/settings.json, then come back and click “Recheck”." = "В gemini выполните /hooks enable %@ или удалите его из hooksConfig.disabled в ~/.gemini/settings.json, затем вернитесь и нажмите «Проверить снова».";
+"In gemini, run /hooks enable %@, or remove it from hooksConfig.disabled in ~/.gemini/settings.json, then come back here." = "В gemini выполните /hooks enable %@ или удалите его из hooksConfig.disabled в ~/.gemini/settings.json, затем вернитесь сюда.";
 "Droid runs no hooks in untrusted folders: choose to trust the folder the first time you open droid in a project." = "Droid не запускает хуки в недоверенных папках: при первом запуске droid в проекте выберите доверие к папке.";
 "Droid has hooksDisabled set to true (~/.factory/settings.json or hooks.json), so it runs no hooks." = "У Droid hooksDisabled имеет значение true (~/.factory/settings.json или hooks.json), поэтому он не запускает хуки.";
-"Re-enable them with /hooks in droid, or remove the setting, then come back and click “Recheck”." = "Включите их снова через /hooks в droid или удалите параметр, затем вернитесь и нажмите «Проверить снова».";
+"Re-enable them with /hooks in droid, or remove the setting, then come back here." = "Включите их снова через /hooks в droid или удалите параметр, затем вернитесь сюда.";
 "ZCode reads its hook config when a session starts: only sessions opened after installing will report." = "ZCode читает конфигурацию хуков при запуске сеанса: отчитываться будут только сеансы, открытые после установки.";
 "ZCode's main hook switch is off (hooks.enabled in ~/.zcode/cli/config.json)." = "Главный переключатель хуков в ZCode выключен (hooks.enabled в ~/.zcode/cli/config.json).";
-"Turn it on in ZCode under Settings → Hooks, or set hooks.enabled to true, then come back and click “Recheck”." = "Включите его в ZCode в разделе Settings → Hooks или задайте hooks.enabled значение true, затем вернитесь и нажмите «Проверить снова».";
+"Turn it on in ZCode under Settings → Hooks, or set hooks.enabled to true, then come back here." = "Включите его в ZCode в разделе Settings → Hooks или задайте hooks.enabled значение true, затем вернитесь сюда.";
 "YaaKanban's %@ hooks are disabled in ZCode." = "Хуки YaaKanban для %@ отключены в ZCode.";
-"Turn them back on in ZCode under Settings → Hooks, then come back and click “Recheck”." = "Включите их снова в ZCode в разделе Settings → Hooks, затем вернитесь и нажмите «Проверить снова».";
+"Turn them back on in ZCode under Settings → Hooks, then come back here." = "Включите их снова в ZCode в разделе Settings → Hooks, затем вернитесь сюда.";
 /* Cline.swift */
 "Cline's hooks in VS Code follow its “Enable Hooks” switch (on by default). Cline has no permission-request hook, so approvals still happen in Cline. A task that errors in VS Code fires no hook, so its card ends only when stuck detection kicks in." = "Хуки Cline в VS Code подчиняются переключателю «Enable Hooks» (по умолчанию включен). У Cline нет хука запроса разрешений, поэтому одобрять по-прежнему нужно в Cline. Задача, завершившаяся ошибкой в VS Code, не вызывает хук, поэтому ее карточка завершится только по срабатыванию обнаружения зависаний.";
 /* DeepSeek.swift */
 "dsh hooks are an experimental interface: no approvals, no session-end event, and no transcript." = "Хуки dsh — экспериментальный интерфейс: нет одобрений, события завершения сеанса и транскрипта.";
 "In a terminal, run: dsh plugin --profile web add file:%@" = "В терминале выполните: dsh plugin --profile web add file:%@";
 "For another profile, replace web with its name (headless, acp…); add it once for each profile you use." = "Для другого профиля замените web на его имя (headless, acp…); добавьте по разу для каждого используемого профиля.";
-"Restart dsh, then come back and click “Recheck”." = "Перезапустите dsh, затем вернитесь и нажмите «Проверить снова».";
+"Restart dsh, then come back here." = "Перезапустите dsh, затем вернитесь сюда.";
 /* Hermes.swift */
 "Before Hermes first runs a new hook, it asks you in the terminal to allow each one." = "Перед первым запуском нового хука Hermes спрашивает в терминале разрешение для каждого из них.";
 "Run hermes once in a terminal." = "Запустите hermes один раз в терминале.";
 "It asks about each YaaKanban hook (%lld in total); answer y to all." = "Он спросит о каждом хуке YaaKanban (всего: %lld); на все ответьте y.";
-"Come back and click “Recheck”." = "Вернитесь и нажмите «Проверить снова».";
+"Come back here." = "Вернитесь сюда.";
 /* JSONHooks.swift */
-"Codex runs only the hooks you trusted in /hooks." = "Codex запускает только те хуки, которым вы доверились в /hooks.";
 "~/.codex/config.toml has hooks = false under [features], so Codex runs no hooks." = "В ~/.codex/config.toml в разделе [features] указано hooks = false, поэтому Codex не запускает хуки.";
-"Remove that line (or set it to true), restart Codex, then come back and click “Recheck”." = "Удалите эту строку (или задайте true), перезапустите Codex, затем вернитесь и нажмите «Проверить снова».";
+"Remove that line (or set it to true), restart Codex, then come back here." = "Удалите эту строку (или задайте true), перезапустите Codex, затем вернитесь сюда.";
 "Open codex in a terminal and enter /hooks." = "Откройте codex в терминале и введите /hooks.";
 "Trust the untrusted yaak hooks (%lld)." = "Отметьте недоверенные хуки yaak как доверенные (%lld).";
 "Yaak hooks changed since you trusted them (%lld; yaak path or arguments): trust them again." = "Хуки yaak изменились с момента подтверждения доверия (%lld; путь к yaak или аргументы): доверьтесь им снова.";
 "Re-enable the disabled yaak hooks (%lld)." = "Включите снова отключенные хуки yaak (%lld).";
-"Come back and click “Recheck”. Codex sessions already open need a restart to pick them up." = "Вернитесь и нажмите «Проверить снова». Уже открытые сеансы Codex нужно перезапустить, чтобы изменения вступили в силу.";
+"Come back here. Codex sessions already open need a restart to pick them up." = "Вернитесь сюда. Уже открытые сеансы Codex нужно перезапустить, чтобы изменения вступили в силу.";
 "Windsurf runs no hooks in Restricted Mode; Cascade has no permission-request hook and no session start/end events." = "Windsurf не запускает хуки в Restricted Mode; у Cascade нет хука запроса разрешений и событий начала и завершения сеанса.";
 /* Kimi.swift */
 "Kimi Code hooks can't answer permission requests: the card shows it's waiting on you, but you approve in the terminal. If you changed KIMI_CODE_HOME, the hooks aren't installed there." = "Хуки Kimi Code не могут отвечать на запросы разрешений: карточка покажет, что агент ждет вас, но одобрять нужно в терминале. Если вы меняли KIMI_CODE_HOME, хуки туда не установлены.";
 /* Kiro.swift */
 "Kiro CLI runs no hooks in untrusted workspaces: choose to trust the workspace the first time you open kiro-cli in a project." = "Kiro CLI не запускает хуки в недоверенных рабочих областях: при первом запуске kiro-cli в проекте выберите доверие к рабочей области.";
 "Kiro CLI uses the %@ engine (chat.agentEngine in ~/.kiro/settings/cli.json); only the V3 engine reads ~/.kiro/hooks." = "Kiro CLI использует движок %@ (chat.agentEngine в ~/.kiro/settings/cli.json); ~/.kiro/hooks читает только движок V3.";
-"Run kiro-cli settings chat.agentEngine v3 (or start it with --v3), then come back and click “Recheck”." = "Выполните kiro-cli settings chat.agentEngine v3 (или запустите с --v3), затем вернитесь и нажмите «Проверить снова».";
+"Run kiro-cli settings chat.agentEngine v3 (or start it with --v3), then come back here." = "Выполните kiro-cli settings chat.agentEngine v3 (или запустите с --v3), затем вернитесь сюда.";
 /* Plugins.swift */
 "omp's extension directory is assumed to be the default ~/.omp/agent; PI_CODING_AGENT_DIR and profiles aren't followed." = "Каталогом расширений omp считается стандартный ~/.omp/agent; PI_CODING_AGENT_DIR и профили не учитываются.";
 
@@ -188,7 +187,6 @@
 "All" = "Все";
 "Restore to floating panel" = "Вернуть на плавающую панель";
 "Delete from history" = "Удалить из истории";
-"Recheck" = "Проверить снова";
 "Update" = "Обновить";
 "Uninstall" = "Удалить";
 "Install" = "Установить";
@@ -455,3 +453,9 @@
 "Recommended · installs the hook in every agent below at once" = "Рекомендуется · устанавливает хук во все агенты ниже сразу";
 "All installed. Each agent is ticked by itself the next time you use it; restart sessions already running." = "Всё установлено. Каждый агент отметится сам, когда вы в следующий раз им воспользуетесь; уже запущенные сессии перезапустите.";
 "Ticked by itself the next time you use %@. Sessions already running need a restart." = "Отметится сам, когда вы в следующий раз воспользуетесь %@. Уже запущенные сессии нужно перезапустить.";
+"Codex runs only the hooks you trusted: Settings → Hooks in the app, /hooks in the terminal." = "Codex запускает только хуки, которым вы доверились: Settings → Hooks в приложении, /hooks в терминале.";
+"In the Codex app, open Settings → Hooks." = "В приложении Codex откройте Settings → Hooks.";
+"%@ app" = "Приложение %@";
+"Not Now" = "Не сейчас";
+"Allow YaaKanban to bring the right window forward?" = "Разрешить YaaKanban выводить нужное окно на передний план?";
+"To bring the agent's exact window or Wave tab to the front, YaaKanban needs Accessibility access. macOS will ask next; turn on YaaKanban in System Settings, then click the card again. Without it, YaaKanban only switches to the app." = "Чтобы выводить на передний план нужное окно агента или его вкладку Wave, YaaKanban нужен универсальный доступ. Сейчас macOS спросит об этом; включите YaaKanban в Системных настройках и снова нажмите на карточку. Без этого YaaKanban только переключается на приложение.";

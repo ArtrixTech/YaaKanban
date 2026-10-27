@@ -803,9 +803,6 @@ struct SettingsView: View {
                     LabeledContent {
                         HStack(spacing: 8) {
                             StatusBadge(status: status)
-                            if status == .needsAuthorization {
-                                Button("Recheck") { recheck() }
-                            }
                             if status == .outdated {
                                 Button("Update") { apply(i, install: true) }.buttonStyle(.borderedProminent)
                             }
@@ -825,7 +822,7 @@ struct SettingsView: View {
                                 Text(i.agent.displayName)
                             }
                             if status == .needsAuthorization {
-                                AuthorizationSteps(steps: i.pendingSteps(home: Paths.home()))
+                                AuthorizationSteps(integration: i)
                             } else if let note = i.postInstallNote {
                                 Text(note).font(.system(size: 11)).foregroundStyle(.secondary).padding(.leading, 30)
                             }
@@ -1037,6 +1034,8 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: Self.size.width, height: Self.size.height)
+        // Approval happens in the agent; its state is read again when the user comes back.
+        .onComeBack(perform: recheck)
     }
 
     static func duration(_ minutes: Double) -> String {
@@ -1108,12 +1107,33 @@ struct SettingLabel: View {
     }
 }
 
-/// Numbered steps for authorizing hooks in the agent, under its row in Settings.
+extension View {
+    /// Runs `action` when the user comes back to the app or to one of its windows: the moment to
+    /// re-read what they may have changed elsewhere (an agent's hooks, System Settings), instead
+    /// of polling.
+    func onComeBack(perform action: @escaping () -> Void) -> some View {
+        onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in action() }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in action() }
+    }
+}
+
+/// Numbered steps for authorizing hooks in the agent, under its row in Settings and the guide.
 struct AuthorizationSteps: View {
-    let steps: [String]
+    let integration: any Integration
+    /// Agents with a desktop app and a CLI start on the app's steps.
+    @State private var place = ApprovalPlace.app
 
     var body: some View {
+        let steps = integration.pendingSteps(home: Paths.home(), in: place)
         VStack(alignment: .leading, spacing: 2) {
+            if integration.approvesInEitherPlace {
+                Picker("", selection: $place) {
+                    Text("\(integration.agent.displayName) app").tag(ApprovalPlace.app)
+                    Text("Terminal").tag(ApprovalPlace.terminal)
+                }
+                .pickerStyle(.segmented).labelsHidden().controlSize(.small).fixedSize()
+                .padding(.bottom, 4)
+            }
             ForEach(Array(steps.enumerated()), id: \.offset) { n, step in
                 Text("\(n + 1). \(step)").font(.system(size: 11)).foregroundStyle(.secondary)
                     .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)

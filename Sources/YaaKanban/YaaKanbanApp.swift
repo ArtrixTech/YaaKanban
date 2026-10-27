@@ -88,6 +88,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { self.model.selection = home }
     }
 
+    /// The app is in the Dock only while the setup guide is open: clicking it brings the guide back.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if NSApp.activationPolicy() == .regular { AppWindows.open(.setup) }
+        return true
+    }
+
     func applicationWillTerminate(_ notification: Notification) { model.stop() }
 }
 

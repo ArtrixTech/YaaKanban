@@ -39,6 +39,9 @@ final class Preferences {
     var pinned: [String] { didSet { d.set(Array(pinned.prefix(100)), forKey: "pinnedSessions") } }
     var suppressWhenWaveFrontmost: Bool { didSet { d.set(suppressWhenWaveFrontmost, forKey: "suppressWhenWaveFrontmost") } }
     var waveTabSwitching: Bool { didSet { d.set(waveTabSwitching, forKey: "waveTabJump") } }
+    /// The user answered "Not Now" to the note before the Accessibility prompt; a click on a card
+    /// no longer asks.
+    var accessibilityDeclined: Bool { didSet { d.set(accessibilityDeclined, forKey: "accessibilityDeclined") } }
     /// The setup guide was finished or closed; it no longer opens by itself.
     var setupDone: Bool { didSet { d.set(setupDone, forKey: "setupDone") } }
     /// Lets the pi extension name unnamed sessions with the session's model. Kept as a file the
@@ -86,6 +89,7 @@ final class Preferences {
         pinned = d.stringArray(forKey: "pinnedSessions") ?? []
         suppressWhenWaveFrontmost = d.bool(forKey: "suppressWhenWaveFrontmost")
         waveTabSwitching = d.bool(forKey: "waveTabJump")
+        accessibilityDeclined = d.bool(forKey: "accessibilityDeclined")
         setupDone = d.bool(forKey: "setupDone")
         piAutoTitle = !FileManager.default.fileExists(atPath: Paths().piAutoTitleOff.path)
     }

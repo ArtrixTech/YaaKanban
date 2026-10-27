@@ -55,48 +55,47 @@
 "No new events for %lld min" = "%lld분 동안 새 이벤트 없음";
 /* ClaudeCompatible.swift */
 "~/.qwen/settings.json has \"disableAllHooks\": true, so Qwen Code runs no hooks." = "~/.qwen/settings.json에 \"disableAllHooks\": true가 설정되어 있어 Qwen Code가 훅을 실행하지 않습니다.";
-"Remove it (or set it to false), restart qwen, then come back and click “Recheck”." = "해당 항목을 제거하거나 false로 설정하고 qwen을 재시작한 다음, 돌아와서 “다시 확인”을 클릭하세요.";
+"Remove it (or set it to false), restart qwen, then come back here." = "해당 항목을 제거하거나 false로 설정하고 qwen을 재시작한 다음, 여기로 돌아오세요.";
 "Gemini CLI runs hooks only in trusted folders: choose to trust the folder the first time you open gemini in a project." = "Gemini CLI는 신뢰하는 폴더에서만 훅을 실행합니다. 프로젝트에서 gemini를 처음 열 때 폴더를 신뢰하도록 선택하세요.";
 "hooksConfig.enabled is false in ~/.gemini/settings.json, so Gemini CLI runs no hooks." = "~/.gemini/settings.json의 hooksConfig.enabled가 false이므로 Gemini CLI가 훅을 실행하지 않습니다.";
-"Set it to true (or remove it), restart gemini, then come back and click “Recheck”." = "true로 설정하거나 해당 항목을 제거하고 gemini를 재시작한 다음, 돌아와서 “다시 확인”을 클릭하세요.";
+"Set it to true (or remove it), restart gemini, then come back here." = "true로 설정하거나 해당 항목을 제거하고 gemini를 재시작한 다음, 여기로 돌아오세요.";
 "The yaak hook is disabled in Gemini CLI (hooksConfig.disabled)." = "Gemini CLI에서 yaak 훅이 비활성화되어 있습니다(hooksConfig.disabled).";
-"In gemini, run /hooks enable %@, or remove it from hooksConfig.disabled in ~/.gemini/settings.json, then come back and click “Recheck”." = "gemini에서 /hooks enable %@을(를) 실행하거나 ~/.gemini/settings.json의 hooksConfig.disabled에서 제거한 다음, 돌아와서 “다시 확인”을 클릭하세요.";
+"In gemini, run /hooks enable %@, or remove it from hooksConfig.disabled in ~/.gemini/settings.json, then come back here." = "gemini에서 /hooks enable %@을(를) 실행하거나 ~/.gemini/settings.json의 hooksConfig.disabled에서 제거한 다음, 여기로 돌아오세요.";
 "Droid runs no hooks in untrusted folders: choose to trust the folder the first time you open droid in a project." = "Droid는 신뢰하지 않는 폴더에서 훅을 실행하지 않습니다. 프로젝트에서 droid를 처음 열 때 폴더를 신뢰하도록 선택하세요.";
 "Droid has hooksDisabled set to true (~/.factory/settings.json or hooks.json), so it runs no hooks." = "Droid의 hooksDisabled가 true로 설정되어 있어(~/.factory/settings.json 또는 hooks.json) 훅을 실행하지 않습니다.";
-"Re-enable them with /hooks in droid, or remove the setting, then come back and click “Recheck”." = "droid에서 /hooks로 다시 활성화하거나 해당 설정을 제거한 다음, 돌아와서 “다시 확인”을 클릭하세요.";
+"Re-enable them with /hooks in droid, or remove the setting, then come back here." = "droid에서 /hooks로 다시 활성화하거나 해당 설정을 제거한 다음, 여기로 돌아오세요.";
 "ZCode reads its hook config when a session starts: only sessions opened after installing will report." = "ZCode는 세션이 시작될 때 훅 설정을 읽습니다. 설치 후 새로 연 세션만 보고됩니다.";
 "ZCode's main hook switch is off (hooks.enabled in ~/.zcode/cli/config.json)." = "ZCode의 기본 훅 스위치가 꺼져 있습니다(~/.zcode/cli/config.json의 hooks.enabled).";
-"Turn it on in ZCode under Settings → Hooks, or set hooks.enabled to true, then come back and click “Recheck”." = "ZCode의 설정 → Hooks에서 켜거나 hooks.enabled를 true로 설정한 다음, 돌아와서 “다시 확인”을 클릭하세요.";
+"Turn it on in ZCode under Settings → Hooks, or set hooks.enabled to true, then come back here." = "ZCode의 설정 → Hooks에서 켜거나 hooks.enabled를 true로 설정한 다음, 여기로 돌아오세요.";
 "YaaKanban's %@ hooks are disabled in ZCode." = "ZCode에서 YaaKanban의 %@ 훅이 비활성화되어 있습니다.";
-"Turn them back on in ZCode under Settings → Hooks, then come back and click “Recheck”." = "ZCode의 설정 → Hooks에서 다시 켠 다음, 돌아와서 “다시 확인”을 클릭하세요.";
+"Turn them back on in ZCode under Settings → Hooks, then come back here." = "ZCode의 설정 → Hooks에서 다시 켠 다음, 여기로 돌아오세요.";
 /* Cline.swift */
 "Cline's hooks in VS Code follow its “Enable Hooks” switch (on by default). Cline has no permission-request hook, so approvals still happen in Cline. A task that errors in VS Code fires no hook, so its card ends only when stuck detection kicks in." = "VS Code의 Cline 훅은 “Enable Hooks” 스위치(기본값: 켬)를 따릅니다. Cline에는 권한 요청 훅이 없으므로 승인은 여전히 Cline에서 진행됩니다. VS Code에서 오류가 발생한 작업은 훅을 실행하지 않으므로, 해당 카드는 멈춤 감지가 작동해야 종료됩니다.";
 /* DeepSeek.swift */
 "dsh hooks are an experimental interface: no approvals, no session-end event, and no transcript." = "dsh 훅은 실험적인 인터페이스입니다. 승인, 세션 종료 이벤트, 트랜스크립트가 없습니다.";
 "In a terminal, run: dsh plugin --profile web add file:%@" = "터미널에서 실행: dsh plugin --profile web add file:%@";
 "For another profile, replace web with its name (headless, acp…); add it once for each profile you use." = "다른 프로필을 사용하려면 web을 해당 이름(headless, acp…)으로 바꾸세요. 사용하는 프로필마다 한 번씩 추가해야 합니다.";
-"Restart dsh, then come back and click “Recheck”." = "dsh를 재시작한 다음, 돌아와서 “다시 확인”을 클릭하세요.";
+"Restart dsh, then come back here." = "dsh를 재시작한 다음, 여기로 돌아오세요.";
 /* Hermes.swift */
 "Before Hermes first runs a new hook, it asks you in the terminal to allow each one." = "Hermes는 새 훅을 처음 실행하기 전에 터미널에서 각 훅을 허용할지 묻습니다.";
 "Run hermes once in a terminal." = "터미널에서 hermes를 한 번 실행하세요.";
 "It asks about each YaaKanban hook (%lld in total); answer y to all." = "YaaKanban 훅(총 %lld개)마다 허용 여부를 묻습니다. 모두 y로 답하세요.";
-"Come back and click “Recheck”." = "돌아와서 “다시 확인”을 클릭하세요.";
+"Come back here." = "여기로 돌아오세요.";
 /* JSONHooks.swift */
-"Codex runs only the hooks you trusted in /hooks." = "Codex는 /hooks에서 신뢰한 훅만 실행합니다.";
 "~/.codex/config.toml has hooks = false under [features], so Codex runs no hooks." = "~/.codex/config.toml의 [features]에 hooks = false가 있어 Codex가 훅을 실행하지 않습니다.";
-"Remove that line (or set it to true), restart Codex, then come back and click “Recheck”." = "해당 줄을 제거하거나 true로 설정하고 Codex를 재시작한 다음, 돌아와서 “다시 확인”을 클릭하세요.";
+"Remove that line (or set it to true), restart Codex, then come back here." = "해당 줄을 제거하거나 true로 설정하고 Codex를 재시작한 다음, 여기로 돌아오세요.";
 "Open codex in a terminal and enter /hooks." = "터미널에서 codex를 열고 /hooks를 입력하세요.";
 "Trust the untrusted yaak hooks (%lld)." = "신뢰하지 않은 yaak 훅(%lld개)을 신뢰하세요.";
 "Yaak hooks changed since you trusted them (%lld; yaak path or arguments): trust them again." = "신뢰한 이후 yaak 훅이 변경되었습니다(%lld개, yaak 경로 또는 인수). 다시 신뢰하세요.";
 "Re-enable the disabled yaak hooks (%lld)." = "비활성화된 yaak 훅(%lld개)을 다시 활성화하세요.";
-"Come back and click “Recheck”. Codex sessions already open need a restart to pick them up." = "돌아와서 “다시 확인”을 클릭하세요. 이미 열려 있는 Codex 세션은 재시작해야 적용됩니다.";
+"Come back here. Codex sessions already open need a restart to pick them up." = "여기로 돌아오세요. 이미 열려 있는 Codex 세션은 재시작해야 적용됩니다.";
 "Windsurf runs no hooks in Restricted Mode; Cascade has no permission-request hook and no session start/end events." = "Windsurf는 Restricted Mode에서 훅을 실행하지 않습니다. Cascade에는 권한 요청 훅과 세션 시작/종료 이벤트가 없습니다.";
 /* Kimi.swift */
 "Kimi Code hooks can't answer permission requests: the card shows it's waiting on you, but you approve in the terminal. If you changed KIMI_CODE_HOME, the hooks aren't installed there." = "Kimi Code 훅은 권한 요청에 응답할 수 없습니다. 카드에 응답 대기 중으로 표시되지만 승인은 터미널에서 해야 합니다. KIMI_CODE_HOME을 변경했다면 그곳에는 훅이 설치되지 않습니다.";
 /* Kiro.swift */
 "Kiro CLI runs no hooks in untrusted workspaces: choose to trust the workspace the first time you open kiro-cli in a project." = "Kiro CLI는 신뢰하지 않는 작업 공간에서 훅을 실행하지 않습니다. 프로젝트에서 kiro-cli를 처음 열 때 작업 공간을 신뢰하도록 선택하세요.";
 "Kiro CLI uses the %@ engine (chat.agentEngine in ~/.kiro/settings/cli.json); only the V3 engine reads ~/.kiro/hooks." = "Kiro CLI가 %@ 엔진을 사용 중입니다(~/.kiro/settings/cli.json의 chat.agentEngine). V3 엔진만 ~/.kiro/hooks를 읽습니다.";
-"Run kiro-cli settings chat.agentEngine v3 (or start it with --v3), then come back and click “Recheck”." = "kiro-cli settings chat.agentEngine v3을 실행하거나 --v3 옵션으로 시작한 다음, 돌아와서 “다시 확인”을 클릭하세요.";
+"Run kiro-cli settings chat.agentEngine v3 (or start it with --v3), then come back here." = "kiro-cli settings chat.agentEngine v3을 실행하거나 --v3 옵션으로 시작한 다음, 여기로 돌아오세요.";
 /* Plugins.swift */
 "omp's extension directory is assumed to be the default ~/.omp/agent; PI_CODING_AGENT_DIR and profiles aren't followed." = "omp의 확장 프로그램 디렉토리는 기본값인 ~/.omp/agent로 간주합니다. PI_CODING_AGENT_DIR과 프로필은 반영되지 않습니다.";
 
@@ -188,7 +187,6 @@
 "All" = "전체";
 "Restore to floating panel" = "플로팅 패널로 복원";
 "Delete from history" = "기록에서 삭제";
-"Recheck" = "다시 확인";
 "Update" = "업데이트";
 "Uninstall" = "제거";
 "Install" = "설치";
@@ -455,3 +453,9 @@
 "Recommended · installs the hook in every agent below at once" = "추천 · 아래 모든 에이전트에 hook을 한 번에 설치";
 "All installed. Each agent is ticked by itself the next time you use it; restart sessions already running." = "모두 설치했습니다. 각 에이전트는 다음에 사용할 때 자동으로 체크 표시됩니다. 실행 중인 세션은 다시 시작해야 합니다.";
 "Ticked by itself the next time you use %@. Sessions already running need a restart." = "다음에 %@을(를) 사용할 때 자동으로 체크 표시됩니다. 실행 중인 세션은 다시 시작해야 합니다.";
+"Codex runs only the hooks you trusted: Settings → Hooks in the app, /hooks in the terminal." = "Codex는 신뢰한 훅만 실행합니다. 앱에서는 설정 → Hooks, 터미널에서는 /hooks에서 신뢰하세요.";
+"In the Codex app, open Settings → Hooks." = "Codex 앱에서 설정 → Hooks를 여세요.";
+"%@ app" = "%@ 앱";
+"Not Now" = "나중에";
+"Allow YaaKanban to bring the right window forward?" = "YaaKanban이 올바른 창을 앞으로 가져오도록 허용할까요?";
+"To bring the agent's exact window or Wave tab to the front, YaaKanban needs Accessibility access. macOS will ask next; turn on YaaKanban in System Settings, then click the card again. Without it, YaaKanban only switches to the app." = "에이전트의 정확한 창이나 Wave 탭을 앞으로 가져오려면 YaaKanban에 손쉬운 사용 권한이 필요합니다. 이어서 macOS가 묻습니다. 시스템 설정에서 YaaKanban을 켠 다음 카드를 다시 클릭하세요. 권한이 없으면 YaaKanban은 앱으로만 전환합니다.";

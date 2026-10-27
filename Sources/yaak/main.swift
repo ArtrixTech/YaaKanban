@@ -145,7 +145,7 @@ func runInstall(_ install: Bool) -> Never {
                 try Installer.apply(changes)
                 print("\(i.agent.rawValue): \(install ? "installed" : "uninstalled")")
                 if install, let note = i.postInstallNote { print("  note: \(note)") }
-                if install { printSteps(i.pendingSteps(home: home)) }
+                if install { printSteps(i.pendingSteps(home: home, in: .terminal)) }
             }
         } catch {
             failed = true
@@ -165,7 +165,7 @@ func runStatus() -> Never {
     let home = Paths.home(env)
     for i in Integrations.all {
         let s = i.status(home: home)
-        let steps = s == .installed ? i.pendingSteps(home: home) : []
+        let steps = s == .installed ? i.pendingSteps(home: home, in: .terminal) : []
         print("\(i.agent.rawValue): \(steps.isEmpty ? s.rawValue : IntegrationStatus.needsAuthorization.rawValue)")
         printSteps(steps)
     }

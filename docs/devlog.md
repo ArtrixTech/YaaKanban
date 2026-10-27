@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(panel): hide sub-agents whose parent is not on the board
+## fix(onboarding): keep the guide reachable and ask for access in place
 
 `pending` | 2026-10-27
+
+- **Changes**: SetupGuide sets `.regular` activation policy while live and open (back to `.accessory` on disappear); `applicationShouldHandleReopen` reopens the guide when in the Dock. The 2 s poll is replaced by `View.onComeBack` (app didBecomeActive / window didBecomeKey), used by the guide and Settings; Settings' Recheck button and all "click “Recheck”" wording are gone ("then come back here"). `ApprovalPlace` + `pendingSteps(home:in:)` / `approvesInEitherPlace`: Codex defaults to the desktop app ("Settings → Hooks"), `AuthorizationSteps` (now takes the integration) shows an app/terminal switch; `yaak status/install` print the terminal steps. Guide's Accessibility row is an Allow… button that prompts at once (no apply-on-Done toggle). `TerminalJumper.accessibility()` shows an explanatory alert (Continue / Not Now, `accessibilityDeclined` pref) before `AXIsProcessTrustedWithOptions` for Wave tab switching and editor window raising; `WaveAdapter` no longer prompts itself. 6 new/changed strings ×9 languages, 13 obsolete removed.
+- **Reason**: onboarding testing after a reset to defaults.
+- **User feedback**: "onboarding窗口无法切换回去，也不出现在dock栏，失去focus后无法再次看到它" / "codex应该显示桌面端操作方式（默认桌面，可切换cli）" / "应该自动检查钩子是否授权完成，至少在回到窗口的时候可以检查（不要持续轮询）" / "点击agent item跳转的时候，弹出了…权限提醒。…首先要在onboard要求授权，其次如果没有授权也要先告诉用户接下来将请求授权"
+- **Process**: Codex desktop app is `/Applications/ChatGPT.app` (`com.openai.codex`, 26.1016); its bundle (read-only string search) has a Settings section `hooks-settings` titled "Hooks" with per-hook Trust, and a composer "Review hooks → Allow all". `make build`, `make l10n` 0 problems, `make test` 183 pass (codexTrustStates extended for app/terminal steps). Snapshots from a second instance with temporary HOME/YAAK_HOME (zh-Hans): Codex row shows "Codex App | 终端" with the app steps; rail renders 28 pt.
+- **Result**: done. Dock presence, reopen and the pre-prompt alert were not exercised live (only built); the user is to run onboarding.
+- **Notes**: the system prompt the user saw came from `WaveAdapter.jump` calling `AXIsProcessTrustedWithOptions(prompt: true)` on a card click (Accessibility had been reset with `tccutil`). The 60 s `checkIntegrations` timer in AppModel stays for card warnings while the app is in the background. No deep link to Codex's Hooks page was found (`codex://settings` routes only mcp-app/plugins), so the step is text.
+
+## fix(panel): hide sub-agents whose parent is not on the board
+
+`9f07ebf` | 2026-10-27
 
 - **Changes**: `AppModel.activeSessions` drops a session with `parentId` set unless its parent is on the board or it needs input (was: only when the parent was on the board). Spec and CHANGELOG updated.
 - **Reason**: pi-subagents async-workflow scouts (`…/<parent>/<run>/run-0/session.jsonl`, header `parentSession`) were linked to their parent but showed as top-level cards because the parent pi session (pid 85048, started 10:28:20, one minute before the app was reinstalled at 10:29:22) never reached YaaKanban, so it was not on the board to fold into.
