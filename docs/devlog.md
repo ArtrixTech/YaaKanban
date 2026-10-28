@@ -1,8 +1,19 @@
 # Devlog
 
-## refactor(ui): restyle the menu and panel parts
+## feat(overview): rebuild the overview as the v9 widget wall
 
 `pending` | 2026-10-28
+
+- **Changes**: DesignSystem.swift: `Measure`/old `Widget` → `// MARK: Overview` (`Ramp` work/run/wait/reply, `Ink`, `Fill.widget`, `WidgetSurface`, `Widget(content:art:)`, `WidgetHead`, `FigureSize` 34/46/15, `figure()` with half-size units, `FigureLine`, `ChartKey`, `StatChip`/`.statChip()`). New OverviewCards.swift: `OverviewData` (report, previous same-point report, `vs`, `comparesWaits`), `change()`, cards Leverage (Wave), Away (Rise), RunningCard (RunCurve with previous period dotted and presence strip), WaitingCard (WaitDial, 5 longest waits, away/here split), Replies (log arc 10 s–5 min, q1–q3 band), Agents (sparks), Projects (packed bubbles), Rhythm (7 days from one cached report, WeekGrid). DashboardView.swift: top bar with totals strip + controls, count chips, cards in a 3/2/1-column `ViewThatFits`, attention chips with a lanes toggle, `SessionLanes` on `WidgetSurface`; summary sentence, Tiles, Headline, Highlights, AgentMix, ActivityChart, ProjectBreakdown removed. l10n: 57 unused keys dropped, 32 added ×9.
+- **Reason**: UI migration step 6; brings the overview to the approved v9 specimen (`design/specimen/overview.swift`).
+- **User feedback**: "先按照当前设计系统来完整迁移整个ui。"; v9 feedback: white cards in light mode, smaller big figures, small chips up top, use the top bar; earlier "开头这个一句话总结有点丑陋".
+- **Process**: `Rise` points closure hit "unable to type-check in reasonable time"; typed `(i: Int) -> CGPoint` and split `phase`. Curves skip the running slice so lines do not dip at now.
+- **Result**: `make build`, `make l10n` (405 keys, 0 problems ×9), `make test` (192 passed). Not yet seen in the running app.
+- **Notes**: Layout breakpoints 980/640 pt of content width (window min 760 − 280 sidebar). Waits count as away when more than half overlaps away time. `Radius.widget` stays 20 (specimen 22).
+
+## refactor(ui): restyle the menu and panel parts
+
+`282001b` | 2026-10-28
 
 - **Changes**: Windows.swift: menu `Divider`s → 6-pt gaps; `MenuRow` hover is `Fill.selected` with neutral text (was accent fill, white text), height 26, `Radius.small`; `MenuHeader` hover `Fill.selected`, `Pressable`; `UpdateNotice` → compact `Banner` with a ghost blue action; `EmptyBoard` button `.action(.primary, size: .small)`; `PickRow` hover `Fill.selected`; `SearchField` `Fill.control`; type via `.ui`. DashboardView `RecentFigures`/`TodayFigures`: rounded face → `.figure`, plate stroke and gradient → flat `Fill.control`.
 - **Reason**: UI migration step 5; "尽量去线、留白", neutral selection, SF Pro figures.

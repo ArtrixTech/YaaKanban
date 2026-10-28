@@ -46,12 +46,13 @@ extension Period {
 }
 
 /// Main-window home: how the user's parallel sessions went over a day, week or month, against
-/// the one before. The headline figures and one chart first, the breakdowns under them.
+/// the one before, as a wall of cards. The totals ride in the top bar, the counts in chips.
 struct DashboardView: View {
     @Environment(AppModel.self) private var model
     /// Periods back from the current one; the current one follows the clock.
     @State private var back = 0
     @State private var period: Period
+    @State private var lanes = false
 
     init(period: Period = .day) { _period = State(initialValue: period) }
 
@@ -61,124 +62,180 @@ struct DashboardView: View {
             let _ = model.activityVersion
             let p = Periods(period, back: back, now: ctx.date)
             let r = model.report(p.range, edges: p.edges)
-            // The one before over the same stretch, for the figures; in full, for the chart.
+            // The one before over the same stretch, for the changes; in full, for the dotted lines.
             let prev = model.report(p.previousSoFar)
-            let prevFull = model.report(p.previous, edges: p.previousEdges)
-            let vs = period.previous(soFar: p.inProgress)
             // Nothing recorded then: no comparison, rather than "up by all of it".
             let base = prev.lanes.isEmpty && prev.turns == 0 ? nil : prev
+            let data = OverviewData(period: period, report: r, previous: base,
+                                    previousFull: model.report(p.previous, edges: p.previousEdges),
+                                    vs: period.previous(soFar: p.inProgress), scope: scope(p), now: ctx.date)
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    header(p)
-                    Text(summary(r, base, p, vs: vs)).font(.system(size: 13)).foregroundStyle(.secondary).textSelection(.enabled)
+                VStack(alignment: .leading, spacing: Space.xl) {
+                    topBar(p, r).padding(.bottom, Space.xs)
                     if let until = r.rebuiltUntil { rebuiltNote(r, until) }
-                    Headline(r: r, prev: base, vs: vs)
-                    Highlights(period: period, report: r)
-                    ActivityChart(period: period, report: r, previous: prevFull, now: ctx.date)
-                    HStack(alignment: .top, spacing: 12) {
-                        VStack(spacing: 12) {
-                            AgentMix(report: r)
-                            ProjectBreakdown(report: r)
-                        }
-                        details(r, base, vs: vs, now: ctx.date)
-                    }
-                    SessionLanes(period: period, report: r, now: ctx.date)
+                    chips(counts(r))
+                    cards(data)
+                    chips(attention(r), more: lanesChip(r))
+                    if lanes { SessionLanes(period: period, report: r, now: ctx.date) }
                 }
-                .padding(20)
-                .frame(maxWidth: 980, alignment: .leading)
+                .padding(.horizontal, 40).padding(.top, 34).padding(.bottom, 36)
+                .frame(maxWidth: 1240, alignment: .leading)
                 .frame(maxWidth: .infinity)
             }
         }
     }
-    private func header(_ p: Periods) -> some View {
-        HStack(spacing: 8) {
-            Text("Overview").font(.system(size: 20, weight: .bold))
-            Spacer()
-            IconButton(symbol: "chevron.left", help: period.step(forward: false)) { back += 1 }
-            Text(period.rangeLabel(p)).font(.system(size: 12.5, weight: .medium)).monospacedDigit().frame(minWidth: 130)
-            IconButton(symbol: "chevron.right", help: period.step(forward: true)) {
-                back = max(0, back - 1)
+
+    private func scope(_ p: Periods) -> String {
+        p.inProgress ? period.current
+            : period == .day ? String(localized: "That day") : period == .week ? String(localized: "That week") : String(localized: "That month")
+    }
+
+    // MARK: Top bar
+
+    /// The title and range, the period's four totals, then the range controls; stacked when narrow.
+    private func topBar(_ p: Periods, _ r: ActivityReport) -> some View {
+        let totals = [(String(localized: "Sessions"), "\(r.lanes.count)"), (String(localized: "Turns"), "\(r.turns)"),
+                      (String(localized: "Agent hours"), duration(r.agentTime)), (String(localized: "You here"), duration(r.activeTime))]
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: 0) {
+                title(p)
+                Spacer(minLength: 24)
+                totalsRow(totals)
+                Spacer(minLength: 24)
+                controls
             }
-            .disabled(back == 0).opacity(back == 0 ? 0.3 : 1)
-            if back > 0 { Button(period.current) { back = 0 }.controlSize(.small) }
-            Picker("", selection: Binding(get: { period }, set: { period = $0; back = 0 })) {
-                ForEach(Period.allCases, id: \.self) { Text($0.label).tag($0) }
+            .frame(height: 44)
+            VStack(alignment: .leading, spacing: Space.l) {
+                HStack { title(p); Spacer(minLength: Space.l); controls }
+                totalsRow(totals)
             }
-            .pickerStyle(.segmented).labelsHidden().fixedSize()
         }
+    }
+
+    private func title(_ p: Periods) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("Overview").font(.ui(.display, .bold)).tracking(-0.3)
+            Text(verbatim: period.rangeLabel(p)).font(.ui(.callout, .medium)).monospacedDigit().foregroundStyle(.secondary)
+        }
+        .fixedSize()
+    }
+
+    private func totalsRow(_ totals: [(String, String)]) -> some View {
+        HStack(spacing: 32) {
+            ForEach(totals, id: \.0) { t in
+                VStack(alignment: .leading, spacing: Space.xxs) {
+                    Text(t.0).font(.ui(.footnote, .medium)).foregroundStyle(.secondary)
+                    figure(t.1, Ramp.run, 19)
+                }
+                .fixedSize()
+            }
+        }
+    }
+
+    private var controls: some View {
+        HStack(spacing: Space.xs) {
+            if back > 0 {
+                Button(period.current) { back = 0 }.buttonStyle(.action(.ghost, size: .small)).padding(.trailing, Space.xs)
+            }
+            IconButton(symbol: "chevron.left", help: period.step(forward: false)) { back += 1 }
+            IconButton(symbol: "chevron.right", help: period.step(forward: true)) { back = max(0, back - 1) }
+                .disabled(back == 0).opacity(back == 0 ? 0.3 : 1)
+            Segmented(items: Period.allCases.map { ($0, $0.label) },
+                      selection: Binding(get: { period }, set: { period = $0; back = 0 }))
+                .padding(.leading, Space.m)
+        }
+        .fixedSize()
     }
 
     private func rebuiltNote(_ r: ActivityReport, _ until: Date) -> some View {
         Label(r.allRebuilt ? "This stretch predates recording: only run times and turns were rebuilt from session history; waits, replies, time away and tokens have no data."
               : "Rebuilt from session history before \(until.formatted(.dateTime.month().day().hour().minute())): run times and turns only.",
               systemImage: "clock.arrow.circlepath")
-            .font(.system(size: 11.5)).foregroundStyle(.tertiary)
+            .font(.ui(.footnote)).foregroundStyle(.secondary)
     }
 
-    /// One plain sentence on how the period went, against the one before.
-    private func summary(_ r: ActivityReport, _ prev: ActivityReport?, _ p: Periods, vs: String) -> String {
-        let subject = p.inProgress ? period.current
-            : period == .day ? String(localized: "That day") : period == .week ? String(localized: "That week") : String(localized: "That month")
-        guard !r.lanes.isEmpty || r.turns > 0 else { return String(localized: "\(subject): no agent activity recorded.") }
-        var s = String(localized: "\(subject) you juggled \(sessions(r.lanes.count)) for \(duration(r.activeTime)), and agents worked \(duration(r.agentTime)) in total")
-        if let x = r.leverage, x >= 0.05 { s += String(localized: ", like \(one(x)) of you") }
-        if let prev, prev.agentTime >= 60 {
-            let d = r.agentTime - prev.agentTime
-            s += abs(d) < 60 ? String(localized: ", about the same as \(vs)")
-                : d > 0 ? String(localized: ", \(duration(abs(d))) more than \(vs)") : String(localized: ", \(duration(abs(d))) less than \(vs)")
-        }
-        if r.agentTimeAway >= 60 { s += String(localized: "; \(duration(r.agentTimeAway)) of it while you were away") }
-        if !r.allRebuilt {
-            if r.blockedAway >= 60 { s += String(localized: ", though they sat blocked for \(duration(r.blockedAway)) waiting on you") }
-            if let m = r.replyMedian { s += String(localized: "; when an agent needed you, you usually replied within \(duration(m))") }
-            if r.bottleneck >= 60 { s += String(localized: ", and for \(duration(r.bottleneck)) every agent sat waiting on you") }
-        }
-        return s + String(localized: "; \(turns(r.turns)) done.")
+    // MARK: Chips
+
+    private typealias Chip = (symbol: String, title: String, value: String, ramp: Ramp)
+
+    /// How the agents ran and what they produced.
+    private func counts(_ r: ActivityReport) -> [Chip] {
+        [("gauge.with.needle", String(localized: "Agent utilization"), r.utilization.map(percent) ?? "–", .run),
+         ("square.stack.3d.up.fill", String(localized: "Peak at once"), "\(r.parallelPeak)", .run),
+         ("hammer.fill", String(localized: "Tool calls"), r.toolCalls.formatted(), .work),
+         ("number", String(localized: "Tokens"), r.allRebuilt ? "–" : compactCount(r.tokens), .work),
+         ("checkmark.seal.fill", String(localized: "Reviewed"), "\(r.pickups.count)", .work)]
     }
 
-    private func details(_ r: ActivityReport, _ prev: ActivityReport?, vs: String, now: Date) -> some View {
-        let backlog = model.backlog
-        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-            Tile(title: String(localized: "Avg. running at once"), symbol: "square.stack.3d.up", value: String(localized: "\(one(r.parallelAverage)) sessions"),
-                 caption: String(localized: "While agents ran · peak \(r.parallelPeak)"),
-                 delta: Delta(r.parallelAverage, prev?.parallelAverage, better: .up, vs: vs) { String(format: "%.1f", $0) })
-            Tile(title: String(localized: "All stalled"), symbol: "pause.circle", value: r.allRebuilt ? "–" : duration(r.bottleneck),
-                 caption: String(localized: "Some agent blocked on you, none running"),
-                 delta: comparesWaits(r, prev) ? Delta(r.bottleneck, prev?.bottleneck, better: .down, vs: vs, fmt: duration) : nil)
-            Tile(title: String(localized: "Agent utilization"), symbol: "gauge.with.dots.needle.67percent",
-                 value: r.utilization.map(percent) ?? "–", caption: String(localized: "Running ÷ (running + blocked on you)"),
-                 delta: comparesWaits(r, prev) ? Delta(r.utilization, prev?.utilization, better: .up, vs: vs, fmt: percent) : nil)
-            Tile(title: String(localized: "Pickup time"), symbol: "checkmark.circle", value: r.pickupMedian.map(duration) ?? "–",
-                 caption: r.pickupP90.map { String(localized: "Median from done to your look · P90 \(duration($0))") }
-                    ?? String(localized: "How long finished turns wait for you"),
-                 delta: comparesWaits(r, prev) ? Delta(r.pickupMedian, prev?.pickupMedian, better: .down, vs: vs, fmt: duration) : nil)
-            Tile(title: String(localized: "Per intervention"), symbol: "hand.point.up.left",
-                 value: r.agentTimePerIntervention.map(duration) ?? "–",
-                 caption: String(localized: "Per prompt or answer · \(r.interventions) in all"),
-                 delta: Delta(r.agentTimePerIntervention, prev?.agentTimePerIntervention, better: .up, vs: vs, fmt: duration))
-            Tile(title: String(localized: "Throughput"), symbol: "bolt",
-                 value: r.perActiveHour(r.turns).map { String(localized: "\(one($0)) turns/h") } ?? "–",
-                 caption: String(localized: "\(r.toolCalls) tool calls · \(compactCount(r.tokens)) tokens (excl. cache reads)"))
-            Tile(title: String(localized: "Backlog now"), symbol: "tray.full", value: sessions(backlog.count),
-                 caption: backlog.oldest.map { String(localized: "Oldest waiting \(relative($0, now: now))") }
-                    ?? String(localized: "No sessions waiting on you"))
-            Tile(title: String(localized: "Switches"), symbol: "arrow.left.arrow.right",
-                 value: r.switches == 1 ? String(localized: "1 switch") : String(localized: "\(r.switches) switches"),
-                 caption: r.perActiveHour(r.switches).map { String(localized: "\(one($0)) switches per active hour") }
-                    ?? String(localized: "Jumps from a card or notification"))
-            if let p = r.replyByProject.first, r.replyByProject.count > 1 {
-                Tile(title: String(localized: "Slowest replies"), symbol: "tortoise", value: duration(p.median),
-                     caption: p.count == 1 ? String(localized: "\(p.project) · 1 reply") : String(localized: "\(p.project) · \(p.count) replies"))
+    /// What it took from the user, and what waits now.
+    private func attention(_ r: ActivityReport) -> [Chip] {
+        [("text.bubble.fill", String(localized: "Prompts and answers"), "\(r.interventions)", .reply),
+         ("arrow.left.arrow.right", String(localized: "Switches"), "\(r.switches)", .reply),
+         ("checkmark.circle.fill", String(localized: "Pickup time"), r.pickupMedian.map(duration) ?? "–", .reply),
+         ("tray.full.fill", String(localized: "Backlog now"), "\(model.backlog.count)", .wait),
+         ("pause.circle.fill", String(localized: "All stalled"), r.allRebuilt ? "–" : duration(r.bottleneck), .wait)]
+    }
+
+    /// One row of chips, wrapping onto two when it doesn't fit; `more` ends it.
+    private func chips(_ items: [Chip], more: AnyView? = nil) -> some View {
+        let row = ForEach(items, id: \.title) { c in StatChip(symbol: c.symbol, title: c.title, value: c.value, ramp: c.ramp).frame(minWidth: 132) }
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: Space.l) { row; more }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: Space.l)], spacing: Space.l) { row; more }
+        }
+    }
+
+    /// Opens the per-session lanes under the cards.
+    private func lanesChip(_ r: ActivityReport) -> AnyView {
+        AnyView(Button {
+            withAnimation(.easeOut(duration: 0.15)) { lanes.toggle() }
+        } label: {
+            HStack(spacing: Space.m) {
+                Text("Session lanes").font(.ui(.body, .semibold)).foregroundStyle(Ink.primary).lineLimit(1)
+                Text(verbatim: "\(r.lanes.count)").font(.figure(TextSize.body.rawValue, .medium)).foregroundStyle(Ink.tertiary)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.ui(.footnote, .semibold)).foregroundStyle(Ink.tertiary)
+                    .rotationEffect(.degrees(lanes ? 90 : 0))
+            }
+            .statChip().frame(minWidth: 132)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(Pressable()))
+    }
+
+    // MARK: Cards
+
+    /// Three cards a row when wide, two when not, one on the narrowest.
+    private func cards(_ d: OverviewData) -> some View {
+        ViewThatFits(in: .horizontal) {
+            VStack(spacing: Space.xl) {
+                HStack(spacing: Space.xl) { LeverageCard(data: d).frame(width: 330); RunningCard(data: d) }.frame(height: 256)
+                HStack(spacing: Space.xl) { WaitingCard(data: d); RepliesCard(data: d); AwayCard(data: d) }.frame(height: 244)
+                HStack(spacing: Space.xl) { AgentsCard(data: d).frame(width: 520); ProjectsCard(data: d) }.frame(height: 236)
+                RhythmCard(data: d).frame(height: 244)
+            }
+            .frame(minWidth: 980)
+            VStack(spacing: Space.xl) {
+                HStack(spacing: Space.xl) { LeverageCard(data: d); AwayCard(data: d) }.frame(height: 244)
+                RunningCard(data: d).frame(height: 256)
+                HStack(spacing: Space.xl) { WaitingCard(data: d); RepliesCard(data: d) }.frame(height: 244)
+                AgentsCard(data: d).frame(height: 236)
+                ProjectsCard(data: d).frame(height: 236)
+                RhythmCard(data: d).frame(height: 244)
+            }
+            .frame(minWidth: 640)
+            VStack(spacing: Space.xl) {
+                LeverageCard(data: d).frame(height: 220)
+                RunningCard(data: d).frame(height: 256)
+                WaitingCard(data: d).frame(height: 244)
+                RepliesCard(data: d).frame(height: 244)
+                AwayCard(data: d).frame(height: 220)
+                AgentsCard(data: d).frame(height: 236)
+                ProjectsCard(data: d).frame(height: 236)
+                RhythmCard(data: d).frame(height: 244)
             }
         }
-        .frame(maxWidth: .infinity)
     }
-}
-
-/// Waits, replies and absences exist only where recorded live: compare them only when neither
-/// period was partly rebuilt, or the rebuilt side reads as "no waiting".
-private func comparesWaits(_ a: ActivityReport, _ b: ActivityReport?) -> Bool {
-    a.rebuiltUntil == nil && b?.rebuiltUntil == nil
 }
 
 func percent(_ x: Double) -> String { "\(Int((x * 100).rounded()))%" }
@@ -193,9 +250,9 @@ func duration(_ t: TimeInterval) -> String {
 }
 
 /// One decimal, for figures put into sentences.
-private func one(_ x: Double) -> String { String(format: "%.1f", x) }
-private func sessions(_ n: Int) -> String { n == 1 ? String(localized: "1 session") : String(localized: "\(n) sessions") }
-private func turns(_ n: Int) -> String { n == 1 ? String(localized: "1 turn") : String(localized: "\(n) turns") }
+func one(_ x: Double) -> String { String(format: "%.1f", x) }
+func sessions(_ n: Int) -> String { n == 1 ? String(localized: "1 session") : String(localized: "\(n) sessions") }
+func turns(_ n: Int) -> String { n == 1 ? String(localized: "1 turn") : String(localized: "\(n) turns") }
 
 extension Lane {
     var status: DisplayStatus {
@@ -208,218 +265,6 @@ extension Lane {
     }
 }
 
-/// Chart colors: running, and every way of waiting on the user, as one.
-private enum Ink {
-    static let running = DisplayStatus.running.tint
-    static let waiting = DisplayStatus.needsInput.tint
-    static let away = Color.primary.opacity(0.07)
-}
-
-/// A change against the period before: "↑ 1.2h vs yesterday so far", green when it went the good way.
-struct Delta {
-    enum Better { case up, down }
-    var text: String
-    var color: Color
-
-    init?(_ a: Double?, _ b: Double?, better: Better, vs: String, fmt: (Double) -> String) {
-        guard let a, let b else { return nil }
-        let d = a - b
-        let shown = fmt(abs(d))
-        if shown == fmt(0) {
-            text = String(localized: "Same as \(vs)"); color = .secondary
-        } else {
-            text = "\(d > 0 ? "↑" : "↓") \(shown) vs \(vs)"
-            color = (d > 0) == (better == .up) ? .green : .red
-        }
-    }
-}
-
-/// The four figures at the top, each against the period before.
-private struct Headline: View {
-    let r: ActivityReport
-    let prev: ActivityReport?
-    let vs: String
-
-    var body: some View {
-        let waits = comparesWaits(r, prev)
-        HStack(spacing: 12) {
-            Figure(title: String(localized: "Agent hours"), value: duration(r.agentTime),
-                   note: r.agentTimeAway >= 60 ? String(localized: "\(duration(r.agentTimeAway)) of it while you were away")
-                       : String(localized: "All agents' running time added up"),
-                   delta: Delta(r.agentTime, prev?.agentTime, better: .up, vs: vs, fmt: duration))
-            Figure(title: String(localized: "Leverage"), value: r.leverage.map { String(format: "%.1f×", $0) } ?? "–",
-                   note: String(localized: "All agent hours ÷ your time here"),
-                   delta: waits ? Delta(r.leverage, prev?.leverage, better: .up, vs: vs) { String(format: "%.1f×", $0) } : nil)
-            Figure(title: String(localized: "Reply time"), value: r.replyMedian.map(duration) ?? "–",
-                   note: r.replyP90.map { String(localized: "Median wait for your reply · P90 \(duration($0))") }
-                       ?? String(localized: "How long agents wait for your reply"),
-                   delta: waits ? Delta(r.replyMedian, prev?.replyMedian, better: .down, vs: vs, fmt: duration) : nil)
-            Figure(title: String(localized: "Blocked while away"), value: r.allRebuilt ? "–" : duration(r.blockedAway),
-                   note: String(localized: "Agents asking or stuck while you were gone"),
-                   delta: waits ? Delta(r.blockedAway, prev?.blockedAway, better: .down, vs: vs, fmt: duration) : nil)
-        }
-    }
-}
-
-private struct Figure: View {
-    let title: String
-    let value: String
-    let note: String
-    let delta: Delta?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(.secondary)
-            Text(value).font(.system(size: 28, weight: .bold).monospacedDigit()).lineLimit(1).minimumScaleFactor(0.6)
-            Text(delta?.text ?? " ").font(.system(size: 11.5, weight: .medium).monospacedDigit())
-                .foregroundStyle(delta?.color ?? .clear).lineLimit(1)
-            Text(note).font(.system(size: 10.5)).foregroundStyle(.tertiary).lineLimit(1)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card(.done, radius: 14)
-    }
-}
-
-/// Four facts to read the period by: the hardest worker, the longest run, the busiest slice,
-/// and how much of the user's absence the agents spent working rather than blocked.
-private struct Highlights: View {
-    @Environment(AppModel.self) private var model
-    let period: Period
-    let report: ActivityReport
-
-    var body: some View {
-        let r = report
-        let mvp = r.sessionTotals.filter { $0.running > 0 }.max { $0.running < $1.running }
-        let long = r.longestRun
-        HStack(spacing: 12) {
-            Fact(symbol: "trophy", title: String(localized: "Hardest worker"), agent: mvp.flatMap { agent($0.session) },
-                 value: mvp.map { title($0.session) } ?? "–",
-                 caption: mvp.map { String(localized: "Ran \(duration($0.running)) · \(turns(r.turnsBySession[$0.session] ?? 0))") }
-                    ?? String(localized: "No agent has run yet"))
-            Fact(symbol: "flame", title: String(localized: "Longest run"), agent: long.flatMap { agent($0.session) },
-                 value: long.map { duration($0.duration) } ?? "–",
-                 caption: long.map { title($0.session) } ?? String(localized: "Running without a break"))
-            let peak = busiest
-            Fact(symbol: "chart.bar.fill", title: String(localized: "Busiest"), value: peak?.value ?? "–",
-                 caption: peak?.when ?? String(localized: "No agent has run yet"))
-            Fact(symbol: "moon.zzz", title: String(localized: "While you were away"),
-                 value: r.allRebuilt || r.away.isEmpty ? "–" : r.utilizationAway.map(percent) ?? "–",
-                 caption: r.allRebuilt ? String(localized: "No away time recorded here")
-                    : r.away.isEmpty ? String(localized: "You were here the whole time")
-                    : r.utilizationAway == nil ? String(localized: "They stopped when you left")
-                    : String(localized: "Working \(duration(r.agentTimeAway)), blocked \(duration(r.blockedAway))"))
-        }
-    }
-
-    private func agent(_ id: String) -> AgentKind? {
-        model.sessions[id]?.agent ?? id.split(separator: ":").first.flatMap { AgentKind(rawValue: String($0)) }
-    }
-    private func title(_ id: String) -> String { model.sessions[id]?.title ?? String(localized: "Deleted session") }
-
-    /// The slice with the most running: sessions at once, or agent hours on a month's day.
-    private var busiest: (value: String, when: String)? {
-        let b = report.parallelBuckets, e = report.bucketEdges
-        guard let i = b.indices.max(by: { b[$0] < b[$1] }), b[i] > 0, e.indices.contains(i + 1) else { return nil }
-        let value = period == .month ? String(localized: "\(duration(b[i] * e[i + 1].timeIntervalSince(e[i]))) agent hours")
-            : String(localized: "\(one(b[i])) running at once")
-        return (value, slotLabel(period, e[i], e[i + 1]))
-    }
-}
-
-private struct Fact: View {
-    let symbol: String
-    let title: String
-    var agent: AgentKind?
-    let value: String
-    let caption: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Label(title, systemImage: symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-            HStack(spacing: 5) {
-                if let agent { AgentLogo(agent: agent, size: 12) }
-                Text(value).font(.system(size: 15, weight: .bold).monospacedDigit()).lineLimit(1).truncationMode(.tail)
-            }
-            Text(caption).font(.system(size: 10.5)).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.tail)
-        }
-        .padding(11)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card(.done, radius: 12)
-    }
-}
-
-/// Which agents did the work: running time per agent kind, as one bar and a row each.
-private struct AgentMix: View {
-    @Environment(AppModel.self) private var model
-    let report: ActivityReport
-
-    var body: some View {
-        let rows = kinds
-        let total = rows.reduce(0) { $0 + $1.time }
-        VStack(alignment: .leading, spacing: 9) {
-            Text("Agent mix").font(.system(size: 12, weight: .semibold))
-            if total < 1 {
-                Text("No agents ran.").font(.system(size: 12)).foregroundStyle(.tertiary)
-            } else {
-                GeometryReader { g in
-                    HStack(spacing: 1) {
-                        ForEach(rows, id: \.kind) { k in
-                            RoundedRectangle(cornerRadius: 2).fill(Self.tint(k.kind)).frame(width: max(0, g.size.width * k.time / total - 1))
-                        }
-                    }
-                }
-                .frame(height: 8)
-                ForEach(rows, id: \.kind) { k in
-                    HStack(spacing: 6) {
-                        RoundedRectangle(cornerRadius: 2).fill(Self.tint(k.kind)).frame(width: 4, height: 12)
-                        AgentLogo(agent: k.kind, size: 11)
-                        Text(k.kind.displayName).font(.system(size: 11.5, weight: .medium))
-                        Spacer()
-                        Text(verbatim: "\(duration(k.time)) · \(percent(k.time / total)) · \(sessions(k.sessions))")
-                            .font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .card(.done, radius: 14)
-    }
-
-    static func tint(_ k: AgentKind) -> Color {
-        switch k {
-        case .claudeCode: .orange
-        case .codex: .teal
-        case .cursor: .purple
-        case .opencode: .green
-        case .pi: .pink
-        case .hermes: .yellow
-        case .deepseek: .blue
-        case .qwen: .indigo
-        case .droid: .brown
-        case .copilot: .cyan
-        case .gemini: .mint
-        case .zcode: .red
-        case .kiro: .purple
-        case .kimi: .gray
-        case .cline: .teal
-        case .omp: .pink
-        case .windsurf: .green
-        }
-    }
-
-    private var kinds: [(kind: AgentKind, time: TimeInterval, sessions: Int)] {
-        var by: [AgentKind: (TimeInterval, Int)] = [:]
-        for t in report.sessionTotals where t.running > 0 {
-            guard let k = model.sessions[t.session]?.agent
-                    ?? t.session.split(separator: ":").first.flatMap({ AgentKind(rawValue: String($0)) }) else { continue }
-            by[k, default: (0, 0)].0 += t.running
-            by[k, default: (0, 0)].1 += 1
-        }
-        return by.map { ($0.key, $0.value.0, $0.value.1) }.sorted { $0.1 > $1.1 }
-    }
-}
 
 /// Axis labels along a period: every 3 hours of a day (on the clock), under each day of a week,
 /// under every few days of a month. Each label sits at the middle of its span.
@@ -463,221 +308,18 @@ func slotLabel(_ period: Period, _ a: Date, _ b: Date) -> String {
     }
 }
 
-/// The main chart: per slice of the period, how many sessions ran and how many waited on you,
-/// with the period before as a line.
-private struct ActivityChart: View {
-    let period: Period
-    let report: ActivityReport
-    let previous: ActivityReport
-    let now: Date
-    @State private var hover: Int?
-    static let gutter: CGFloat = 26
-
-    /// Per day in a month (hours of session time), otherwise sessions at once.
-    private var scale: Double { period == .month ? 24 : 1 }
-    private func fx(_ d: Date) -> Double { slotFraction(d, report.bucketEdges) }
-    private func fmt(_ v: Double) -> String {
-        period == .month ? String(localized: "\(one(v * scale))h") : String(localized: "\(one(v * scale)) sessions")
-    }
-
-    var body: some View {
-        let run = report.parallelBuckets, wait = report.waitingBuckets, ghost = previous.parallelBuckets
-        let peak = max((0..<run.count).map { run[$0] + (wait.indices.contains($0) ? wait[$0] : 0) }.max() ?? 0, ghost.max() ?? 0)
-        // A whole number on the axis, in the shown unit, and an even one past 2 so its half is too.
-        let whole = max(1, (peak * scale).rounded(.up))
-        let top = (whole > 2 ? (whole / 2).rounded(.up) * 2 : whole) / scale
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(period == .month ? "Session hours per day" : "Sessions running / waiting on you")
-                    .font(.system(size: 12, weight: .semibold))
-                Spacer()
-                if let i = hover, i < run.count { readout(i, run, wait, ghost) } else { legend }
-            }
-            .frame(height: 16)
-            GeometryReader { g in
-                let plot = CGRect(x: Self.gutter, y: 0, width: g.size.width - Self.gutter, height: g.size.height)
-                canvas(run, wait, ghost, top: top, plot: plot)
-                    .onContinuousHover { phase in
-                        if case .active(let p) = phase, p.x >= plot.minX, !run.isEmpty {
-                            hover = min(run.count - 1, Int((p.x - plot.minX) / plot.width * CGFloat(run.count)))
-                        } else { hover = nil }
-                    }
-            }
-            .frame(height: 170)
-            GeometryReader { g in
-                let w = g.size.width - Self.gutter
-                ForEach(Array(axisTicks(period, report.range).enumerated()), id: \.offset) { _, t in
-                    Text(t.label).font(.system(size: 10)).monospacedDigit().foregroundStyle(.tertiary).fixedSize()
-                        .position(x: Self.gutter + w * fx(midpoint(t.span)), y: 6)
-                }
-            }
-            .frame(height: 12)
-        }
-        .padding(14)
-        .card(.done, radius: 14)
-    }
-    private func canvas(_ run: [Double], _ wait: [Double], _ ghost: [Double], top: Double, plot: CGRect) -> some View {
-        let range = report.range, away = report.away, hover = hover, edges = report.bucketEdges
-        let gridLabel = { (v: Double) in String(format: (v * scale).rounded() == v * scale ? "%.0f" : "%.1f", v * scale) }
-        return Canvas { ctx, _ in
-            func y(_ v: Double) -> CGFloat { plot.maxY - plot.height * CGFloat(min(v, top) / top) }
-            func x(_ d: Date) -> CGFloat { plot.minX + plot.width * CGFloat(slotFraction(d, edges)) }
-            for a in away {
-                ctx.fill(Path(CGRect(x: x(a.start), y: plot.minY, width: x(a.end) - x(a.start), height: plot.height)), with: .color(Ink.away))
-            }
-            for v in [0, top / 2, top] {
-                ctx.fill(Path(CGRect(x: plot.minX, y: y(v) - 0.25, width: plot.width, height: 0.5)), with: .color(.primary.opacity(0.12)))
-                ctx.draw(Text(gridLabel(v)).font(.system(size: 9.5)).foregroundStyle(.tertiary),
-                         at: CGPoint(x: plot.minX - 4, y: min(max(y(v), 6), plot.maxY - 6)), anchor: .trailing)
-            }
-            let n = max(run.count, 1)
-            let bw = plot.width / CGFloat(n)
-            let gap = min(2, bw * 0.2)
-            for i in 0..<run.count {
-                let x0 = plot.minX + CGFloat(i) * bw + gap / 2
-                let w = waitAt(wait, i)
-                if hover == i {
-                    ctx.fill(Path(CGRect(x: x0 - gap / 2, y: plot.minY, width: bw, height: plot.height)), with: .color(.primary.opacity(0.06)))
-                }
-                if run[i] > 0 {
-                    ctx.fill(Path(roundedRect: CGRect(x: x0, y: y(run[i]), width: bw - gap, height: plot.maxY - y(run[i])), cornerRadius: 1.5),
-                             with: .color(Ink.running.opacity(0.85)))
-                }
-                if w > 0 {
-                    ctx.fill(Path(roundedRect: CGRect(x: x0, y: y(run[i] + w), width: bw - gap, height: y(run[i]) - y(run[i] + w)), cornerRadius: 1.5),
-                             with: .color(Ink.waiting.opacity(0.85)))
-                }
-            }
-            // The period before, running only, as a step line over the same slices.
-            if ghost.contains(where: { $0 > 0 }) {
-                var line = Path()
-                for (i, v) in ghost.prefix(n).enumerated() {
-                    let a = CGPoint(x: plot.minX + CGFloat(i) * bw, y: y(v)), b = CGPoint(x: a.x + bw, y: y(v))
-                    i == 0 ? line.move(to: a) : line.addLine(to: a)
-                    line.addLine(to: b)
-                }
-                ctx.stroke(line, with: .color(.primary.opacity(0.45)), style: StrokeStyle(lineWidth: 1.2, lineJoin: .round, dash: [3, 2]))
-            }
-            if range.contains(now) {
-                ctx.fill(Path(CGRect(x: x(now) - 0.5, y: plot.minY, width: 1, height: plot.height)), with: .color(.primary.opacity(0.4)))
-            }
-        }
-    }
-
-    private func waitAt(_ wait: [Double], _ i: Int) -> Double { wait.indices.contains(i) ? wait[i] : 0 }
-
-    private func readout(_ i: Int, _ run: [Double], _ wait: [Double], _ ghost: [Double]) -> some View {
-        let e = report.bucketEdges
-        let a = e.indices.contains(i) ? e[i] : report.range.start, b = e.indices.contains(i + 1) ? e[i + 1] : report.range.end
-        var parts = [slotLabel(period, a, b), String(localized: "Running \(fmt(run[i]))"), String(localized: "Waiting \(fmt(waitAt(wait, i)))")]
-        if ghost.indices.contains(i) { parts.append(String(localized: "Last period running \(fmt(ghost[i]))")) }
-        return Text(parts.joined(separator: "  ·  ")).font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary)
-    }
-
-    private var legend: some View {
-        HStack(spacing: 12) {
-            swatch(Ink.running, String(localized: "Agents running"))
-            swatch(Ink.waiting, String(localized: "Waiting on you"))
-            swatch(Ink.away, String(localized: "You were away"))
-            HStack(spacing: 4) {
-                Path { p in p.move(to: CGPoint(x: 0, y: 3)); p.addLine(to: CGPoint(x: 12, y: 3)) }
-                    .stroke(Color.primary.opacity(0.45), style: StrokeStyle(lineWidth: 1.2, dash: [3, 2])).frame(width: 12, height: 6)
-                Text("Last period")
-            }
-        }
-        .font(.system(size: 10.5)).foregroundStyle(.secondary)
-    }
-}
-
 private func swatch(_ c: Color, _ name: String) -> some View {
     HStack(spacing: 4) {
         RoundedRectangle(cornerRadius: 2).fill(c).frame(width: 10, height: 6)
         Text(name)
     }
 }
-/// Where the time went: per project, running and waiting on the user, busiest first.
-private struct ProjectBreakdown: View {
-    @Environment(AppModel.self) private var model
-    let report: ActivityReport
-    static let shown = 7
-
-    var body: some View {
-        let rows = projects
-        let top = rows.first.map { $0.running + $0.waiting } ?? 0
-        VStack(alignment: .leading, spacing: 9) {
-            Text("By project").font(.system(size: 12, weight: .semibold))
-            if rows.isEmpty {
-                Text("Nothing running or waiting on you.").font(.system(size: 12)).foregroundStyle(.tertiary)
-            }
-            ForEach(rows.prefix(Self.shown), id: \.name) { p in
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack {
-                        Text(p.name).font(.system(size: 11.5, weight: .medium)).lineLimit(1)
-                        Spacer()
-                        Text("Running \(duration(p.running)) · waiting \(duration(p.waiting))")
-                            .font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.secondary)
-                    }
-                    GeometryReader { g in
-                        let unit = top > 0 ? g.size.width / top : 0
-                        HStack(spacing: 1) {
-                            RoundedRectangle(cornerRadius: 2).fill(Ink.running.opacity(0.85)).frame(width: max(0, p.running * unit))
-                            RoundedRectangle(cornerRadius: 2).fill(Ink.waiting.opacity(0.85)).frame(width: max(0, p.waiting * unit))
-                            Spacer(minLength: 0)
-                        }
-                    }
-                    .frame(height: 6)
-                }
-            }
-            if rows.count > Self.shown {
-                Text(rows.count - Self.shown == 1 ? "1 more project" : "\(rows.count - Self.shown) more projects").font(.system(size: 10.5)).foregroundStyle(.tertiary)
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .card(.done, radius: 14)
-    }
-
-    private var projects: [(name: String, running: TimeInterval, waiting: TimeInterval)] {
-        var by: [String: (TimeInterval, TimeInterval)] = [:]
-        for t in report.sessionTotals {
-            let s = model.sessions[t.session]
-            let name = s == nil ? String(localized: "Deleted session") : s?.projectName ?? String(localized: "Other")
-            by[name, default: (0, 0)].0 += t.running
-            by[name, default: (0, 0)].1 += t.waiting
-        }
-        return by.map { ($0.key, $0.value.0, $0.value.1) }.filter { $0.1 + $0.2 >= 1 }
-            .sorted { $0.1 + $0.2 > $1.1 + $1.2 }
-    }
-}
-
-private struct Tile: View {
-    let title: String
-    let symbol: String
-    let value: String
-    let caption: String
-    var delta: Delta?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Label(title, systemImage: symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(value).font(.system(size: 18, weight: .bold).monospacedDigit()).lineLimit(1).minimumScaleFactor(0.6)
-                if let delta { Text(delta.text).font(.system(size: 10.5).monospacedDigit()).foregroundStyle(delta.color).lineLimit(1) }
-            }
-            Text(caption).font(.system(size: 10.5)).foregroundStyle(.tertiary).lineLimit(2)
-        }
-        .padding(11)
-        .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
-        .card(.done, radius: 12)
-    }
-}
-/// Per-session swimlanes, folded by default; open, the busiest few, then all on request.
+/// Per-session swimlanes, opened from the chip under the cards: the busiest few, then all on request.
 private struct SessionLanes: View {
     @Environment(AppModel.self) private var model
     let period: Period
     let report: ActivityReport
     let now: Date
-    @State private var open = false
     @State private var all = false
     static let label: CGFloat = 170
     static let few = 10
@@ -687,21 +329,14 @@ private struct SessionLanes: View {
         let segments = Dictionary(report.lanes.map { ($0.session, $0.segments) }, uniquingKeysWith: { a, _ in a })
         let rows = all ? totals : Array(totals.prefix(Self.few))
         VStack(alignment: .leading, spacing: 5) {
-            Button {
-                withAnimation(.easeOut(duration: 0.15)) { open.toggle() }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
-                        .rotationEffect(.degrees(open ? 90 : 0))
-                    Text("Session lanes").font(.system(size: 12, weight: .semibold))
-                    Text(verbatim: sessions(totals.count)).font(.system(size: 11)).foregroundStyle(.secondary)
-                    Spacer()
-                    if open { lanesLegend }
-                }
-                .contentShape(Rectangle())
+            HStack(spacing: Space.s) {
+                Text("Session lanes").font(.ui(.body, .semibold))
+                Text(verbatim: sessions(totals.count)).font(.ui(.footnote)).foregroundStyle(.secondary)
+                Spacer()
+                lanesLegend
             }
-            .buttonStyle(.plain)
-            if open, !rows.isEmpty {
+            .padding(.bottom, Space.xs)
+            if !rows.isEmpty {
                 HStack(spacing: 8) {
                     Color.clear.frame(width: Self.label, height: 1)
                     GeometryReader { g in
@@ -726,8 +361,8 @@ private struct SessionLanes: View {
                 }
             }
         }
-        .padding(14)
-        .card(.done, radius: 14)
+        .padding(Space.xxl)
+        .background(WidgetSurface())
     }
 
     private func rowLabel(_ id: String) -> some View {

@@ -394,60 +394,172 @@ struct Segmented<Item: Hashable>: View {
     }
 }
 
-/// A figure set large with its units small: "9.6h", "3m 40s", "86%", "12.8 turns/h". Takes the
-/// formatted string as it is and sizes each run of digits up.
-struct Measure: View {
-    let text: String
-    var size: CGFloat = 28
+// MARK: Overview
 
-    init(_ text: String, size: CGFloat = 28) { self.text = text; self.size = size }
+/// One hue at the strengths an Overview card draws with: deeper in the light appearance, brighter
+/// in the dark. It lights the card's label, units and chart; figures stay in the primary ink.
+struct Ramp {
+    let hue: Color
+    var mid: Color { hue.opacity(0.6) }
+    var dim: Color { hue.opacity(0.2) }
+    var faint: Color { hue.opacity(0.1) }
 
-    var body: some View {
-        runs.reduce(Text(verbatim: "")) { line, run in
-            line + Text(verbatim: run.text)
-                .font(run.figure ? .figure(size) : .system(size: (size * 0.5).rounded(), weight: .semibold))
-                .foregroundStyle(run.figure ? .primary : .secondary)
-        }
-        .lineLimit(1)
+    private init(_ light: (CGFloat, CGFloat, CGFloat), _ dark: (CGFloat, CGFloat, CGFloat)) {
+        hue = Color(light: NSColor(red: light.0, green: light.1, blue: light.2, alpha: 1),
+                    dark: NSColor(red: dark.0, green: dark.1, blue: dark.2, alpha: 1))
     }
 
-    private var runs: [(text: String, figure: Bool)] {
-        var out: [(text: String, figure: Bool)] = []
-        for c in text {
-            let figure = "0123456789.,:–".contains(c)
-            if out.last?.figure == figure { out[out.count - 1].text.append(c) } else { out.append((String(c), figure)) }
-        }
-        return out
+    /// Agent work and what it produced.
+    static let work = Ramp((0.1, 0.64, 0.34), (0.3, 0.86, 0.5))
+    /// Agents running.
+    static let run = Ramp((0.1, 0.46, 0.96), (0.32, 0.64, 1))
+    /// An agent waiting on you.
+    static let wait = Ramp((0.9, 0.24, 0.21), (1, 0.4, 0.36))
+    /// You answering.
+    static let reply = Ramp((0.93, 0.52, 0), (1, 0.66, 0.2))
+}
+
+/// Text on an Overview card at three strengths.
+enum Ink {
+    static let primary = Color.primary.opacity(0.9), secondary = Color.primary.opacity(0.55), tertiary = Color.primary.opacity(0.36)
+}
+
+extension Fill {
+    /// An Overview card: white on the light canvas, a lifted gray on the dark one.
+    static let widget = Color(light: .white, dark: NSColor(white: 0.165, alpha: 1))
+}
+
+/// An Overview card's surface, with a soft two-part shadow in the light appearance.
+struct WidgetSurface: View {
+    var radius: CGFloat = Radius.widget
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: radius, style: .continuous).fill(Fill.widget)
+            .shadow(color: .black.opacity(scheme == .dark ? 0 : 0.05), radius: 1, y: 1)
+            .shadow(color: .black.opacity(scheme == .dark ? 0.25 : 0.06), radius: 14, y: 6)
     }
 }
 
-/// One tile of the Overview: a small title (and an accessory such as a change badge), then its
-/// figure and picture. Rows give widgets their height; a widget fills it.
-struct Widget<Accessory: View, Content: View>: View {
-    let title: String
-    var symbol: String?
-    @ViewBuilder var accessory: Accessory
+/// One Overview card: its label row and content at one padding. `art` fills the card behind them,
+/// clipped to it. Rows give cards their height; a card fills it.
+struct Widget<Content: View, Art: View>: View {
     @ViewBuilder var content: Content
+    @ViewBuilder var art: Art
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
-            HStack(spacing: Space.s) {
-                Group { if let symbol { Label(title, systemImage: symbol) } else { Text(title) } }
-                    .font(.ui(.footnote, .semibold)).foregroundStyle(.secondary).lineLimit(1)
-                Spacer(minLength: Space.xs)
-                accessory
-            }
-            content
-        }
-        .padding(Space.xl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .surface(RoundedRectangle(cornerRadius: Radius.widget, style: .continuous))
+        VStack(alignment: .leading, spacing: 0) { content }
+            .padding(Space.xxl)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background { art.clipShape(RoundedRectangle(cornerRadius: Radius.widget, style: .continuous)) }
+            .background(WidgetSurface())
     }
 }
 
-extension Widget where Accessory == EmptyView {
-    init(_ title: String, symbol: String? = nil, @ViewBuilder content: () -> Content) {
-        self.init(title: title, symbol: symbol, accessory: { EmptyView() }, content: content)
+extension Widget where Art == EmptyView {
+    init(@ViewBuilder content: () -> Content) { self.init(content: content, art: { EmptyView() }) }
+}
+
+/// The label row a card opens with: what it is in its hue, the context opposite in gray.
+struct WidgetHead: View {
+    let title: String
+    let ramp: Ramp
+    var context: String?
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title).font(.ui(.body, .semibold)).foregroundStyle(ramp.hue).lineLimit(1)
+            Spacer(minLength: Space.m)
+            if let context { Text(context).font(.figure(TextSize.callout.rawValue, .medium)).foregroundStyle(Ink.secondary).lineLimit(1) }
+        }
+        .frame(height: 16)
+    }
+}
+
+/// Figure sizes: every card's, the two accents', and a row's.
+enum FigureSize { static let card: CGFloat = 34, accent: CGFloat = 46, row: CGFloat = 15 }
+
+/// A formatted figure ("9.6h", "3m 40s", "81%", "2.4×") with its digits in the primary ink and its
+/// units half as large in the card's hue, a thin space before them.
+func figure(_ text: String, _ ramp: Ramp, _ size: CGFloat = FigureSize.card) -> Text {
+    var out = Text(verbatim: "")
+    var afterDigits = false
+    for run in figureRuns(text) {
+        if run.figure {
+            out = out + Text(verbatim: run.text).font(.figure(size)).tracking(-size * 0.02).foregroundStyle(Ink.primary)
+        } else {
+            let unit = afterDigits && !run.text.hasPrefix(" ") ? "\u{2009}" + run.text : run.text
+            out = out + Text(verbatim: unit).font(.system(size: (size * 0.5).rounded(), weight: .semibold)).foregroundStyle(ramp.hue)
+        }
+        afterDigits = run.figure
+    }
+    return out
+}
+
+private func figureRuns(_ text: String) -> [(text: String, figure: Bool)] {
+    var out: [(text: String, figure: Bool)] = []
+    for c in text {
+        let figure = "0123456789.,:–".contains(c)
+        if out.last?.figure == figure { out[out.count - 1].text.append(c) } else { out.append((String(c), figure)) }
+    }
+    return out
+}
+
+/// A card's figure line: the figure, then its change and a note beside it on the figure's baseline.
+struct FigureLine: View {
+    let figure: Text
+    var change: Text?
+    var note: String?
+
+    var body: some View {
+        HStack(alignment: .lastTextBaseline, spacing: Space.l) {
+            figure.lineLimit(1).fixedSize()
+            VStack(alignment: .leading, spacing: Space.xxs) {
+                if let change { change.font(.figure(TextSize.callout.rawValue, .medium)).lineLimit(1) }
+                if let note { Text(note).font(.ui(.callout, .medium)).foregroundStyle(Ink.secondary).lineLimit(2) }
+            }
+            .padding(.bottom, 3)
+            Spacer(minLength: 0)
+        }
+        .padding(.top, Space.m)
+    }
+}
+
+/// A chart's key: a swatch and its word.
+struct ChartKey<Swatch: View>: View {
+    let text: String
+    @ViewBuilder var swatch: Swatch
+
+    var body: some View {
+        HStack(spacing: Space.s) { swatch; Text(text).font(.ui(.footnote, .medium)).foregroundStyle(Ink.secondary).lineLimit(1) }
+    }
+}
+
+/// A small Overview card with one count: a glyph in its hue, the word, the figure.
+struct StatChip: View {
+    let symbol: String
+    let title: String
+    let value: String
+    let ramp: Ramp
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol).font(.ui(.callout, .semibold)).foregroundStyle(ramp.hue)
+                .frame(width: 30, height: 30).background(Circle().fill(ramp.faint))
+            VStack(alignment: .leading, spacing: 0) {
+                Text(title).font(.ui(.footnote, .medium)).foregroundStyle(Ink.secondary).lineLimit(1)
+                Text(value).font(.figure(17)).foregroundStyle(Ink.primary).lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+        .statChip()
+    }
+}
+
+extension View {
+    /// A chip's size and surface.
+    func statChip() -> some View {
+        padding(.horizontal, Space.l).frame(maxWidth: .infinity).frame(height: 56).background(WidgetSurface(radius: Radius.panel))
     }
 }
 
