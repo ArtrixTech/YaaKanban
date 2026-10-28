@@ -135,29 +135,6 @@ struct PillButtonStyle: ButtonStyle {
     }
 }
 
-/// Round icon button that brightens on hover.
-struct IconButton: View {
-    let symbol: String
-    let help: String
-    var action: () -> Void
-    @State private var hover = false
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 11, weight: .semibold))
-                .frame(width: 22, height: 22)
-                .background(Circle().fill(.primary.opacity(hover ? 0.12 : 0)))
-                .foregroundStyle(hover ? .primary : .secondary)
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hover = $0 }
-        .animation(.easeOut(duration: 0.12), value: hover)
-        .help(help)
-    }
-}
-
 extension View {
     /// Rounded card surface; loud statuses get a tinted fill and edge.
     func card(_ status: DisplayStatus, hover: Bool = false, radius: CGFloat = 12) -> some View {

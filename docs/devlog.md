@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(stuck): ignore a tool the agent has moved on from
+## refactor(ui): move the design system into the app
 
 `pending` | 2026-10-28
+
+- **Changes**: `design/specimen/DesignSystem.swift` → `Sources/YaaKanban/DesignSystem.swift` (git mv); Theme.swift's `IconButton` and SetupGuide.swift's private `Pressable` removed (the design-system ones replace them); `design/specimen/build.sh` compiles the app's copy. Spec §5: design-system line (2026-10-28) and logo revision. design/README v9 feedback, devlog 7a99439 hash, Architecture.
+- **Reason**: v9 approved; first step of the full UI migration.
+- **User feedback**: "先按照当前设计系统来完整迁移整个ui。"
+- **Process**: `make build` failed once on the duplicate `Pressable` (SetupGuide), fixed by deleting the private copy; specimen still renders.
+- **Result**: builds; no visible change yet beyond `IconButton`'s hover fill (`Fill.controlHover`, primary 0.13 vs 0.12).
+- **Notes**: the spec line records all the agreed design decisions at once; later commits implement them.
+
+## fix(stuck): ignore a tool the agent has moved on from
+
+`7a99439` | 2026-10-28
 
 - **Changes**: `StuckDetector.leftBehind`: a running, non-waiting tool counts as left behind when the same agent (same `subagentId`) started another call after it; such tools are dropped from both the long-tool rule and the "no running tools" condition of the silence rule. Tests `toolLeftBehindIsNotStuck`, `subagentToolDoesNotLeaveMainToolBehind`. Spec stuck line revised; CHANGELOG Fixed.
 - **Reason**: a Codex card showed 可能卡住 "Bash 已运行 21 分钟" while the session was clearly working.
@@ -19,7 +30,7 @@
 - **Reason**: v8 feedback.
 - **User feedback**: "1，只有黑色卡片，浅色模式不协调 2，大字的部分文字太大了。需要更规整的文字展示。3，小圆角卡片可以放一些到上面来。4，顶栏需要用好，顶上可以放一些关键信息。"
 - **Process**: rendered light/dark, checked full peeks and a dark crop of the accent and running cards; fixed the dark 3.2h circle label (white on light green → card fill) and lifted the leverage wave.
-- **Result**: awaiting the user's review.
+- **Result**: approved ("先按照当前设计系统来完整迁移整个ui。"), migrated into the app from the next commit on.
 - **Notes**: specimen only; nothing in the app changed.
 
 ## docs(design): archive design specimens and overview v1-v8

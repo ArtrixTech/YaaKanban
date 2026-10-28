@@ -1,9 +1,9 @@
 # Design
 
-Style specimens for the design-system redesign (branch `feature/design-system`). They are rendered offline with SwiftUI. None of this is built into the app.
+Style specimens for the design-system redesign (branch `feature/design-system`). They are rendered offline with SwiftUI. Apart from `DesignSystem.swift`, which the specimen borrows from the app, none of this is built into the app.
 
 - `specimen/`: the working specimen.
-  - `DesignSystem.swift` is the proposed tokens and components; it moves to `Sources/YaaKanban/` once approved.
+  - The tokens and components live in the app, `Sources/YaaKanban/DesignSystem.swift` (moved there once approved); `build.sh` compiles that file with the specimen.
   - `main.swift` holds the tokens sheet, the main window and the settings mock.
   - `overview.swift` is the 概览 page.
   - Render with `specimen/build.sh [out-dir]` (default `/tmp/yaak-ds`). To render an archived overview, set `OVERVIEW=history/overview-vN/overview.swift`.
@@ -31,4 +31,4 @@ Style specimens for the design-system redesign (branch `feature/design-system`).
 | `overview-v7` | flat Linear-style cards | 缺少视觉张力；出几个风格方向 → `directions/` |
 | `directions` | A 黑底霓虹（Live Activities）· B 饱和色块 · C 巨字裁切 · D 深色色调格子 | 选 A+C：A 常规、C 点缀；A 不够细致协调 |
 | `overview-v8` | **milestone.** A as black slabs with four hues, C on 杠杆 / 你不在时 | 只有黑卡、浅色模式不协调；大字太大，要更规整；小圆角卡片放一些到上面；用好顶栏放关键信息 |
-| `overview-v9` | cards follow the appearance (white / lifted gray); figures in primary ink at two sizes, units and labels in the hue; top bar with the day's totals; chip rows top and bottom; accents as a colour fill at the card's foot | |
+| `overview-v9` | cards follow the appearance (white / lifted gray); figures in primary ink at two sizes, units and labels in the hue; top bar with the day's totals; chip rows top and bottom; accents as a colour fill at the card's foot | 先按照当前设计系统来完整迁移整个ui (approved; migrate the app) |

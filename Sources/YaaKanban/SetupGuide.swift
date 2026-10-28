@@ -446,16 +446,6 @@ private struct GuideBadge: View {
     }
 }
 
-/// Presses in slightly, for a custom-drawn button.
-private struct Pressable: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .brightness(configuration.isPressed ? -0.05 : 0)
-            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
-    }
-}
-
 /// The footer's main button. Drawn by hand so it keeps its colour when the window isn't key.
 private struct PillButton: ButtonStyle {
     let prominent: Bool
