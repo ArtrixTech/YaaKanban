@@ -1,8 +1,19 @@
 # Devlog
 
+## docs(design): archive design specimens and overview v1-v8
+
+`pending` | 2026-10-28
+
+- **Changes**: new `design/`: `specimen/` (the proposed `DesignSystem.swift`, moved out of `Sources/YaaKanban/` where its `IconButton` clashed with Theme.swift and broke `make build`; `main.swift` and `overview.swift` with repo-relative Resources and an out-dir argument; `build.sh`), `directions/` (boards A–D + sources), `history/` (before, ds-1..3, overview-v1..v8 with sources), `README.md` (version → feedback table). `design/references/` (Pinterest pins, pasted widgets) git-ignored. Architecture.md entry. Local tag `design-v8`.
+- **Reason**: everything lived in /tmp/yaak-ds; the user asked to save all versions and mark v8 as a milestone.
+- **User feedback**: "本版本记录一下做一个里程碑。另外之前的所有版本都需要保存避免tmp被清空。"
+- **Process**: overview v3–v7 sources from the `.bak` copies; v1/v2 rebuilt by replaying the session's Write/Edit calls plus its python edits (v2 rerender matches its saved preview layout). Images of v2–v7 and ds-1/2 decoded from the previews read during the session (downscaled); ds-3, boards and v8 are the full renders. `build.sh` reproduces v8 byte for byte.
+- **Result**: all versions in the repo; `make build` passes again.
+- **Notes**: v1 has no saved image; `rerender-*.png` uses today's DesignSystem (later fonts). History images are the previews the user reviewed, not full-res.
+
 ## feat(review): mark a turn reviewed when its terminal pane is in front
 
-`pending` | 2026-10-27
+`004ed24` | 2026-10-27
 
 - **Changes**: Hook records more pane ids in `TerminalContext` (`itermSession` from ITERM_SESSION_ID's UUID, agent `tty` via `ProcessUtil.tty(of:)`, `weztermPane`, `tmuxPane` + `tmuxSocket` from TMUX), each only when TERM_PROGRAM names that terminal. `YaaCore/TerminalFocus` (what is in front + `shows(_:)` matching + parsers for Wave layout, `wezterm cli list-clients`, `tmux list-clients`). `YaaKanban/FocusWatcher`: probes the frontmost terminal off the main thread: Wave DB (window→workspace.activetabid→tab.layoutstate→focusednodeid→leaforder blockid; only with one window row), iTerm2/Terminal AppleScript (only if `AEDeterminePermissionToAutomateTarget` already allows; `AutomationAccessRows` in Settings has Allow…), WezTerm bundled CLI, tmux clients with each client's own env read via `KERN_PROCARGS2`. `AppModel.checkFocus` on app activation + 1 s timer: present (not away, screen not locked, input < 2 min), `display == .review`, pane shown → `markRead`. tty-only panes require the agent alive and still on that tty. Pref `autoReviewOnFocus` (default on, beta toggle in Session reminders). `WaveDB.query` made internal. NSAppleEventsUsageDescription updated ×10; 3 strings ×9.
 - **Reason**: a turn the user already read in its terminal kept showing 待验收 until its card was clicked.
