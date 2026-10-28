@@ -82,22 +82,22 @@ struct SetupGuide: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 14) {
                 BrandMark(size: 44).shadow(color: .black.opacity(0.18), radius: 6, y: 2)
-                Text(title).font(.system(size: 24, weight: .bold))
+                Text(title).font(.ui(.display, .bold)).tracking(-0.3)
                 Spacer()
                 HStack(spacing: 6) {
                     ForEach(Step.allCases, id: \.self) { s in
-                        Capsule().fill(s.rawValue <= step.rawValue ? Color.accentColor : Color.primary.opacity(0.15))
+                        Capsule().fill(s.rawValue <= step.rawValue ? Color.accentColor : Fill.controlHover)
                             .frame(width: s == step ? 22 : 8, height: 8)
                     }
                 }
                 Button { close(apply: false) } label: {
                     Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
                         .frame(width: 24, height: 24)
-                        .background(Circle().fill(Color.primary.opacity(0.08)))
+                        .background(Circle().fill(Fill.control))
                 }
                 .buttonStyle(.plain).help(String(localized: "Skip Setup")).padding(.leading, 6)
             }
-            Text(lead).font(.system(size: 13)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text(lead).font(.ui(.body)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -128,7 +128,7 @@ struct SetupGuide: View {
         let list = found, heard = model.connectedAgents
         if list.isEmpty {
             Text("No supported agents found on this Mac. Install one (Claude Code, Codex, Cursor, OpenCode, pi and more are supported), then come back here.")
-                .font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
+                .font(.ui(.body)).fixedSize(horizontal: false, vertical: true)
         } else {
             if list.contains(where: { Self.pending($0.1) }) {
                 Button { installAll() } label: {
@@ -145,23 +145,22 @@ struct SetupGuide: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 18).padding(.vertical, 14)
                     .frame(maxWidth: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.accentColor.gradient))
-                    .shadow(color: Color.accentColor.opacity(0.35), radius: 10, y: 4)
+                    .background(Plate(shape: RoundedRectangle(cornerRadius: Radius.group, style: .continuous), tint: .accentColor))
+                    .shadow(color: Color.accentColor.opacity(0.3), radius: 8, y: 3)
                 }
                 .buttonStyle(Pressable())
                 .keyboardShortcut(.defaultAction)
             } else if list.allSatisfy({ heard.contains($0.0.agent) }) {
-                banner(String(localized: "Every agent below is connected."), symbol: "checkmark.seal.fill", tint: .green)
+                Banner(String(localized: "Every agent below is connected."), symbol: "checkmark.seal.fill", tint: .green)
             }
             // Only the list scrolls; it sits on the page with no card around it.
             ScrollView {
                 VStack(spacing: 0) {
-                    ForEach(Array(list.enumerated()), id: \.element.0.agent) { n, item in
-                        if n > 0 { Divider().padding(.leading, 44) }
+                    ForEach(list, id: \.0.agent) { item in
                         connectRow(item.0, item.1, heard: heard.contains(item.0.agent))
                     }
                 }
-                .padding(.vertical, 8)
+                .padding(.vertical, Space.s)
             }
             .scrollIndicators(.automatic)
             // Rows fade out at both edges instead of being cut.
@@ -174,11 +173,11 @@ struct SetupGuide: View {
             // Said once for every row still waiting, instead of under each.
             if list.contains(where: { Self.waiting($0.1, heard: heard.contains($0.0.agent)) }) {
                 Text("An agent is ticked by itself the next time you use it. Sessions already running need a restart.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    .font(.ui(.footnote)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }
         if let message {
-            Text(message).font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled)
+            Text(message).font(.ui(.footnote)).foregroundStyle(.secondary).textSelection(.enabled)
                 .lineLimit(3).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -187,146 +186,106 @@ struct SetupGuide: View {
     private func connectRow(_ i: any Integration, _ status: IntegrationStatus, heard: Bool) -> some View {
         let waiting = Self.waiting(status, heard: heard)
         return VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 12) {
-                agentLogo(i.agent)
-                Text(i.agent.displayName).font(.system(size: 13, weight: .medium))
-                Spacer(minLength: 8)
-                Group {
-                    switch status {
-                    case .notInstalled: Button("Install") { install(i) }
-                    case .outdated: Button("Update") { install(i) }
-                    case .needsAuthorization:
-                        GuideBadge(text: String(localized: "Needs approval"), symbol: "exclamationmark.circle.fill", tint: .orange)
-                    default:
-                        if heard {
-                            GuideBadge(text: String(localized: "Connected"), symbol: "checkmark.circle.fill", tint: .green)
-                        } else {
-                            GuideBadge(text: String(localized: "Waiting for first use"), symbol: "clock", tint: .secondary)
-                        }
+            HStack(spacing: Space.l) {
+                LogoTile(agent: i.agent)
+                Text(i.agent.displayName).font(.ui(.body, .medium))
+                Spacer(minLength: Space.m)
+                switch status {
+                case .notInstalled: Button("Install") { install(i) }.buttonStyle(.action(.secondary, tint: .accentColor))
+                case .outdated: Button("Update") { install(i) }.buttonStyle(.action(.secondary, tint: .accentColor))
+                case .needsAuthorization:
+                    Badge(text: String(localized: "Needs approval"), symbol: "exclamationmark.circle.fill", tint: .orange)
+                default:
+                    if heard {
+                        Badge(text: String(localized: "Connected"), symbol: "checkmark.circle.fill", tint: .green)
+                    } else {
+                        Badge(text: String(localized: "Waiting for first use"), symbol: "clock", tint: .secondary)
                     }
                 }
-                .controlSize(.small).font(.system(size: 12, weight: .medium)).fixedSize()
             }
             if status == .needsAuthorization {
                 AuthorizationSteps(integration: i).padding(.leading, 14)
             } else if waiting, let note = i.postInstallNote {
-                Text(note).font(.system(size: 11)).foregroundStyle(.secondary).padding(.leading, 44)
+                Text(note).font(.ui(.footnote)).foregroundStyle(.secondary).padding(.leading, 44)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, Space.m)
     }
 
     /// Installed, and not heard from yet.
     private static func waiting(_ s: IntegrationStatus, heard: Bool) -> Bool { !heard && s == .installed }
 
-    private func agentLogo(_ agent: AgentKind) -> some View {
-        AgentLogo(agent: agent, size: 18)
-            .frame(width: 32, height: 32)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.07)))
-    }
-
     @ViewBuilder private var finish: some View {
-        card {
-            row(String(localized: "Notifications"), symbol: "bell.badge.fill", tint: .red,
-                detail: notifications == false
-                    ? String(localized: "Notifications are off for YaaKanban. Turn them on in System Settings, or you will miss done alerts and approval requests.")
-                    : String(localized: "Alerts when a session finishes, gets stuck or needs you; approve or deny requests right from them.")) {
+        GroupCard {
+            SettingRow(String(localized: "Notifications"),
+                       detail: notifications == false
+                           ? String(localized: "Notifications are off for YaaKanban. Turn them on in System Settings, or you will miss done alerts and approval requests.")
+                           : String(localized: "Alerts when a session finishes, gets stuck or needs you; approve or deny requests right from them."),
+                       symbol: "bell.badge.fill", tint: .red) {
                 switch notifications {
-                case true?: Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                case true?: Badge(text: String(localized: "Allowed"), symbol: "checkmark.circle.fill", tint: .green)
                 case false?:
                     Button("Open System Settings") {
                         // The system asks only once; after a "Don't Allow", go straight to this app's own page.
                         let id = Bundle.main.bundleIdentifier ?? "com.artrix.yaakanban"
                         openURL(URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(id)")!)
                     }
-                    .buttonStyle(.borderedProminent)
-                case nil: Button("Allow…") { askNotifications() }.buttonStyle(.borderedProminent)
+                    .buttonStyle(.action(.primary))
+                case nil: Button("Allow…") { askNotifications() }.buttonStyle(.action(.primary))
                 }
             }
-            Divider().padding(.leading, 56)
-            row(String(localized: "Launch at login"), symbol: "power", tint: .gray,
-                detail: String(localized: "Keeps watching after a restart. Events from while it is closed are kept and shown later.")) {
-                Toggle("", isOn: $launchAtLogin).labelsHidden().toggleStyle(.switch)
+            SettingRow(String(localized: "Launch at login"),
+                       detail: String(localized: "Keeps watching after a restart. Events from while it is closed are kept and shown later."),
+                       symbol: "power", tint: .gray) {
+                Toggle("", isOn: $launchAtLogin).switchStyle()
             }
-            Divider().padding(.leading, 56)
-            row(String(localized: "Accessibility (optional)"), symbol: "accessibility", tint: .blue,
-                detail: String(localized: "Lets a click on a card bring the agent's exact window or Wave tab to the front. Without it, YaaKanban only activates the app.")) {
+            SettingRow(String(localized: "Accessibility (optional)"),
+                       detail: String(localized: "Lets a click on a card bring the agent's exact window or Wave tab to the front. Without it, YaaKanban only activates the app."),
+                       symbol: "accessibility", tint: .blue) {
                 if accessibility {
-                    Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                    Badge(text: String(localized: "Allowed"), symbol: "checkmark.circle.fill", tint: .green)
                 } else {
                     // Asked here, next to its reason, not later when a card is clicked.
                     Button("Allow…") { _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary) }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.action(.primary))
                 }
             }
             if offerCLI {
-                Divider().padding(.leading, 56)
-                row(String(localized: "Command line (optional)"), symbol: "terminal.fill", tint: .black,
-                    detail: String(localized: "Links yaak to ~/.local/bin for yaak status, install and doctor.")) {
-                    Toggle("", isOn: $wantCLI).labelsHidden().toggleStyle(.switch)
+                SettingRow(String(localized: "Command line (optional)"),
+                           detail: String(localized: "Links yaak to ~/.local/bin for yaak status, install and doctor."),
+                           symbol: "terminal.fill", tint: .black) {
+                    Toggle("", isOn: $wantCLI).switchStyle()
                 }
             }
             if model.telemetry.available {
-                Divider().padding(.leading, 56)
-                row(String(localized: "Send anonymous usage statistics"), symbol: "chart.line.uptrend.xyaxis", tint: .blue,
-                    detail: String(localized: "One report a day of versions, connected agents and rough usage ranges. Never prompts, code, paths or names. Change it any time in Settings.")) {
-                    Toggle("", isOn: $shareStats).labelsHidden().toggleStyle(.switch)
+                SettingRow(String(localized: "Send anonymous usage statistics"),
+                           detail: String(localized: "One report a day of versions, connected agents and rough usage ranges. Never prompts, code, paths or names. Change it any time in Settings."),
+                           symbol: "chart.line.uptrend.xyaxis", tint: .blue) {
+                    Toggle("", isOn: $shareStats).switchStyle()
                 }
             }
         }
-    }
-
-    private func row(_ title: String, symbol: String, tint: Color, detail: String,
-                     @ViewBuilder trailing: () -> some View) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: symbol).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
-                .frame(width: 32, height: 32)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tint.gradient))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 13, weight: .medium))
-                Text(detail).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 8)
-            trailing().controlSize(.small).font(.system(size: 12))
-        }
-        .padding(.horizontal, 14).padding(.vertical, 11)
-    }
-
-    private func card(@ViewBuilder _ content: () -> some View) -> some View {
-        VStack(spacing: 0, content: content)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.primary.opacity(0.045)))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.primary.opacity(0.07)))
-    }
-
-    private func banner(_ text: String, symbol: String, tint: Color) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: symbol).font(.system(size: 18)).foregroundStyle(tint)
-            Text(text).font(.system(size: 13, weight: .medium))
-            Spacer()
-        }
-        .padding(.horizontal, 16).padding(.vertical, 12)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(tint.opacity(0.12)))
     }
 
     private var footer: some View {
         HStack(spacing: 10) {
             if step != .connect {
-                Button("Back") { go(-1) }.buttonStyle(.borderless).foregroundStyle(.secondary)
+                Button("Back") { go(-1) }.buttonStyle(.action(.ghost))
             }
             Spacer()
             if step != .finish {
-                Button("Skip Setup") { close(apply: false) }.buttonStyle(.borderless).foregroundStyle(.secondary)
+                Button("Skip Setup") { close(apply: false) }.buttonStyle(.action(.ghost))
             }
             if step == .finish {
                 Button("Done") { close(apply: true) }
-                    .buttonStyle(PillButton(prominent: true)).keyboardShortcut(.defaultAction)
+                    .buttonStyle(.action(.primary, size: .large)).keyboardShortcut(.defaultAction)
             } else if step == .connect, found.contains(where: { Self.pending($0.1) }) {
                 // Return is the big connect button's; Continue stays a plain choice.
-                Button("Continue") { proceed() }.buttonStyle(PillButton(prominent: false))
+                Button("Continue") { proceed() }.buttonStyle(.action(.secondary, size: .large))
             } else {
                 Button("Continue") { proceed() }
-                    .buttonStyle(PillButton(prominent: true)).keyboardShortcut(.defaultAction)
+                    .buttonStyle(.action(.primary, size: .large)).keyboardShortcut(.defaultAction)
             }
         }
         .alert(String(localized: "Still needs approval"), isPresented: Binding(get: { !unapproved.isEmpty }, set: { if !$0 { unapproved = [] } })) {
@@ -429,38 +388,6 @@ struct SetupGuide: View {
         // A link left dangling by a moved app is replaced; a real file there is not ours.
         if (try? fm.destinationOfSymbolicLink(atPath: link.path)) != nil { try? fm.removeItem(at: link) }
         try? fm.createSymbolicLink(atPath: link.path, withDestinationPath: AppModel.yaakPath)
-    }
-}
-
-/// An agent's state in the guide, the same capsule for each: connected, waiting, or needing approval.
-private struct GuideBadge: View {
-    let text: String
-    let symbol: String
-    let tint: Color
-
-    var body: some View {
-        Label(text, systemImage: symbol).labelStyle(.titleAndIcon)
-            .font(.system(size: 11, weight: .medium)).foregroundStyle(tint)
-            .padding(.horizontal, 8).padding(.vertical, 3)
-            .background(Capsule().fill(tint.opacity(0.14)))
-    }
-}
-
-/// The footer's main button. Drawn by hand so it keeps its colour when the window isn't key.
-private struct PillButton: ButtonStyle {
-    let prominent: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(prominent ? Color.white : Color.primary)
-            .frame(minWidth: 120, minHeight: 40)
-            .padding(.horizontal, 6)
-            .background(Capsule().fill(prominent ? AnyShapeStyle(Color.accentColor.gradient) : AnyShapeStyle(Color.primary.opacity(0.1))))
-            .contentShape(Capsule())
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .brightness(configuration.isPressed ? -0.05 : 0)
-            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
     }
 }
 

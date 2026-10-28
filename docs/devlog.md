@@ -1,8 +1,17 @@
 # Devlog
 
-## refactor(ui): draw cards, badges and buttons from the design system
+## refactor(setup): build the setup guide from design-system parts
 
 `pending` | 2026-10-28
+
+- **Changes**: SetupGuide.swift: title `.ui(.display,.bold)`, connect button on `Plate`, `Banner`, agent rows with `LogoTile` and `Badge` and no dividers, Install/Update `.action(.secondary, tint: accent)`, finish step as `GroupCard` of `SettingRow`s with `.action(.primary)` and `switchStyle()` toggles, footer `.action(.primary/.secondary, size: .large)` and ghost Back/Skip. Private `GuideBadge`, `PillButton`, `row`, `card`, `banner` removed. DesignSystem: `Toggle.switchStyle()`.
+- **Reason**: UI migration step 3.
+- **User feedback**: "先按照当前设计系统来完整迁移整个ui。"
+- **Result**: `make build` ok; same strings, same behavior (alert, default actions, rechecks).
+
+## refactor(ui): draw cards, badges and buttons from the design system
+
+`ebace2d` | 2026-10-28
 
 - **Changes**: Theme.swift: `StatusPill` wraps `Badge` (compact by default), `CountChip` uses `.figure`/`.soft()`, `.card` becomes `CardSurface` (loud → `tinted` deep-top wash, else `surface` with `Fill.card`/`cardHover`; no stroke), `Flash`/`Stale` lose their strokes (fills 0.34 / 0.2 to compensate), `PillButtonStyle` removed for `.action`, `AgentLogo(ink:)` defaults to `.secondary`, new `LogoTile`. SessionViews: permission buttons `.action`, wells `Fill.control`, title `.ui(.body,.semibold)`. DetailView: page margins, `Fill.canvas`, group-radius sections, `.action` buttons.
 - **Reason**: UI migration step 2 (shared primitives every surface uses).

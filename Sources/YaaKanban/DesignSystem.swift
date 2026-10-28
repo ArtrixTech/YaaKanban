@@ -480,6 +480,11 @@ extension Banner where Trailing == EmptyView {
     }
 }
 
+extension Toggle {
+    /// A setting's on/off switch at the trailing edge of its row.
+    func switchStyle() -> some View { toggleStyle(.switch).controlSize(.small).labelsHidden() }
+}
+
 /// A keyboard shortcut as a key cap.
 struct KeyCap: View {
     let keys: String
