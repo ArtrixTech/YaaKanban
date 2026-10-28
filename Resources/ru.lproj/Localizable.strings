@@ -215,6 +215,9 @@
 "Show leverage and today's work time on top" = "Показывать вверху множитель и время работы за сегодня";
 "Wait for background agents (beta)" = "Ждать фоновых агентов (бета)";
 "Claude Code compatibility" = "Совместимость с Claude Code";
+"A running session silent this long, or one tool running this long, may be stuck." = "Сессия, которая молчит столько времени или столько же выполняет один инструмент, возможно, зависла.";
+"How long an approval waits in the panel or a notification before the agent asks in its terminal." = "Сколько запрос на разрешение ждёт в панели или уведомлении, прежде чем агент спросит в терминале.";
+"Compatibility" = "Совместимость";
 "When the main agent has replied but background agents haven't returned, the session stays running; it moves to review only after the last background agent returns and the main agent has handled its result. When off, every reply from the main agent counts as ready for review." = "Если главный агент ответил, но фоновые агенты еще не вернулись, сеанс остается в статусе «Работает»; к проверке он переходит только после возврата последнего фонового агента и обработки его результата главным агентом. Если выключено, каждый ответ главного агента считается готовым к проверке.";
 "Switch to the matching tab when jumping" = "Переключаться на нужную вкладку при переходе";
 "Allow YaaKanban in System Settings › Privacy & Security › Accessibility. You'll be asked on the first jump." = "Разрешите YaaKanban в «Системных настройках» › «Конфиденциальность и безопасность» › «Универсальный доступ». Запрос появится при первом переходе.";

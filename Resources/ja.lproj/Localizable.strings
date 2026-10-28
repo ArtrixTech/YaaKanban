@@ -215,6 +215,9 @@
 "Show leverage and today's work time on top" = "上部にレバレッジと今日の作業時間を表示";
 "Wait for background agents (beta)" = "バックグラウンドエージェントを待つ（ベータ）";
 "Claude Code compatibility" = "Claude Code互換性";
+"A running session silent this long, or one tool running this long, may be stuck." = "実行中のセッションがこの時間何も報告しない、または1つのツールがこの時間続くと、止まっている可能性があります。";
+"How long an approval waits in the panel or a notification before the agent asks in its terminal." = "承認がパネルや通知で待つ時間。過ぎるとエージェントがターミナルで尋ねます。";
+"Compatibility" = "互換性";
 "When the main agent has replied but background agents haven't returned, the session stays running; it moves to review only after the last background agent returns and the main agent has handled its result. When off, every reply from the main agent counts as ready for review." = "メインエージェントが返信を終えても、バックグラウンドエージェントが戻っていない間はセッションを実行中のままにします。最後のバックグラウンドエージェントが戻り、メインエージェントがその結果を処理した後にレビュー待ちになります。オフにすると、メインエージェントが返信するたびにレビュー待ちになります。";
 "Switch to the matching tab when jumping" = "移動時に対応するタブに切り替える";
 "Allow YaaKanban in System Settings › Privacy & Security › Accessibility. You'll be asked on the first jump." = "「システム設定」›「プライバシーとセキュリティ」›「アクセシビリティ」でYaaKanbanを許可してください。初めて移動するときに確認が表示されます。";

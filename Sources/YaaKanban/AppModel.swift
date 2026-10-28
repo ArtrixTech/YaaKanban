@@ -42,9 +42,10 @@ final class AppModel {
     var connectedAgents: Set<AgentKind> { Set(sessions.values.filter(\.hooked).map(\.agent)) }
     /// Debug hook: render windows to PNGs (`yaak snapshot <dir>`), for verification without screen recording.
     @ObservationIgnored var onSnapshot: ((URL) -> Void)?
-    /// Session selected in the main window, or `overview` (the home page).
+    /// Session selected in the main window, or `overview` (the home page) or `settingsPage`.
     var selection: String? = AppModel.overview
     static let overview = "overview"
+    static let settingsPage = "settings"
 
     init() {
         telemetry = TelemetryReporter(paths: paths)

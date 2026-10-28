@@ -215,6 +215,9 @@
 "Show leverage and today's work time on top" = "在頂端顯示槓桿與今日工時";
 "Wait for background agents (beta)" = "等待背景 agent（測試版）";
 "Claude Code compatibility" = "Claude Code 相容性";
+"A running session silent this long, or one tool running this long, may be stuck." = "執行中的工作階段靜默這麼久，或單一工具執行這麼久，視為可能卡住。";
+"How long an approval waits in the panel or a notification before the agent asks in its terminal." = "審批在懸浮窗或通知裡等你的時間，逾時後由 agent 在終端機裡詢問。";
+"Compatibility" = "相容性";
 "When the main agent has replied but background agents haven't returned, the session stays running; it moves to review only after the last background agent returns and the main agent has handled its result. When off, every reply from the main agent counts as ready for review." = "主 agent 已回覆但仍有背景 agent 尚未返回時，工作階段會維持執行中；要等最後一個背景 agent 返回、且主 agent 處理完其結果後，才會變成待驗收。關閉後，主 agent 每次回覆完都視為待驗收。";
 "Switch to the matching tab when jumping" = "跳到終端機時切換到對應的標籤頁";
 "Allow YaaKanban in System Settings › Privacy & Security › Accessibility. You'll be asked on the first jump." = "需要在「系統設定 › 隱私權與安全性 › 輔助使用」中允許 YaaKanban。第一次跳轉時會要求授權。";

@@ -204,7 +204,7 @@ struct SetupGuide: View {
                 }
             }
             if status == .needsAuthorization {
-                AuthorizationSteps(integration: i).padding(.leading, 14)
+                AuthorizationSteps(integration: i).padding(.leading, 44)
             } else if waiting, let note = i.postInstallNote {
                 Text(note).font(.ui(.footnote)).foregroundStyle(.secondary).padding(.leading, 44)
                     .fixedSize(horizontal: false, vertical: true)

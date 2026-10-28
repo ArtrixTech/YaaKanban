@@ -215,6 +215,9 @@
 "Show leverage and today's work time on top" = "顶部显示杠杆和今日工时";
 "Wait for background agents (beta)" = "等待背景 agent（测试）";
 "Claude Code compatibility" = "Claude Code 兼容性";
+"A running session silent this long, or one tool running this long, may be stuck." = "运行中的会话静默这么久，或单个工具运行这么久，视为可能卡住。";
+"How long an approval waits in the panel or a notification before the agent asks in its terminal." = "审批在悬浮窗或通知里等你的时间，超时后由 agent 在终端里询问。";
+"Compatibility" = "兼容性";
 "When the main agent has replied but background agents haven't returned, the session stays running; it moves to review only after the last background agent returns and the main agent has handled its result. When off, every reply from the main agent counts as ready for review." = "主 agent 回复完但还有背景 agent 没返回时，会话保持运行中，等最后一个背景 agent 返回、主 agent 处理完它的结果后才算待验收。关闭后，主 agent 每次回复完都算待验收。";
 "Switch to the matching tab when jumping" = "跳转时切换到对应标签页";
 "Allow YaaKanban in System Settings › Privacy & Security › Accessibility. You'll be asked on the first jump." = "需要在 系统设置 › 隐私与安全性 › 辅助功能 里允许 YaaKanban。第一次跳转时会弹出请求。";

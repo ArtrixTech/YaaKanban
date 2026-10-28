@@ -215,6 +215,9 @@
 "Show leverage and today's work time on top" = "Hebel und heutige Arbeitszeit oben zeigen";
 "Wait for background agents (beta)" = "Auf Hintergrund-Agenten warten (Beta)";
 "Claude Code compatibility" = "Kompatibilität mit Claude Code";
+"A running session silent this long, or one tool running this long, may be stuck." = "Eine laufende Sitzung, die so lange still ist oder so lange in einem Werkzeug steckt, hängt vielleicht.";
+"How long an approval waits in the panel or a notification before the agent asks in its terminal." = "So lange wartet eine Freigabe im Panel oder in einer Mitteilung, bevor der Agent im Terminal fragt.";
+"Compatibility" = "Kompatibilität";
 "When the main agent has replied but background agents haven't returned, the session stays running; it moves to review only after the last background agent returns and the main agent has handled its result. When off, every reply from the main agent counts as ready for review." = "Hat der Haupt-Agent geantwortet, sind aber noch Hintergrund-Agenten unterwegs, läuft die Sitzung weiter. Sie wechselt erst zu „Zu prüfen“, wenn der letzte Hintergrund-Agent zurück ist und der Haupt-Agent dessen Ergebnis verarbeitet hat. Wenn deaktiviert, gilt jede Antwort des Haupt-Agenten als bereit zur Prüfung.";
 "Switch to the matching tab when jumping" = "Beim Springen zum passenden Tab wechseln";
 "Allow YaaKanban in System Settings › Privacy & Security › Accessibility. You'll be asked on the first jump." = "Erlaube YaaKanban unter „Systemeinstellungen“ › „Datenschutz & Sicherheit“ › „Bedienungshilfen“. Du wirst beim ersten Sprung gefragt.";

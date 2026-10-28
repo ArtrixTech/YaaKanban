@@ -16,6 +16,7 @@ the update.
 - Experimental, on by default: a finished turn is marked reviewed as soon as you bring up its terminal pane in Wave, iTerm2, Terminal or WezTerm (tmux inside them too), as if you had clicked its card. iTerm2 and Terminal need Automation access, which Settings › Session reminders asks for with an Allow… button.
 
 ### Changed
+- A new look across the app, with fills and space instead of lines, and status color only on session cards. Settings is now a page of the main window (⌘, or the Settings row at the bottom of its sidebar), split into tabs: Agent integrations, Alerts, Floating panel, Compatibility, General and About. The sidebar shows active sessions as cards and history as single lines, with search and an agent filter on top; the arrow keys move through it.
 - The slim side rail is no longer experimental and is now the only folded rail: snapped to a screen edge, the panel folds into a thin strip of status, agent and time. The wider folded rail and its setting are gone.
 - The setup guide shows in the Dock and the app switcher while it is open, so you can get back to it after switching to an agent; its Accessibility row asks right there with an Allow… button.
 - Codex approval steps describe the Codex desktop app (Settings → Hooks) by default, with a switch for the terminal's /hooks.

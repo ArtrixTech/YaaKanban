@@ -10,24 +10,26 @@ struct YaaKanbanApp: App {
         MenuBarExtra {
             MenuContent(panel: delegate.panel).environment(delegate.model)
         } label: {
-            MenuBarLabel().environment(delegate.model).modifier(WindowOpener())
+            MenuBarLabel().modifier(WindowOpener()).environment(delegate.model)
         }
         .menuBarExtraStyle(.window)
 
         Window("YaaKanban", id: "main") {
             MainWindow().environment(delegate.model)
         }
+        .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 960, height: 620)
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") { AppWindows.open(.settings) }.keyboardShortcut(",")
+            }
+        }
 
         Window(String(localized: "Set Up YaaKanban"), id: SetupGuide.id) {
             SetupGuide().environment(delegate.model)
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
-
-        Settings {
-            SettingsView().environment(delegate.model)
-        }
     }
 }
 
@@ -65,7 +67,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
              NSSize(width: model.settings.panelWidth, height: 600)),
             ("menu", AnyView(MenuContent(panel: panel).environment(model)), NSSize(width: 230, height: 230)),
             ("main", AnyView(MainWindow().environment(model)), NSSize(width: 1000, height: 640)),
-            ("settings", AnyView(SettingsView().environment(model)), SettingsView.size),
+            ("main-overview", AnyView(MainWindow(page: AppModel.overview).environment(model)), NSSize(width: 1000, height: 760)),
+            ("settings", AnyView(MainWindow(page: AppModel.settingsPage).environment(model)), NSSize(width: 1000, height: 760)),
+            ("settings-alerts", AnyView(MainWindow(page: AppModel.settingsPage, tab: .alerts).environment(model)), NSSize(width: 1000, height: 900)),
             ("setup", AnyView(SetupGuide(live: false).environment(model)), SetupGuide.size),
             ("setup-finish", AnyView(SetupGuide(step: .finish, live: false).environment(model)), SetupGuide.size),
             ("dashboard", AnyView(DashboardView().environment(model)), NSSize(width: 1000, height: 900)),

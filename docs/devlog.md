@@ -1,8 +1,18 @@
 # Devlog
 
-## refactor(setup): build the setup guide from design-system parts
+## feat(ui): settings page and card sidebar in the main window
 
 `pending` | 2026-10-28
+
+- **Changes**: New `MainWindow.swift`: hidden title bar, drawn 280-pt sidebar (BoardHeader counts, search + agent filter menu, Overview nav, Active cards via `.card(status)` + neutral `Fill.selected` overlay, History lazy single-line rows, Settings nav with a badge for agents awaiting approval + a ready update), ↑/↓ via `.focusable().onKeyPress`, same context menu and `matches()`; content on `Fill.canvas`. New `SettingsPage.swift`: `SettingsView(tab:)` as a page (`PageHeader`, `PageTabs` in a horizontal scroll, `GroupSection`s of `SettingRow`s, value pill + stepper, switches), `AboutHeader`, `AuthorizationSteps` (`Segmented`, no built-in indent), `StatusBadge` → `Badge` (needs approval orange). Windows.swift: old `MainWindow`, `SettingsView`, `SettingLabel` removed; `WindowOpener` `.settings` selects `AppModel.settingsPage` and opens main. App: `Settings` scene removed, ⌘, via `CommandGroup(replacing: .appSettings)`, `WindowOpener` now below `.environment`; snapshots `main-overview`, `settings`, `settings-alerts` via `MainWindow(page:tab:)`. `AutomationAccessRows` restyled. 3 new strings ×9 (stuck/approval details, Compatibility).
+- **Reason**: UI migration step 4; agreed: settings merged into the main window, only 设置 in the sidebar foot, tabs inside the page, custom card sidebar.
+- **User feedback**: "先按照当前设计系统来完整迁移整个ui。"; earlier "并入主界面", "自绘卡片侧栏", "设置在外面只能看到设置，点进去才看得到更多选项。"
+- **Result**: `make build`, `make l10n` (430 keys, 0 problems), `make test` (192 passed). Not yet seen running: the live app serves this session's hooks, so no install/screenshot yet.
+- **Notes**: `MainWindow(page:)` renders a page without touching `model.selection`. The settings tab lives in `MainWindow` state (resets per window). `.ignoresSafeArea(.container, edges: .top)` puts the sidebar header 34 pt down, under the traffic lights.
+
+## refactor(setup): build the setup guide from design-system parts
+
+`32c6aef` | 2026-10-28
 
 - **Changes**: SetupGuide.swift: title `.ui(.display,.bold)`, connect button on `Plate`, `Banner`, agent rows with `LogoTile` and `Badge` and no dividers, Install/Update `.action(.secondary, tint: accent)`, finish step as `GroupCard` of `SettingRow`s with `.action(.primary)` and `switchStyle()` toggles, footer `.action(.primary/.secondary, size: .large)` and ghost Back/Skip. Private `GuideBadge`, `PillButton`, `row`, `card`, `banner` removed. DesignSystem: `Toggle.switchStyle()`.
 - **Reason**: UI migration step 3.

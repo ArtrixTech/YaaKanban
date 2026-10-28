@@ -148,15 +148,16 @@ struct AutomationAccessRows: View {
     @State private var missing: [(id: String, name: String)] = []
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Space.s) {
             Text("Works in Wave, iTerm2, Terminal, WezTerm and tmux inside them. Opening the pane counts, like clicking its card.")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.ui(.footnote)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
             ForEach(missing, id: \.id) { app in
-                LabeledContent {
-                    Button("Allow…") { allow(app.id) }
-                } label: {
-                    Text("\(app.name) needs Automation access to tell which tab is in front").font(.caption)
+                HStack(spacing: Space.m) {
+                    Text("\(app.name) needs Automation access to tell which tab is in front").font(.ui(.footnote))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Space.m)
+                    Button("Allow…") { allow(app.id) }.buttonStyle(.action(.primary, size: .small))
                 }
             }
         }
