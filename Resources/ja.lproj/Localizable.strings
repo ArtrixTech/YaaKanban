@@ -308,7 +308,6 @@
 "Waiting %@" = "対応待ち%@";
 "Waiting on you" = "対応待ち";
 "Last period" = "前期間";
-"Nothing running or waiting on you." = "実行中や対応待ちのセッションはありません。";
 "Other" = "その他";
 "Session lanes" = "セッション詳細";
 "Busiest %lld only" = "上位%lld件のみ";

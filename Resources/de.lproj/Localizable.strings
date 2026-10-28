@@ -308,7 +308,6 @@
 "Waiting %@" = "Wartet %@";
 "Waiting on you" = "Wartet auf dich";
 "Last period" = "Letzter Zeitraum";
-"Nothing running or waiting on you." = "Nichts läuft oder wartet auf dich.";
 "Other" = "Andere";
 "Session lanes" = "Sitzungsspuren";
 "Busiest %lld only" = "Nur die %lld aktivsten";
@@ -333,7 +332,7 @@
 "Agent hours over 7 days" = "Agentenstunden in 7 Tagen";
 "Agents %@ ÷ you %@" = "Agenten %@ ÷ du %@";
 "Away %@" = "Weg %@";
-"Busiest %@" = "Spitzentag %@";
+"Busiest %@" = "Am meisten %@";
 "By %@" = "Meist %@";
 "Here %@" = "Da %@";
 "In %@" = "Meist in %@";
@@ -352,7 +351,7 @@
 "vs %@" = "ggü. %@";
 "Where the work went" = "Wohin die Arbeit ging";
 "Who did the work" = "Wer gearbeitet hat";
-"You here" = "Du warst da";
+"You here" = "Anwesend";
 
 /* SessionReducer.swift, Normalizer.swift fallbacks */
 "Needs your input" = "Braucht deine Eingabe";

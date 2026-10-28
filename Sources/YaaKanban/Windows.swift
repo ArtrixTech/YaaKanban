@@ -100,7 +100,9 @@ struct MenuContent: View {
             }
             if !model.integrationIssues.isEmpty {
                 let names = model.integrationIssues.keys.map(\.displayName).sorted().formatted(.list(type: .and))
-                MenuRow(symbol: "exclamationmark.triangle.fill", title: String(localized: "\(names) hooks need approval")) { done { AppWindows.open(.settings) } }
+                MenuRow(symbol: "exclamationmark.triangle.fill", title: String(localized: "\(names) hooks need approval")) {
+                    done { model.settingsTab = .agents; AppWindows.open(.settings) }
+                }
             }
             Spacer().frame(height: Space.s)
             MenuRow(symbol: "rectangle.on.rectangle", title: model.settings.showPanel ? String(localized: "Hide floating panel") : String(localized: "Show floating panel"),

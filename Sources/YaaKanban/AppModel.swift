@@ -46,6 +46,8 @@ final class AppModel {
     var selection: String? = AppModel.overview
     static let overview = "overview"
     static let settingsPage = "settings"
+    /// The tab the Settings page shows, so a link elsewhere can open the one it means.
+    var settingsTab = SettingsView.Tab.agents
 
     init() {
         telemetry = TelemetryReporter(paths: paths)

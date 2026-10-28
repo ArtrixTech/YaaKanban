@@ -304,10 +304,20 @@ struct SettingRow<Trailing: View>: View {
                 }
             }
             Spacer(minLength: Space.m)
-            trailing
+            trailing.environment(\.settingTitle, title)
         }
         .padding(.leading, symbol == nil ? Row.textInset : Row.padding).padding(.trailing, Row.padding)
         .padding(.vertical, 13)
+    }
+}
+
+private struct SettingTitleKey: EnvironmentKey { static let defaultValue = "" }
+
+extension EnvironmentValues {
+    /// The title of the setting row a control sits in: its spoken label, as the row shows it.
+    var settingTitle: String {
+        get { self[SettingTitleKey.self] }
+        set { self[SettingTitleKey.self] = newValue }
     }
 }
 
@@ -366,6 +376,7 @@ struct PageTabs<Tab: Hashable>: View {
                         .contentShape(Capsule())
                 }
                 .buttonStyle(Pressable())
+                .accessibilityAddTraits(on ? .isSelected : [])
             }
         }
     }
@@ -387,6 +398,7 @@ struct Segmented<Item: Hashable>: View {
                         .contentShape(Capsule())
                 }
                 .buttonStyle(Pressable())
+                .accessibilityAddTraits(on ? .isSelected : [])
             }
         }
         .padding(Space.xxs)

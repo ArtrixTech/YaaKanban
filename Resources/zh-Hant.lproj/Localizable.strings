@@ -308,7 +308,6 @@
 "Waiting %@" = "等你 %@";
 "Waiting on you" = "等你處理";
 "Last period" = "上期執行";
-"Nothing running or waiting on you." = "沒有工作階段在執行或等你。";
 "Other" = "其他";
 "Session lanes" = "工作階段明細";
 "Busiest %lld only" = "只看最忙的 %lld 個";

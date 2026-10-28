@@ -308,7 +308,6 @@
 "Waiting %@" = "等你 %@";
 "Waiting on you" = "等你处理";
 "Last period" = "上期在跑";
-"Nothing running or waiting on you." = "没有会话在跑或等你。";
 "Other" = "其他";
 "Session lanes" = "会话明细";
 "Busiest %lld only" = "只看最忙的 %lld 个";

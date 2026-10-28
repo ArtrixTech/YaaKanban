@@ -503,7 +503,9 @@ private struct ReplyArc: View {
                 glow(ctx, arc(c, r, a, b), .color(ramp.hue), width: w, blur: 8)
             }
             // Each reply.
-            for (i, s) in sorted.suffix(200).enumerated() {
+            // At most 200, spread over the whole range rather than the slowest.
+            let step = max(1, (sorted.count + 199) / 200)
+            for (i, s) in stride(from: 0, to: sorted.count, by: step).map({ sorted[$0] }).enumerated() {
                 ctx.fill(disc(at(c, r + 13 + CGFloat(i % 2) * 5, ang(s)), 1.5), with: .color(s > 180 ? ramp.hue : ramp.mid))
             }
             // The scale, inside the arc.
@@ -616,7 +618,7 @@ struct ProjectsCard: View {
             WidgetHead(title: String(localized: "Where the work went"), ramp: ramp,
                        context: items.isEmpty ? nil : items.count == 1 ? String(localized: "1 project") : String(localized: "\(items.count) projects"))
             FigureLine(figure: figure(shown.first.map { percent($0.running / total) } ?? "–", ramp),
-                       note: shown.first.map { String(localized: "In \($0.name)") } ?? String(localized: "Nothing running or waiting on you."))
+                       note: shown.first.map { String(localized: "In \($0.name)") } ?? String(localized: "No agents ran."))
             HStack(alignment: .center, spacing: Space.xxl) {
                 Bubbles(values: shown.map(\.running), ramp: ramp).frame(width: 166)
                 VStack(alignment: .leading, spacing: Space.l) {

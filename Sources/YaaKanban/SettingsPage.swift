@@ -145,7 +145,7 @@ extension SettingsView {
                 }
                 if settings.flashEnabled {
                     SettingRow(String(localized: "Start flashing"), detail: String(localized: "After \(Int(settings.flashAfterSeconds)) s without a click")) {
-                        Stepper("", value: $settings.flashAfterSeconds, in: 5...600, step: 5).labelsHidden()
+                        Stepper("Start flashing", value: $settings.flashAfterSeconds, in: 5...600, step: 5).labelsHidden()
                     }
                 }
                 SettingRow(String(localized: "Flash when a review waits too long"), symbol: "light.beacon.max.fill", tint: .green) {
@@ -153,7 +153,7 @@ extension SettingsView {
                 }
                 if settings.reviewFlashEnabled {
                     SettingRow(String(localized: "Start flashing"), detail: String(localized: "After \(Int(settings.reviewFlashMinutes)) min at the computer unviewed")) {
-                        Stepper("", value: $settings.reviewFlashMinutes, in: 1...60).labelsHidden()
+                        Stepper("Start flashing", value: $settings.reviewFlashMinutes, in: 1...60).labelsHidden()
                     }
                 }
                 SettingRow(String(localized: "Tint seen but idle sessions blue"), symbol: "drop.fill", tint: .blue) {
@@ -161,7 +161,7 @@ extension SettingsView {
                 }
                 if settings.staleTintEnabled {
                     SettingRow(String(localized: "Start tinting"), detail: String(localized: "\(Self.duration(settings.staleAfterMinutes)) after it ends")) {
-                        Stepper("", value: $settings.staleAfterMinutes, in: 1...max(1, settings.idleVisibleMinutes - 1),
+                        Stepper("Start tinting", value: $settings.staleAfterMinutes, in: 1...max(1, settings.idleVisibleMinutes - 1),
                                 step: settings.staleAfterMinutes < 60 ? 5 : 15).labelsHidden()
                     }
                     SettingRow(String(localized: "Bluest"), detail: String(localized: "\(Self.duration(settings.stalePeakMinutes)) after it ends")) {
@@ -227,7 +227,7 @@ extension SettingsView {
                     Picker(selection: Binding(get: { language ?? "" }, set: { language = $0.isEmpty ? nil : $0; AppLanguage.override = language })) {
                         Text("Follow system").tag("")
                         ForEach(AppLanguage.all, id: \.code) { Text(verbatim: $0.name).tag($0.code) }
-                    } label: { EmptyView() }
+                    } label: { Text("Language") }
                     .labelsHidden().fixedSize()
                 }
                 if language != AppLanguage.atLaunch {
@@ -334,6 +334,7 @@ extension SettingsView {
 
 /// A setting's value as a figure in a pill, with the stepper that changes it.
 private struct Stepped: View {
+    @Environment(\.settingTitle) private var settingTitle
     let text: String
     @Binding var value: Double
     let range: ClosedRange<Double>
@@ -347,15 +348,16 @@ private struct Stepped: View {
             Text(verbatim: text).font(.ui(.callout, .medium).monospacedDigit())
                 .padding(.horizontal, Space.m).frame(height: 22)
                 .background(RoundedRectangle(cornerRadius: Radius.small, style: .continuous).fill(Fill.control))
-            Stepper("", value: $value, in: range).labelsHidden()
+            Stepper(settingTitle, value: $value, in: range).labelsHidden()
         }
     }
 }
 
 /// A setting's on/off switch, without a label of its own (the row has the title).
 private struct Switch: View {
+    @Environment(\.settingTitle) private var title
     @Binding var isOn: Bool
-    var body: some View { Toggle(isOn: $isOn) { EmptyView() }.switchStyle() }
+    var body: some View { Toggle(title, isOn: $isOn).switchStyle() }
 }
 
 /// Top of the About tab: logo, name, version, one-line pitch.

@@ -308,7 +308,6 @@
 "Waiting %@" = "En attente : %@";
 "Waiting on you" = "En attente de vous";
 "Last period" = "Période précédente";
-"Nothing running or waiting on you." = "Rien en cours ni en attente de vous.";
 "Other" = "Autre";
 "Session lanes" = "Détail des sessions";
 "Busiest %lld only" = "Les %lld plus actives";
@@ -333,7 +332,7 @@
 "Agent hours over 7 days" = "Heures d’agent sur 7 jours";
 "Agents %@ ÷ you %@" = "Agents %@ ÷ vous %@";
 "Away %@" = "Absence %@";
-"Busiest %@" = "Jour le plus chargé %@";
+"Busiest %@" = "Pic %@";
 "By %@" = "Surtout %@";
 "Here %@" = "Présence %@";
 "In %@" = "Surtout dans %@";

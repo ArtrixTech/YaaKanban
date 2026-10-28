@@ -308,7 +308,6 @@
 "Waiting %@" = "대기 %@";
 "Waiting on you" = "응답 대기 중";
 "Last period" = "이전 기간";
-"Nothing running or waiting on you." = "실행 중이거나 응답을 기다리는 세션이 없습니다.";
 "Other" = "기타";
 "Session lanes" = "세션 레인";
 "Busiest %lld only" = "가장 바쁜 %lld개만";
@@ -333,7 +332,7 @@
 "Agent hours over 7 days" = "7일간 에이전트 작업 시간";
 "Agents %@ ÷ you %@" = "에이전트 %@ ÷ 나 %@";
 "Away %@" = "자리 비움 %@";
-"Busiest %@" = "가장 바쁜 날 %@";
+"Busiest %@" = "가장 바쁜 때 %@";
 "By %@" = "주로 %@";
 "Here %@" = "자리에 있음 %@";
 "In %@" = "주로 %@";

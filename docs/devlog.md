@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(overview): rebuild the overview as the v9 widget wall
+## fix(ui): address the design-system migration review
 
 `pending` | 2026-10-28
+
+- **Changes**: MainWindow: History rows use `model.display(s)` (ended once off the boards); ↑/↓ from outside the list (Settings, hidden by search) enter at the near end instead of jumping from index 0; sidebar cards/rows are combined accessibility elements with button + selected traits and a default action; nav rows, `PageTabs`, `Segmented` expose `.isSelected`. DesignSystem: `SettingRow` passes its title down as `\.settingTitle`; `Switch`, `Stepped`, steppers and the language picker carry real labels (hidden). Settings tab moved from `MainWindow` state to `AppModel.settingsTab`; the menu's "hooks need approval" row opens Agent integrations. Overview: Projects card's empty note is "No agents ran." (it sizes by agent time); reply beads sampled evenly over all replies instead of the 200 slowest. l10n: "Busiest %@" retranslated in de/es/fr/ko/pt-BR/ru (value is a 3-hour stretch, not a day), de "You here" → "Anwesend", unused key dropped.
+- **Reason**: Adversarial review of dfc5011..20ea53f by an uninvolved agent.
+- **User feedback**: "先按照当前设计系统来完整迁移整个ui。"
+- **Process**: `@Entry` failed (no SwiftUIMacros plugin with Command Line Tools) → plain `EnvironmentKey`. `accessibilityAction(perform:)` doesn't exist → `.accessibilityAction(.default, _:)`.
+- **Result**: `make build`, `make l10n` (404 keys, 0 problems ×9), `make test` (192 passed).
+- **Notes**: Not fixed, by decision or pending the user: opening Settings replaces the main window's selection (inherent to the merged page); hour ticks are 24-h "h:00" and `%.1f×` uses a point in every locale (pre-existing pattern); ~54 `.system(size:)` and raw `.primary.opacity` wells left in SessionViews/DetailView/QuickFigures/SessionLanes, to move with a visual check; in-progress 7-day report recomputed per 30 s tick (unprofiled); metrics dropped from the old overview (P90s, throughput, hardest worker, longest run, oldest backlog age, hover readout) await the user's call.
+
+## feat(overview): rebuild the overview as the v9 widget wall
+
+`20ea53f` | 2026-10-28
 
 - **Changes**: DesignSystem.swift: `Measure`/old `Widget` → `// MARK: Overview` (`Ramp` work/run/wait/reply, `Ink`, `Fill.widget`, `WidgetSurface`, `Widget(content:art:)`, `WidgetHead`, `FigureSize` 34/46/15, `figure()` with half-size units, `FigureLine`, `ChartKey`, `StatChip`/`.statChip()`). New OverviewCards.swift: `OverviewData` (report, previous same-point report, `vs`, `comparesWaits`), `change()`, cards Leverage (Wave), Away (Rise), RunningCard (RunCurve with previous period dotted and presence strip), WaitingCard (WaitDial, 5 longest waits, away/here split), Replies (log arc 10 s–5 min, q1–q3 band), Agents (sparks), Projects (packed bubbles), Rhythm (7 days from one cached report, WeekGrid). DashboardView.swift: top bar with totals strip + controls, count chips, cards in a 3/2/1-column `ViewThatFits`, attention chips with a lanes toggle, `SessionLanes` on `WidgetSurface`; summary sentence, Tiles, Headline, Highlights, AgentMix, ActivityChart, ProjectBreakdown removed. l10n: 57 unused keys dropped, 32 added ×9.
 - **Reason**: UI migration step 6; brings the overview to the approved v9 specimen (`design/specimen/overview.swift`).

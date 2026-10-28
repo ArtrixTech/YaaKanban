@@ -8,7 +8,6 @@ struct MainWindow: View {
     /// Shows this page instead of the selection (snapshots), leaving the user's selection alone.
     var page: String?
     var tab: SettingsView.Tab?
-    @State private var settingsTab = SettingsView.Tab.agents
 
     var body: some View {
         HStack(spacing: 0) {
@@ -26,7 +25,7 @@ struct MainWindow: View {
     @ViewBuilder private var content: some View {
         let shown = page ?? model.selection
         if shown == AppModel.settingsPage {
-            SettingsView(tab: tab.map { .constant($0) } ?? $settingsTab)
+            SettingsView(tab: tab.map { .constant($0) } ?? Bindable(model).settingsTab)
         } else if let shown, let s = model.sessions[shown] {
             SessionDetail(session: s)
         } else {
@@ -110,9 +109,9 @@ private struct MainSidebar: View {
     }
 
     private func step(_ by: Int, _ ids: [String], _ proxy: ScrollViewProxy) -> KeyPress.Result {
-        let at = ids.firstIndex { $0 == model.selection } ?? 0
-        let next = min(max(at + by, 0), ids.count - 1)
-        guard ids.indices.contains(next), next != at || model.selection != ids[next] else { return .handled }
+        guard !ids.isEmpty else { return .handled }
+        // From outside the list (Settings, or a session hidden by the search), enter it at the near end.
+        let next = ids.firstIndex { $0 == model.selection }.map { min(max($0 + by, 0), ids.count - 1) } ?? (by > 0 ? 0 : ids.count - 1)
         model.selection = ids[next]
         withAnimation(.snappy(duration: 0.2)) { proxy.scrollTo(ids[next]) }
         return .handled
@@ -182,6 +181,7 @@ extension MainSidebar {
             .modifier(RowHighlight(selected: selection == id))
         }
         .buttonStyle(Pressable())
+        .accessibilityAddTraits(selection == id ? .isSelected : [])
         .id(id)
     }
 }
@@ -216,6 +216,9 @@ private struct SidebarCard: View {
         .overlay { if selected { RoundedRectangle(cornerRadius: Radius.card, style: .continuous).fill(Fill.selected) } }
         .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .onTapGesture(perform: onSelect)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction(.default, onSelect)
         .onHover { hover = $0 }
         .animation(.easeOut(duration: 0.12), value: hover)
         .contextMenu { SessionMenu(session: s) }
@@ -224,6 +227,7 @@ private struct SidebarCard: View {
 
 /// A past session in the sidebar: one plain line.
 private struct SidebarRow: View {
+    @Environment(AppModel.self) private var model
     let session: SessionState
     let selected: Bool
     var onSelect: () -> Void
@@ -231,7 +235,7 @@ private struct SidebarRow: View {
     var body: some View {
         let s = session
         HStack(spacing: Space.m) {
-            StatusGlyph(status: s.display, size: 18)
+            StatusGlyph(status: model.display(s), size: 18)
             Text(s.title).font(.ui(.callout)).lineLimit(1)
             Spacer(minLength: Space.xs)
             AgentLogo(agent: s.agent, size: 11)
@@ -241,6 +245,9 @@ private struct SidebarRow: View {
         .modifier(RowHighlight(selected: selected))
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction(.default, onSelect)
         .help(s.projectName ?? s.agent.displayName)
         .contextMenu { SessionMenu(session: s) }
     }
