@@ -390,6 +390,6 @@ MainActor.assumeIsolated {
             if let cg = r.cgImage { try! NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "\(out)/3-detail-4x-\(m).png")) }
         }
         render(MainMock(), size: NSSize(width: 1000, height: 760), dark: dark, to: "\(out)/2-main-settings-\(m).png")
-        render(MainMock(overview: true), size: NSSize(width: 1300, height: 1440), dark: dark, to: "\(out)/4-overview-\(m).png")
+        render(MainMock(overview: true), size: NSSize(width: 1300, height: 1300), dark: dark, to: "\(out)/4-overview-\(m).png")
     }
 }

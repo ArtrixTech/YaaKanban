@@ -10,7 +10,7 @@ Style specimens for the design-system redesign (branch `feature/design-system`).
 - `directions/`: the four style boards A–D (`board-*.png`) and their sources.
 - `history/`: every version shown to the user, each with its source when it exists.
   - Most images are the downscaled previews the user reviewed.
-  - `overview-v8` holds full renders at 2×.
+  - `overview-v8` onward hold full renders at 2×.
   - `overview-v1` has no saved image. `rerender-*.png` is its replayed source drawn with today's `DesignSystem.swift`, so its fonts and canvas are later than the original.
 - `references/`: the user's widget references (Pinterest board, pasted images). Kept locally only and ignored by git (third-party images).
 
@@ -31,3 +31,4 @@ Style specimens for the design-system redesign (branch `feature/design-system`).
 | `overview-v7` | flat Linear-style cards | 缺少视觉张力；出几个风格方向 → `directions/` |
 | `directions` | A 黑底霓虹（Live Activities）· B 饱和色块 · C 巨字裁切 · D 深色色调格子 | 选 A+C：A 常规、C 点缀；A 不够细致协调 |
 | `overview-v8` | **milestone.** A as black slabs with four hues, C on 杠杆 / 你不在时 | 只有黑卡、浅色模式不协调；大字太大，要更规整；小圆角卡片放一些到上面；用好顶栏放关键信息 |
+| `overview-v9` | cards follow the appearance (white / lifted gray); figures in primary ink at two sizes, units and labels in the hue; top bar with the day's totals; chip rows top and bottom; accents as a colour fill at the card's foot | |

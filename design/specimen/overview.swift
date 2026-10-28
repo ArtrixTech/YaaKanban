@@ -1,37 +1,38 @@
 import AppKit
 import SwiftUI
 
-// The Overview page, eighth take. Every card is a black slab in the manner of Live Activities: one
-// hue per card, its label in that hue, the figure in that hue, the chart drawn in that hue at three
-// strengths (bright for what happened, mid for context, dim for the track), white only for "now".
-// Two accents break the grid in Lovable's manner: a giant white figure cropped by the slab, with the
-// card's colour rising through it.
+// The Overview page, ninth take. Cards follow the appearance: white on the light canvas, a lifted
+// dark gray on the dark one. One hue per card, deeper in light and brighter in dark, lights its
+// label, its units and its chart; figures stay in the primary ink at one size, so the page reads as a
+// grid. The top bar carries the day's totals, a row of small chips under it the counts. Two accents,
+// leverage and away, let their colour fill the foot of the card.
 
 /// One hue at the strengths a card draws with.
 private struct Tint {
     let hue: Color
-    var mid: Color { hue.opacity(0.62) }
-    var dim: Color { hue.opacity(0.24) }
-    var faint: Color { hue.opacity(0.12) }
-    var axis: Color { hue.opacity(0.5) }
+    var mid: Color { hue.opacity(0.6) }
+    var dim: Color { hue.opacity(0.2) }
+    var faint: Color { hue.opacity(0.1) }
+    /// Axis text: gray, so the hue is left for the data.
+    var axis: Color { ink3 }
+
+    private init(_ light: (CGFloat, CGFloat, CGFloat), _ dark: (CGFloat, CGFloat, CGFloat)) {
+        hue = Color(light: NSColor(red: light.0, green: light.1, blue: light.2, alpha: 1), dark: NSColor(red: dark.0, green: dark.1, blue: dark.2, alpha: 1))
+    }
 
     /// Agent work and what it produced.
-    static let work = Tint(hue: Color(red: 0.24, green: 0.86, blue: 0.47))
+    static let work = Tint((0.1, 0.64, 0.34), (0.3, 0.86, 0.5))
     /// Agents running.
-    static let run = Tint(hue: Color(red: 0.2, green: 0.6, blue: 1))
+    static let run = Tint((0.1, 0.46, 0.96), (0.32, 0.64, 1))
     /// An agent waiting on you.
-    static let wait = Tint(hue: Color(red: 1, green: 0.3, blue: 0.27))
+    static let wait = Tint((0.9, 0.24, 0.21), (1, 0.4, 0.36))
     /// You answering.
-    static let reply = Tint(hue: Color(red: 1, green: 0.62, blue: 0.1))
+    static let reply = Tint((0.93, 0.52, 0), (1, 0.66, 0.2))
 }
 
-private let lime = Color(red: 0.68, green: 0.96, blue: 0.36)
-private let cyan = Color(red: 0.36, green: 0.86, blue: 1)
-private let slabFill = Color(white: 0.035)
-private let slabRadius: CGFloat = 26
-private let slab = RoundedRectangle(cornerRadius: slabRadius, style: .continuous)
-/// White at the strengths text takes on a slab.
-private let ink1 = Color.white.opacity(0.94), ink2 = Color.white.opacity(0.56), ink3 = Color.white.opacity(0.32)
+private let cardFill = Color(light: .white, dark: NSColor(white: 0.165, alpha: 1))
+/// Text at three strengths, following the appearance.
+private let ink1 = Color.primary.opacity(0.9), ink2 = Color.primary.opacity(0.55), ink3 = Color.primary.opacity(0.36)
 
 /// Quarter hours from 08:00; now is 18:00.
 private enum Day {
@@ -57,51 +58,62 @@ private enum Day {
 
 // MARK: - Anatomy
 
-/// A black slab. The same in light and dark: a deep soft shadow lifts it off a light canvas; on a dark
-/// canvas it reads as a recess. A faint top light keeps the black from going flat.
-private struct Slab: View {
+/// A card's surface: white with a soft two-part shadow on the light canvas, a lifted gray on the
+/// dark one.
+private struct Surface: View {
+    var radius: CGFloat = 22
     @Environment(\.colorScheme) private var scheme
     var body: some View {
-        slab.fill(slabFill)
-            .overlay(slab.fill(LinearGradient(colors: [.white.opacity(0.055), .clear], startPoint: .top, endPoint: .init(x: 0.5, y: 0.45))))
-            .shadow(color: .black.opacity(scheme == .dark ? 0 : 0.10), radius: 1, y: 1)
-            .shadow(color: .black.opacity(scheme == .dark ? 0 : 0.14), radius: 22, y: 12)
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        shape.fill(cardFill)
+            .shadow(color: .black.opacity(scheme == .dark ? 0 : 0.05), radius: 1, y: 1)
+            .shadow(color: .black.opacity(scheme == .dark ? 0.25 : 0.06), radius: 14, y: 6)
     }
 }
 
-/// A card: label row, then the content, all at one padding, dark inside.
-private struct Panel<Content: View>: View {
+/// A card: label row, then the content, all at one padding. `art` fills the card behind it, clipped.
+private struct Panel<Content: View, Art: View>: View {
     var pad: CGFloat = 20
     @ViewBuilder var content: Content
+    @ViewBuilder var art: Art
     var body: some View {
         VStack(alignment: .leading, spacing: 0) { content }
             .padding(pad)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(Slab())
-            .environment(\.colorScheme, .dark)
+            .background { art.clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous)) }
+            .background(Surface())
     }
 }
 
-/// The label row every card opens with: what it is in its hue, the context opposite in white.
+extension Panel where Art == EmptyView {
+    init(pad: CGFloat = 20, @ViewBuilder content: () -> Content) {
+        self.init(pad: pad, content: content, art: { EmptyView() })
+    }
+}
+
+/// The label row every card opens with: what it is in its hue, the context opposite in gray.
 private struct Head: View {
     let title: String
     let tint: Tint
     var context: String? = nil
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(title).font(.system(size: 14, weight: .semibold)).foregroundStyle(tint.hue)
+            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(tint.hue)
             Spacer(minLength: 8)
-            if let context { Text(context).font(.system(size: 13, weight: .medium).monospacedDigit()).foregroundStyle(ink2) }
+            if let context { Text(context).font(.system(size: 12, weight: .medium).monospacedDigit()).foregroundStyle(ink2) }
         }
-        .frame(height: 18)
+        .frame(height: 16)
     }
 }
 
-/// A figure with its unit: the unit at a fixed share of the figure's size, in the same ink, a hair apart.
-private func figure(_ value: String, unit: String = "", _ size: CGFloat = 40, ink: Color, weight: Font.Weight = .regular) -> Text {
-    let v = Text(value).font(.system(size: size, weight: weight).monospacedDigit()).tracking(-size * 0.025).foregroundColor(ink)
+/// Figure sizes: every card's, and the two accents'.
+private enum FigureSize { static let card: CGFloat = 34, accent: CGFloat = 46 }
+
+/// A figure with its unit: the figure in the primary ink, the unit smaller in the card's hue.
+private func figure(_ value: String, _ unit: String = "", _ t: Tint, _ size: CGFloat = FigureSize.card, ink: Color = ink1) -> Text {
+    let v = Text(value).font(.system(size: size, weight: .semibold).monospacedDigit()).tracking(-size * 0.02).foregroundColor(ink)
     guard !unit.isEmpty else { return v }
-    return v + Text(verbatim: "\u{2009}" + unit).font(.system(size: size * 0.45, weight: .medium)).foregroundColor(ink)
+    return v + Text(verbatim: "\u{2009}" + unit).font(.system(size: (size * 0.5).rounded(), weight: .semibold)).foregroundColor(t.hue)
 }
 
 /// The figure line: the figure, then a two-line note beside it, sitting on the figure's baseline.
@@ -116,14 +128,14 @@ private struct FigureRow: View {
                 if let delta { delta.font(.system(size: 12, weight: .medium).monospacedDigit()) }
                 if let note { Text(note).font(.system(size: 12, weight: .medium)).foregroundStyle(ink2) }
             }
-            .padding(.bottom, 4)
+            .padding(.bottom, 3)
             Spacer(minLength: 0)
         }
-        .padding(.top, 10)
+        .padding(.top, 8)
     }
 }
 
-/// A change: the arrow and amount in white, what it's against dim.
+/// A change: the arrow and amount in the primary ink, what it's against dim.
 private func delta(_ up: Bool, _ amount: String, _ against: String = "比昨天") -> Text {
     Text(verbatim: (up ? "↑ " : "↓ ") + amount).foregroundColor(ink1) + Text(verbatim: " " + against).foregroundColor(ink3)
 }
@@ -167,20 +179,26 @@ private func tick(_ t: String, _ c: Color, _ size: CGFloat = 10.5) -> Text {
     Text(t).font(.system(size: size, weight: .medium).monospacedDigit()).foregroundColor(c)
 }
 
-/// "Now": a white knob with a ring of the card's hue around it and a soft halo.
+/// How strong a glow is: soft on a white card, where a haze turns muddy; fuller on a dark one.
+private func glowStrength(_ ctx: GraphicsContext) -> Double { ctx.environment.colorScheme == .dark ? 0.7 : 0.3 }
+
+/// "Now": a disc of the card's hue with a white core, ringed in the card's colour so it sits clear of
+/// the line under it.
 private func knob(_ ctx: GraphicsContext, _ p: CGPoint, _ hue: Color, r: CGFloat = 5) {
     var halo = ctx
-    halo.addFilter(.blur(radius: 6))
-    halo.fill(disc(p, r + 4), with: .color(hue.opacity(0.55)))
-    ctx.fill(disc(p, r + 2), with: .color(slabFill))
-    ctx.fill(disc(p, r), with: .color(.white))
+    halo.addFilter(.blur(radius: 5))
+    halo.opacity = glowStrength(ctx)
+    halo.fill(disc(p, r + 3), with: .color(hue))
+    ctx.fill(disc(p, r + 2), with: .color(cardFill))
+    ctx.fill(disc(p, r), with: .color(hue))
+    ctx.fill(disc(p, r * 0.45), with: .color(.white))
 }
 
 /// A stroke with a glow of its own colour under it.
 private func glow(_ ctx: GraphicsContext, _ path: Path, _ shading: GraphicsContext.Shading, width: CGFloat, blur: CGFloat = 7, cap: CGLineCap = .round) {
     var g = ctx
     g.addFilter(.blur(radius: blur))
-    g.opacity = 0.7
+    g.opacity = glowStrength(ctx)
     g.stroke(path, with: shading, style: StrokeStyle(lineWidth: width + 2, lineCap: cap, lineJoin: .round))
     ctx.stroke(path, with: shading, style: StrokeStyle(lineWidth: width, lineCap: cap, lineJoin: .round))
 }
@@ -190,91 +208,125 @@ private func glow(_ ctx: GraphicsContext, _ path: Path, _ shading: GraphicsConte
 struct OverviewPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("概览").font(.system(size: 26, weight: .bold)).tracking(-0.3)
-                    Text("10月27日 周一 · 6 个会话 · 41 轮").font(.ui(.body)).foregroundStyle(.secondary)
-                }
-                Spacer()
-                HStack(spacing: Space.xs) {
-                    IconButton(symbol: "chevron.left", help: "") {}
-                    IconButton(symbol: "chevron.right", help: "") {}.opacity(0.3)
-                    Segmented(items: [(0, "日"), (1, "周"), (2, "月")], selection: .constant(0)).padding(.leading, Space.m)
-                }
-            }
-            .padding(.bottom, 8)
-            HStack(spacing: 16) { Leverage().frame(width: 330); Running() }.frame(height: 268)
-            HStack(spacing: 16) { Waiting(); Replies(); Away() }.frame(height: 250)
-            HStack(spacing: 16) { Agents().frame(width: 520); Projects() }.frame(height: 244)
-            Rhythm().frame(height: 252)
-            Ledger()
-            lanes
+            TopBar().padding(.bottom, 4)
+            Chips(items: [
+                ("gauge.with.needle", "利用率", "62%", .run), ("square.stack.3d.up.fill", "并发峰值", "3.4", .run),
+                ("hammer.fill", "工具调用", "1,286", .work), ("number", "Token", "3.1M", .work), ("checkmark.seal.fill", "已验收", "7", .work),
+            ])
+            HStack(spacing: 16) { Leverage().frame(width: 330); Running() }.frame(height: 256)
+            HStack(spacing: 16) { Waiting(); Replies(); Away() }.frame(height: 244)
+            HStack(spacing: 16) { Agents().frame(width: 520); Projects() }.frame(height: 236)
+            Rhythm().frame(height: 244)
+            Chips(items: [
+                ("text.bubble.fill", "你发的提示", "29", .reply), ("hand.raised.slash.fill", "打断", "4", .reply),
+                ("hand.raised.fill", "待你回复", "1", .wait), ("exclamationmark.triangle.fill", "卡住", "2 次", .wait),
+            ], more: ("会话明细", "6"))
         }
-        .padding(.horizontal, 40).padding(.top, 40).padding(.bottom, 36)
+        .padding(.horizontal, 40).padding(.top, 34).padding(.bottom, 36)
     }
+}
 
-    private var lanes: some View {
-        Panel(pad: 0) {
-            HStack(spacing: 10) {
-                Text("会话明细").font(.system(size: 14, weight: .semibold)).foregroundStyle(ink1)
-                Text("6").font(.system(size: 13, weight: .medium).monospacedDigit()).foregroundStyle(ink3)
-                Spacer()
-                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(ink3)
+/// The page's top bar: the title and date, the day's four totals, then the range controls.
+private struct TopBar: View {
+    private let totals: [(String, String, String)] = [("会话", "6", ""), ("轮次", "41", ""), ("Agent 工时", "9.6", "h"), ("你在场", "3.2", "h")]
+    var body: some View {
+        HStack(alignment: .center, spacing: 0) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("概览").font(.system(size: 24, weight: .bold)).tracking(-0.3)
+                Text("10月27日 周一").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 20).frame(maxHeight: .infinity)
+            Spacer(minLength: 24)
+            HStack(spacing: 32) {
+                ForEach(totals, id: \.0) { t in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(t.0).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                        (Text(t.1).font(.system(size: 19, weight: .semibold).monospacedDigit())
+                            + Text(verbatim: t.2.isEmpty ? "" : "\u{2009}" + t.2).font(.system(size: 12, weight: .semibold)).foregroundColor(.secondary))
+                    }
+                }
+            }
+            Spacer(minLength: 24)
+            HStack(spacing: Space.xs) {
+                IconButton(symbol: "chevron.left", help: "") {}
+                IconButton(symbol: "chevron.right", help: "") {}.opacity(0.3)
+                Segmented(items: [(0, "日"), (1, "周"), (2, "月")], selection: .constant(0)).padding(.leading, Space.m)
+            }
         }
-        .frame(height: 52)
+        .frame(height: 44)
+    }
+}
+
+/// A row of small cards, one count each: a glyph in its hue, the word, the figure. `more` ends the
+/// row with a link.
+private struct Chips: View {
+    let items: [(String, String, String, Tint)]
+    var more: (String, String)? = nil
+    var body: some View {
+        HStack(spacing: 12) {
+            ForEach(items, id: \.1) { it in
+                HStack(spacing: 10) {
+                    Image(systemName: it.0).font(.system(size: 12, weight: .semibold)).foregroundStyle(it.3.hue)
+                        .frame(width: 30, height: 30).background(Circle().fill(it.3.faint))
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(it.1).font(.system(size: 11, weight: .medium)).foregroundStyle(ink2)
+                        Text(it.2).font(.system(size: 17, weight: .semibold).monospacedDigit()).foregroundStyle(ink1)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .chip()
+            }
+            if let more {
+                HStack(spacing: 8) {
+                    Text(more.0).font(.system(size: 13, weight: .semibold)).foregroundStyle(ink1)
+                    Text(more.1).font(.system(size: 13, weight: .medium).monospacedDigit()).foregroundStyle(ink3)
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(ink3)
+                }
+                .chip()
+            }
+        }
+    }
+}
+
+private extension View {
+    func chip() -> some View {
+        padding(.horizontal, 12).frame(maxWidth: .infinity).frame(height: 56).background(Surface(radius: 16))
     }
 }
 
 // MARK: - Accents
 
-/// An accent slab: art clipped by the slab, labels over it at the card padding.
-private struct Poster<Art: View, Labels: View>: View {
-    @ViewBuilder var art: Art
-    @ViewBuilder var labels: Labels
-    var body: some View {
-        Color.clear.overlay { art }
-            .clipShape(slab)
-            .background(Slab())
-            .overlay { labels.padding(20).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading) }
-            .environment(\.colorScheme, .dark)
-    }
-}
-
-/// The giant figure an accent is built around, set tight and cropped by the slab's foot.
-private func giant(_ t: String, _ size: CGFloat) -> some View {
-    Text(t).font(.system(size: size, weight: .bold).monospacedDigit()).tracking(-size * 0.055)
-        .foregroundStyle(.white).lineLimit(1).fixedSize()
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-        .offset(x: -size * 0.03, y: size * 0.2)
+/// An accent's colour fill: deep at the crest, lighter at the foot, in both appearances.
+private struct Wash {
+    let top: Color, foot: Color, line: Color
+    static let work = Wash(top: Color(light: NSColor(red: 0.2, green: 0.74, blue: 0.43, alpha: 1), dark: NSColor(red: 0.1, green: 0.5, blue: 0.3, alpha: 1)),
+                           foot: Color(light: NSColor(red: 0.85, green: 0.96, blue: 0.89, alpha: 1), dark: NSColor(red: 0.2, green: 0.36, blue: 0.27, alpha: 1)),
+                           line: Tint.work.hue)
+    static let run = Wash(top: Color(light: NSColor(red: 0.22, green: 0.55, blue: 1, alpha: 1), dark: NSColor(red: 0.12, green: 0.32, blue: 0.78, alpha: 1)),
+                          foot: Color(light: NSColor(red: 0.86, green: 0.92, blue: 1, alpha: 1), dark: NSColor(red: 0.2, green: 0.28, blue: 0.45, alpha: 1)),
+                          line: Tint.run.hue)
 }
 
 /// Leverage, the day's headline: how many hours of agent work each hour of yours bought. The day's
-/// running curve rises behind the figure.
+/// running curve fills the card's foot.
 private struct Leverage: View {
+    private let t = Tint.work
     var body: some View {
-        Poster {
-            ZStack {
-                DayWave()
-                giant("3.0×", 132).padding(.leading, 16)
-            }
-        } labels: {
-            VStack(alignment: .leading, spacing: 4) {
-                Head(title: "杠杆", tint: Tint(hue: lime), context: "今天")
-                (Text("Agent 9.6h").foregroundColor(ink1) + Text(" ÷ ").foregroundColor(ink3) + Text("你 3.2h").foregroundColor(ink1))
-                    .font(.system(size: 13, weight: .medium).monospacedDigit())
-                delta(true, "0.4×").font(.system(size: 12, weight: .medium).monospacedDigit())
-            }
+        Panel {
+            Head(title: "杠杆", tint: t, context: "今天")
+            FigureRow(fig: figure("3.0", "×", t, FigureSize.accent), note: "Agent 9.6h ÷ 你 3.2h", delta: delta(true, "0.4×"))
+        } art: {
+            DayWave(wash: .work)
         }
     }
 }
 
-/// The day's running curve as a filled wave: deep green at the foot, lime light along the crest.
+/// The day's running curve as a filled wave, the crest lit, now as the knob.
 private struct DayWave: View {
+    let wash: Wash
     var body: some View {
         Canvas { ctx, size in
-            let top = size.height * 0.36, base = size.height + 4
+            let top = size.height * 0.42, base = size.height + 4
             let vals = Day.running.enumerated().map { i, v in i <= Day.now ? v : Day.running[Day.now] * max(0, 1 - Double(i - Day.now) / 3) }
             let pts = vals.enumerated().map { i, v in
                 CGPoint(x: size.width * CGFloat(i) / CGFloat(Day.n - 1), y: base - CGFloat(v / 3.4) * (base - top))
@@ -282,52 +334,42 @@ private struct DayWave: View {
             let crest = smooth(pts)
             var area = crest
             area.addLine(to: CGPoint(x: size.width, y: base + 10)); area.addLine(to: CGPoint(x: 0, y: base + 10)); area.closeSubpath()
-            ctx.fill(area, with: .linearGradient(Gradient(colors: [Color(red: 0.16, green: 0.78, blue: 0.42), Color(red: 0.02, green: 0.32, blue: 0.27), Color(red: 0.01, green: 0.12, blue: 0.11)]),
-                                                 startPoint: CGPoint(x: 0, y: top), endPoint: CGPoint(x: 0, y: base)))
-            glow(ctx, crest, .linearGradient(Gradient(colors: [Color(red: 0.2, green: 0.8, blue: 0.5), lime]), startPoint: .zero, endPoint: CGPoint(x: size.width, y: 0)), width: 2, blur: 9)
-            knob(ctx, pts[Day.now], lime, r: 4.5)
+            ctx.fill(area, with: .linearGradient(Gradient(colors: [wash.top, wash.foot]), startPoint: CGPoint(x: 0, y: top), endPoint: CGPoint(x: 0, y: base)))
+            glow(ctx, crest, .color(wash.line), width: 2, blur: 6)
+            knob(ctx, pts[Day.now], wash.line, r: 4.5)
         }
     }
 }
 
-/// While you were away: the share of that time agents kept working. The slab fills to that share.
+/// While you were away: the share of that time agents kept working. The card fills to that share.
 private struct Away: View {
+    private let t = Tint.run
     var body: some View {
-        Poster {
-            ZStack {
-                AwayFill(level: 0.81)
-                giant("81%", 116).padding(.leading, 16)
-            }
-        } labels: {
-            VStack(alignment: .leading, spacing: 4) {
-                Head(title: "你不在时", tint: Tint(hue: cyan), context: "离开 2.0h")
-                (Text("1.6h").foregroundColor(ink1) + Text(" 仍在干活 · ").foregroundColor(ink3) + Text("22m").foregroundColor(ink1) + Text(" 卡住").foregroundColor(ink3))
-                    .font(.system(size: 13, weight: .medium).monospacedDigit())
-            }
+        Panel {
+            Head(title: "你不在时", tint: t, context: "离开 2.0h")
+            FigureRow(fig: figure("81", "%", t, FigureSize.accent), note: "1.6h 仍在干活 · 22m 卡住")
+        } art: {
+            AwayFill(level: 0.81, wash: .run)
         }
     }
 }
 
-/// Fills the slab below its label band to `level`, a gentle crest along the top.
+/// Fills the card below its label band to `level`, a gentle crest along the top.
 private struct AwayFill: View {
     let level: Double
+    let wash: Wash
     var body: some View {
         Canvas { ctx, size in
-            let band: CGFloat = 84, y0 = band + (size.height - band) * CGFloat(1 - level)
+            let band: CGFloat = 104, y0 = band + (size.height - band) * CGFloat(1 - level)
             let pts = (0...24).map { i -> CGPoint in
                 let x = size.width * CGFloat(i) / 24
-                return CGPoint(x: x, y: y0 + 5 * CGFloat(sin(Double(i) / 24 * 2 * .pi * 1.1 + 0.8)))
+                return CGPoint(x: x, y: y0 + 4 * CGFloat(sin(Double(i) / 24 * 2 * .pi * 1.1 + 0.8)))
             }
             let crest = smooth(pts)
             var area = crest
             area.addLine(to: CGPoint(x: size.width, y: size.height)); area.addLine(to: CGPoint(x: 0, y: size.height)); area.closeSubpath()
-            ctx.fill(area, with: .linearGradient(Gradient(colors: [Color(red: 0.2, green: 0.62, blue: 1), Color(red: 0.12, green: 0.3, blue: 0.86), Color(red: 0.07, green: 0.1, blue: 0.4)]),
-                                                 startPoint: CGPoint(x: 0, y: y0), endPoint: CGPoint(x: 0, y: size.height)))
-            var bloom = ctx
-            bloom.addFilter(.blur(radius: 30))
-            bloom.clip(to: area)
-            bloom.fill(disc(CGPoint(x: size.width * 0.85, y: y0 + 30), 70), with: .color(cyan.opacity(0.55)))
-            glow(ctx, crest, .color(cyan), width: 2, blur: 9)
+            ctx.fill(area, with: .linearGradient(Gradient(colors: [wash.top, wash.foot]), startPoint: CGPoint(x: 0, y: y0), endPoint: CGPoint(x: 0, y: size.height)))
+            glow(ctx, crest, .color(wash.line), width: 2, blur: 6)
         }
     }
 }
@@ -341,11 +383,11 @@ private struct Running: View {
         Panel {
             Head(title: "同时在跑", tint: t, context: "现在 2 个")
             HStack(alignment: .lastTextBaseline) {
-                FigureRow(fig: figure("2.4", unit: "个", ink: t.hue), note: "平均 · 峰值 3.4 在 14:30", delta: delta(true, "0.3"))
+                FigureRow(fig: figure("2.4", "个", t), note: "平均 · 峰值 3.4 在 14:30", delta: delta(true, "0.3"))
                 HStack(spacing: 14) {
                     Key(swatch: AnyView(Capsule().fill(t.hue).frame(width: 14, height: 3)), text: "今天")
                     Key(swatch: AnyView(HStack(spacing: 2) { ForEach(0..<3, id: \.self) { _ in Circle().fill(t.mid).frame(width: 3, height: 3) } }), text: "昨天")
-                    Key(swatch: AnyView(Capsule().fill(Color.white.opacity(0.7)).frame(width: 14, height: 4)), text: "你在")
+                    Key(swatch: AnyView(Capsule().fill(ink2).frame(width: 14, height: 4)), text: "你在")
                 }
                 .padding(.bottom, 6)
             }
@@ -365,7 +407,7 @@ private struct RunCurve: View {
             // Levels, as dotted hairlines in the hue.
             for l in [1.0, 2.0, 3.0] {
                 var p = Path(); p.move(to: CGPoint(x: 0, y: y(l))); p.addLine(to: CGPoint(x: size.width - 16, y: y(l)))
-                ctx.stroke(p, with: .color(t.faint), style: StrokeStyle(lineWidth: 1, lineCap: .round, dash: [0.1, 4]))
+                ctx.stroke(p, with: .color(t.dim), style: StrokeStyle(lineWidth: 1, lineCap: .round, dash: [0.1, 4]))
                 ctx.draw(tick("\(Int(l))", t.axis), at: CGPoint(x: size.width, y: y(l)), anchor: .trailing)
             }
             // Yesterday, dotted.
@@ -381,22 +423,22 @@ private struct RunCurve: View {
             // Now: a drop to the baseline and the knob.
             let now = pts.last!
             var drop = Path(); drop.move(to: now); drop.addLine(to: CGPoint(x: now.x, y: base + gap + strip))
-            ctx.stroke(drop, with: .color(.white.opacity(0.35)), style: StrokeStyle(lineWidth: 1, dash: [2, 3]))
+            ctx.stroke(drop, with: .color(ink3), style: StrokeStyle(lineWidth: 1, dash: [2, 3]))
             knob(ctx, now, t.hue)
             // Your time at the computer.
             let sy = base + gap + strip / 2
             var track = Path(); track.move(to: CGPoint(x: 0, y: sy)); track.addLine(to: CGPoint(x: x(Double(Day.now)), y: sy))
-            ctx.stroke(track, with: .color(.white.opacity(0.1)), style: StrokeStyle(lineWidth: strip, lineCap: .round))
+            ctx.stroke(track, with: .color(Color.primary.opacity(0.08)), style: StrokeStyle(lineWidth: strip, lineCap: .round))
             for r in Day.present {
                 var p = Path(); p.move(to: CGPoint(x: x(Double(r.lowerBound)), y: sy)); p.addLine(to: CGPoint(x: x(Double(min(r.upperBound, Day.now))), y: sy))
-                ctx.stroke(p, with: .color(.white.opacity(0.75)), style: StrokeStyle(lineWidth: strip, lineCap: .round))
+                ctx.stroke(p, with: .color(ink2), style: StrokeStyle(lineWidth: strip, lineCap: .round))
             }
             // Hours.
             for (i, h) in [(0, "8:00"), (12, "11:00"), (24, "14:00"), (36, "17:00"), (47, "20:00")] {
                 let anchor: UnitPoint = i == 0 ? .bottomLeading : i == 47 ? .bottomTrailing : .bottom
                 ctx.draw(tick(h, t.axis), at: CGPoint(x: x(Double(i)), y: size.height), anchor: anchor)
             }
-            ctx.draw(tick("现在", .white), at: CGPoint(x: now.x, y: size.height), anchor: .bottom)
+            ctx.draw(tick("现在", ink1), at: CGPoint(x: now.x, y: size.height), anchor: .bottom)
         }
     }
 }
@@ -410,7 +452,7 @@ private struct Waiting: View {
     var body: some View {
         Panel {
             Head(title: "在等你", tint: t, context: "5 次")
-            FigureRow(fig: figure("34", unit: "m", ink: t.hue), note: "最长 9m", delta: delta(false, "9m"))
+            FigureRow(fig: figure("34", "m", t), note: "最长 9m", delta: delta(false, "9m"))
             HStack(alignment: .center, spacing: 18) {
                 WaitDial(t: t).frame(width: 128, height: 128).padding(-8)
                 VStack(alignment: .leading, spacing: 5) {
@@ -477,7 +519,7 @@ private struct Replies: View {
     var body: some View {
         Panel {
             Head(title: "回复速度", tint: t, context: "38 次")
-            FigureRow(fig: figure("48", unit: "s", ink: t.hue), note: "中位 · 74% 在 1 分钟内", delta: delta(false, "12s"))
+            FigureRow(fig: figure("48", "s", t), note: "中位 · 74% 在 1 分钟内", delta: delta(false, "12s"))
             ReplyArc(t: t).padding(.top, 2)
         }
     }
@@ -502,8 +544,8 @@ private struct ReplyArc: View {
             }
             // The scale, inside the arc.
             for (s, l) in [(10.0, "10s"), (30, "30s"), (60, "1m"), (120, "2m"), (300, "5m")] {
-                ctx.fill(disc(at(c, r, ang(s)), 1.2), with: .color(slabFill.opacity(0.9)))
-                ctx.draw(tick(l, s == 60 ? Color.white.opacity(0.8) : t.axis), at: at(c, r - 22, ang(s)), anchor: .center)
+                ctx.fill(disc(at(c, r, ang(s)), 1.2), with: .color(cardFill))
+                ctx.draw(tick(l, s == 60 ? ink1 : t.axis), at: at(c, r - 22, ang(s)), anchor: .center)
             }
             knob(ctx, at(c, r, med), t.hue, r: 4.2)
         }
@@ -520,8 +562,8 @@ private struct Agents: View {
     ]
     var body: some View {
         Panel {
-            Head(title: "谁在干", tint: t, context: "3 个 Agent · 41 轮")
-            FigureRow(fig: figure("9.6", unit: "h", ink: t.hue), note: "Agent 工作时长", delta: delta(true, "1.4h"))
+            Head(title: "谁在干", tint: t, context: "3 个 Agent · 9.6h")
+            FigureRow(fig: figure("64", "%", t), note: "由 Claude Code 完成", delta: delta(true, "8%"))
             VStack(spacing: 10) {
                 ForEach(Array(rows.enumerated()), id: \.offset) { k, r in
                     HStack(spacing: 12) {
@@ -532,7 +574,7 @@ private struct Agents: View {
                         }
                         .frame(width: 96, alignment: .leading)
                         Spark(t: t, k: k).frame(height: 26)
-                        figure(r.hours, unit: "h", 17, ink: k == 0 ? t.hue : t.mid, weight: .medium).frame(width: 48, alignment: .trailing)
+                        figure(r.hours, "h", t, 15).frame(width: 48, alignment: .trailing)
                     }
                 }
             }
@@ -565,7 +607,7 @@ private struct Spark: View {
             area.addLine(to: CGPoint(x: pts.last!.x, y: base)); area.addLine(to: CGPoint(x: 0, y: base)); area.closeSubpath()
             ctx.fill(area, with: .linearGradient(Gradient(colors: [t.hue.opacity(k == 0 ? 0.3 : 0.18), t.hue.opacity(0)]), startPoint: .zero, endPoint: CGPoint(x: 0, y: base)))
             ctx.stroke(line, with: .color(k == 0 ? t.hue : t.mid), style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
-            ctx.fill(disc(pts.last!, 2.6), with: .color(.white))
+            ctx.fill(disc(pts.last!, 2.6), with: .color(k == 0 ? t.hue : t.mid))
         }
     }
 }
@@ -580,7 +622,7 @@ private struct Projects: View {
     var body: some View {
         Panel {
             Head(title: "在哪干", tint: t, context: "3 个项目")
-            FigureRow(fig: figure("58", unit: "%", ink: t.hue), note: "在 YaaKanban")
+            FigureRow(fig: figure("58", "%", t), note: "在 YaaKanban")
             HStack(alignment: .center, spacing: 20) {
                 GeometryReader { geo in
                     let s = geo.size, unit = s.height * 0.4 / sqrt(items[0].hours), g: CGFloat = 4
@@ -592,7 +634,7 @@ private struct Projects: View {
                     ZStack {
                         ForEach(0..<3, id: \.self) { i in
                             Circle().fill(fill(i)).frame(width: 2 * r[i], height: 2 * r[i])
-                                .overlay { if i < 2 { figure(String(format: "%.1f", items[i].hours), unit: "h", i == 0 ? 22 : 15, ink: i == 0 ? .black : ink1, weight: .medium) } }
+                                .overlay { if i < 2 { Text(String(format: "%.1fh", items[i].hours)).font(.system(size: i == 0 ? 17 : 12, weight: .semibold).monospacedDigit()).foregroundStyle(i == 0 ? cardFill : ink1) } }
                                 .position(cs[i])
                         }
                     }
@@ -608,7 +650,7 @@ private struct Projects: View {
                                     .font(.system(size: 11, weight: .medium).monospacedDigit())
                             }
                             Spacer(minLength: 0)
-                            figure(String(format: "%.1f", p.hours), unit: "h", 15, ink: i == 0 ? t.hue : t.mid, weight: .medium)
+                            figure(String(format: "%.1f", p.hours), "h", t, 15)
                         }
                     }
                 }
@@ -639,7 +681,7 @@ private struct Rhythm: View {
         Panel {
             Head(title: "本周节奏", tint: t, context: "最忙 周三 14–17 点")
             HStack(alignment: .lastTextBaseline) {
-                FigureRow(fig: figure("45.1", unit: "h", ink: t.hue), note: "7 天 Agent 时长", delta: delta(true, "6.2h", "比上周"))
+                FigureRow(fig: figure("45.1", "h", t), note: "7 天 Agent 时长", delta: delta(true, "6.2h", "比上周"))
                 HStack(spacing: 4) {
                     Text("少").foregroundStyle(ink3)
                     ForEach(0..<5, id: \.self) { l in RoundedRectangle(cornerRadius: 2, style: .continuous).fill(cell(l)).frame(width: 10, height: 10) }
@@ -690,38 +732,6 @@ private struct WeekGrid: View {
             for (i, h) in [(0, "8:00"), (12, "11:00"), (24, "14:00"), (36, "17:00"), (48, "20:00")] {
                 let anchor: UnitPoint = i == 0 ? .bottomLeading : i == 48 ? .bottomTrailing : .bottom
                 ctx.draw(tick(h, t.axis), at: CGPoint(x: left + pitchX * CGFloat(i), y: size.height), anchor: anchor)
-            }
-        }
-    }
-}
-
-// MARK: - Ledger
-
-/// The rest of the day's numbers, one capsule each: a glyph in its hue, the word, the figure.
-private struct Ledger: View {
-    private let items: [(String, String, String, Tint)] = [
-        ("gauge.with.needle", "利用率", "62%", .run), ("square.stack.3d.up.fill", "并发峰值", "3.4", .run),
-        ("arrow.triangle.2.circlepath", "轮次", "41", .work), ("hammer.fill", "工具调用", "1,286", .work),
-        ("number", "Token", "3.1M", .work), ("text.bubble.fill", "你发的提示", "29", .reply),
-        ("hand.raised.slash.fill", "打断", "4", .reply), ("hand.raised.fill", "待你回复", "1", .wait),
-        ("exclamationmark.triangle.fill", "卡住", "2 次", .wait), ("checkmark.seal.fill", "已验收", "7", .work),
-    ]
-    var body: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 5), spacing: 12) {
-            ForEach(items, id: \.1) { it in
-                Panel(pad: 0) {
-                    HStack(spacing: 10) {
-                        Image(systemName: it.0).font(.system(size: 12, weight: .semibold)).foregroundStyle(it.3.hue)
-                            .frame(width: 28, height: 28).background(Circle().fill(it.3.faint))
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(it.1).font(.system(size: 11, weight: .medium)).foregroundStyle(ink3)
-                            Text(it.2).font(.system(size: 16, weight: .semibold).monospacedDigit()).foregroundStyle(ink1)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, 12).frame(maxHeight: .infinity)
-                }
-                .frame(height: 56)
             }
         }
     }

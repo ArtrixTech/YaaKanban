@@ -1,8 +1,19 @@
 # Devlog
 
-## docs(design): archive design specimens and overview v1-v8
+## docs(design): overview v9 with light cards, a totals bar and chips
 
 `pending` | 2026-10-28
+
+- **Changes**: `design/specimen/overview.swift` v9: `Surface` (white + soft shadow light, white 0.165 dark) replaces the always-black slab; `Tint` hues adapt (deeper in light); `ink1-3` follow `.primary`; figures semibold in primary ink at 34 (accents 46) with the unit in the hue; `TopBar` (title + date, 会话/轮次/Agent 工时/你在场, range controls); `Chips` rows (5 counts under the bar, 4 + 会话明细 at the foot); 杠杆 / 你不在时 keep a colour fill at the card's foot (`Wash`, deep crest → light foot in both appearances) instead of the giant cropped figure; knob = hue disc with white core; glow 0.3 light / 0.7 dark; 谁在干 leads with 64% (hours moved to the top bar). Render 1300×1300. Archived as `design/history/overview-v9`.
+- **Reason**: v8 feedback.
+- **User feedback**: "1，只有黑色卡片，浅色模式不协调 2，大字的部分文字太大了。需要更规整的文字展示。3，小圆角卡片可以放一些到上面来。4，顶栏需要用好，顶上可以放一些关键信息。"
+- **Process**: rendered light/dark, checked full peeks and a dark crop of the accent and running cards; fixed the dark 3.2h circle label (white on light green → card fill) and lifted the leverage wave.
+- **Result**: awaiting the user's review.
+- **Notes**: specimen only; nothing in the app changed.
+
+## docs(design): archive design specimens and overview v1-v8
+
+`a67c9a2` | 2026-10-28
 
 - **Changes**: new `design/`: `specimen/` (the proposed `DesignSystem.swift`, moved out of `Sources/YaaKanban/` where its `IconButton` clashed with Theme.swift and broke `make build`; `main.swift` and `overview.swift` with repo-relative Resources and an out-dir argument; `build.sh`), `directions/` (boards A–D + sources), `history/` (before, ds-1..3, overview-v1..v8 with sources), `README.md` (version → feedback table). `design/references/` (Pinterest pins, pasted widgets) git-ignored. Architecture.md entry. Local tag `design-v8`.
 - **Reason**: everything lived in /tmp/yaak-ds; the user asked to save all versions and mark v8 as a milestone.
