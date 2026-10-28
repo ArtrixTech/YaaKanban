@@ -21,7 +21,7 @@ struct BoardHeader<Trailing: View>: View {
     private func row(named: Bool) -> some View {
         HStack(spacing: 6) {
             BrandMark(size: 20)
-            if named { Text(verbatim: "YaaKanban").font(.system(size: 13, weight: .bold)).lineLimit(1).fixedSize() }
+            if named { Text(verbatim: "YaaKanban").font(.ui(.body, .bold)).lineLimit(1).fixedSize() }
             Spacer(minLength: 4)
             HStack(spacing: 4) {
                 let counts = self.counts
@@ -93,7 +93,7 @@ struct MenuContent: View {
         VStack(alignment: .leading, spacing: 2) {
             MenuHeader(summary: summary) { done { AppWindows.open(.main) } }
             if let err = model.serverError {
-                Text(err).font(.caption).foregroundStyle(.red).padding(.horizontal, 8)
+                Text(err).font(.ui(.footnote)).foregroundStyle(.red).padding(.horizontal, Space.m)
             }
             if model.noIntegrations {
                 MenuRow(symbol: "powerplug.fill", title: String(localized: "Connect agents…")) { done { AppWindows.open(.setup) } }
@@ -102,7 +102,7 @@ struct MenuContent: View {
                 let names = model.integrationIssues.keys.map(\.displayName).sorted().formatted(.list(type: .and))
                 MenuRow(symbol: "exclamationmark.triangle.fill", title: String(localized: "\(names) hooks need approval")) { done { AppWindows.open(.settings) } }
             }
-            Divider().padding(.vertical, 3)
+            Spacer().frame(height: Space.s)
             MenuRow(symbol: "rectangle.on.rectangle", title: model.settings.showPanel ? String(localized: "Hide floating panel") : String(localized: "Show floating panel"),
                     shortcut: "⌥⌘K") { panel.toggle() }
             MenuRow(symbol: "macwindow", title: String(localized: "Main window")) { done { AppWindows.open(.main) } }
@@ -111,10 +111,10 @@ struct MenuContent: View {
             if case .ready(let p) = model.updater.phase {
                 MenuRow(symbol: "arrow.down.circle.fill", title: String(localized: "Update to \(p.version)…")) { model.updater.installReady() }
             }
-            Divider().padding(.vertical, 3)
+            Spacer().frame(height: Space.s)
             MenuRow(symbol: "power", title: String(localized: "Quit YaaKanban")) { NSApp.terminate(nil) }
         }
-        .padding(6)
+        .padding(Space.s)
         .frame(width: 230)
     }
 
@@ -140,16 +140,10 @@ struct UpdateNotice: View {
     let notice: Updater.Notice
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon).font(.system(size: 11, weight: .semibold)).foregroundStyle(.blue)
-            Text(text).font(.system(size: 11.5)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
-            Spacer(minLength: 4)
-            Button(action: act) { Text(actionTitle).font(.system(size: 11.5, weight: .semibold)) }
-                .buttonStyle(.plain).foregroundStyle(.blue)
+        Banner(text: text, symbol: icon, tint: .blue, compact: true) {
+            Button(actionTitle, action: act).buttonStyle(.action(.ghost, tint: .blue, size: .small))
             IconButton(symbol: "xmark", help: String(localized: "Close")) { withAnimation(.snappy) { model.updater.dismiss() } }
         }
-        .padding(.leading, 9).padding(.trailing, 2).frame(height: 26)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.blue.opacity(0.08)))
     }
 
     private var icon: String {
@@ -188,24 +182,25 @@ struct MenuHeader: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 7) {
                     BrandMark(size: 18)
-                    Text(verbatim: "YaaKanban").font(.system(size: 12.5, weight: .bold))
-                    Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)
+                    Text(verbatim: "YaaKanban").font(.ui(.body, .bold))
+                    Image(systemName: "chevron.right").font(.ui(.micro, .bold)).foregroundStyle(.secondary)
                     Spacer(minLength: 0)
                 }
-                Text(summary).font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(summary).font(.ui(.footnote)).foregroundStyle(.secondary)
                 TodayFigures()
             }
-            .padding(.horizontal, 8).padding(.vertical, 4)
-            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(hover ? 0.06 : 0)))
+            .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+            .background(RoundedRectangle(cornerRadius: Radius.medium, style: .continuous).fill(hover ? Fill.selected : .clear))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Pressable())
         .onHover { hover = $0 }
+        .animation(.easeOut(duration: 0.12), value: hover)
         .help("Open main window")
     }
 }
 
-/// A menu-like row: icon, title, optional shortcut; highlighted on hover.
+/// A menu-like row: icon, title, optional shortcut; the neutral selection fill on hover.
 struct MenuRow: View {
     let symbol: String
     let title: String
@@ -216,14 +211,13 @@ struct MenuRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                Image(systemName: symbol).font(.system(size: 12)).frame(width: 16)
-                Text(title).font(.system(size: 12.5))
-                Spacer(minLength: 8)
-                if let shortcut { Text(shortcut).font(.system(size: 11)).foregroundStyle(hover ? .white.opacity(0.8) : .secondary) }
+                Image(systemName: symbol).font(.ui(.callout)).foregroundStyle(.secondary).frame(width: 16)
+                Text(title).font(.ui(.callout))
+                Spacer(minLength: Space.m)
+                if let shortcut { Text(shortcut).font(.ui(.footnote)).foregroundStyle(.tertiary) }
             }
-            .foregroundStyle(hover ? .white : .primary)
-            .padding(.horizontal, 8).frame(height: 24)
-            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(hover ? Color.accentColor : .clear))
+            .padding(.horizontal, Space.m).frame(height: 26)
+            .background(RoundedRectangle(cornerRadius: Radius.small, style: .continuous).fill(hover ? Fill.selected : .clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -239,15 +233,15 @@ struct EmptyBoard: View {
             if model.noIntegrations {
                 // First run: nothing reports until an integration is installed.
                 Image(systemName: "powerplug.fill").font(.system(size: 22)).foregroundStyle(.tertiary)
-                Text("No agents connected yet").font(.system(size: 12, weight: .medium))
+                Text("No agents connected yet").font(.ui(.callout, .semibold))
                 Text("Install the integration for the agents you use; sessions you start afterwards show up here.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 16)
+                    .font(.ui(.footnote)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true).padding(.horizontal, Space.xl)
                 Button("Connect agents…") { AppWindows.open(.setup) }
-                    .controlSize(.small).buttonStyle(.borderedProminent).padding(.top, 2)
+                    .buttonStyle(.action(.primary, size: .small)).padding(.top, Space.xs)
             } else {
                 Image(systemName: "moon.zzz.fill").font(.system(size: 22)).foregroundStyle(.tertiary)
-                Text("No active tasks").font(.system(size: 12)).foregroundStyle(.secondary)
+                Text("No active tasks").font(.ui(.callout)).foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity).padding(.vertical, 18)
@@ -264,7 +258,7 @@ struct SearchResults: View {
         let found = model.search(query)
         let onBoard = Set(model.activeSessions.map(\.id))
         if found.isEmpty {
-            Text("No matches").font(.system(size: 12)).foregroundStyle(.secondary)
+            Text("No matches").font(.ui(.callout)).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity).padding(.vertical, 18)
         } else {
             LazyVStack(spacing: 2) {
@@ -288,15 +282,15 @@ struct PickRow: View {
         HStack(spacing: 8) {
             AgentLogo(agent: s.agent, size: 16)
             VStack(alignment: .leading, spacing: 1) {
-                Text(s.title).font(.system(size: 12, weight: .semibold)).lineLimit(1)
-                Text(s.projectName ?? s.agent.displayName).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
+                Text(s.title).font(.ui(.callout, .semibold)).lineLimit(1)
+                Text(s.projectName ?? s.agent.displayName).font(.ui(.footnote)).foregroundStyle(.secondary).lineLimit(1)
             }
-            Spacer(minLength: 4)
+            Spacer(minLength: Space.xs)
             if onBoard { StatusGlyph(status: model.display(s), size: 14) }
-            Text(relative(s.lastEventAt)).font(.system(size: 10).monospacedDigit()).foregroundStyle(.tertiary)
+            Text(relative(s.lastEventAt)).font(.ui(.caption).monospacedDigit()).foregroundStyle(.tertiary)
         }
-        .padding(.horizontal, 8).padding(.vertical, 5)
-        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.primary.opacity(hover ? 0.08 : 0)))
+        .padding(.horizontal, Space.m).padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: Radius.small, style: .continuous).fill(hover ? Fill.selected : .clear))
         .contentShape(Rectangle())
         .onHover { hover = $0 }
         .onTapGesture(perform: pick)
@@ -569,20 +563,20 @@ struct SearchField: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: "magnifyingglass").font(.system(size: 10.5, weight: .semibold)).foregroundStyle(.secondary)
+            Image(systemName: "magnifyingglass").font(.ui(.footnote, .semibold)).foregroundStyle(.secondary)
             TextField("Search the last \(AppModel.searchDays) days", text: $query)
-                .textFieldStyle(.plain).font(.system(size: 11.5))
+                .textFieldStyle(.plain).font(.ui(.callout))
                 .focused($focused)
                 .onExitCommand(perform: onClose)
             Button(action: onClose) {
-                Image(systemName: "xmark.circle.fill").font(.system(size: 11)).foregroundStyle(.tertiary)
+                Image(systemName: "xmark.circle.fill").font(.ui(.footnote)).foregroundStyle(.tertiary)
             }
             .buttonStyle(.plain)
             .help("Close search")
         }
         .padding(.horizontal, 8)
         .frame(maxHeight: .infinity)
-        .background(Capsule().fill(.primary.opacity(0.07)))
+        .background(Capsule().fill(Fill.control))
         .onAppear { focused = true }
     }
 }

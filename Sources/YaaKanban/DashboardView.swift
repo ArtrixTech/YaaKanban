@@ -862,7 +862,7 @@ struct RecentFigures: View {
                     VStack(spacing: 2) {
                         Text("Leverage").font(.system(size: 8, weight: .medium)).foregroundStyle(.secondary)
                         Text(leverage.map { String(format: $0 < 10 ? "%.1f" : "%.0f", $0) } ?? "–")
-                            .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
+                            .font(.figure(12, .bold))
                             .lineLimit(1).minimumScaleFactor(0.5)
                         if let (symbol, tint) = arrow {
                             Image(systemName: symbol).font(.system(size: 8, weight: .bold)).foregroundStyle(tint)
@@ -895,7 +895,7 @@ struct RecentFigures: View {
                         .help("Leverage trend: each point is the leverage over the 4 hours up to then, across the last \(SettingsView.duration(Self.window / 60)); the dashed line is today's leverage.")
                         VStack(alignment: .trailing, spacing: 2) {
                             caption(String(localized: "Agent hours today"))
-                            Text(duration(today.agentTime)).font(.system(size: 15, weight: .semibold, design: .rounded).monospacedDigit())
+                            Text(duration(today.agentTime)).font(.figure(15))
                         }
                         .frame(width: 64, alignment: .trailing)
                         .help("All agents' running time today, added up")
@@ -946,9 +946,9 @@ struct RecentFigures: View {
     private func value(_ v: Double?, size: CGFloat) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 1) {
             Text(v.map { String(format: "%.1f", $0) } ?? "–")
-                .font(.system(size: size, weight: .bold, design: .rounded).monospacedDigit())
+                .font(.figure(size, .bold))
             if v != nil {
-                Text("×").font(.system(size: size * 0.6, weight: .semibold, design: .rounded)).foregroundStyle(.secondary)
+                Text("×").font(.system(size: size * 0.6, weight: .semibold)).foregroundStyle(.secondary)
             }
         }
         .lineLimit(1).minimumScaleFactor(0.6)
@@ -960,10 +960,7 @@ struct RecentFigures: View {
 
     static func plate(radius: CGFloat) -> some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        return shape.fill(LinearGradient(colors: [Color.primary.opacity(0.07), Color.primary.opacity(0.03)],
-                                         startPoint: .top, endPoint: .bottom))
-            .overlay(shape.strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5))
-            .clipShape(shape)
+        return shape.fill(Fill.control)
     }
 }
 
@@ -1050,7 +1047,7 @@ struct TimeAxis: View {
     }
 
     private func label(_ s: String) -> some View {
-        Text(s).font(.system(size: 7.5, weight: .medium, design: .rounded).monospacedDigit())
+        Text(s).font(.system(size: 7.5, weight: .medium).monospacedDigit())
             .foregroundStyle(.tertiary).fixedSize()
     }
 }

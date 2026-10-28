@@ -1,8 +1,17 @@
 # Devlog
 
-## feat(ui): settings page and card sidebar in the main window
+## refactor(ui): restyle the menu and panel parts
 
 `pending` | 2026-10-28
+
+- **Changes**: Windows.swift: menu `Divider`s → 6-pt gaps; `MenuRow` hover is `Fill.selected` with neutral text (was accent fill, white text), height 26, `Radius.small`; `MenuHeader` hover `Fill.selected`, `Pressable`; `UpdateNotice` → compact `Banner` with a ghost blue action; `EmptyBoard` button `.action(.primary, size: .small)`; `PickRow` hover `Fill.selected`; `SearchField` `Fill.control`; type via `.ui`. DashboardView `RecentFigures`/`TodayFigures`: rounded face → `.figure`, plate stroke and gradient → flat `Fill.control`.
+- **Reason**: UI migration step 5; "尽量去线、留白", neutral selection, SF Pro figures.
+- **User feedback**: "先按照当前设计系统来完整迁移整个ui。"
+- **Result**: `make build`, `make l10n` ok. Card context-menu dividers stay (native menus).
+
+## feat(ui): settings page and card sidebar in the main window
+
+`eaa26b3` | 2026-10-28
 
 - **Changes**: New `MainWindow.swift`: hidden title bar, drawn 280-pt sidebar (BoardHeader counts, search + agent filter menu, Overview nav, Active cards via `.card(status)` + neutral `Fill.selected` overlay, History lazy single-line rows, Settings nav with a badge for agents awaiting approval + a ready update), ↑/↓ via `.focusable().onKeyPress`, same context menu and `matches()`; content on `Fill.canvas`. New `SettingsPage.swift`: `SettingsView(tab:)` as a page (`PageHeader`, `PageTabs` in a horizontal scroll, `GroupSection`s of `SettingRow`s, value pill + stepper, switches), `AboutHeader`, `AuthorizationSteps` (`Segmented`, no built-in indent), `StatusBadge` → `Badge` (needs approval orange). Windows.swift: old `MainWindow`, `SettingsView`, `SettingLabel` removed; `WindowOpener` `.settings` selects `AppModel.settingsPage` and opens main. App: `Settings` scene removed, ⌘, via `CommandGroup(replacing: .appSettings)`, `WindowOpener` now below `.environment`; snapshots `main-overview`, `settings`, `settings-alerts` via `MainWindow(page:tab:)`. `AutomationAccessRows` restyled. 3 new strings ×9 (stuck/approval details, Compatibility).
 - **Reason**: UI migration step 4; agreed: settings merged into the main window, only 设置 in the sidebar foot, tabs inside the page, custom card sidebar.
