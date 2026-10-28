@@ -216,6 +216,36 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(StuckDetector.evaluate(running(tool: "Monitor"), now: t0.addingTimeInterval(4000), config: cfg, isAlive: { _ in true }) == nil)
     }
 
+    /// A Codex exec that outlives its yield is left running while the agent moves on; its end only
+    /// comes when the agent polls it again, which it may never do.
+    @Test func toolLeftBehindIsNotStuck() {
+        var s = running(tool: "Bash")
+        s.tools.append(ToolCall(id: "2", name: "Bash", summary: "", input: "{}", output: nil, isError: false,
+                                startedAt: t0.addingTimeInterval(10), endedAt: t0.addingTimeInterval(11)))
+        s.lastEventAt = t0.addingTimeInterval(390)
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: cfg, isAlive: { _ in true }) == nil)
+        s.status = .stuck
+        s.stuckReason = "Bash has been running for 6 min"
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: cfg, isAlive: { _ in true })?.status == .running)
+        // It no longer holds off silence: a parallel call that really hangs is caught that way.
+        s.status = .running
+        s.stuckReason = nil
+        s.lastEventAt = t0.addingTimeInterval(11)
+        let out = StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: cfg, isAlive: { _ in true })
+        #expect(out?.stuckReason == "No new events for 6 min")
+        // A waiting tool still holds it off.
+        s.tools[0].name = "Monitor"
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: cfg, isAlive: { _ in true }) == nil)
+    }
+
+    @Test func subagentToolDoesNotLeaveMainToolBehind() {
+        var s = running(tool: "Bash")
+        s.tools.append(ToolCall(id: "2", name: "Read", summary: "", input: "{}", output: nil, isError: false,
+                                startedAt: t0.addingTimeInterval(10), subagentId: "a"))
+        let out = StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: cfg, isAlive: { _ in true })
+        #expect(out?.stuckReason == "Bash has been running for 6 min")
+    }
+
     @Test func subagentCountsAsActivity() {
         var s = running()
         s.subagents = [Subagent(id: "a", type: nil, startedAt: t0)]

@@ -31,6 +31,7 @@ the update.
 - Events recorded while the app was closed are no longer lost if it quits while replaying them at launch.
 - A pi sub-agent caught before its transcript header is fully written still shows under its parent.
 - The main window's History list stays quick with many past sessions.
+- A Codex session no longer shows Maybe stuck while it carries on past a command it left running (a long `exec_command` it stopped waiting for).
 
 ## [0.1.2] - 2026-10-26
 

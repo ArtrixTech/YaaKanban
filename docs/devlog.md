@@ -1,8 +1,19 @@
 # Devlog
 
-## docs(design): overview v9 with light cards, a totals bar and chips
+## fix(stuck): ignore a tool the agent has moved on from
 
 `pending` | 2026-10-28
+
+- **Changes**: `StuckDetector.leftBehind`: a running, non-waiting tool counts as left behind when the same agent (same `subagentId`) started another call after it; such tools are dropped from both the long-tool rule and the "no running tools" condition of the silence rule. Tests `toolLeftBehindIsNotStuck`, `subagentToolDoesNotLeaveMainToolBehind`. Spec stuck line revised; CHANGELOG Fixed.
+- **Reason**: a Codex card showed 可能卡住 "Bash 已运行 21 分钟" while the session was clearly working.
+- **User feedback**: "看起来是正常在跑的。。为啥显示卡住了。" → "需要改。"
+- **Process**: session `codex:01a17e46…`: `exec_command(identify.py auto 2400, yield_time_ms 1000)` at 13:44:10 returned after 1 s with an exec session; the process exited 13:44:29 (rollout `item_completed`, exit 0), but Codex fires PostToolUse only when the agent polls that session with `write_stdin` (earlier identify runs' endedAt match their write_stdin times exactly). The agent read the log with `tail` instead, so the call stayed open until Stop's `endRunningTools` (14:07:00, 1370 s); activity shows running↔stuck flapping every few seconds. A start-gap threshold to tell parallel calls apart was rejected: history has parallel starts 1–2.5 s apart in Claude Code (WebFetch) and Codex. Baseline: new test failed with 3 issues on the old detector; after: 192/192, `make build` ok.
+- **Result**: such calls no longer trip the long-tool rule; a parallel call that really hangs is still caught by the 5 min silence rule (reason "No new events" instead of "X has been running").
+- **Notes**: waiting tools (Monitor, sleep, …) are never left behind, so they keep holding off silence. The tool still shows as running on the card until it ends or the turn ends.
+
+## docs(design): overview v9 with light cards, a totals bar and chips
+
+`ffb2f0f` | 2026-10-28
 
 - **Changes**: `design/specimen/overview.swift` v9: `Surface` (white + soft shadow light, white 0.165 dark) replaces the always-black slab; `Tint` hues adapt (deeper in light); `ink1-3` follow `.primary`; figures semibold in primary ink at 34 (accents 46) with the unit in the hue; `TopBar` (title + date, 会话/轮次/Agent 工时/你在场, range controls); `Chips` rows (5 counts under the bar, 4 + 会话明细 at the foot); 杠杆 / 你不在时 keep a colour fill at the card's foot (`Wash`, deep crest → light foot in both appearances) instead of the giant cropped figure; knob = hue disc with white core; glow 0.3 light / 0.7 dark; 谁在干 leads with 64% (hours moved to the top bar). Render 1300×1300. Archived as `design/history/overview-v9`.
 - **Reason**: v8 feedback.
