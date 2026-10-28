@@ -67,13 +67,13 @@ struct PermissionButtons: View {
                     }
                     .frame(maxHeight: 120)
                     .padding(8)
-                    .background(.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(Fill.control, in: RoundedRectangle(cornerRadius: Radius.medium, style: .continuous))
                 }
                 HStack(spacing: 6) {
                     Button { model.decide(session.id, .allow, requestId: p.id) } label: { Label("Allow once", systemImage: "checkmark") }
-                        .buttonStyle(PillButtonStyle(tint: .green, prominent: true))
+                        .buttonStyle(.action(.primary, tint: .green, size: .small))
                     Button { model.decide(session.id, .deny, requestId: p.id) } label: { Label("Deny", systemImage: "xmark") }
-                        .buttonStyle(PillButtonStyle(tint: .red))
+                        .buttonStyle(.action(.secondary, tint: .red, size: .small))
                     Spacer()
                 }
             }
@@ -98,7 +98,7 @@ struct SessionCard: View {
                 // under it use the card's full width.
                 HStack(spacing: 7) {
                     StatusGlyph(status: st, size: 20)
-                    Text(session.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                    Text(session.title).font(.ui(.body, .semibold)).lineLimit(1)
                     if model.isPinned(session.id) {
                         Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(Color(red: 1, green: 0.75, blue: 0)).help("Pinned")
                     }
@@ -140,7 +140,7 @@ struct SessionCard: View {
         }
         .padding(10)
         .sessionCard(session, hover: hover)
-        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .contentShape(RoundedRectangle(cornerRadius: Radius.card))
         .onHover { hover = $0 }
         .animation(.easeOut(duration: 0.12), value: hover)
         .onTapGesture { model.jump(session.id) }
@@ -418,7 +418,7 @@ struct CardIconButton: View {
             Image(systemName: symbol)
                 .font(.system(size: 9.5, weight: .bold))
                 .frame(width: 18, height: 18)
-                .background(Circle().fill(.primary.opacity(hover ? 0.12 : 0.06)))
+                .background(Circle().fill(hover ? Fill.controlHover : Fill.control))
                 .foregroundStyle(hover ? .primary : .secondary)
                 .contentShape(Circle())
         }

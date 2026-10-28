@@ -1,8 +1,18 @@
 # Devlog
 
-## refactor(ui): move the design system into the app
+## refactor(ui): draw cards, badges and buttons from the design system
 
 `pending` | 2026-10-28
+
+- **Changes**: Theme.swift: `StatusPill` wraps `Badge` (compact by default), `CountChip` uses `.figure`/`.soft()`, `.card` becomes `CardSurface` (loud → `tinted` deep-top wash, else `surface` with `Fill.card`/`cardHover`; no stroke), `Flash`/`Stale` lose their strokes (fills 0.34 / 0.2 to compensate), `PillButtonStyle` removed for `.action`, `AgentLogo(ink:)` defaults to `.secondary`, new `LogoTile`. SessionViews: permission buttons `.action`, wells `Fill.control`, title `.ui(.body,.semibold)`. DetailView: page margins, `Fill.canvas`, group-radius sections, `.action` buttons.
+- **Reason**: UI migration step 2 (shared primitives every surface uses).
+- **User feedback**: "先按照当前设计系统来完整迁移整个ui。"; earlier "尽量去线、留白".
+- **Result**: `make build` ok.
+- **Notes**: logos were white everywhere; on light cards they would vanish, hence secondary ink (spec revised in the previous commit).
+
+## refactor(ui): move the design system into the app
+
+`dfc5011` | 2026-10-28
 
 - **Changes**: `design/specimen/DesignSystem.swift` → `Sources/YaaKanban/DesignSystem.swift` (git mv); Theme.swift's `IconButton` and SetupGuide.swift's private `Pressable` removed (the design-system ones replace them); `design/specimen/build.sh` compiles the app's copy. Spec §5: design-system line (2026-10-28) and logo revision. design/README v9 feedback, devlog 7a99439 hash, Architecture.
 - **Reason**: v9 approved; first step of the full UI migration.

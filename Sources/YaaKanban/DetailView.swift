@@ -10,8 +10,8 @@ struct SessionDetail: View {
     var body: some View {
         let st = model.display(session)
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                header(st)
+            VStack(alignment: .leading, spacing: Space.l) {
+                header(st).padding(.bottom, Space.m)
                 if st == .review { reviewBanner }
                 if st == .needsInput || st == .stuck {
                     Section(title: st.label, symbol: st.symbol, tint: st.tint) {
@@ -46,10 +46,11 @@ struct SessionDetail: View {
                 turns
                 tools
             }
-            .padding(20)
-            .frame(maxWidth: 820, alignment: .leading)
+            .padding(.horizontal, Space.page + Space.m).padding(.top, 34).padding(.bottom, Space.page)
+            .frame(maxWidth: 860, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
+        .background(Fill.canvas)
         .animation(.snappy, value: st)
     }
 
@@ -58,16 +59,16 @@ struct SessionDetail: View {
             StatusGlyph(status: st, size: 40)
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    Text(session.title).font(.system(size: 20, weight: .bold)).lineLimit(2)
-                    StatusPill(status: st)
+                    Text(session.title).font(.ui(.title, .bold)).tracking(-0.2).lineLimit(2)
+                    StatusPill(status: st, compact: false)
                 }
                 if let p = session.currentPrompt {
                     Text(p).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(3).textSelection(.enabled)
                 }
                 HStack(spacing: 6) {
                     HStack(spacing: 4) { AgentLogo(agent: session.agent, size: 11); Text(session.agent.displayName) }
-                        .font(.system(size: 11)).padding(.horizontal, 7).padding(.vertical, 3)
-                        .background(.primary.opacity(0.06), in: Capsule()).foregroundStyle(.secondary)
+                        .font(.ui(.footnote)).padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(Fill.control, in: Capsule()).foregroundStyle(.secondary)
                     if let p = session.projectName { meta("folder.fill", p) }
                     if let cwd = session.cwd { meta("arrow.turn.down.right", (cwd as NSString).abbreviatingWithTildeInPath) }
                     if let pid = session.agentPid { meta("number", "pid \(pid)") }
@@ -78,12 +79,12 @@ struct SessionDetail: View {
                     Button { model.jump(session.id) } label: {
                         Label(AppModel.isGone(session) ? "Resume in original terminal" : "Jump to terminal", systemImage: "arrow.up.forward.app")
                     }
-                    .buttonStyle(PillButtonStyle(tint: .accentColor, prominent: true))
+                    .buttonStyle(.action(.primary))
                     Button { model.jumper.copyContext(session) } label: { Label("Copy cwd / session", systemImage: "doc.on.doc") }
-                        .buttonStyle(PillButtonStyle())
+                        .buttonStyle(.action())
                     Spacer()
                     Button(role: .destructive) { model.remove(session.id) } label: { Label("Delete", systemImage: "trash") }
-                        .buttonStyle(PillButtonStyle(tint: .red))
+                        .buttonStyle(.action(.ghost, tint: .red))
                 }
                 .padding(.top, 2)
             }
@@ -91,9 +92,9 @@ struct SessionDetail: View {
     }
 
     private func meta(_ symbol: String, _ text: String) -> some View {
-        Label(text, systemImage: symbol).font(.system(size: 11)).lineLimit(1).truncationMode(.head)
+        Label(text, systemImage: symbol).font(.ui(.footnote)).lineLimit(1).truncationMode(.head)
             .padding(.horizontal, 7).padding(.vertical, 3)
-            .background(.primary.opacity(0.06), in: Capsule())
+            .background(Fill.control, in: Capsule())
             .foregroundStyle(.secondary)
     }
 
@@ -101,18 +102,18 @@ struct SessionDetail: View {
     private var reviewBanner: some View {
         VStack(alignment: .leading, spacing: 10) {
             Label("This turn is done and waiting for your review", systemImage: "checkmark.seal.fill")
-                .font(.system(size: 13, weight: .semibold)).foregroundStyle(.green)
+                .font(.ui(.body, .semibold)).foregroundStyle(.green)
             if let last = session.lastReply {
                 Text(last).font(.system(size: 12.5)).textSelection(.enabled)
             }
             HStack(spacing: 6) {
                 Button { model.jump(session.id) } label: { Label("Go to it", systemImage: "arrow.up.forward.app") }
-                    .buttonStyle(PillButtonStyle(tint: .green, prominent: true))
+                    .buttonStyle(.action(.primary, tint: .green))
             }
         }
-        .padding(14)
+        .padding(Space.xl)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card(.review, radius: 14)
+        .card(.review, radius: Radius.group)
         .transition(.opacity.combined(with: .scale(scale: 0.98)))
     }
 
@@ -169,16 +170,16 @@ private struct Section<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label(title, systemImage: symbol).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(tint)
+                Label(title, systemImage: symbol).font(.ui(.callout, .semibold)).foregroundStyle(tint)
                 Spacer()
-                if let trailing { Text(trailing).font(.system(size: 11)).foregroundStyle(.tertiary) }
+                if let trailing { Text(trailing).font(.ui(.footnote)).foregroundStyle(.tertiary) }
             }
             content
         }
-        .padding(14)
+        .padding(Space.xl)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card(.done, radius: 14)
+        .card(.done, radius: Radius.group)
     }
 }
