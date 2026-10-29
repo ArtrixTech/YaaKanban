@@ -1,8 +1,18 @@
 # Devlog
 
+## fix(panel): keep the floating panel no taller than its list
+
+`pending` | 2026-10-29
+
+- **Changes**: Windows.swift `FloatingPanelView.shownList` = `min(listHeight, panelListHeight ?? maxList, fits)`; the height grip clamps the hand-set height to `max(minList, min(maxList, listHeight))` while dragging.
+- **Reason**: A hand-set list height (`settings.panelListHeight`) was used as is, so a short list (few sessions, a short search result) left empty space under the cards.
+- **User feedback**: "不应该允许悬浮窗高度大于内容高度。"
+- **Result**: The hand-set height is now a ceiling; the list still scrolls when it is longer. `make build` and `make test` (192 tests) pass. Not checked visually.
+- **Notes**: The behavior predates the design-system branch (same `shownList` on main). Lists shorter than `minList` (120) are shown at their own height; releasing the grip at the minimum still clears the hand-set height. The accessibility grant lost after 9938dc5's install came from the expired 7XZ34D8PVC certificate the TCC entry's csreq names; the build is now signed by 4D5TXM7349, so the entry must be removed and granted again (`tccutil reset Accessibility com.artrix.yaakanban`).
+
 ## fix(ui): address the design-system migration review
 
-`pending` | 2026-10-28
+`9938dc5` | 2026-10-28
 
 - **Changes**: MainWindow: History rows use `model.display(s)` (ended once off the boards); ↑/↓ from outside the list (Settings, hidden by search) enter at the near end instead of jumping from index 0; sidebar cards/rows are combined accessibility elements with button + selected traits and a default action; nav rows, `PageTabs`, `Segmented` expose `.isSelected`. DesignSystem: `SettingRow` passes its title down as `\.settingTitle`; `Switch`, `Stepped`, steppers and the language picker carry real labels (hidden). Settings tab moved from `MainWindow` state to `AppModel.settingsTab`; the menu's "hooks need approval" row opens Agent integrations. Overview: Projects card's empty note is "No agents ran." (it sizes by agent time); reply beads sampled evenly over all replies instead of the 200 slowest. l10n: "Busiest %@" retranslated in de/es/fr/ko/pt-BR/ru (value is a 3-hour stretch, not a day), de "You here" → "Anwesend", unused key dropped.
 - **Reason**: Adversarial review of dfc5011..20ea53f by an uninvolved agent.

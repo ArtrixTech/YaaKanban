@@ -537,7 +537,9 @@ struct FloatingPanelView: View {
             }
             let start = dragStart ?? shownList
             dragStart = start
-            settings.panelListHeight = min(Self.maxList, max(Self.minList, start + delta))
+            // No taller than the list itself, so dragging back up moves the edge at once.
+            let most = max(Self.minList, min(Self.maxList, listHeight))
+            settings.panelListHeight = min(most, max(Self.minList, start + delta))
         }
         .frame(height: 22)
     }
@@ -546,14 +548,15 @@ struct FloatingPanelView: View {
     private var moreBelow: Bool { listBottom > shownList + 1 }
 
     /// The list's natural height changed. Without a height set by hand the panel follows it both
-    /// ways; with one, the panel keeps it and the list scrolls.
+    /// ways; with one, the panel grows no further than it and the list scrolls, but still shrinks
+    /// to a shorter list.
     private func grow(to h: CGFloat) { listHeight = h }
 
     private var listShown: Bool { searchShown || (!model.settings.panelCollapsed && !model.activeSessions.isEmpty) }
 
     private var shownList: CGFloat {
         let fits = room.map { max(Self.minList, $0.height - chrome) } ?? .infinity
-        return min(model.settings.panelListHeight ?? min(listHeight, Self.maxList), fits)
+        return min(listHeight, model.settings.panelListHeight ?? Self.maxList, fits)
     }
 }
 
