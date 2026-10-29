@@ -30,6 +30,8 @@ the update.
 
 ### Fixed
 - The floating panel no longer stays wide around the folded rail after being dragged to a screen edge: a window that ends up a different size from its content is put right.
+- Dropping the floating panel near a screen edge glides it there with the panel's own animation, which a fold can no longer cut into, and the system can no longer zoom it.
+- An agent run by another agent (Claude calling Codex, for example) that exits early, even with an error, no longer shows "Process exited" under the calling session; its run is simply over.
 - Claude Code `/bg`: the session moved into a background job no longer stays on the board as "Maybe stuck" next to the job's card, and the job's card no longer jumps to an unrelated Wave pane (the one that happened to start Claude's daemon).
 - The floating panel is never taller than its cards: a list height set by hand with the grip now stops at the end of the list, and the panel shrinks when sessions leave.
 - Reply times on the dashboard no longer count time you were away when the wait began before the day, week or month shown (an overnight wait answered in the morning, for example).

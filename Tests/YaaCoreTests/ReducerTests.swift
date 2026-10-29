@@ -261,6 +261,17 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(StuckDetector.evaluate(idle, now: t0, config: cfg, isAlive: { _ in false }) == nil)
     }
 
+    @Test func subagentProcessExitIsNotStuck() {
+        var s = running(pid: 7)
+        s.parentId = "claude-code:parent"
+        let out = StuckDetector.evaluate(s, now: t0.addingTimeInterval(1), config: cfg, isAlive: { _ in false })
+        #expect(out?.status == .idle)
+        #expect(out?.stuckReason == nil)
+        s.status = .stuck
+        s.stuckReason = "Process exited"
+        #expect(StuckDetector.evaluate(s, now: t0, config: cfg, isAlive: { _ in false })?.status == .idle)
+    }
+
     @Test func unhookedSessionsSkipSilence() {
         var s = running()
         s.hooked = false

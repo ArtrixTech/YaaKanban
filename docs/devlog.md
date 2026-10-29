@@ -1,8 +1,19 @@
 # Devlog
 
-## chore(panel): log the panel's slides, peeks and docking
+## fix(panel): snap with the panel's own slide; sub-agent exit is not stuck
 
 `pending` | 2026-10-29
+
+- **Changes**: FloatingPanel.swift: slide setup moved from `fit` into `startSlide(to:)`; `snap()` uses it instead of `setFrame(animate: true)`; `updateDock` reads `slide?.to ?? panel.frame`; `place()` offsets the panel from the window's actual frame and logs when it differs from the request; `windowShouldZoom` returns false. StuckDetector: a running/stuck session with a `parentId` whose process is gone becomes idle, not stuck "Process exited". Test `subagentProcessExitIsNotStuck`.
+- **Reason**: `setFrame(animate:)` runs a nested run loop (NSMoveHelper, seen in /tmp/snaprace/sample-1793282439.txt under `snapLater`), so a fold's frame writes can interleave with the snap animation: two writers on one window. The sub-agent row was a `codex exec` run by Claude that failed to connect and exited without a Stop hook.
+- **User feedback**: "你让codex（gpt 6 astra/med…）来找找问题看。上次触发是在手动托到屏幕右边然后触发系统的窗体最大化动作之后出现的。" / "这个地方其实是subagent自然退出 不应该提示异常。"
+- **Process**: Codex (auto/gpt-6-astra, medium, read-only) analyzed the code, panel log, watch log and samples; it pointed at the nested animate run loop and `place()` trusting the requested frame. First Codex run failed (no route to chatgpt.com); retried. Watcher's "wide for 1 s" captures were all normal hover-peeks.
+- **Result**: Build, test (194) pass. Root cause not reproduced on demand; this removes the one demonstrated competing frame writer.
+- **Notes**: No public API opts a window out of macOS desktop edge tiling; if the state recurs, check the `panel` log for "window went to … not …" (the system overriding a frame) or "refitting".
+
+## chore(panel): log the panel's slides, peeks and docking
+
+`de5e4db` | 2026-10-29
 
 - **Changes**: FloatingPanel.swift logs (category `panel`) each slide (from → to), its end, frames more than 100 ms late, peek / peek ends, dock changes; a `.common` timer at 5× `slideDuration` calls `finishStaleSlide()` in case the display link stops.
 - **Reason**: The wide-window-around-the-rail state recurs; f05488b only repairs it on the next resize or settled move.

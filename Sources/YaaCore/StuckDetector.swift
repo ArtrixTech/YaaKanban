@@ -36,6 +36,13 @@ public enum StuckDetector {
             out.needsInputSince = nil
             return out
         case .running, .stuck:
+            // A sub-agent's process ending is its run ending, however it went: the agent that
+            // started it reads the result. Only top-level sessions are flagged for leaving.
+            if processGone, s.parentId != nil {
+                out.status = .idle
+                out.stuckReason = nil
+                return out
+            }
             // Nothing happened after its turn ended: it is finished, whatever revived it (an old
             // event replayed before the reducer ignored them). A background agent still out keeps
             // it running, unless the process is gone (its agents went with it).
