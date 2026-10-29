@@ -197,8 +197,8 @@ private struct SidebarCard: View {
     var body: some View {
         let s = session, status = model.display(s)
         HStack(alignment: .top, spacing: Space.m) {
-            StatusGlyph(status: status, size: 20)
-            VStack(alignment: .leading, spacing: 3) {
+            StatusGlyph(status: status, size: 18)
+            VStack(alignment: .leading, spacing: Space.xxs) {
                 HStack(spacing: Space.s) {
                     Text(s.title).font(.ui(.body, .semibold)).lineLimit(1)
                     Spacer(minLength: Space.xxs)
@@ -211,7 +211,7 @@ private struct SidebarCard: View {
                 }
             }
         }
-        .padding(.horizontal, 11).padding(.vertical, 10)
+        .padding(.horizontal, 10).padding(.vertical, Space.m)
         .card(status, hover: hover)
         .overlay { if selected { RoundedRectangle(cornerRadius: Radius.card, style: .continuous).fill(Fill.selected) } }
         .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))

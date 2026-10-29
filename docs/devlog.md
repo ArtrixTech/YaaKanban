@@ -1,8 +1,19 @@
 # Devlog
 
+## refactor(overview): tighten the cards and fill their empty space
+
+`pending` | 2026-10-30
+
+- **Changes**: DesignSystem: `Space.widget` 16 (card padding), `Radius.widget` 20→16, `Widget` drops its unused `art` (content clipped to the card so charts bleed), `FigureSize` 34/46/15→28/38/14, tighter `FigureLine`, `StatChip` 46 pt high (title shrinks to 0.85 before truncating). OverviewCards: `LeverageCurve` (agent ÷ active time accumulated per slice from 5 min active, scaled to the 90th percentile and clamped, previous period dotted, 1× hairline over the fill); `AwayCard` → `Absences` + `AwayStrip` (away stretches, running/blocked parts clipped inside, blocked drawn last) with a key row and longest stretch; `Wave`/`Rise`/`Wash.run` removed; smaller dial, arc, rows and bubbles; tick labels skip within 44 pt of Now. DashboardView: `row {}` = top-aligned HStack + `fixedSize(vertical)`, new pairings for 3/2/1 columns, each layout with an `idealWidth` so a long name can't drop it to fewer columns. MainWindow: smaller sidebar cards. Snapshots `dashboard` 1000×1500 and `dashboard-wide` 1320×1200.
+- **Reason**: The v9 cards in the app had large blank areas: fixed-height rows and art-only accents.
+- **User feedback**: "新版ui挺不错的，问题就是信息密度有点低，很多组件有大量空白/无信息的地方，需要优化，更紧凑、精致、设计考究"
+- **Process**: Iterated on `yaak snapshot` renders (day 2-col, 3-col wide, week, month, main). Tried growing a lone agent's sparkline to the row's height: early in the day it is mostly empty, so reverted to centring the row. An uninvolved review found the leverage scale flattened by an early spike (agents ran overnight), the fill hiding the 1× and previous lines, a lone point with no line, runs hiding waits in the strip, and the idealWidth risk; all fixed. Archived as `design/history/overview-v10`.
+- **Result**: Build, test (194) pass; installed.
+- **Notes**: Not changed: the month 等你处理 dial shows a large red blot around the 22nd–24th (also in the v9 render; many overlapping away waits; merging their glow into one layer did not remove it, cause not found). The leverage figure shows from 60 s active, the curve from 300 s.
+
 ## fix(panel): snap with the panel's own slide; sub-agent exit is not stuck
 
-`pending` | 2026-10-29
+`83812fe` | 2026-10-29
 
 - **Changes**: FloatingPanel.swift: slide setup moved from `fit` into `startSlide(to:)`; `snap()` uses it instead of `setFrame(animate: true)`; `updateDock` reads `slide?.to ?? panel.frame`; `place()` offsets the panel from the window's actual frame and logs when it differs from the request; `windowShouldZoom` returns false. StuckDetector: a running/stuck session with a `parentId` whose process is gone becomes idle, not stuck "Process exited". Test `subagentProcessExitIsNotStuck`.
 - **Reason**: `setFrame(animate:)` runs a nested run loop (NSMoveHelper, seen in /tmp/snaprace/sample-1793282439.txt under `snapLater`), so a fold's frame writes can interleave with the snap animation: two writers on one window. The sub-agent row was a `codex exec` run by Claude that failed to connect and exited without a Stop hook.

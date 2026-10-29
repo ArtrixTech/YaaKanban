@@ -70,15 +70,15 @@ struct DashboardView: View {
                                     previousFull: model.report(p.previous, edges: p.previousEdges),
                                     vs: period.previous(soFar: p.inProgress), scope: scope(p), now: ctx.date)
             ScrollView {
-                VStack(alignment: .leading, spacing: Space.xl) {
-                    topBar(p, r).padding(.bottom, Space.xs)
+                VStack(alignment: .leading, spacing: Space.l) {
+                    topBar(p, r)
                     if let until = r.rebuiltUntil { rebuiltNote(r, until) }
                     chips(counts(r))
                     cards(data)
                     chips(attention(r), more: lanesChip(r))
                     if lanes { SessionLanes(period: period, report: r, now: ctx.date) }
                 }
-                .padding(.horizontal, 40).padding(.top, 34).padding(.bottom, 36)
+                .padding(.horizontal, Space.page).padding(.top, 28).padding(.bottom, Space.page)
                 .frame(maxWidth: 1240, alignment: .leading)
                 .frame(maxWidth: .infinity)
             }
@@ -121,7 +121,7 @@ struct DashboardView: View {
     }
 
     private func totalsRow(_ totals: [(String, String)]) -> some View {
-        HStack(spacing: 32) {
+        HStack(spacing: 28) {
             ForEach(totals, id: \.0) { t in
                 VStack(alignment: .leading, spacing: Space.xxs) {
                     Text(t.0).font(.ui(.footnote, .medium)).foregroundStyle(.secondary)
@@ -178,10 +178,10 @@ struct DashboardView: View {
 
     /// One row of chips, wrapping onto two when it doesn't fit; `more` ends it.
     private func chips(_ items: [Chip], more: AnyView? = nil) -> some View {
-        let row = ForEach(items, id: \.title) { c in StatChip(symbol: c.symbol, title: c.title, value: c.value, ramp: c.ramp).frame(minWidth: 132) }
+        let row = ForEach(items, id: \.title) { c in StatChip(symbol: c.symbol, title: c.title, value: c.value, ramp: c.ramp).frame(minWidth: 116) }
         return ViewThatFits(in: .horizontal) {
-            HStack(spacing: Space.l) { row; more }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: Space.l)], spacing: Space.l) { row; more }
+            HStack(spacing: Space.m) { row; more }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: Space.m)], spacing: Space.m) { row; more }
         }
     }
 
@@ -191,13 +191,13 @@ struct DashboardView: View {
             withAnimation(.easeOut(duration: 0.15)) { lanes.toggle() }
         } label: {
             HStack(spacing: Space.m) {
-                Text("Session lanes").font(.ui(.body, .semibold)).foregroundStyle(Ink.primary).lineLimit(1)
+                Text("Session lanes").font(.ui(.callout, .semibold)).foregroundStyle(Ink.primary).lineLimit(1)
                 Text(verbatim: "\(r.lanes.count)").font(.figure(TextSize.body.rawValue, .medium)).foregroundStyle(Ink.tertiary)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right").font(.ui(.footnote, .semibold)).foregroundStyle(Ink.tertiary)
                     .rotationEffect(.degrees(lanes ? 90 : 0))
             }
-            .statChip().frame(minWidth: 132)
+            .statChip().frame(minWidth: 116)
             .contentShape(Rectangle())
         }
         .buttonStyle(Pressable()))
@@ -205,36 +205,35 @@ struct DashboardView: View {
 
     // MARK: Cards
 
-    /// Three cards a row when wide, two when not, one on the narrowest.
+    /// Three cards a row when wide, two when not, one on the narrowest. A row is as tall as its
+    /// tallest card's content; the others stretch their charts to match. Each layout states its
+    /// ideal width, so a long name truncates instead of pushing the layout to fewer columns.
     private func cards(_ d: OverviewData) -> some View {
         ViewThatFits(in: .horizontal) {
-            VStack(spacing: Space.xl) {
-                HStack(spacing: Space.xl) { LeverageCard(data: d).frame(width: 330); RunningCard(data: d) }.frame(height: 256)
-                HStack(spacing: Space.xl) { WaitingCard(data: d); RepliesCard(data: d); AwayCard(data: d) }.frame(height: 244)
-                HStack(spacing: Space.xl) { AgentsCard(data: d).frame(width: 520); ProjectsCard(data: d) }.frame(height: 236)
-                RhythmCard(data: d).frame(height: 244)
+            VStack(spacing: Space.l) {
+                row { LeverageCard(data: d).frame(width: 330); RunningCard(data: d) }
+                row { WaitingCard(data: d); RepliesCard(data: d); AwayCard(data: d) }
+                row { AgentsCard(data: d).frame(width: 520); ProjectsCard(data: d) }
+                RhythmCard(data: d)
             }
-            .frame(minWidth: 980)
-            VStack(spacing: Space.xl) {
-                HStack(spacing: Space.xl) { LeverageCard(data: d); AwayCard(data: d) }.frame(height: 244)
-                RunningCard(data: d).frame(height: 256)
-                HStack(spacing: Space.xl) { WaitingCard(data: d); RepliesCard(data: d) }.frame(height: 244)
-                AgentsCard(data: d).frame(height: 236)
-                ProjectsCard(data: d).frame(height: 236)
-                RhythmCard(data: d).frame(height: 244)
+            .frame(minWidth: 980, idealWidth: 980)
+            VStack(spacing: Space.l) {
+                row { LeverageCard(data: d); AwayCard(data: d) }
+                RunningCard(data: d)
+                row { WaitingCard(data: d); RepliesCard(data: d) }
+                row { AgentsCard(data: d); ProjectsCard(data: d) }
+                RhythmCard(data: d)
             }
-            .frame(minWidth: 640)
-            VStack(spacing: Space.xl) {
-                LeverageCard(data: d).frame(height: 220)
-                RunningCard(data: d).frame(height: 256)
-                WaitingCard(data: d).frame(height: 244)
-                RepliesCard(data: d).frame(height: 244)
-                AwayCard(data: d).frame(height: 220)
-                AgentsCard(data: d).frame(height: 236)
-                ProjectsCard(data: d).frame(height: 236)
-                RhythmCard(data: d).frame(height: 244)
+            .frame(minWidth: 640, idealWidth: 640)
+            VStack(spacing: Space.l) {
+                LeverageCard(data: d); RunningCard(data: d); WaitingCard(data: d); RepliesCard(data: d)
+                AwayCard(data: d); AgentsCard(data: d); ProjectsCard(data: d); RhythmCard(data: d)
             }
         }
+    }
+
+    private func row(@ViewBuilder _ cards: () -> some View) -> some View {
+        HStack(alignment: .top, spacing: Space.l) { cards() }.fixedSize(horizontal: false, vertical: true)
     }
 }
 

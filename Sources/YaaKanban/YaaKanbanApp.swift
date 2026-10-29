@@ -72,7 +72,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("settings-alerts", AnyView(MainWindow(page: AppModel.settingsPage, tab: .alerts).environment(model)), NSSize(width: 1000, height: 900)),
             ("setup", AnyView(SetupGuide(live: false).environment(model)), SetupGuide.size),
             ("setup-finish", AnyView(SetupGuide(step: .finish, live: false).environment(model)), SetupGuide.size),
-            ("dashboard", AnyView(DashboardView().environment(model)), NSSize(width: 1000, height: 900)),
+            ("dashboard", AnyView(DashboardView().environment(model)), NSSize(width: 1000, height: 1500)),
+            ("dashboard-wide", AnyView(DashboardView().environment(model)), NSSize(width: 1320, height: 1200)),
             ("dashboard-week", AnyView(DashboardView(period: .week).environment(model)), NSSize(width: 1000, height: 900)),
             ("dashboard-month", AnyView(DashboardView(period: .month).environment(model)), NSSize(width: 1000, height: 900)),
         ]

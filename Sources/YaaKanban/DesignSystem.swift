@@ -25,6 +25,8 @@ enum Space {
     static let xxs: CGFloat = 2, xs: CGFloat = 4, s: CGFloat = 6, m: CGFloat = 8, l: CGFloat = 12, xl: CGFloat = 16, xxl: CGFloat = 20
     /// Margin of a window page (settings, dashboard, detail, guide).
     static let page: CGFloat = 32
+    /// Inside an Overview card; a chart bleeding to the card's edges undoes it.
+    static let widget: CGFloat = 16
 }
 
 /// Corner radii, from chips to windows. Nested shapes step down one level.
@@ -40,7 +42,7 @@ enum Radius {
     /// The floating panel.
     static let panel: CGFloat = 16
     /// Overview widgets.
-    static let widget: CGFloat = 20
+    static let widget: CGFloat = 16
     /// An icon or logo tile's corner, in proportion to its size (about 9/40, as app icons).
     static func tile(_ size: CGFloat) -> CGFloat { (size * 0.25).rounded() }
 }
@@ -453,23 +455,18 @@ struct WidgetSurface: View {
     }
 }
 
-/// One Overview card: its label row and content at one padding. `art` fills the card behind them,
-/// clipped to it. Rows give cards their height; a card fills it.
-struct Widget<Content: View, Art: View>: View {
+/// One Overview card: its label row and content at one padding, clipped to the card so a chart
+/// can bleed to its edges. A card is as tall as its content, or as the tallest beside it.
+struct Widget<Content: View>: View {
     @ViewBuilder var content: Content
-    @ViewBuilder var art: Art
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) { content }
-            .padding(Space.xxl)
+            .padding(Space.widget)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background { art.clipShape(RoundedRectangle(cornerRadius: Radius.widget, style: .continuous)) }
+            .clipShape(RoundedRectangle(cornerRadius: Radius.widget, style: .continuous))
             .background(WidgetSurface())
     }
-}
-
-extension Widget where Art == EmptyView {
-    init(@ViewBuilder content: () -> Content) { self.init(content: content, art: { EmptyView() }) }
 }
 
 /// The label row a card opens with: what it is in its hue, the context opposite in gray.
@@ -484,12 +481,12 @@ struct WidgetHead: View {
             Spacer(minLength: Space.m)
             if let context { Text(context).font(.figure(TextSize.callout.rawValue, .medium)).foregroundStyle(Ink.secondary).lineLimit(1) }
         }
-        .frame(height: 16)
+        .frame(height: 15)
     }
 }
 
 /// Figure sizes: every card's, the two accents', and a row's.
-enum FigureSize { static let card: CGFloat = 34, accent: CGFloat = 46, row: CGFloat = 15 }
+enum FigureSize { static let card: CGFloat = 28, accent: CGFloat = 38, row: CGFloat = 14 }
 
 /// A formatted figure ("9.6h", "3m 40s", "81%", "2.4×") with its digits in the primary ink and its
 /// units half as large in the card's hue, a thin space before them.
@@ -530,10 +527,10 @@ struct FigureLine: View {
                 if let change { change.font(.figure(TextSize.callout.rawValue, .medium)).lineLimit(1) }
                 if let note { Text(note).font(.ui(.callout, .medium)).foregroundStyle(Ink.secondary).lineLimit(2) }
             }
-            .padding(.bottom, 3)
+            .padding(.bottom, 2)
             Spacer(minLength: 0)
         }
-        .padding(.top, Space.m)
+        .padding(.top, Space.s)
     }
 }
 
@@ -555,12 +552,12 @@ struct StatChip: View {
     let ramp: Ramp
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: symbol).font(.ui(.callout, .semibold)).foregroundStyle(ramp.hue)
-                .frame(width: 30, height: 30).background(Circle().fill(ramp.faint))
+        HStack(spacing: Space.m) {
+            Image(systemName: symbol).font(.ui(.footnote, .semibold)).foregroundStyle(ramp.hue)
+                .frame(width: 26, height: 26).background(Circle().fill(ramp.faint))
             VStack(alignment: .leading, spacing: 0) {
-                Text(title).font(.ui(.footnote, .medium)).foregroundStyle(Ink.secondary).lineLimit(1)
-                Text(value).font(.figure(17)).foregroundStyle(Ink.primary).lineLimit(1)
+                Text(title).font(.ui(.footnote, .medium)).foregroundStyle(Ink.secondary).lineLimit(1).minimumScaleFactor(0.85)
+                Text(value).font(.figure(15)).foregroundStyle(Ink.primary).lineLimit(1)
             }
             Spacer(minLength: 0)
         }
@@ -571,7 +568,7 @@ struct StatChip: View {
 extension View {
     /// A chip's size and surface.
     func statChip() -> some View {
-        padding(.horizontal, Space.l).frame(maxWidth: .infinity).frame(height: 56).background(WidgetSurface(radius: Radius.panel))
+        padding(.horizontal, Space.m).frame(maxWidth: .infinity).frame(height: 46).background(WidgetSurface(radius: Radius.group))
     }
 }
 

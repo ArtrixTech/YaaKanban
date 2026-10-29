@@ -2,8 +2,8 @@ import SwiftUI
 import YaaCore
 
 // The Overview's cards. Each reads one `OverviewData`: one hue per card lights its label, units
-// and chart, figures stay in the primary ink. Leverage and away let their colour fill the foot of
-// the card.
+// and chart, figures stay in the primary ink. Leverage lets its colour fill the foot of the card.
+// Cards are as tall as their content; charts that can grow take the height a row gives them.
 
 /// What every card reads: the period's report, the one before over the same stretch (for the
 /// changes) and in full (for the dotted lines), and the clock.
@@ -111,21 +111,10 @@ private func series(_ values: [Double], _ edges: [Date], end: Double, now: Date?
     return [(0, first.v)] + out + [(end, last.v)]
 }
 
-/// An accent's colour fill: deep at the crest, lighter at the foot, in both appearances.
-private struct Wash {
-    let crest: Color, foot: Color, line: Color
-    static let work = Wash(crest: Color(light: NSColor(red: 0.2, green: 0.74, blue: 0.43, alpha: 1), dark: NSColor(red: 0.1, green: 0.5, blue: 0.3, alpha: 1)),
-                           foot: Color(light: NSColor(red: 0.85, green: 0.96, blue: 0.89, alpha: 1), dark: NSColor(red: 0.2, green: 0.36, blue: 0.27, alpha: 1)),
-                           line: Ramp.work.hue)
-    static let run = Wash(crest: Color(light: NSColor(red: 0.22, green: 0.55, blue: 1, alpha: 1), dark: NSColor(red: 0.12, green: 0.32, blue: 0.78, alpha: 1)),
-                          foot: Color(light: NSColor(red: 0.86, green: 0.92, blue: 1, alpha: 1), dark: NSColor(red: 0.2, green: 0.28, blue: 0.45, alpha: 1)),
-                          line: Ramp.run.hue)
-}
-
 // MARK: - Accents
 
-/// Leverage, the headline: hours of agent work per hour of yours. The period's running fills the
-/// card's foot.
+/// Leverage, the headline: hours of agent work per hour of yours. Its chart is the figure as the
+/// period went, the one before dotted behind, a colour fill under it.
 struct LeverageCard: View {
     let data: OverviewData
 
@@ -136,79 +125,170 @@ struct LeverageCard: View {
             FigureLine(figure: figure(r.leverage.map { String(format: "%.1f×", $0) } ?? "–", ramp, FigureSize.accent),
                        change: data.comparesWaits ? change(r.leverage, data.previous?.leverage, vs: data.vs) { String(format: "%.1f×", $0) } : nil,
                        note: String(localized: "Agents \(duration(r.agentTime)) ÷ you \(duration(r.activeTime))"))
-        } art: {
-            Wave(values: r.parallelBuckets, edges: r.bucketEdges, now: data.inProgress ? data.now : nil, end: data.nowAt, wash: .work)
+            LeverageCurve(data: data)
+                .frame(minHeight: 84, maxHeight: .infinity)
+                .padding(.horizontal, -Space.widget).padding(.bottom, -Space.widget).padding(.top, Space.s)
         }
     }
 }
 
-/// Running as a filled wave across the lower part of a card, the crest lit, now as the knob.
-private struct Wave: View {
-    let values: [Double]
-    let edges: [Date]
-    let now: Date?
-    let end: Double
-    let wash: Wash
+/// Leverage so far at each slice's end (agent time ÷ your time up to there), from where you had
+/// been on 5 minutes; the period before dotted, the break-even 1× as a hairline.
+private struct LeverageCurve: View {
+    let data: OverviewData
+    private let wash = Wash.work
 
     var body: some View {
+        let now = data.inProgress ? data.now : nil
+        let today = Self.points(data.report, end: data.nowAt, now: now)
+        let before = Self.points(data.previousFull, end: 1, now: nil)
         Canvas { ctx, size in
-            let line = series(values, edges, end: end, now: now)
-            guard let peak = line.map(\.v).max(), peak > 0 else { return }
-            let top = size.height * 0.42, base = size.height + 4
-            let pts = line.map { CGPoint(x: size.width * $0.x, y: base - CGFloat($0.v / (peak * 1.1)) * (base - top)) }
-            // Past now the wave settles to the foot instead of stopping in a cliff.
-            var tail = pts
-            if now != nil, let last = pts.last { tail.append(CGPoint(x: min(size.width, last.x + 24), y: base)) }
-            let crest = smooth(tail)
-            var area = crest
-            area.addLine(to: CGPoint(x: size.width, y: base + 10)); area.addLine(to: CGPoint(x: 0, y: base + 10)); area.closeSubpath()
-            ctx.fill(area, with: .linearGradient(Gradient(colors: [wash.crest, wash.foot]), startPoint: CGPoint(x: 0, y: top), endPoint: CGPoint(x: 0, y: base)))
-            glow(ctx, smooth(pts), .color(wash.line), width: 2, blur: 6)
-            if now != nil, let last = pts.last { knob(ctx, last, wash.line, r: 4.5) }
+            let all = (today + before).map(\.v).sorted()
+            guard !all.isEmpty else { return }
+            // Scaled to the 90th percentile, so the spike of a first few minutes on (agents ran
+            // overnight) runs off the top rather than flattening the rest.
+            let ceiling = max(all[Int(Double(all.count - 1) * 0.9)], 1.2) * 1.25, top: CGFloat = 10, base = size.height
+            func pt(_ p: (x: Double, v: Double)) -> CGPoint {
+                CGPoint(x: size.width * CGFloat(p.x), y: base - CGFloat(min(p.v / ceiling, 1.05)) * (base - top))
+            }
+            var pts = today.map(pt)
+            if pts.count == 1 { pts.insert(CGPoint(x: 0, y: pts[0].y), at: 0) }
+            let line = smooth(pts)
+            if let first = pts.first, let last = pts.last {
+                var area = line
+                area.addLine(to: CGPoint(x: last.x, y: base + 2)); area.addLine(to: CGPoint(x: first.x, y: base + 2)); area.closeSubpath()
+                ctx.fill(area, with: .linearGradient(Gradient(colors: [wash.crest.opacity(0.85), wash.foot.opacity(0.15)]),
+                                                     startPoint: CGPoint(x: 0, y: top), endPoint: CGPoint(x: 0, y: base)))
+            }
+            // Break-even (an hour of agent work per hour of yours) and the period before, over the fill.
+            let one = pt((0, 1)).y
+            var even = Path(); even.move(to: CGPoint(x: Space.widget, y: one)); even.addLine(to: CGPoint(x: size.width - 34, y: one))
+            ctx.stroke(even, with: .color(wash.line.opacity(0.35)), style: StrokeStyle(lineWidth: 1, lineCap: .round, dash: [0.1, 4]))
+            ctx.draw(tick("1×", Ink.tertiary), at: CGPoint(x: size.width - Space.widget, y: one), anchor: .trailing)
+            ctx.stroke(smooth(before.map(pt)), with: .color(wash.line.opacity(0.5)), style: StrokeStyle(lineWidth: 1.6, lineCap: .round, dash: [0.1, 5]))
+            guard let last = pts.last else { return }
+            glow(ctx, line, .color(wash.line), width: 2, blur: 6)
+            if now != nil { knob(ctx, last, wash.line, r: 4.5) }
         }
     }
+
+    /// (fraction along, leverage so far) at each finished slice, then at `end` while it runs.
+    static func points(_ r: ActivityReport, end: Double, now: Date?) -> [(x: Double, v: Double)] {
+        var out: [(x: Double, v: Double)] = []
+        var active = 0.0, agents = 0.0
+        let n = r.activeBuckets.count
+        for i in 0..<min(n, r.agentBuckets.count) where r.bucketEdges.indices.contains(i + 1) {
+            if let now, r.bucketEdges[i + 1] > now { break }
+            active += r.activeBuckets[i]; agents += r.agentBuckets[i]
+            if active >= 300 { out.append((Double(i + 1) / Double(n), agents / active)) }
+        }
+        if now != nil, let v = r.leverage, r.activeTime >= 300, (out.last?.x ?? 0) < end - 0.002 { out.append((end, v)) }
+        return out
+    }
+}
+
+/// An accent's colour fill: deep at the crest, lighter at the foot, in both appearances.
+private struct Wash {
+    let crest: Color, foot: Color, line: Color
+    static let work = Wash(crest: Color(light: NSColor(red: 0.2, green: 0.74, blue: 0.43, alpha: 1), dark: NSColor(red: 0.1, green: 0.5, blue: 0.3, alpha: 1)),
+                           foot: Color(light: NSColor(red: 0.85, green: 0.96, blue: 0.89, alpha: 1), dark: NSColor(red: 0.2, green: 0.36, blue: 0.27, alpha: 1)),
+                           line: Ramp.work.hue)
 }
 
 /// While you were away: the share of that time agents kept working rather than blocked on you.
-/// The card fills to that share.
+/// Each time away is a stretch along the period, lit where agents ran and red where they waited.
 struct AwayCard: View {
     let data: OverviewData
 
     var body: some View {
-        let r = data.report, ramp = Ramp.run
-        let away = r.away.reduce(0) { $0 + $1.duration }
+        let r = data.report, ramp = Ramp.run, a = Absences(r)
         let share = r.allRebuilt ? nil : r.utilizationAway
         Widget {
             WidgetHead(title: String(localized: "While you were away"), ramp: ramp,
-                       context: away >= 60 ? String(localized: "Away \(duration(away))") : nil)
+                       context: a.total >= 60 ? String(localized: "Away \(duration(a.total))") : nil)
             FigureLine(figure: figure(share.map(percent) ?? "–", ramp, FigureSize.accent),
                        note: r.allRebuilt ? String(localized: "No away time recorded here")
                            : r.away.isEmpty ? String(localized: "You were here the whole time")
                            : share == nil ? String(localized: "They stopped when you left")
                            : String(localized: "Working \(duration(r.agentTimeAway)), blocked \(duration(r.blockedAway))"))
-        } art: {
-            if let share { Rise(level: share, wash: .run) }
+            Spacer(minLength: Space.l)
+            AwayStrip(data: data, absences: a, ramp: ramp).frame(height: 40)
+            HStack(spacing: Space.l) {
+                ChartKey(text: String(localized: "Running")) { Capsule().fill(ramp.hue).frame(width: 12, height: 6) }
+                ChartKey(text: String(localized: "Waiting on you")) { Capsule().fill(Ramp.wait.hue).frame(width: 12, height: 6) }
+                ChartKey(text: String(localized: "Away")) { Capsule().fill(ramp.dim).frame(width: 12, height: 6) }
+                Spacer(minLength: 0)
+                if let longest = a.longest {
+                    Text(String(localized: "Longest \(duration(longest))")).font(.figure(TextSize.footnote.rawValue, .medium))
+                        .foregroundStyle(Ink.secondary).lineLimit(1).fixedSize()
+                }
+            }
+            .padding(.top, Space.m)
         }
     }
 }
 
-/// Fills a card below its label band to `level`, a gentle crest along the top.
-private struct Rise: View {
-    let level: Double
-    let wash: Wash
+/// The times away in a period, and within them when agents ran and when one waited on you.
+private struct Absences {
+    var stretches: [DateInterval]
+    var running: [DateInterval] = []
+    var blocked: [DateInterval] = []
+    var total: TimeInterval { stretches.reduce(0) { $0 + $1.duration } }
+    var longest: TimeInterval? { stretches.map(\.duration).max() }
+
+    init(_ r: ActivityReport) {
+        stretches = r.away
+        guard !r.away.isEmpty else { return }
+        for lane in r.lanes {
+            for s in lane.segments where s.end > s.start {
+                let span = DateInterval(start: s.start, end: s.end)
+                for a in r.away {
+                    guard let part = a.intersection(with: span), part.duration > 0 else { continue }
+                    if s.lane == .running { running.append(part) } else if s.lane == .needsInput || s.lane == .stuck { blocked.append(part) }
+                }
+            }
+        }
+    }
+}
+
+/// The period as a track: each time away a stretch on it, its running lit and its waits red, the
+/// hours under it, now as the knob.
+private struct AwayStrip: View {
+    let data: OverviewData
+    let absences: Absences
+    let ramp: Ramp
 
     var body: some View {
+        let r = data.report, edges = r.bucketEdges, now = data.inProgress ? data.now : nil
+        let ticks = axisTicks(data.period, r.range).enumerated().filter { data.period != .day || $0.offset % 2 == 0 }
+            .map { (x: slotFraction(midpoint($0.element.span), edges), label: data.period == .day ? "\($0.element.label):00" : $0.element.label) }
         Canvas { ctx, size in
-            let band: CGFloat = 104, y0 = band + (size.height - band) * CGFloat(1 - level)
-            let pts = (0...24).map { (i: Int) -> CGPoint in
-                let phase: Double = Double(i) / 24 * 2 * .pi * 1.1 + 0.8
-                return CGPoint(x: size.width * CGFloat(i) / 24, y: y0 + 4 * CGFloat(sin(phase)))
+            let h: CGFloat = 14, y = 2.0
+            func x(_ d: Date) -> CGFloat { size.width * CGFloat(slotFraction(d, edges)) }
+            func bar(_ i: DateInterval) -> CGRect { CGRect(x: x(i.start), y: y, width: max(x(i.end) - x(i.start), 3), height: h) }
+            let track = CGRect(x: 0, y: y, width: size.width, height: h)
+            ctx.fill(Path(roundedRect: track, cornerRadius: h / 2, style: .continuous), with: .color(Color.primary.opacity(0.05)))
+            var inside = ctx
+            inside.clip(to: Path(roundedRect: track, cornerRadius: h / 2, style: .continuous))
+            // Each time away, rounded, its runs and waits inside it.
+            for a in absences.stretches {
+                let shape = Path(roundedRect: bar(a), cornerRadius: 3, style: .continuous)
+                inside.fill(shape, with: .color(ramp.dim))
+                var part = inside
+                part.clip(to: shape)
+                for g in absences.running where g.intersects(a) { part.fill(Path(bar(g)), with: .color(ramp.hue)) }
+                for b in absences.blocked where b.intersects(a) { part.fill(Path(bar(b)), with: .color(Ramp.wait.hue)) }
             }
-            let crest = smooth(pts)
-            var area = crest
-            area.addLine(to: CGPoint(x: size.width, y: size.height)); area.addLine(to: CGPoint(x: 0, y: size.height)); area.closeSubpath()
-            ctx.fill(area, with: .linearGradient(Gradient(colors: [wash.crest, wash.foot]), startPoint: CGPoint(x: 0, y: y0), endPoint: CGPoint(x: 0, y: size.height)))
-            glow(ctx, crest, .color(wash.line), width: 2, blur: 6)
+            if let now { knob(ctx, CGPoint(x: x(now), y: y + h / 2), ramp.hue, r: 4) }
+            let nowAt = data.nowAt
+            for t in ticks where now == nil || abs(t.x - nowAt) * size.width > 44 {
+                let anchor: UnitPoint = t.x < 0.02 ? .bottomLeading : t.x > 0.98 ? .bottomTrailing : .bottom
+                ctx.draw(tick(t.label, Ink.tertiary), at: CGPoint(x: size.width * CGFloat(t.x), y: size.height), anchor: anchor)
+            }
+            if now != nil {
+                ctx.draw(tick(String(localized: "Now"), Ink.primary), at: CGPoint(x: size.width * CGFloat(nowAt), y: size.height),
+                         anchor: nowAt > 0.97 ? .bottomTrailing : nowAt < 0.03 ? .bottomLeading : .bottom)
+            }
         }
     }
 }
@@ -239,7 +319,7 @@ struct RunningCard: View {
                 }
                 .fixedSize().padding(.bottom, Space.s)
             }
-            RunCurve(data: data, ramp: ramp).padding(.top, 14)
+            RunCurve(data: data, ramp: ramp).frame(minHeight: 104, maxHeight: .infinity).padding(.top, Space.m)
         }
     }
 }
@@ -297,7 +377,7 @@ private struct RunCurve: View {
                 var p = Path(); p.move(to: CGPoint(x: x(s.lowerBound), y: sy)); p.addLine(to: CGPoint(x: x(s.upperBound), y: sy))
                 ctx.stroke(p, with: .color(Ink.secondary), style: StrokeStyle(lineWidth: strip, lineCap: .round))
             }
-            for t in ticks where now == nil || abs(t.x - nowAt) > 0.07 {
+            for t in ticks where now == nil || abs(t.x - nowAt) * size.width > 44 {
                 let anchor: UnitPoint = t.x < 0.02 ? .bottomLeading : t.x > 0.98 ? .bottomTrailing : .bottom
                 ctx.draw(tick(t.label, Ink.tertiary), at: CGPoint(x: x(t.x), y: size.height), anchor: anchor)
             }
@@ -360,11 +440,11 @@ struct WaitingCard: View {
             FigureLine(figure: figure(r.allRebuilt ? "–" : duration(w.total), ramp),
                        change: data.comparesWaits ? data.previous.flatMap { change(w.total, Waits($0).total, vs: data.vs, fmt: duration) } : nil,
                        note: longest.map { String(localized: "Longest \(duration($0))") })
-            HStack(alignment: .center, spacing: 18) {
-                WaitDial(data: data, waits: w.items, ramp: ramp).frame(width: 128, height: 128).padding(-Space.m)
+            HStack(alignment: .center, spacing: Space.l) {
+                WaitDial(data: data, waits: w.items, ramp: ramp).frame(width: 100, height: 100).padding(-Space.s)
                 list(w, ramp)
             }
-            .frame(maxHeight: .infinity)
+            .frame(maxHeight: .infinity).padding(.top, Space.m)
         }
     }
 
@@ -374,7 +454,7 @@ struct WaitingCard: View {
                 .font(.ui(.callout, .medium)).foregroundStyle(Ink.tertiary).frame(maxWidth: .infinity, alignment: .leading)
         } else {
             let shown = w.items.sorted { $0.duration > $1.duration }.prefix(5).sorted { $0.start < $1.start }
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: Space.xs) {
                 ForEach(Array(shown.enumerated()), id: \.offset) { _, item in
                     HStack(spacing: 7) {
                         Circle().fill(item.away ? ramp.hue : ramp.mid).frame(width: 6, height: 6)
@@ -410,7 +490,7 @@ private struct WaitDial: View {
         let range = data.report.range, marks = Self.marks(data.period, range)
         let now = data.inProgress ? data.now.timeIntervalSince(range.start) / range.duration * 2 * .pi : 2 * .pi
         Canvas { ctx, size in
-            let c = CGPoint(x: size.width / 2, y: size.height / 2), r = size.width / 2 - 14, w: CGFloat = 10
+            let c = CGPoint(x: size.width / 2, y: size.height / 2), r = size.width / 2 - 12, w: CGFloat = 8
             func ang(_ d: Date) -> Double { d.timeIntervalSince(range.start) / range.duration * 2 * .pi }
             ctx.stroke(arc(c, r, 0, now), with: .color(ramp.dim), style: StrokeStyle(lineWidth: w, lineCap: .round))
             if now < 2 * .pi {
@@ -427,14 +507,14 @@ private struct WaitDial: View {
             // Ticks inside the ring, a few named.
             for m in marks {
                 if let label = m.label {
-                    ctx.draw(tick(label, Ink.tertiary, 10), at: at(c, r - 18, m.at * 2 * .pi), anchor: .center)
+                    ctx.draw(tick(label, Ink.tertiary, 9.5), at: at(c, r - 15, m.at * 2 * .pi), anchor: .center)
                 } else {
-                    ctx.fill(disc(at(c, r - 17, m.at * 2 * .pi), 1), with: .color(ramp.dim))
+                    ctx.fill(disc(at(c, r - 14, m.at * 2 * .pi), 1), with: .color(ramp.dim))
                 }
             }
             if now < 2 * .pi { knob(ctx, at(c, r, now), ramp.hue, r: 3.6) }
         }
-        .overlay { Image(systemName: "hand.raised.fill").font(.system(size: 15, weight: .semibold)).foregroundStyle(ramp.hue) }
+        .overlay { Image(systemName: "hand.raised.fill").font(.ui(.headline, .semibold)).foregroundStyle(ramp.hue) }
     }
 
     /// Around the dial: every 2 hours of a day (four named), each day of a week (by its initial),
@@ -472,7 +552,7 @@ struct RepliesCard: View {
             FigureLine(figure: figure(r.replyMedian.map(duration) ?? "–", ramp),
                        change: data.comparesWaits ? change(r.replyMedian, data.previous?.replyMedian, vs: data.vs, fmt: duration) : nil,
                        note: quick.map { String(localized: "Median · \(percent($0)) within a minute") })
-            ReplyArc(replies: r.replies, median: r.replyMedian, ramp: ramp).padding(.top, Space.xxs)
+            ReplyArc(replies: r.replies, median: r.replyMedian, ramp: ramp).frame(minHeight: 96, maxHeight: .infinity).padding(.top, Space.xs)
         }
     }
 }
@@ -487,9 +567,9 @@ private struct ReplyArc: View {
         let q1 = sorted.isEmpty ? nil : sorted[sorted.count / 4], q3 = sorted.isEmpty ? nil : sorted[(sorted.count * 3) / 4]
         let scale: [(TimeInterval, String)] = [10, 30, 60, 120, 300].map { ($0, duration($0)) }
         Canvas { ctx, size in
-            let half = 1.08, w: CGFloat = 12
-            let r = min((size.width / 2 - 8) / CGFloat(sin(half)), (size.height - 30) / CGFloat(1 - cos(half)))
-            let c = CGPoint(x: size.width / 2, y: 26 + r)
+            let half = 1.08, w: CGFloat = 10
+            let r = min((size.width / 2 - 8) / CGFloat(sin(half)), (size.height - 26) / CGFloat(1 - cos(half)))
+            let c = CGPoint(x: size.width / 2, y: 22 + r)
             func ang(_ s: Double) -> Double { -half + 2 * half * log(min(max(s, 10), 300) / 10) / log(30) }
             ctx.stroke(arc(c, r, -half, half), with: .color(ramp.dim), style: StrokeStyle(lineWidth: w, lineCap: .round))
             if let q1, let q3 {
@@ -506,12 +586,12 @@ private struct ReplyArc: View {
             // At most 200, spread over the whole range rather than the slowest.
             let step = max(1, (sorted.count + 199) / 200)
             for (i, s) in stride(from: 0, to: sorted.count, by: step).map({ sorted[$0] }).enumerated() {
-                ctx.fill(disc(at(c, r + 13 + CGFloat(i % 2) * 5, ang(s)), 1.5), with: .color(s > 180 ? ramp.hue : ramp.mid))
+                ctx.fill(disc(at(c, r + 11 + CGFloat(i % 2) * 4, ang(s)), 1.4), with: .color(s > 180 ? ramp.hue : ramp.mid))
             }
             // The scale, inside the arc.
             for (s, l) in scale {
                 ctx.fill(disc(at(c, r, ang(s)), 1.2), with: .color(Fill.widget))
-                ctx.draw(tick(l, s == 60 ? Ink.primary : Ink.tertiary), at: at(c, r - 22, ang(s)), anchor: .center)
+                ctx.draw(tick(l, s == 60 ? Ink.primary : Ink.tertiary), at: at(c, r - 19, ang(s)), anchor: .center)
             }
             if let median { knob(ctx, at(c, r, ang(median)), ramp.hue, r: 4.2) }
         }
@@ -535,24 +615,25 @@ struct AgentsCard: View {
                            : String(localized: "\(rows.count) agents · \(duration(total))"))
             FigureLine(figure: figure(rows.first.map { percent($0.time / total) } ?? "–", ramp),
                        note: rows.first.map { String(localized: "By \($0.kind.displayName)") } ?? String(localized: "No agents ran."))
-            VStack(spacing: 10) {
+            VStack(spacing: Space.m) {
                 ForEach(Array(rows.prefix(3).enumerated()), id: \.element.kind) { k, row in
-                    HStack(spacing: Space.l) {
-                        AgentLogo(agent: row.kind, size: 14, ink: ramp.hue).frame(width: 28, height: 28).background(Circle().fill(ramp.faint))
+                    HStack(spacing: Space.m) {
+                        AgentLogo(agent: row.kind, size: 12, ink: ramp.hue).frame(width: 24, height: 24).background(Circle().fill(ramp.faint))
                         VStack(alignment: .leading, spacing: 1) {
                             Text(row.kind.displayName).font(.ui(.body, .semibold)).foregroundStyle(Ink.primary).lineLimit(1)
                             Text(verbatim: "\(percent(row.time / total)) · \(turns(row.turns))").font(.figure(TextSize.footnote.rawValue, .medium))
                                 .foregroundStyle(Ink.tertiary).lineLimit(1)
                         }
-                        .frame(width: 100, alignment: .leading)
+                        .frame(width: 96, alignment: .leading)
                         AgentSpark(values: row.slots.map { peak > 0 ? $0 / peak : 0 }, edges: r.bucketEdges,
                                    now: data.inProgress ? data.now : nil, end: data.nowAt, ramp: ramp, lead: k == 0)
-                            .frame(height: 26)
+                            .frame(height: 22)
                         figure(duration(row.time), ramp, FigureSize.row).lineLimit(1).fixedSize().frame(minWidth: 48, alignment: .trailing)
                     }
                 }
             }
-            .padding(.top, 14)
+            .frame(maxHeight: .infinity)
+            .padding(.top, Space.l)
         }
     }
 
@@ -619,9 +700,9 @@ struct ProjectsCard: View {
                        context: items.isEmpty ? nil : items.count == 1 ? String(localized: "1 project") : String(localized: "\(items.count) projects"))
             FigureLine(figure: figure(shown.first.map { percent($0.running / total) } ?? "–", ramp),
                        note: shown.first.map { String(localized: "In \($0.name)") } ?? String(localized: "No agents ran."))
-            HStack(alignment: .center, spacing: Space.xxl) {
-                Bubbles(values: shown.map(\.running), ramp: ramp).frame(width: 166)
-                VStack(alignment: .leading, spacing: Space.l) {
+            HStack(alignment: .center, spacing: Space.xl) {
+                Bubbles(values: shown.map(\.running), ramp: ramp).frame(width: 128, height: 96)
+                VStack(alignment: .leading, spacing: Space.m) {
                     ForEach(Array(shown.enumerated()), id: \.offset) { i, p in
                         HStack(alignment: .center, spacing: Space.m) {
                             Circle().fill(Bubbles.fill(i, ramp)).frame(width: 8, height: 8)
@@ -637,7 +718,7 @@ struct ProjectsCard: View {
                 }
             }
             .frame(maxHeight: .infinity)
-            .padding(.top, Space.l)
+            .padding(.top, Space.m)
         }
     }
 
@@ -727,7 +808,7 @@ struct RhythmCard: View {
                 }
                 .font(.ui(.footnote, .medium)).fixedSize().padding(.bottom, Space.s)
             }
-            WeekGrid(week: week, now: data.now, ramp: ramp).padding(.top, Space.l)
+            WeekGrid(week: week, now: data.now, ramp: ramp).frame(height: 128).padding(.top, Space.m)
         }
     }
 }
@@ -790,9 +871,9 @@ private struct WeekGrid: View {
         let totals = week.days.indices.map { duration(week.hours($0)) }
         let edges = week.report.bucketEdges
         Canvas { ctx, size in
-            let left: CGFloat = 52, right: CGFloat = 52, axis: CGFloat = 16
+            let left: CGFloat = 44, right: CGFloat = 44, axis: CGFloat = 16
             let width = size.width - left - right, pitchY = (size.height - axis) / CGFloat(max(week.days.count, 1))
-            let ch = min(pitchY - 4, 14)
+            let ch = min(pitchY - 3, 12)
             for (d, day) in week.days.enumerated() {
                 let cy = pitchY * (CGFloat(d) + 0.5)
                 let today = Calendar.current.isDateInToday(day.start)
