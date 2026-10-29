@@ -287,7 +287,14 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         // falls through it (hover lost, clicks missed). So the window takes both shapes at once and
         // the panel slides inside it, redrawn every frame.
         let from = shown
+        panelLog.notice("slide \(NSStringFromRect(from), privacy: .public) -> \(NSStringFromRect(f), privacy: .public)")
         slide = Slide(from: from, to: f, start: CACurrentMediaTime())
+        lastStep = CACurrentMediaTime()
+        // Backstop if the display link stops calling `step`.
+        let backstop = Timer(timeInterval: Self.slideDuration * 5, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.finishStaleSlide() }
+        }
+        RunLoop.main.add(backstop, forMode: .common)
         host.autoresizingMask = []
         place(window: from.union(f), panel: from)
         if link == nil {
@@ -325,8 +332,14 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         fit(size)
     }
 
+    /// When `step` last ran, to log frames that come late (the main thread held up mid-slide).
+    private var lastStep: CFTimeInterval = 0
+
     @objc private func step() {
         guard let s = slide else { return }
+        let now = CACurrentMediaTime()
+        if now - lastStep > 0.1 { panelLog.notice("slide frame \(Int((now - self.lastStep) * 1000), privacy: .public) ms late") }
+        lastStep = now
         let t = min(1, (CACurrentMediaTime() - s.start) / Self.slideDuration)
         let e = 1 - pow(1 - t, 5)  // ease out: most of the way at once, then settling
         func mix(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a + (b - a) * e }
@@ -340,6 +353,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         link = nil
         place(window: s.to, panel: s.to)
         slide = nil
+        panelLog.notice("slide done \(NSStringFromRect(s.to), privacy: .public)")
         saveFrame()
         host.frame = blur.bounds
         host.autoresizingMask = [.width, .height]
@@ -407,6 +421,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
 
     private func startPeek() {
         guard folded, !room.peek else { return }
+        panelLog.notice("peek")
         room.peek = true
         // Polled rather than hover-tracked: the window changes size under the pointer, and a
         // default-mode timer pauses while a context menu is open.
@@ -426,7 +441,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
     private func endPeek() {
         peekTimer?.invalidate()
         peekTimer = nil
-        if room.peek { room.peek = false }
+        if room.peek { panelLog.notice("peek ends"); room.peek = false }
     }
 
     /// Which side the panel sits against, if any. Only changes when a move settles, so the panel
@@ -435,7 +450,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         guard let v = usable else { return }
         let f = panel.frame, d = Self.snapDistance
         let dock: DockEdge? = abs(f.maxX - v.maxX) < d ? .right : abs(f.minX - v.minX) < d ? .left : nil
-        if room.dock != dock { room.dock = dock }
+        if room.dock != dock { panelLog.notice("dock \(String(describing: dock), privacy: .public)"); room.dock = dock }
         if dock == nil { endPeek() }
     }
 

@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(panel): put the window right when it outgrows the folded rail
+## chore(panel): log the panel's slides, peeks and docking
 
 `pending` | 2026-10-29
+
+- **Changes**: FloatingPanel.swift logs (category `panel`) each slide (from → to), its end, frames more than 100 ms late, peek / peek ends, dock changes; a `.common` timer at 5× `slideDuration` calls `finishStaleSlide()` in case the display link stops.
+- **Reason**: The wide-window-around-the-rail state recurs; f05488b only repairs it on the next resize or settled move.
+- **User feedback**: "再找找看，就是我发消息的时候触发的，1min内的样子"
+- **Process**: Disproved by /tmp probes: `RunLoop.main.perform` of a geometry change waiting for the next wake (runs within 1 ms); `setFrame(animate:)` overriding a later frame; display link dying when hidden. Sampled the app for 5 s during tool events: main thread idle, panel 28 wide throughout. Tool events (Pre/PostToolUse) alone do not change the panel frame (CGWindowList polled every 30 ms).
+- **Result**: Build, test (193) pass. Diagnostic only.
+- **Notes**: `log show --last 1h --predicate 'subsystem == "com.artrix.yaakanban" AND category == "panel"'`. A probe at /tmp/snaprace/watch polls the window frame and pointer and samples the app once if the window stays wide over 1 s.
+
+## fix(panel): put the window right when it outgrows the folded rail
+
+`f05488b` | 2026-10-29
 
 - **Changes**: FloatingPanel.swift: `reconcile()` (outside a slide, the glass must fill the window and the window must be the size the content last reported; otherwise re-place and `fit`), run on `windowDidResize` and after each `snapLater`; `finishStaleSlide()` finishes a slide still in flight 4× past `slideDuration` (from `windowDidMove` / `snapLater`, re-entry guarded); both log to `Logger(subsystem: com.artrix.yaakanban, category: panel)`.
 - **Reason**: User saw, after dragging to an edge, the folded rail's cards at the right of a full-width (300 pt) glass window.
