@@ -164,6 +164,7 @@
 "%@ hooks need approval" = "Los hooks de %@ requieren aprobación";
 "Hide floating panel" = "Ocultar panel flotante";
 "Show floating panel" = "Mostrar panel flotante";
+"Reset floating panel position" = "Restablecer posición del panel flotante";
 "Main window" = "Ventana principal";
 "Settings…" = "Ajustes…";
 "Feedback…" = "Comentarios…";

@@ -164,6 +164,7 @@
 "%@ hooks need approval" = "Hooks do %@ requerem aprovação";
 "Hide floating panel" = "Ocultar painel flutuante";
 "Show floating panel" = "Mostrar painel flutuante";
+"Reset floating panel position" = "Redefinir posição do painel flutuante";
 "Main window" = "Janela principal";
 "Settings…" = "Ajustes…";
 "Feedback…" = "Feedback…";

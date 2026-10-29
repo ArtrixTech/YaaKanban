@@ -164,6 +164,7 @@
 "%@ hooks need approval" = "%@-Hooks brauchen Freigabe";
 "Hide floating panel" = "Schwebefenster ausblenden";
 "Show floating panel" = "Schwebefenster einblenden";
+"Reset floating panel position" = "Position des Schwebefensters zurücksetzen";
 "Main window" = "Hauptfenster";
 "Settings…" = "Einstellungen …";
 "Feedback…" = "Feedback …";

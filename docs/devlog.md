@@ -1,8 +1,18 @@
 # Devlog
 
-## fix(panel): keep the floating panel no taller than its list
+## feat(panel): reset the floating panel to the right edge of the main screen
 
 `pending` | 2026-10-29
+
+- **Changes**: FloatingPanel.swift: `home(size:)` = against the right edge of `NSScreen.screens.first`'s visible frame (less `margin`), vertically centered; used for a first launch (no saved frame) instead of top right on `NSScreen.main`; `resetPosition()` moves there keeping the current size, updates room/dock, saves the frame, shows the panel if hidden. Menu row "Reset floating panel position" (9 languages). Spec line on the panel's home position.
+- **Reason**: Lost or awkwardly placed panel had no way back; new installs should start at the same place.
+- **User feedback**: "新增一个功能，重置悬浮窗位置（菜单栏选项里面要有），重置到初始化的位置。初始化的位置应该是在电脑主屏右侧中央悬浮。这个对于刚安装软件之后的初始化位置是一致的要求。"
+- **Result**: `make build`, `make test` (192), `make l10n` (405 keys, 0 problems) pass. Not checked visually.
+- **Notes**: Home is within `snapDistance` of the right edge, so it docks right: with `sidebarExpanded` off (the default) it folds into the rail, as the old top-right default also did. Reset keeps width, list height and fold. Ignored while a fold/unfold slide is in flight. After the frame is set, cards laying out grow it about the middle (`fit`, not pinned top or bottom).
+
+## fix(panel): keep the floating panel no taller than its list
+
+`833f16a` | 2026-10-29
 
 - **Changes**: Windows.swift `FloatingPanelView.shownList` = `min(listHeight, panelListHeight ?? maxList, fits)`; the height grip clamps the hand-set height to `max(minList, min(maxList, listHeight))` while dragging.
 - **Reason**: A hand-set list height (`settings.panelListHeight`) was used as is, so a short list (few sessions, a short search result) left empty space under the cards.

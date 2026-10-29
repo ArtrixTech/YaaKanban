@@ -164,6 +164,7 @@
 "%@ hooks need approval" = "%@ 的 hook 待授權";
 "Hide floating panel" = "隱藏浮動面板";
 "Show floating panel" = "顯示浮動面板";
+"Reset floating panel position" = "重設浮動面板位置";
 "Main window" = "主視窗";
 "Settings…" = "設定…";
 "Feedback…" = "意見回饋…";

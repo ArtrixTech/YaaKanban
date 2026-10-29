@@ -164,6 +164,7 @@
 "%@ hooks need approval" = "%@のフックの承認が必要です";
 "Hide floating panel" = "フローティングパネルを隠す";
 "Show floating panel" = "フローティングパネルを表示";
+"Reset floating panel position" = "フローティングパネルの位置をリセット";
 "Main window" = "メインウインドウ";
 "Settings…" = "設定…";
 "Feedback…" = "フィードバック…";

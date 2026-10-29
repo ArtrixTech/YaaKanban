@@ -107,6 +107,7 @@ struct MenuContent: View {
             Spacer().frame(height: Space.s)
             MenuRow(symbol: "rectangle.on.rectangle", title: model.settings.showPanel ? String(localized: "Hide floating panel") : String(localized: "Show floating panel"),
                     shortcut: "⌥⌘K") { panel.toggle() }
+            MenuRow(symbol: "arrow.counterclockwise", title: String(localized: "Reset floating panel position")) { done { panel.resetPosition() } }
             MenuRow(symbol: "macwindow", title: String(localized: "Main window")) { done { AppWindows.open(.main) } }
             MenuRow(symbol: "gearshape", title: String(localized: "Settings…")) { done { AppWindows.open(.settings) } }
             MenuRow(symbol: "bubble.left", title: String(localized: "Feedback…")) { done { FeedbackPrompt.present(model) } }

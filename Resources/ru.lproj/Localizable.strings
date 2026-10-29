@@ -164,6 +164,7 @@
 "%@ hooks need approval" = "Хуки %@ ждут одобрения";
 "Hide floating panel" = "Скрыть плавающую панель";
 "Show floating panel" = "Показать плавающую панель";
+"Reset floating panel position" = "Сбросить положение плавающей панели";
 "Main window" = "Главное окно";
 "Settings…" = "Настройки…";
 "Feedback…" = "Отзыв…";

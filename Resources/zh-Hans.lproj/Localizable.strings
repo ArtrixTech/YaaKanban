@@ -164,6 +164,7 @@
 "%@ hooks need approval" = "%@ 的 hook 待授权";
 "Hide floating panel" = "隐藏悬浮窗";
 "Show floating panel" = "显示悬浮窗";
+"Reset floating panel position" = "重置悬浮窗位置";
 "Main window" = "主界面";
 "Settings…" = "设置…";
 "Feedback…" = "反馈…";

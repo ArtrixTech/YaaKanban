@@ -144,9 +144,8 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
             // The cards take most of a second to lay out, the list short until then; growing back
             // keeps the top where it was instead of growing about the middle.
             room.topHeldUntil = CACurrentMediaTime() + 3
-        } else if let screen = NSScreen.main {
-            let f = screen.visibleFrame
-            panel.setFrameOrigin(NSPoint(x: f.maxX - Self.width - 16, y: f.maxY - 136))
+        } else if let f = Self.home(size: panel.frame.size) {
+            panel.setFrame(f, display: false)
         }
         room.makeKey = { [panel] in panel.makeKey() }
         updateRoom()
@@ -191,6 +190,27 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         guard let f, f.width > 0, f.height > 0,
               NSScreen.screens.contains(where: { $0.visibleFrame.intersects(f) }) else { return nil }
         return f
+    }
+
+    /// Where a new install puts the panel, and where Reset Position brings it back: against the
+    /// right edge of the main screen (the one with the menu bar), centered top to bottom. Content
+    /// laid out later grows it about that middle.
+    private static func home(size: NSSize) -> NSRect? {
+        guard let screen = NSScreen.screens.first else { return nil }
+        let v = screen.visibleFrame.insetBy(dx: margin, dy: margin)
+        let h = min(size.height, v.height)
+        return NSRect(x: v.maxX - size.width, y: (v.midY - h / 2).rounded(), width: size.width, height: h)
+    }
+
+    /// Moves the panel to `home`, showing it if hidden. Its size, fold and list height stay.
+    func resetPosition() {
+        guard slide == nil, let f = Self.home(size: panel.frame.size) else { return }
+        panel.setFrame(f, display: true)
+        panel.invalidateShadow()
+        updateRoom()
+        updateDock()
+        saveFrame()
+        if !(panel.isVisible && panel.alphaValue > 0) { setVisible(true) }
     }
 
     /// Mid-slide the window is the union of both shapes, not where the panel is.

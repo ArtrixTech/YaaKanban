@@ -164,6 +164,7 @@
 "%@ hooks need approval" = "%@ 훅 승인 필요";
 "Hide floating panel" = "플로팅 패널 가리기";
 "Show floating panel" = "플로팅 패널 보기";
+"Reset floating panel position" = "플로팅 패널 위치 재설정";
 "Main window" = "메인 윈도우";
 "Settings…" = "설정…";
 "Feedback…" = "피드백…";
