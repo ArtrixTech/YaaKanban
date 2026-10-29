@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(claude): end sessions moved to /bg jobs and drop their stray terminal
+## fix(panel): put the window right when it outgrows the folded rail
 
 `pending` | 2026-10-29
+
+- **Changes**: FloatingPanel.swift: `reconcile()` (outside a slide, the glass must fill the window and the window must be the size the content last reported; otherwise re-place and `fit`), run on `windowDidResize` and after each `snapLater`; `finishStaleSlide()` finishes a slide still in flight 4× past `slideDuration` (from `windowDidMove` / `snapLater`, re-entry guarded); both log to `Logger(subsystem: com.artrix.yaakanban, category: panel)`.
+- **Reason**: User saw, after dragging to an edge, the folded rail's cards at the right of a full-width (300 pt) glass window.
+- **User feedback**: "最近偶尔出现，窗口拉到边缘的时候，显示为超窄模式但窗体宽度仍然大。" (screenshot 19:58, 1m43s after an install launch)
+- **Process**: Root cause not reproduced. Ruled out with throwaway AppKit probes in /tmp: `setFrame(animate:)` blocks and a later direct `setFrame` wins (snap animation does not override the fold); an NSView display link pauses while ordered out or never shown and resumes on show (a hidden panel only delays a slide). Code paths for drag/snap/peek/dock traced without finding a width that `fit` misses. By then the live window was 28×991 again (CGWindowList), same process.
+- **Result**: `make build`, `make test` (193) pass. Self-healing, not a proven root-cause fix.
+- **Notes**: If it recurs: `log show --last 1h --predicate 'subsystem == "com.artrix.yaakanban" AND category == "panel"'`. "slide stalled" means the display link stopped; "off window" means the glass and window disagreed; "refitting" means something other than `fit` resized the window (or `fit` never ran for the last size).
+
+## fix(claude): end sessions moved to /bg jobs and drop their stray terminal
+
+`3f51705` | 2026-10-29
 
 - **Changes**: ClaudeSessionScanner: a session file with `parkedJobId` yields `.parked(jobId:)` instead of its stale "busy" snapshot. Reducer: `.parked` ends the session once per job (`parkedIn`), ending tools/subagents/attention. AppModel.isLive: an ended parked session leaves the boards once a session whose id starts with the job id exists. yaak hook: `CLAUDE_CODE_SESSION_KIND=bg` sends an empty TerminalContext. Test `parkedSessionEndsOnce`.
 - **Reason**: `/bg` moves the conversation into a daemon job (new session id, `kind: "bg"`), leaving the original with no Stop/SessionEnd, so silence detection called it stuck next to the job's card of the same title. The job inherits WAVETERM_*/TERM_PROGRAM of the pane that started the daemon (here a `claude attach 7c953bcf` pane), so its card jumped to an unrelated session.

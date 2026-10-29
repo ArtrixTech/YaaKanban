@@ -1,5 +1,8 @@
 import AppKit
 import SwiftUI
+import os
+
+private let panelLog = Logger(subsystem: "com.artrix.yaakanban", category: "panel")
 
 /// Borderless panel that can still take clicks without activating the app.
 private final class BoardPanel: NSPanel {
@@ -294,6 +297,34 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         }
     }
 
+    /// A slide whose frame callbacks stopped (seen once as a wide window around folded content)
+    /// is finished by hand, so the window does not stay the union of both shapes.
+    private func finishStaleSlide() {
+        // `step` moves the window, which comes back here through `windowDidMove`.
+        guard !finishing, let s = slide, CACurrentMediaTime() - s.start > Self.slideDuration * 4 else { return }
+        panelLog.notice("slide stalled; finishing it to \(NSStringFromRect(s.to), privacy: .public)")
+        finishing = true
+        defer { finishing = false }
+        step()
+    }
+    private var finishing = false
+
+    /// Outside a slide the window is exactly the panel, at the size the content last asked for.
+    /// Anything else (a resize not made by `fit`, a slide cut short) is put right and logged.
+    private func reconcile() {
+        guard slide == nil, let size = lastSize else { return }
+        let w = ceil(size.width), h = ceil(size.height)
+        if blur.frame != panel.contentView?.bounds {
+            panelLog.notice("panel \(NSStringFromRect(self.blur.frame), privacy: .public) off window \(NSStringFromRect(self.panel.frame), privacy: .public)")
+            place(window: panel.frame, panel: panel.frame)
+            host.frame = blur.bounds
+            host.autoresizingMask = [.width, .height]
+        }
+        guard abs(panel.frame.width - w) >= 1 || abs(panel.frame.height - h) >= 1 else { return }
+        panelLog.notice("window \(NSStringFromRect(self.panel.frame), privacy: .public) for content \(w, privacy: .public)x\(h, privacy: .public); refitting")
+        fit(size)
+    }
+
     @objc private func step() {
         guard let s = slide else { return }
         let t = min(1, (CACurrentMediaTime() - s.start) / Self.slideDuration)
@@ -428,10 +459,14 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         checkPeek()
     }
 
-    func windowDidResize(_ notification: Notification) { saveFrame() }
+    func windowDidResize(_ notification: Notification) {
+        saveFrame()
+        reconcile()
+    }
 
     func windowDidMove(_ notification: Notification) {
         updateRoom()
+        finishStaleSlide()
         guard slide == nil else { return }  // our own slide, not a drag
         saveFrame()
         // Snap once the drag settles.
@@ -440,6 +475,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
     }
 
     @objc private func snapLater() {
+        finishStaleSlide()
         // Still dragging (paused), or sliding open or shut: wait.
         if NSEvent.pressedMouseButtons & 1 != 0 || slide != nil {
             perform(#selector(snapLater), with: nil, afterDelay: 0.15)
@@ -447,6 +483,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         }
         snap()
         updateDock()
+        reconcile()
     }
 
     private func snap() {
