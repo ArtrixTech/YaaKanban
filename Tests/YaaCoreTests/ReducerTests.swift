@@ -311,6 +311,25 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(idle.status == .idle)
         #expect(idle.runningTools.isEmpty)
     }
+
+    /// `/bg` moves the conversation into a job session; the original gets no Stop and must not
+    /// read as stuck, and the file repeating it later must not end the session again.
+    @Test func parkedSessionEndsOnce() {
+        let s = fold([
+            claude("UserPromptSubmit", ["prompt": .string("x")]),
+            claude("PreToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("u1"),
+                                  "tool_input": .object(["command": .string("ls")])], at: 1),
+        ])
+        let park = AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0, kind: .parked(jobId: "e708264f"))
+        let parked = SessionReducer.apply(park, to: s)
+        #expect(parked.status == .ended && parked.parkedIn == "e708264f")
+        #expect(parked.runningTools.isEmpty)
+        #expect(StuckDetector.evaluate(parked, now: t0.addingTimeInterval(3600), config: StuckConfig(), isAlive: { _ in true }) == nil)
+
+        let back = fold([claude("UserPromptSubmit", ["prompt": .string("y")], at: 10)], into: parked)
+        #expect(back.status == .running)
+        #expect(SessionReducer.apply(park, to: back).status == .running)
+    }
 }
 
 @Suite struct ReviewRegressions {

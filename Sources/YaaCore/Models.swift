@@ -200,6 +200,9 @@ public struct AgentEvent: Equatable, Sendable {
         case statusSnapshot(SessionStatus)
         /// The agent's own name for the session (pi's `/name` or an auto title); nil clears it.
         case titleChanged(String?)
+        /// Claude Code moved the conversation into a background job (`/bg`), which goes on as a
+        /// session of its own; this one gets no Stop or SessionEnd.
+        case parked(jobId: String)
     }
 
     public var agent: AgentKind
@@ -302,6 +305,8 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     /// Background agents launched and not yet reported back; while any is out, a stopped turn
     /// is not finished. Optional so sessions stored before it decode.
     public var backgroundTasks: [String]?
+    /// The background job the conversation was moved into, whose session id starts with it.
+    public var parkedIn: String?
 
     public static let toolHistoryLimit = 200
 

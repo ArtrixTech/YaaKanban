@@ -60,9 +60,13 @@ func runHook(agent: AgentKind, event: String) -> Never {
     }
     // Plugins stamp `ts` (ms) when the event happened; hooks without it use now.
     let at = payload["ts"]?.number.map { Date(timeIntervalSince1970: $0 / 1000) } ?? Date()
+    // A Claude Code background job (`/bg`) runs under its daemon, whose terminal variables are
+    // those of whichever pane happened to start the daemon, not where the job is shown.
+    let terminal = env["CLAUDE_CODE_SESSION_KIND"] == "bg" ? TerminalContext()
+        : TerminalContext(environment: env, tty: pid.flatMap(ProcessUtil.tty(of:)))
     let envelope = HookEnvelope(agent: agent, event: event, receivedAt: at, agentPid: pid,
                                 cwd: FileManager.default.currentDirectoryPath,
-                                terminal: TerminalContext(environment: env, tty: pid.flatMap(ProcessUtil.tty(of:))), payload: payload,
+                                terminal: terminal, payload: payload,
                                 ancestorPids: pid.map { ProcessUtil.ancestors(of: $0) })
 
     if wantsDecision {

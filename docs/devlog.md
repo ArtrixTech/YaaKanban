@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(panel): reset the floating panel to the right edge of the main screen
+## fix(claude): end sessions moved to /bg jobs and drop their stray terminal
 
 `pending` | 2026-10-29
+
+- **Changes**: ClaudeSessionScanner: a session file with `parkedJobId` yields `.parked(jobId:)` instead of its stale "busy" snapshot. Reducer: `.parked` ends the session once per job (`parkedIn`), ending tools/subagents/attention. AppModel.isLive: an ended parked session leaves the boards once a session whose id starts with the job id exists. yaak hook: `CLAUDE_CODE_SESSION_KIND=bg` sends an empty TerminalContext. Test `parkedSessionEndsOnce`.
+- **Reason**: `/bg` moves the conversation into a daemon job (new session id, `kind: "bg"`), leaving the original with no Stop/SessionEnd, so silence detection called it stuck next to the job's card of the same title. The job inherits WAVETERM_*/TERM_PROGRAM of the pane that started the daemon (here a `claude attach 7c953bcf` pane), so its card jumped to an unrelated session.
+- **User feedback**: "看到有两个同名，且一个显示为卡住。实际上是正常的。" / "另外一个bug：图上这个，点开实际上对应的是 7c953bcf-…"
+- **Process**: Old transcript ends with `{"type":"continued-in","continuedInSessionId":…}`; `~/.claude/sessions/<pid>.json` stays `"status":"busy"` with `"parkedJobId":"e708264f"`; job session file has `"kind":"bg","jobId":"e708264f"`; job process tree: `claude daemon run` ← spawned by pid 16835 `claude attach 7c953bcf` (ttys021, Wave block 46524dca).
+- **Result**: `make test` (193) passes; installed.
+- **Notes**: Job id = session id prefix in the one sample seen; if that ever differs the parked card just lingers as ended. A bg job card now has no terminal: clicking copies context. The stored job session keeps its wrong terminal until its next hook event replaces it. Reopening a parked session in the foreground is not modelled; its next hook revives it, and repeated parked snapshots for the same job are ignored.
+
+## feat(panel): reset the floating panel to the right edge of the main screen
+
+`650a860` | 2026-10-29
 
 - **Changes**: FloatingPanel.swift: `home(size:)` = against the right edge of `NSScreen.screens.first`'s visible frame (less `margin`), vertically centered; used for a first launch (no saved frame) instead of top right on `NSScreen.main`; `resetPosition()` moves there keeping the current size, updates room/dock, saves the frame, shows the panel if hidden. Menu row "Reset floating panel position" (9 languages). Spec line on the panel's home position.
 - **Reason**: Lost or awkwardly placed panel had no way back; new installs should start at the same place.

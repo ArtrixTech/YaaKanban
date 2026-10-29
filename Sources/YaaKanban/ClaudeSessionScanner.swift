@@ -16,13 +16,18 @@ final class ClaudeSessionScanner {
                   let j = JSONValue.parse(data),
                   let sid = j["sessionId"]?.string,
                   let pid = j["pid"]?.number.map({ Int32($0) }), ProcessUtil.isAlive(pid) else { return nil }
+            let at = j["statusUpdatedAt"]?.number.map { Date(timeIntervalSince1970: $0 / 1000) } ?? Date()
+            // Parked by `/bg`: the file stays "busy" while the job carries the conversation on.
+            if let job = j["parkedJobId"]?.string, !job.isEmpty {
+                return AgentEvent(agent: .claudeCode, sessionId: sid, at: at, kind: .parked(jobId: job),
+                                  cwd: j["cwd"]?.string, agentPid: pid)
+            }
             let status: SessionStatus
             switch j["status"]?.string {
             case "busy", "shell": status = .running
             case "waiting": status = .needsInput
             default: status = .idle
             }
-            let at = j["statusUpdatedAt"]?.number.map { Date(timeIntervalSince1970: $0 / 1000) } ?? Date()
             return AgentEvent(agent: .claudeCode, sessionId: sid, at: at, kind: .statusSnapshot(status),
                               cwd: j["cwd"]?.string, agentPid: pid)
         }

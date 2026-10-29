@@ -52,6 +52,19 @@ public enum SessionReducer {
             s.peek = peek == TranscriptPeek() ? nil : peek
             return s
         }
+        // The session file says so on every scan; only the first time counts, so a session that
+        // comes back here later is not ended again.
+        if case .parked(let job) = e.kind {
+            guard s.parkedIn != job else { return s }
+            s.parkedIn = job
+            endRunningTools(&s, at: max(e.at, s.lastEventAt))
+            s.subagents.removeAll()
+            s.backgroundTasks = nil
+            s.status = .ended
+            s.unreadSince = nil
+            clearAttention(&s)
+            return s
+        }
         // An event from before the last turn ended (spooled while the app was busy or down, replayed
         // at its next start) must not reopen the finished turn.
         if let end = s.turns.last?.endedAt, e.at < end, s.status == .idle || s.status == .ended { return s }
@@ -154,7 +167,7 @@ public enum SessionReducer {
             s.backgroundTasks?.removeAll { $0 == id }
             if s.backgroundTasks?.isEmpty == true { s.backgroundTasks = nil }
 
-        case .statusSnapshot, .titleChanged:
+        case .statusSnapshot, .titleChanged, .parked:
             break
         }
         return s

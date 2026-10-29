@@ -95,6 +95,10 @@ final class AppModel {
         // new session (`/clear`, `/new`).
         case .ended:
             if s.parentId != nil || now.timeIntervalSince(s.quietSince) >= settings.idleVisibleSeconds { return false }
+            // Moved into a background job: the job's own session shows the conversation.
+            if let job = s.parkedIn, sessions.values.contains(where: {
+                $0.agent == s.agent && $0.id != s.id && $0.sessionId.hasPrefix(job)
+            }) { return false }
             // One process may host sibling sessions (OpenCode, the Codex app): only a top-level
             // session started after this one's last event (or its restore) replaced it.
             guard let pid = s.agentPid else { return true }
