@@ -2,7 +2,7 @@
 
 ## fix(main): soften the Overview card's hover light
 
-`pending` | 2026-10-31
+`0aeddb2` | 2026-10-31
 
 - **Changes**: Hover lifts the 15% base veil to 7% instead of removing it, and the hovered rim tops out at 0.6 of the core hue instead of 0.8.
 - **Reason**: The hover highlight read as too bright.
@@ -22,7 +22,7 @@
 
 ## chore(release): bump the version to 0.2.0
 
-`ecf4cb9` | 2026-10-31
+`d6e965f` | 2026-10-31
 
 - **Changes**: `Resources/Info.plist` 0.1.2 (3) → 0.2.0 (4); CHANGELOG `[Unreleased]` entries now under `[0.2.0] - 2026-10-31`.
 - **Reason**: Release the design-system work as 0.2.0.
