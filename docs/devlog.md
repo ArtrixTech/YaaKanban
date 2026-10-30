@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(main): split Overview card with leverage heat and moving light
+## feat(main): glass Overview card with morphing acid light
 
 `pending` | 2026-10-31
+
+- **Changes**: `OverviewCard` replaced by a 62 pt glass pane (55% of the 112 pt split card): only "Overview" (15 semibold) and an `arrow.up.right`, no figures; follows the appearance (no forced dark). Background: base fill (white 0.1 dark / 0.97 light), `GlassLight` (Canvas layer blurred at h×0.32, screen blend in dark; four ellipses lime/cyan/violet/pink on 17/23/29/37 s loops, each drifting ±0.14w/±0.3h and stretching rx 0.9±0.35h, ry 0.55±0.2h), a white frost veil fading to the foot, a top-left-lit gradient rim. Only `GlassLight` sits in the 30 fps `TimelineView` (paused when not key or reduce motion). Hover brightens light ×1.25 and the arrow; no selected fill. `LeverageHeat`, `HeatField`, `SeamGlow`, the help tooltip and the "Today's leverage" string (9 languages) removed.
+- **Reason**: The split card read as ugly and too busy; the user wanted only the name and a calmer, glassy look.
+- **User feedback**: "卡片高度降低到现在的55%，另外去掉一些元素，也不要再做左右分割的设计，太丑了。主要显示"概览"这俩字就行了，不在概览页面再显示杠杆数据。少一点内容。风格优化成：现代、玻璃感、科技光渐变（有一点酸感），动态效果比较柔和、光影的morphing。"
+- **Process**: Offline specimen at t=0/5/10/15/20 s, normal and hovered, light and dark (`design/history/sidebar-v4`); app snapshots dark and light.
+- **Result**: make test 202 pass; l10n 0 problems; installed.
+- **Notes**: Motion judged from stills, not watched live; hover not rendered in the app (only in the specimen). In dark mode lime over pink can mix toward olive at some moments.
+
+## feat(main): split Overview card with leverage heat and moving light
+
+`f1ae97b` | 2026-10-31
 
 - **Changes**: `OverviewCard` rebuilt after a red/black split reference: left 104 pt panel (figure + "Today's leverage") on `HeatField`, right black side with 概览, a ↑/↓ change chip vs yesterday so far (`Periods(.day).previousSoFar`, hidden without a base or at 0.0), "Agents … ÷ you …", state dots and a chart pill, `SeamGlow` bleeding the hue in. `LeverageHeat`: hue 0.6→1.0 over log2(leverage)/3 (1× blue, ~2.8× violet, 8× red), dim gray without a figure. `HeatField`: base gradient, three screen-blended radial lights on 13/19/29 s loops, a 12 s sheen, a top shade. Only the two backgrounds sit in `TimelineView(.animation(minimumInterval: 1/30, paused: reduceMotion || !key))`. `StateDiscs` removed. Card 112 pt.
 - **Reason**: v2 discs still read as ugly; user wanted a cool, moving but quiet background and leverage colored low blue → high red.

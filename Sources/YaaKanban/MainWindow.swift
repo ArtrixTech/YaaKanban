@@ -236,36 +236,44 @@ extension MainSidebar {
     }
 }
 
-/// The sidebar's way into Overview, dark in both appearances (the sidebar's one accent): today's
-/// leverage on a panel lit in its heat, and beside it what makes it up, the change since yesterday
-/// and the boards' sessions per state. The light drifts slowly while the window is key; hovered,
-/// it brightens; chosen, it stays as it is.
+/// The sidebar's way into Overview: a frosted pane with soft lights in acid hues drifting and
+/// changing shape under it, and only its name on top. The light moves while the window is key;
+/// hovered, it brightens; chosen, it stays as it is.
 private struct OverviewCard: View {
-    @Environment(AppModel.self) private var model
     @Environment(\.controlActiveState) private var active
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var scheme
     var onSelect: () -> Void
     @State private var hover = false
 
     var body: some View {
-        let _ = model.activityVersion
-        let p = Periods(.day, back: 0, now: Date(), calendar: model.settings.calendar)
-        let r = model.report(p.range, buckets: 1)
-        let prev = model.report(p.previousSoFar, buckets: 1)
-        let base = prev.lanes.isEmpty && prev.turns == 0 ? nil : prev
-        let heat = LeverageHeat(r.leverage)
+        let dark = scheme == .dark
         let shape = RoundedRectangle(cornerRadius: Radius.group, style: .continuous)
-        HStack(spacing: 0) {
-            leverage(r).frame(width: 104).frame(maxHeight: .infinity)
-                .background { moving { HeatField(heat: heat, t: $0, bright: hover) } }
-            parts(r, base).frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background { ZStack { Color(white: 0.07); moving { SeamGlow(heat: heat, t: $0) } } }
+        HStack(spacing: Space.s) {
+            Text("Overview").font(.ui(.headline, .semibold)).foregroundStyle(Ink.primary)
+            Spacer(minLength: Space.s)
+            Image(systemName: "arrow.up.right").font(.ui(.footnote, .semibold)).foregroundStyle(.primary.opacity(hover ? 0.75 : 0.45))
         }
-        .frame(height: 112)
-        .clipShape(shape)
-        .overlay { shape.strokeBorder(.white.opacity(hover ? 0.18 : 0.08), lineWidth: 1) }
-        .shadow(color: .black.opacity(0.2), radius: 8, y: 3)
-        .environment(\.colorScheme, .dark)
+        .padding(.horizontal, Space.l + Space.xxs)
+        .frame(height: 62)
+        .background {
+            ZStack {
+                shape.fill(dark ? Color(white: 0.1) : Color(white: 0.97))
+                // Only the light is redrawn at 30 fps; still when the window isn't key or motion is reduced.
+                TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion || active == .inactive)) {
+                    GlassLight(t: $0.date.timeIntervalSinceReferenceDate, bright: hover)
+                }
+                // The frost: a pale veil over the light, clearer towards the foot.
+                LinearGradient(colors: [.white.opacity(dark ? 0.1 : 0.45), .white.opacity(dark ? 0.02 : 0.15)], startPoint: .top, endPoint: .bottom)
+            }
+            .clipShape(shape)
+        }
+        // The pane's edge: lit at the top left, fading round to the foot.
+        .overlay {
+            shape.strokeBorder(LinearGradient(colors: [.white.opacity(dark ? 0.35 : 0.9), .white.opacity(dark ? 0.04 : 0.2), .white.opacity(dark ? 0.12 : 0.5)],
+                                              startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(dark ? 0.3 : 0.08), radius: 10, y: 4)
         .contentShape(shape)
         .onTapGesture(perform: onSelect)
         .accessibilityElement(children: .combine)
@@ -273,133 +281,36 @@ private struct OverviewCard: View {
         .accessibilityAction(.default, onSelect)
         .onHover { hover = $0 }
         .animation(.easeOut(duration: 0.15), value: hover)
-        .help(String(localized: "Today. Click to open Overview in the main window."))
-    }
-
-    /// A background redrawn at 30 fps (only it, not the figures over it); still when the window
-    /// isn't key or motion is reduced.
-    private func moving<V: View>(@ViewBuilder _ draw: @escaping (Double) -> V) -> some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion || active == .inactive)) { draw($0.date.timeIntervalSinceReferenceDate) }
-    }
-
-    private func leverage(_ r: ActivityReport) -> some View {
-        VStack(alignment: .leading, spacing: Space.xxs) {
-            Spacer(minLength: 0)
-            HStack(alignment: .firstTextBaseline, spacing: Space.xxs) {
-                Text(verbatim: r.leverage.map { String(format: "%.1f", $0) } ?? "–")
-                    .font(.figure(30)).tracking(-0.6).foregroundStyle(.white)
-                if r.leverage != nil {
-                    Text(verbatim: "×").font(.ui(.headline, .semibold)).foregroundStyle(.white.opacity(0.75)).baselineOffset(10)
-                }
-            }
-            .lineLimit(1).minimumScaleFactor(0.7)
-            Text("Today's leverage").font(.ui(.footnote, .medium)).foregroundStyle(.white.opacity(0.72)).lineLimit(1).minimumScaleFactor(0.8)
-        }
-        .padding(Space.l + Space.xxs)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func parts(_ r: ActivityReport, _ base: ActivityReport?) -> some View {
-        let counts = statusCounts(model.activeSessions)
-        return VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .firstTextBaseline, spacing: Space.xs) {
-                Text("Overview").font(.ui(.body, .semibold)).foregroundStyle(.white.opacity(0.92))
-                Spacer(minLength: Space.xs)
-                if let now = r.leverage, let then = base?.leverage, String(format: "%.1f", abs(now - then)) != "0.0" {
-                    Text(verbatim: (now > then ? "↑" : "↓") + String(format: "%.1f×", abs(now - then)))
-                        .font(.figure(TextSize.caption.rawValue)).foregroundStyle(.white.opacity(0.72))
-                        .padding(.horizontal, 5).padding(.vertical, Space.xxs)
-                        .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(.white.opacity(0.18)))
-                        .help(String(localized: "vs \(Period.day.previous(soFar: true))"))
-                }
-            }
-            Text(String(localized: "Agents \(duration(r.agentTime)) ÷ you \(duration(r.activeTime))"))
-                .font(.ui(.footnote, .medium)).monospacedDigit().foregroundStyle(.white.opacity(0.45))
-                .lineLimit(1).minimumScaleFactor(0.8)
-            Spacer(minLength: 0)
-            HStack(spacing: Space.m) {
-                ForEach(counts, id: \.0.rank) { st, n in
-                    HStack(spacing: 3) {
-                        Circle().fill(st.tint).frame(width: 6, height: 6)
-                        Text(verbatim: "\(n)").font(.figure(11)).foregroundStyle(.white.opacity(0.85)).contentTransition(.numericText())
-                    }
-                    .help("\(n) \(st.label)")
-                }
-                Spacer(minLength: Space.xs)
-                Image(systemName: "chart.line.uptrend.xyaxis").font(.ui(.footnote, .semibold)).foregroundStyle(.white.opacity(hover ? 1 : 0.8))
-                    .frame(width: 30, height: 20).background(Capsule().fill(.white.opacity(hover ? 0.2 : 0.12)))
-            }
-            .animation(.snappy, value: counts.map(\.1))
-        }
-        .padding(Space.l)
     }
 }
 
-/// Leverage on a cool-to-hot scale, by doublings: 1× and under blue, about 3× violet, 8× and over
-/// red. No figure yet: a dim gray.
-private struct LeverageHeat {
-    let level: Double?
-    init(_ leverage: Double?) { level = leverage.map { min(max(log2(max($0, 1)) / 3, 0), 1) } }
-    private var hue: Double { 0.6 + 0.4 * (level ?? 0) }
-    private var saturation: Double { level == nil ? 0.08 : 0.82 }
-    var deep: Color { color(0, brightness: level == nil ? 0.16 : 0.32) }
-    var main: Color { color(0, brightness: level == nil ? 0.36 : 0.86) }
-    func glow(_ shift: Double) -> Color { color(shift, saturation: saturation * 0.75, brightness: level == nil ? 0.5 : 1) }
-
-    private func color(_ shift: Double, saturation: Double? = nil, brightness: Double) -> Color {
-        Color(hue: (hue + shift + 1).truncatingRemainder(dividingBy: 1), saturation: saturation ?? self.saturation, brightness: brightness)
-    }
-}
-
-/// The leverage panel's light: deep at the top, bright at the foot, three soft lights drifting on
-/// slow, unrelated loops, and a faint sheen crossing once every 12 s.
-private struct HeatField: View {
-    let heat: LeverageHeat
+/// Four soft lights, acid lime, cyan, violet and a touch of pink, each drifting and stretching one
+/// way then the other on its own slow loop, so the pane's light keeps changing shape.
+private struct GlassLight: View {
     let t: Double
     var bright = false
-    private static let lights: [(period: Double, phase: Double, shift: Double, x: Double, y: Double)] = [
-        (13, 0, 0.04, 0.2, 0.85), (19, 2.1, -0.05, 0.85, 0.7), (29, 4.2, 0, 0.5, 1)]
+    @Environment(\.colorScheme) private var scheme
+    private static let lights: [(color: Color, x: Double, y: Double, period: Double, phase: Double)] = [
+        (Color(red: 0.72, green: 1, blue: 0.18), 0.18, 0.7, 17, 0),
+        (Color(red: 0.1, green: 0.9, blue: 1), 0.55, 0.2, 23, 1.7),
+        (Color(red: 0.55, green: 0.36, blue: 1), 0.86, 0.75, 29, 3.4),
+        (Color(red: 1, green: 0.35, blue: 0.75), 0.4, 1.1, 37, 5.1),
+    ]
 
     var body: some View {
         Canvas { ctx, size in
-            let w = size.width, h = size.height, all = Path(CGRect(origin: .zero, size: size))
-            ctx.fill(all, with: .linearGradient(Gradient(colors: [heat.deep, heat.main]), startPoint: .zero, endPoint: CGPoint(x: w * 0.3, y: h)))
+            let w = size.width, h = size.height, dark = scheme == .dark
             ctx.drawLayer { l in
-                l.blendMode = .screen
-                for (i, s) in Self.lights.enumerated() {
+                l.addFilter(.blur(radius: h * 0.32))
+                if dark { l.blendMode = .screen }
+                l.opacity = (dark ? 0.55 : 0.7) * (bright ? 1.25 : 1)
+                for s in Self.lights {
                     let a = 2 * .pi * t / s.period + s.phase
-                    let c = CGPoint(x: w * (s.x + 0.32 * sin(a)), y: h * (s.y + 0.16 * cos(a * 1.3)))
-                    let r = h * (0.62 + 0.08 * sin(a * 0.7 + Double(i)))
-                    l.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)),
-                           with: .radialGradient(Gradient(colors: [heat.glow(s.shift).opacity(bright ? 0.6 : 0.45), .clear]),
-                                                 center: c, startRadius: 0, endRadius: r))
+                    let c = CGPoint(x: w * (s.x + 0.14 * sin(a)), y: h * (s.y + 0.3 * cos(a * 1.4)))
+                    let rx = h * (0.9 + 0.35 * sin(a * 0.8)), ry = h * (0.55 + 0.2 * cos(a * 1.1))
+                    l.fill(Path(ellipseIn: CGRect(x: c.x - rx, y: c.y - ry, width: 2 * rx, height: 2 * ry)), with: .color(s.color))
                 }
             }
-            let sweep = (t / 12).truncatingRemainder(dividingBy: 1) * 3 - 1
-            ctx.drawLayer { l in
-                l.translateBy(x: w * sweep, y: 0)
-                l.rotate(by: .degrees(24))
-                l.fill(Path(CGRect(x: 0, y: -h, width: w * 0.35, height: h * 3)),
-                       with: .linearGradient(Gradient(colors: [.clear, .white.opacity(0.09), .clear]),
-                                             startPoint: .zero, endPoint: CGPoint(x: w * 0.35, y: 0)))
-            }
-            // Keeps the top deep, so the panel reads as lit from below.
-            ctx.fill(all, with: .linearGradient(Gradient(colors: [.black.opacity(0.32), .clear]), startPoint: .zero, endPoint: CGPoint(x: 0, y: h * 0.6)))
-        }
-    }
-}
-
-/// The black side: the panel's hue bleeding faintly in from the seam, breathing slowly.
-private struct SeamGlow: View {
-    let heat: LeverageHeat
-    let t: Double
-
-    var body: some View {
-        Canvas { ctx, size in
-            let c = CGPoint(x: 0, y: size.height * (0.55 + 0.1 * sin(2 * .pi * t / 17)))
-            ctx.fill(Path(CGRect(origin: .zero, size: size)),
-                     with: .radialGradient(Gradient(colors: [heat.main.opacity(0.16 + 0.05 * sin(2 * .pi * t / 9)), .clear]),
-                                           center: c, startRadius: 0, endRadius: size.height * 1.1))
         }
     }
 }
