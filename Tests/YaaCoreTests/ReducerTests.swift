@@ -19,6 +19,18 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
 }
 
 @Suite struct ClaudeFlow {
+    /// SessionEnd usually arrives after the agent exited, when its tty can no longer be read.
+    @Test func endKeepsTheTtyOfTheSameProcess() {
+        var start = claude("SessionStart")
+        start.terminal.tty = "/dev/ttys004"
+        let ended = fold([start, claude("UserPromptSubmit", ["prompt": .string("go")], at: 1), claude("SessionEnd", at: 2)])
+        #expect(ended.terminal?.tty == "/dev/ttys004")
+        // Another process (the session resumed elsewhere) does not inherit it.
+        var other = claude("SessionStart", at: 3)
+        other.agentPid = 43
+        #expect(fold([other], into: ended).terminal?.tty == nil)
+    }
+
     @Test func promptToolStop() {
         let s = fold([
             claude("SessionStart"),

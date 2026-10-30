@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(wave): resume a stopped agent in the block it ran in
+## fix(reducer): keep a session's tty when its agent exits
 
 `pending` | 2026-10-30
+
+- **Changes**: SessionReducer: an event whose terminal has no tty keeps the recorded one when it comes from the same agent pid (or names none). Test `endKeepsTheTtyOfTheSameProcess`.
+- **Reason**: In-place Wave resume needs the agent's tty, but SessionEnd usually runs after the agent exited, so `ProcessUtil.tty(of:)` finds nothing and the event's terminal replaced the recorded one. Last 2 days: 23 of 33 ended Wave sessions had no tty.
+- **User feedback**: "对于这个任务，我点击了仍然在新的terminal打开。" (artrix-reach card, session 0fc0ae34)
+- **Process**: Installed app had the eb9e687 code (WaveRPC symbols). The session had no tty; its block (8d32114f) is no longer in its tab (`wsh blocks list`, Wave DB), so this click would have fallen back regardless. Ablation: the new test fails without the reducer change.
+- **Result**: make test 200 pass.
+- **Notes**: Sessions already ended without a tty still open a new block. Another process (different pid) never inherits the tty.
+
+## feat(wave): resume a stopped agent in the block it ran in
+
+`eb9e687` | 2026-10-30
 
 - **Changes**: `YaaCore/WaveRPC.swift` (new): Wave RPC client on the socket named in the block JWT (`sock` claim): `authenticate` (route `$control`), `getrtinfo` → `shell:state`, `controllerinput` (base64 input); buffered line reader skips unrelated lines, one deadline (2 s) per connection. a reply that never comes after the request was written counts as typed (no second resume in a new block). `ProcessUtil.shellAtPrompt(tty:)`: sysctl KERN_PROC_TTY, a shell session leader whose pgid is the tty's foreground pgid. `WaveResume.typedLine`: Ctrl-E Ctrl-U + `cd <cwd> && <cmd>` + CR. `WaveAdapter.resume`: first tries `typeAtPrompt` on the session's own block (needs its recorded tty at the shell prompt, then the first runner whose token Wave accepts answers: `ready` → type, then `focusblock` after the tab press), else the old `createblock` path. Tests `WaveRPCTests` (fake Wave socket, shellAtPrompt). Spec resume line, CHANGELOG, Architecture.
 - **Reason**: Reopening opened a new block next to the old one; the user wants to continue in the original terminal.

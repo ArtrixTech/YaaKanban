@@ -71,8 +71,12 @@ public enum SessionReducer {
         s.lastEventAt = max(s.lastEventAt, e.at)
         if let v = e.cwd { s.cwd = v }
         if let v = e.transcriptPath { s.transcriptPath = v }
+        // A process keeps its tty; an event sent as it exits (SessionEnd) finds none to read.
+        if var v = e.terminal {
+            if v.tty == nil, e.agentPid == nil || e.agentPid == s.agentPid { v.tty = s.terminal?.tty }
+            s.terminal = v
+        }
         if let v = e.agentPid { s.agentPid = v }
-        if let v = e.terminal { s.terminal = v }
         s.hooked = true
 
         switch e.kind {
