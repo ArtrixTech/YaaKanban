@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(overview): explain each card and figure behind an info icon
+## feat(overview): show leverage as a bar per day against the period before
 
 `pending` | 2026-10-30
+
+- **Changes**: OverviewCards: `LeverageCurve` and `Wash` replaced by `LeverageDays` (per-day report of the week around the period, the month in the month view, plus the one before, day edges from `Periods.edges(.month, …)`; a day counts from 60 s present, same as the headline) and `LeverageBars` (bar per day, previous period's same day pale beside it, viewed day lit in the day view, future days a hollow stub, 1× hairline, values over bars in week layouts, weekday or every-7th-day labels). Card gains a key row (本周/前一周, 本月/前一月). Info text reworded in 9 tables; spec bullet "Leverage card (2026-10-30)"; CHANGELOG clause reworded.
+- **Reason**: Cumulative leverage plateaus overnight: agents run on after the user leaves (01:38–03:18 on 10-30, d6df6ca7 last), then neither part grows until 09:31, so the curve held 9.7× for six hours and read as a level being held.
+- **User feedback**: "为啥昨晚凌晨的时候杠杆一直在高位？" then "杠杆在日视图里面显示为柱状图，对比本周/上周的杠杆。累积杠杆值不应该显示为一个curve。"
+- **Process**: Recomputed from `history.sqlite` (read-only) with `sweep`'s rules per minute: today cumulative 4.53 h ÷ 28 min = 9.7× from 03:18 to 09:31; panel 4 h rolling 10–24× at 04:00–05:20 (present time sliding out of the window), nil after 05:40. Week and month views switched to bars too, for one chart form per card. Staged only these hunks over HEAD (another session has uncommitted overview work in the same files) and built and tested that tree in a separate worktree.
+- **Result**: Build, test (194), `make l10n` (0 problems) pass; installed; checked in the `dashboard` render.
+- **Notes**: The floating panel's 4-hour leverage and its sparkline are unchanged. Weeks start on the calendar's first weekday (Sunday here), as the week view does.
+
+## feat(overview): explain each card and figure behind an info icon
+
+`068f454` | 2026-10-30
 
 - **Changes**: DesignSystem: `InfoTip` (ⓘ in tertiary ink; after 250 ms of hover a popover with the title and meaning, 260 pt wide; hides on exit), `WidgetHead.info` (ⓘ beside the title), `StatChip.info` (ⓘ at the chip's trailing edge). OverviewCards: info text for the 8 cards. DashboardView: `Chip` gains `info`, text for the 10 figure chips (not the 会话明细 button). 18 strings translated into all 9 tables under `/* Overview info tips */`.
 - **Reason**: The figures' meanings (what counts as away, what leverage divides, what utilization leaves out) weren't stated anywhere in the UI.

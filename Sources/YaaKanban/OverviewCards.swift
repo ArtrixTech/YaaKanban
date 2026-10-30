@@ -2,7 +2,7 @@ import SwiftUI
 import YaaCore
 
 // The Overview's cards. Each reads one `OverviewData`: one hue per card lights its label, units
-// and chart, figures stay in the primary ink. Leverage lets its colour fill the foot of the card.
+// and chart, figures stay in the primary ink.
 // Cards are as tall as their content; charts that can grow take the height a row gives them.
 
 /// What every card reads: the period's report, the one before over the same stretch (for the
@@ -113,87 +113,125 @@ private func series(_ values: [Double], _ edges: [Date], end: Double, now: Date?
 
 // MARK: - Accents
 
-/// Leverage, the headline: hours of agent work per hour of yours. Its chart is the figure as the
-/// period went, the one before dotted behind, a colour fill under it.
+/// Leverage, the headline: hours of agent work per hour of yours. Its chart is each day's leverage
+/// across the week (the month in the month view), the same days of the one before pale behind.
 struct LeverageCard: View {
+    @Environment(AppModel.self) private var model
     let data: OverviewData
 
     var body: some View {
-        let r = data.report, ramp = Ramp.work
+        let r = data.report, ramp = Ramp.work, days = LeverageDays(data, model)
         Widget {
             WidgetHead(title: String(localized: "Leverage"), ramp: ramp,
-                       info: String(localized: "Hours of agent work per hour you were here. Agent time counts all running, away included; yours counts only while you were at the Mac and an agent was running or waiting on you. The curve is the figure as the period went, the dotted one the period before; above 1×, agents did more than you spent."), context: data.scope)
+                       info: String(localized: "Hours of agent work per hour you were here. Agent time counts all running, away included; yours counts only while you were at the Mac and an agent was running or waiting on you. Each bar is one day's leverage, the pale one behind it the same day of the period before; above 1×, agents did more than you spent."), context: data.scope)
             FigureLine(figure: figure(r.leverage.map { String(format: "%.1f×", $0) } ?? "–", ramp, FigureSize.accent),
                        change: data.comparesWaits ? change(r.leverage, data.previous?.leverage, vs: data.vs) { String(format: "%.1f×", $0) } : nil,
                        note: String(localized: "Agents \(duration(r.agentTime)) ÷ you \(duration(r.activeTime))"))
-            LeverageCurve(data: data)
+            LeverageBars(days: days, now: data.now, ramp: ramp)
                 .frame(minHeight: 84, maxHeight: .infinity)
-                .padding(.horizontal, -Space.widget).padding(.bottom, -Space.widget).padding(.top, Space.s)
+                .padding(.top, Space.s)
+            HStack(spacing: Space.l) {
+                ChartKey(text: days.label) { Capsule().fill(ramp.hue).frame(width: 12, height: 6) }
+                ChartKey(text: days.previousLabel) { Capsule().fill(ramp.dim).frame(width: 12, height: 6) }
+                Spacer(minLength: 0)
+            }
+            .padding(.top, Space.m)
         }
     }
 }
 
-/// Leverage so far at each slice's end (agent time ÷ your time up to there), from where you had
-/// been on 5 minutes; the period before dotted, the break-even 1× as a hairline.
-private struct LeverageCurve: View {
-    let data: OverviewData
-    private let wash = Wash.work
+/// Each day's leverage over the week around the period (the month, in the month view), and the
+/// same days of the one before; nil where too little was on to count, or the day is still to come.
+private struct LeverageDays {
+    var starts: [Date] = []
+    var values: [Double?] = []
+    var before: [Double?] = []
+    /// The days the period covers: one in the day view, all of them otherwise.
+    var shown: Range<Int> = 0..<0
+    var monthly = false
+    var label = "", previousLabel = ""
+
+    @MainActor init(_ data: OverviewData, _ model: AppModel, calendar cal: Calendar = .current) {
+        monthly = data.period == .month
+        let unit: Calendar.Component = monthly ? .month : .weekOfYear
+        let at = data.report.range.start
+        guard let span = cal.dateInterval(of: unit, for: at),
+              let prev = cal.date(byAdding: unit, value: -1, to: span.start).flatMap({ cal.dateInterval(of: unit, for: $0) }) else { return }
+        let current = span.contains(data.now)
+        label = monthly ? String(localized: current ? "This month" : "That month") : String(localized: current ? "This week" : "That week")
+        previousLabel = monthly ? String(localized: "Previous month") : String(localized: "Previous week")
+        func daily(_ range: DateInterval) -> (starts: [Date], values: [Double?]) {
+            let edges = Periods.edges(.month, range, cal)
+            let r = model.report(range, edges: edges)
+            let values = r.activeBuckets.indices.map { i -> Double? in
+                guard edges[i] < data.now, r.activeBuckets[i] >= 60 else { return nil }
+                return r.agentBuckets[i] / r.activeBuckets[i]
+            }
+            return (Array(edges.dropLast()), values)
+        }
+        (starts, values) = daily(span)
+        before = daily(prev).values
+        if data.period == .day, let i = starts.firstIndex(where: { cal.isDate($0, inSameDayAs: at) }) {
+            shown = i..<(i + 1)
+        } else {
+            shown = starts.indices
+        }
+    }
+}
+
+/// A bar a day, the period's days lit and the rest of the week mid; the same
+/// day of the period before pale behind each; days still to come a hollow stub. Break-even 1× as
+/// a hairline.
+private struct LeverageBars: View {
+    let days: LeverageDays
+    let now: Date
+    let ramp: Ramp
 
     var body: some View {
-        let now = data.inProgress ? data.now : nil
-        let today = Self.points(data.report, end: data.nowAt, now: now)
-        let before = Self.points(data.previousFull, end: 1, now: nil)
+        let cal = Calendar.current
+        let labels = days.starts.enumerated().map { i, d -> String? in
+            if cal.isDateInToday(d) { return String(localized: "Today") }
+            if days.monthly { return i % 7 == 0 ? d.formatted(.dateTime.day()) : nil }
+            return d.formatted(.dateTime.weekday(.abbreviated))
+        }
         Canvas { ctx, size in
-            let all = (today + before).map(\.v).sorted()
-            guard !all.isEmpty else { return }
-            // Scaled to the 90th percentile, so the spike of a first few minutes on (agents ran
-            // overnight) runs off the top rather than flattening the rest.
-            let ceiling = max(all[Int(Double(all.count - 1) * 0.9)], 1.2) * 1.25, top: CGFloat = 10, base = size.height
-            func pt(_ p: (x: Double, v: Double)) -> CGPoint {
-                CGPoint(x: size.width * CGFloat(p.x), y: base - CGFloat(min(p.v / ceiling, 1.05)) * (base - top))
+            let n = days.starts.count
+            guard n > 0 else { return }
+            let axis: CGFloat = 16, right: CGFloat = 22, top: CGFloat = days.monthly ? 4 : 16
+            let base = size.height - axis, pitch = (size.width - right) / CGFloat(n)
+            let width = min(pitch * (days.monthly ? 0.62 : 0.5), 26)
+            let ceiling = max(((days.values + days.before).compactMap { $0 }.max() ?? 0) * 1.1, 1.5)
+            func y(_ v: Double) -> CGFloat { base - CGFloat(v / ceiling) * (base - top) }
+            func bar(_ cx: CGFloat, _ w: CGFloat, _ v: Double) -> Path {
+                let rect = CGRect(x: cx - w / 2, y: y(v), width: w, height: max(base - y(v), 2))
+                return Path(roundedRect: rect, cornerRadius: min(w / 2, 4), style: .continuous)
             }
-            var pts = today.map(pt)
-            if pts.count == 1 { pts.insert(CGPoint(x: 0, y: pts[0].y), at: 0) }
-            let line = smooth(pts)
-            if let first = pts.first, let last = pts.last {
-                var area = line
-                area.addLine(to: CGPoint(x: last.x, y: base + 2)); area.addLine(to: CGPoint(x: first.x, y: base + 2)); area.closeSubpath()
-                ctx.fill(area, with: .linearGradient(Gradient(colors: [wash.crest.opacity(0.85), wash.foot.opacity(0.15)]),
-                                                     startPoint: CGPoint(x: 0, y: top), endPoint: CGPoint(x: 0, y: base)))
+            let one = y(1)
+            var even = Path(); even.move(to: CGPoint(x: 0, y: one)); even.addLine(to: CGPoint(x: size.width - right, y: one))
+            ctx.stroke(even, with: .color(ramp.mid.opacity(0.6)), style: StrokeStyle(lineWidth: 1, lineCap: .round, dash: [0.1, 4]))
+            ctx.draw(tick("1×", Ink.tertiary), at: CGPoint(x: size.width, y: one), anchor: .trailing)
+            for i in 0..<n {
+                let cx = pitch * (CGFloat(i) + 0.5), lit = days.shown.contains(i)
+                if days.before.indices.contains(i), let b = days.before[i] {
+                    ctx.fill(bar(cx + width * 0.22, width, b), with: .color(ramp.dim))
+                }
+                if let v = days.values[i] {
+                    ctx.fill(bar(cx - width * 0.22, width, v), with: .color(lit ? ramp.hue : ramp.mid))
+                    if !days.monthly {
+                        ctx.draw(tick(String(format: v < 10 ? "%.1f" : "%.0f", v), lit ? Ink.primary : Ink.tertiary),
+                                 at: CGPoint(x: cx - width * 0.22, y: y(v) - 2), anchor: .bottom)
+                    }
+                } else if days.starts[i] >= now {
+                    let stub = CGRect(x: cx - width * 0.72, y: base - 4, width: width, height: 4)
+                    ctx.stroke(Path(roundedRect: stub.insetBy(dx: 0.5, dy: 0.5), cornerRadius: 2, style: .continuous), with: .color(ramp.faint), lineWidth: 1)
+                }
+                if let label = labels[i] {
+                    ctx.draw(tick(label, lit || cal.isDateInToday(days.starts[i]) ? Ink.primary : Ink.tertiary),
+                             at: CGPoint(x: cx, y: size.height), anchor: .bottom)
+                }
             }
-            // Break-even (an hour of agent work per hour of yours) and the period before, over the fill.
-            let one = pt((0, 1)).y
-            var even = Path(); even.move(to: CGPoint(x: Space.widget, y: one)); even.addLine(to: CGPoint(x: size.width - 34, y: one))
-            ctx.stroke(even, with: .color(wash.line.opacity(0.35)), style: StrokeStyle(lineWidth: 1, lineCap: .round, dash: [0.1, 4]))
-            ctx.draw(tick("1×", Ink.tertiary), at: CGPoint(x: size.width - Space.widget, y: one), anchor: .trailing)
-            ctx.stroke(smooth(before.map(pt)), with: .color(wash.line.opacity(0.5)), style: StrokeStyle(lineWidth: 1.6, lineCap: .round, dash: [0.1, 5]))
-            guard let last = pts.last else { return }
-            glow(ctx, line, .color(wash.line), width: 2, blur: 6)
-            if now != nil { knob(ctx, last, wash.line, r: 4.5) }
         }
     }
-
-    /// (fraction along, leverage so far) at each finished slice, then at `end` while it runs.
-    static func points(_ r: ActivityReport, end: Double, now: Date?) -> [(x: Double, v: Double)] {
-        var out: [(x: Double, v: Double)] = []
-        var active = 0.0, agents = 0.0
-        let n = r.activeBuckets.count
-        for i in 0..<min(n, r.agentBuckets.count) where r.bucketEdges.indices.contains(i + 1) {
-            if let now, r.bucketEdges[i + 1] > now { break }
-            active += r.activeBuckets[i]; agents += r.agentBuckets[i]
-            if active >= 300 { out.append((Double(i + 1) / Double(n), agents / active)) }
-        }
-        if now != nil, let v = r.leverage, r.activeTime >= 300, (out.last?.x ?? 0) < end - 0.002 { out.append((end, v)) }
-        return out
-    }
-}
-
-/// An accent's colour fill: deep at the crest, lighter at the foot, in both appearances.
-private struct Wash {
-    let crest: Color, foot: Color, line: Color
-    static let work = Wash(crest: Color(light: NSColor(red: 0.2, green: 0.74, blue: 0.43, alpha: 1), dark: NSColor(red: 0.1, green: 0.5, blue: 0.3, alpha: 1)),
-                           foot: Color(light: NSColor(red: 0.85, green: 0.96, blue: 0.89, alpha: 1), dark: NSColor(red: 0.2, green: 0.36, blue: 0.27, alpha: 1)),
-                           line: Ramp.work.hue)
 }
 
 /// While you were away: the share of that time agents kept working rather than blocked on you.
