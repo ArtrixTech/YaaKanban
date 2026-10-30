@@ -164,6 +164,25 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         #expect(abs(r.rollingLeverage(window: 4)[0]! - r.leverage!) < 1e-9)
     }
 
+    @Test func rollingLeverageOverHourEdgesMatchesEachWindowsReport() {
+        // The panel's baseline: hourly slices, read 4 at a time, give each 4-hour window's leverage.
+        let rows = [lane("a", 0, .running), lane("a", 9000, nil), lane("b", 3600, .running), lane("b", 20000, .needsInput),
+                    lane("b", 22000, nil), ActivityRow(at: at(5000), session: "", kind: .away, value: 4000)]
+        let edges = (0...6).map { at(Double($0) * 3600) }
+        let r = ActivityReport.compute(rows: rows, lanesBefore: [:], range: DateInterval(start: edges[0], end: edges[6]),
+                                       now: at(30000), edges: edges)
+        let rolled = r.rollingLeverage(window: 4)
+        #expect(rolled.count == 3)
+        for (k, v) in rolled.enumerated() {
+            // What the store hands a report starting there: each session's lane before it.
+            var before: [String: Lane] = [:]
+            for row in rows where row.kind == .lane && row.at < edges[k] { before[row.session] = Lane(rawValue: row.text) }
+            let w = ActivityReport.compute(rows: rows, lanesBefore: before.compactMapValues { $0 }, range: DateInterval(start: edges[k], end: edges[k + 4]),
+                                           now: at(30000), buckets: 1)
+            #expect(abs(v! - w.leverage!) < 1e-9)
+        }
+    }
+
     @Test func blockedReviewAndInterventions() {
         // a runs 0–100, waits for review 100–160 (away 120–140 inside), then is looked at.
         // b asks 0–50, is answered and runs to 80; one turn. c asks 200–400, user away 250–500.

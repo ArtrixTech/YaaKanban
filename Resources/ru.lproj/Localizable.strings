@@ -368,8 +368,8 @@
 "No supported agents found. Install one, then reopen Settings." = "Поддерживаемые агенты не найдены. Установите агента и снова откройте настройки.";
 
 /* Ended list */
-"Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's leverage." = "Тренд множителя: каждая точка — множитель за 4 часа до этого момента, за последние %@; пунктир — сегодняшний множитель.";
-"Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "За последние 4 часа: часы агентов (включая ваше отсутствие) на час вашего присутствия. Стрелка сравнивает с сегодняшним множителем.";
+"Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's average 4-hour leverage, taken at each whole hour." = "Тренд множителя: каждая точка — множитель за 4 часа до этого момента, за последние %@; пунктир — сегодняшний средний 4-часовой множитель, взятый в начале каждого часа.";
+"Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's average 4-hour leverage, taken at each whole hour." = "За последние 4 часа: часы агентов (включая ваше отсутствие) на час вашего присутствия. Стрелка сравнивает с сегодняшним средним 4-часовым множителем, взятым в начале каждого часа.";
 "Close search" = "Закрыть поиск";
 "No matches" = "Ничего не найдено";
 "Search the last %lld days" = "Поиск за последние %lld дн.";

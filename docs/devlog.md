@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(board): keep a caller running while an agent it started still runs
+## fix(panel): compare the panel's leverage with today's usual 4 hours
 
 `pending` | 2026-10-30
+
+- **Changes**: DashboardView `RecentFigures.typicalLeverage(at:)`: one report over hourly `edges` from 4 h before the first whole hour to the current whole hour, `rollingLeverage(window: 4)`, mean of the non-nil points; it replaces `today.leverage` as the arrow's and the dashed line's baseline. Nil before 01:00. Both help texts reworded (9 tables). Test `rollingLeverageOverHourEdgesMatchesEachWindowsReport`. Spec 2026-10-30 clause; CHANGELOG Fixed line.
+- **Reason**: The hero is a 4-hour window but was compared with the leverage of the whole day so far, a different window: a quiet morning made any later stretch look up.
+- **User feedback**: "悬浮窗里面的杠杆的趋势的显示，应该是基于同样的4个小时窗口，在每一个小时下的一个平均表现来去做对比，而不是基于整天的累计窗口"
+- **Process**: Read as: baseline = mean over today's whole hours h of leverage(h−4h, h). Windows reach before midnight for the early hours. The range moves only on the hour, so the report cache keeps it (10 min refresh for a past range).
+- **Result**: Build, test (195), `make l10n` (406 keys, 0 problems) pass.
+- **Notes**: Hours with under a minute present are skipped, not counted as 0. The current, unfinished hour is not in the mean.
+
+## fix(board): keep a caller running while an agent it started still runs
+
+`1ab46c6` | 2026-10-30
 
 - **Changes**: AppModel: `workingParents` (parents of non-dismissed running sessions). `activeSessions` shows an idle parent in it as `.running` (after the existing needs-input fold); `display(_:)`, `reviewCount` and `pendingCount` (menu-bar icon) agree. Spec 2026-10-30 clause under the caller rule; CHANGELOG Fixed line.
 - **Reason**: A Claude card showed 待验收 while the `codex exec` it started (linked by `CallerLink`) was still running under it, shown with a spinner; only a child's needs input was carried up to the caller.

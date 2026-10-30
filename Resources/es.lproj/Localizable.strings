@@ -368,8 +368,8 @@
 "No supported agents found. Install one, then reopen Settings." = "No se ha encontrado ningún agente compatible. Instala uno y vuelve a abrir Ajustes.";
 
 /* Ended list */
-"Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's leverage." = "Tendencia del apalancamiento: cada punto es el apalancamiento de las 4 horas hasta ese momento, a lo largo de %@; la línea discontinua es el apalancamiento de hoy.";
-"Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "En las últimas 4 horas, horas de agente (ausencias incluidas) por hora que estuviste. La flecha lo compara con el apalancamiento de hoy.";
+"Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's average 4-hour leverage, taken at each whole hour." = "Tendencia del apalancamiento: cada punto es el apalancamiento de las 4 horas hasta ese momento, a lo largo de %@; la línea discontinua es el promedio de hoy del apalancamiento de 4 horas, tomado a cada hora en punto.";
+"Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's average 4-hour leverage, taken at each whole hour." = "En las últimas 4 horas, horas de agente (ausencias incluidas) por hora que estuviste. La flecha lo compara con el promedio de hoy del apalancamiento de 4 horas, tomado a cada hora en punto.";
 "Close search" = "Cerrar búsqueda";
 "No matches" = "Sin resultados";
 "Search the last %lld days" = "Buscar en los últimos %lld días";

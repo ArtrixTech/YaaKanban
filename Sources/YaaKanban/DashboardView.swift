@@ -466,7 +466,8 @@ struct TodayFigures: View {
 }
 
 /// The floating panel's figures: leverage over the last `window` as the hero with its trend
-/// behind, and today's agent hours. The arrow and the dashed line read against today's leverage.
+/// behind, and today's agent hours. The arrow and the dashed line read against today's usual
+/// 4 hours (`typicalLeverage`), not the day so far, so like is compared with like.
 /// The folded rail keeps only the leverage. Windows move by whole minutes so the report cache holds
 /// between redraws.
 struct RecentFigures: View {
@@ -492,9 +493,9 @@ struct RecentFigures: View {
                 .rollingLeverage(window: Self.trendStep)
             let leverage = trend.last ?? nil
             let today = model.report(DateInterval(start: Calendar.current.startOfDay(for: ctx.date), end: end), buckets: 1)
-            let baseline = today.leverage
+            let baseline = typicalLeverage(at: ctx.date)
             let arrow = Self.direction(leverage, against: baseline)
-            let help = String(localized: "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage.")
+            let help = String(localized: "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's average 4-hour leverage, taken at each whole hour.")
             Group {
                 if folded {
                     // 20 pt wide: the number alone, and an arrow for its trend instead of the chart.
@@ -531,7 +532,7 @@ struct RecentFigures: View {
                             TimeAxis(ticks: ticks)
                         }
                         .padding(.top, 6).padding(.bottom, 3)
-                        .help("Leverage trend: each point is the leverage over the 4 hours up to then, across the last \(SettingsView.duration(Self.window / 60)); the dashed line is today's leverage.")
+                        .help("Leverage trend: each point is the leverage over the 4 hours up to then, across the last \(SettingsView.duration(Self.window / 60)); the dashed line is today's average 4-hour leverage, taken at each whole hour.")
                         VStack(alignment: .trailing, spacing: 2) {
                             caption(String(localized: "Agent hours today"))
                             Text(duration(today.agentTime)).font(.figure(15))
@@ -574,7 +575,21 @@ struct RecentFigures: View {
         return f
     }()
 
-    /// Up or down when the leverage is a tenth or more above or below today's, else level.
+    /// Today's usual leverage over a `window`: the mean of the leverage over the `window` up to each
+    /// whole hour since midnight. Nil before the first hour, or with too little on to count.
+    private func typicalLeverage(at date: Date) -> Double? {
+        let hour = Calendar.current.dateInterval(of: .hour, for: date)!.start
+        let hours = Int((hour.timeIntervalSince(Calendar.current.startOfDay(for: date)) / 3600).rounded())
+        guard hours > 0 else { return nil }
+        // Hourly slices from a `window` before the first hour, so each hour's run of them is whole.
+        let w = Int(Self.window / 3600), slices = hours + w - 1
+        let edges = (0...slices).map { hour.addingTimeInterval(Double($0 - slices) * 3600) }
+        let each = model.report(DateInterval(start: edges[0], end: hour), edges: edges)
+            .rollingLeverage(window: w).compactMap { $0 }
+        return each.isEmpty ? nil : each.reduce(0, +) / Double(each.count)
+    }
+
+    /// Up or down when the leverage is a tenth or more above or below today's usual, else level.
     static func direction(_ now: Double?, against base: Double?) -> (String, Color)? {
         guard let now, let base else { return nil }
         if now > base * 1.1 { return ("arrow.up.right", Sparkline.lime) }
@@ -604,7 +619,7 @@ struct RecentFigures: View {
 }
 
 /// The leverage trend: a smooth line from 0 up, filled down to the bottom edge, with a dashed line
-/// at `baseline` (today's leverage) and the latest point marked. Gaps (too little time on to count) are bridged; leading ones
+/// at `baseline` (today's usual 4-hour leverage) and the latest point marked. Gaps (too little time on to count) are bridged; leading ones
 /// are left empty.
 struct Sparkline: View {
     let values: [Double?]
@@ -629,7 +644,7 @@ struct Sparkline: View {
                 ctx.fill(Path(CGRect(x: x - 0.25, y: 3, width: 0.5, height: size.height - 3)), with: .color(.primary.opacity(0.08)))
             }
 
-            // Today's level, which the arrow reads against.
+            // Today's usual level, which the arrow reads against.
             if let baseline {
                 var base = Path()
                 base.move(to: CGPoint(x: 0, y: y(baseline))); base.addLine(to: CGPoint(x: size.width, y: y(baseline)))
