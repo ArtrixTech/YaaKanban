@@ -354,6 +354,26 @@
 "Who did the work" = "Кто работал";
 "You here" = "Ваше присутствие";
 
+/* Overview info tips */
+"Hours of agent work per hour you were here. Agent time counts all running, away included; yours counts only while you were at the Mac and an agent was running or waiting on you. The curve is the figure as the period went, the dotted one the period before; above 1×, agents did more than you spent." = "Сколько часов работы агентов приходится на час вашего присутствия. Время агентов — вся их работа, в том числе пока вас не было; ваше — только пока вы были за Mac и агент работал или ждал вас. Кривая — значение по ходу периода, пунктир — прошлый период; выше 1× агенты сделали больше, чем вы потратили.";
+"While you were away, the share of agent time spent running rather than blocked on you (asking or stuck). Away means no mouse or keyboard input for 2 minutes, or the Mac asleep. On the track, blue is running and red is waiting on you." = "Пока вас не было: доля времени агентов, когда они работали, а не ждали вас (вопрос или зависание). Отсутствие — 2 минуты без мыши и клавиатуры или Mac в режиме сна. На полосе синий — работа, красный — ожидание вас.";
+"How many agents ran at the same time, on average while any ran, and at the peak. The dotted line is the period before; the gray strip under it is when you were at the Mac. In a month, each point is that day's agent hours." = "Сколько агентов работало одновременно: в среднем, пока работал хоть один, и в пике. Пунктир — прошлый период; серая полоса под ним — когда вы были за Mac. В месяце каждая точка — агенто-часы за тот день.";
+"Time agents sat blocked on you: asking a question, or stuck. On the dial, a bright arc is a wait while you were away, a dim one a wait while you were here; the longest are listed beside it." = "Время, когда агенты ждали вас: с вопросом или зависнув. На циферблате яркая дуга — ожидание, пока вас не было, тусклая — пока вы были на месте; самые долгие перечислены рядом.";
+"How long an agent waited for your answer once it asked, away time taken out. The figure is the median; the lit band holds the middle half of replies, and each dot is one reply." = "Сколько агент ждал вашего ответа после вопроса, без времени вашего отсутствия. Значение — медиана; светлая полоса — средняя половина ответов, каждая точка — один ответ.";
+"Each agent's share of the running time, with its turns. The line is when it ran across the period." = "Доля каждого агента во времени работы и число его ходов. Линия показывает, когда он работал за период.";
+"Agent running time by project; a circle's area is its time. Under each name, how long its sessions waited on you." = "Время работы агентов по проектам; площадь круга — его время. Под каждым названием — сколько его сеансы ждали вас.";
+"The last 7 days in half hours, brighter where more agents ran at once. Each row ends with that day's agent hours; Busiest marks the 3 hours with the most agent time." = "Последние 7 дней по получасам: чем больше агентов работало одновременно, тем ярче. В конце каждой строки — агенто-часы за день; «Пик» отмечает 3 часа с наибольшим временем агентов.";
+"While you were here, the share of agent time spent running rather than blocked on you (asking or stuck). A finished turn waiting for review counts as neither." = "Пока вы были на месте: доля времени агентов, когда они работали, а не ждали вас (вопрос или зависание). Завершённый ход, ждущий проверки, не входит ни туда, ни туда.";
+"The most agents running at the same time." = "Наибольшее число агентов, работавших одновременно.";
+"Tools the agents called in the turns that finished in the period." = "Вызовы инструментов агентами в ходах, завершённых за период.";
+"Tokens the agents reported using." = "Токены, которые агенты сообщили как израсходованные.";
+"Finished turns you opened or followed up on." = "Завершённые ходы, которые вы открыли или продолжили.";
+"Times you stepped in: prompts you sent and questions you answered." = "Сколько раз вы вмешивались: отправленные запросы и ответы на вопросы.";
+"Times you jumped to a session's terminal from the app." = "Сколько раз вы переходили из приложения в терминал сеанса.";
+"How long a finished turn waited for you to look at it, the median, away time taken out." = "Сколько завершённый ход ждал, пока вы его посмотрите, медиана, без времени вашего отсутствия.";
+"Sessions waiting on you right now: asking, stuck, or finished and not yet reviewed." = "Сеансы, которые ждут вас сейчас: с вопросом, зависшие или завершённые и ещё не проверенные.";
+"Time you were here while an agent was blocked on you (asking or stuck) and none was running." = "Время, когда вы были на месте, агент ждал вас (вопрос или зависание), а ни один не работал.";
+
 /* SessionReducer.swift, Normalizer.swift fallbacks */
 "Needs your input" = "Нужен ваш ввод";
 "No progress" = "Нет прогресса";

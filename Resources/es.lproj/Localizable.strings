@@ -354,6 +354,26 @@
 "Who did the work" = "Quién hizo el trabajo";
 "You here" = "Tu presencia";
 
+/* Overview info tips */
+"Hours of agent work per hour you were here. Agent time counts all running, away included; yours counts only while you were at the Mac and an agent was running or waiting on you. The curve is the figure as the period went, the dotted one the period before; above 1×, agents did more than you spent." = "Horas de trabajo de agente por cada hora que estuviste presente. El tiempo de agente cuenta toda la ejecución, también mientras no estabas; el tuyo, solo mientras estabas en el Mac y un agente se ejecutaba o te esperaba. La curva es la cifra a lo largo del periodo, la punteada el periodo anterior; por encima de 1×, los agentes hicieron más de lo que tú dedicaste.";
+"While you were away, the share of agent time spent running rather than blocked on you (asking or stuck). Away means no mouse or keyboard input for 2 minutes, or the Mac asleep. On the track, blue is running and red is waiting on you." = "Mientras no estabas, la parte del tiempo de agente en que se ejecutaron en vez de quedar bloqueados esperándote (preguntando o atascados). No estar significa 2 minutos sin usar el ratón ni el teclado, o el Mac en reposo. En la pista, el azul es ejecución y el rojo es espera por ti.";
+"How many agents ran at the same time, on average while any ran, and at the peak. The dotted line is the period before; the gray strip under it is when you were at the Mac. In a month, each point is that day's agent hours." = "Cuántos agentes se ejecutaron a la vez: la media mientras alguno se ejecutaba y el pico. La línea punteada es el periodo anterior; la franja gris de abajo, cuando estabas en el Mac. En un mes, cada punto son las horas de agente de ese día.";
+"Time agents sat blocked on you: asking a question, or stuck. On the dial, a bright arc is a wait while you were away, a dim one a wait while you were here; the longest are listed beside it." = "Tiempo en que los agentes estuvieron bloqueados esperándote: preguntando o atascados. En el dial, un arco brillante es una espera mientras no estabas y uno tenue una espera mientras estabas; al lado se listan las más largas.";
+"How long an agent waited for your answer once it asked, away time taken out. The figure is the median; the lit band holds the middle half of replies, and each dot is one reply." = "Cuánto esperó un agente tu respuesta tras preguntar, sin contar el tiempo que no estabas. La cifra es la mediana; la banda iluminada abarca la mitad central de las respuestas y cada punto es una respuesta.";
+"Each agent's share of the running time, with its turns. The line is when it ran across the period." = "La parte del tiempo de ejecución de cada agente, con sus turnos. La línea muestra cuándo se ejecutó a lo largo del periodo.";
+"Agent running time by project; a circle's area is its time. Under each name, how long its sessions waited on you." = "Tiempo de ejecución de los agentes por proyecto; el área de cada círculo es su tiempo. Bajo cada nombre, cuánto te esperaron sus sesiones.";
+"The last 7 days in half hours, brighter where more agents ran at once. Each row ends with that day's agent hours; Busiest marks the 3 hours with the most agent time." = "Los últimos 7 días en medias horas, más brillantes donde más agentes se ejecutaron a la vez. Cada fila termina con las horas de agente de ese día; «Pico» marca las 3 horas con más tiempo de agente.";
+"While you were here, the share of agent time spent running rather than blocked on you (asking or stuck). A finished turn waiting for review counts as neither." = "Mientras estabas, la parte del tiempo de agente en que se ejecutaron en vez de quedar bloqueados esperándote (preguntando o atascados). Un turno terminado que espera revisión no cuenta en ninguno de los dos.";
+"The most agents running at the same time." = "El máximo de agentes ejecutándose a la vez.";
+"Tools the agents called in the turns that finished in the period." = "Herramientas que llamaron los agentes en los turnos terminados en el periodo.";
+"Tokens the agents reported using." = "Tokens que los agentes informaron haber usado.";
+"Finished turns you opened or followed up on." = "Turnos terminados que abriste o continuaste.";
+"Times you stepped in: prompts you sent and questions you answered." = "Veces que interviniste: prompts que enviaste y preguntas que respondiste.";
+"Times you jumped to a session's terminal from the app." = "Veces que saltaste desde la app a la terminal de una sesión.";
+"How long a finished turn waited for you to look at it, the median, away time taken out." = "Cuánto esperó un turno terminado a que lo miraras, la mediana, sin contar el tiempo que no estabas.";
+"Sessions waiting on you right now: asking, stuck, or finished and not yet reviewed." = "Sesiones que te esperan ahora: preguntando, atascadas o terminadas sin revisar.";
+"Time you were here while an agent was blocked on you (asking or stuck) and none was running." = "Tiempo en que estabas presente mientras un agente te esperaba bloqueado (preguntando o atascado) y ninguno se ejecutaba.";
+
 /* SessionReducer.swift, Normalizer.swift fallbacks */
 "Needs your input" = "Necesita tu respuesta";
 "No progress" = "Sin avances";

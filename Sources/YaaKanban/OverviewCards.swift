@@ -121,7 +121,8 @@ struct LeverageCard: View {
     var body: some View {
         let r = data.report, ramp = Ramp.work
         Widget {
-            WidgetHead(title: String(localized: "Leverage"), ramp: ramp, context: data.scope)
+            WidgetHead(title: String(localized: "Leverage"), ramp: ramp,
+                       info: String(localized: "Hours of agent work per hour you were here. Agent time counts all running, away included; yours counts only while you were at the Mac and an agent was running or waiting on you. The curve is the figure as the period went, the dotted one the period before; above 1×, agents did more than you spent."), context: data.scope)
             FigureLine(figure: figure(r.leverage.map { String(format: "%.1f×", $0) } ?? "–", ramp, FigureSize.accent),
                        change: data.comparesWaits ? change(r.leverage, data.previous?.leverage, vs: data.vs) { String(format: "%.1f×", $0) } : nil,
                        note: String(localized: "Agents \(duration(r.agentTime)) ÷ you \(duration(r.activeTime))"))
@@ -205,6 +206,7 @@ struct AwayCard: View {
         let share = r.allRebuilt ? nil : r.utilizationAway
         Widget {
             WidgetHead(title: String(localized: "While you were away"), ramp: ramp,
+                       info: String(localized: "While you were away, the share of agent time spent running rather than blocked on you (asking or stuck). Away means no mouse or keyboard input for 2 minutes, or the Mac asleep. On the track, blue is running and red is waiting on you."),
                        context: a.total >= 60 ? String(localized: "Away \(duration(a.total))") : nil)
             FigureLine(figure: figure(share.map(percent) ?? "–", ramp, FigureSize.accent),
                        note: r.allRebuilt ? String(localized: "No away time recorded here")
@@ -305,6 +307,7 @@ struct RunningCard: View {
         let r = data.report, ramp = Ramp.run
         Widget {
             WidgetHead(title: String(localized: "Running at once"), ramp: ramp,
+                       info: String(localized: "How many agents ran at the same time, on average while any ran, and at the peak. The dotted line is the period before; the gray strip under it is when you were at the Mac. In a month, each point is that day's agent hours."),
                        context: data.inProgress && data.period == .day ? String(localized: "Now \(model.runningCount)") : nil)
             HStack(alignment: .lastTextBaseline) {
                 FigureLine(figure: figure(one(r.parallelAverage), ramp),
@@ -436,6 +439,7 @@ struct WaitingCard: View {
         let longest = w.items.map(\.duration).max()
         Widget {
             WidgetHead(title: String(localized: "Waiting on you"), ramp: ramp,
+                       info: String(localized: "Time agents sat blocked on you: asking a question, or stuck. On the dial, a bright arc is a wait while you were away, a dim one a wait while you were here; the longest are listed beside it."),
                        context: r.allRebuilt ? nil : w.items.count == 1 ? String(localized: "1 time") : String(localized: "\(w.items.count) times"))
             FigureLine(figure: figure(r.allRebuilt ? "–" : duration(w.total), ramp),
                        change: data.comparesWaits ? data.previous.flatMap { change(w.total, Waits($0).total, vs: data.vs, fmt: duration) } : nil,
@@ -548,6 +552,7 @@ struct RepliesCard: View {
         let quick = r.replies.isEmpty ? nil : Double(r.replies.filter { $0 < 60 }.count) / Double(r.replies.count)
         Widget {
             WidgetHead(title: String(localized: "Reply time"), ramp: ramp,
+                       info: String(localized: "How long an agent waited for your answer once it asked, away time taken out. The figure is the median; the lit band holds the middle half of replies, and each dot is one reply."),
                        context: r.replies.isEmpty ? nil : r.replies.count == 1 ? String(localized: "1 reply") : String(localized: "\(r.replies.count) replies"))
             FigureLine(figure: figure(r.replyMedian.map(duration) ?? "–", ramp),
                        change: data.comparesWaits ? change(r.replyMedian, data.previous?.replyMedian, vs: data.vs, fmt: duration) : nil,
@@ -611,6 +616,7 @@ struct AgentsCard: View {
         let peak = rows.flatMap(\.slots).max() ?? 0
         Widget {
             WidgetHead(title: String(localized: "Who did the work"), ramp: ramp,
+                       info: String(localized: "Each agent's share of the running time, with its turns. The line is when it ran across the period."),
                        context: rows.isEmpty ? nil : rows.count == 1 ? String(localized: "1 agent · \(duration(total))")
                            : String(localized: "\(rows.count) agents · \(duration(total))"))
             FigureLine(figure: figure(rows.first.map { percent($0.time / total) } ?? "–", ramp),
@@ -697,6 +703,7 @@ struct ProjectsCard: View {
         let shown = Array(items.prefix(3))
         Widget {
             WidgetHead(title: String(localized: "Where the work went"), ramp: ramp,
+                       info: String(localized: "Agent running time by project; a circle's area is its time. Under each name, how long its sessions waited on you."),
                        context: items.isEmpty ? nil : items.count == 1 ? String(localized: "1 project") : String(localized: "\(items.count) projects"))
             FigureLine(figure: figure(shown.first.map { percent($0.running / total) } ?? "–", ramp),
                        note: shown.first.map { String(localized: "In \($0.name)") } ?? String(localized: "No agents ran."))
@@ -796,6 +803,7 @@ struct RhythmCard: View {
         let ramp = Ramp.run, week = Week(data, model)
         Widget {
             WidgetHead(title: String(localized: "7-day rhythm"), ramp: ramp,
+                       info: String(localized: "The last 7 days in half hours, brighter where more agents ran at once. Each row ends with that day's agent hours; Busiest marks the 3 hours with the most agent time."),
                        context: week.busiest.map { String(localized: "Busiest \($0)") })
             HStack(alignment: .lastTextBaseline) {
                 FigureLine(figure: figure(duration(week.report.agentTime), ramp), note: String(localized: "Agent hours over 7 days"))

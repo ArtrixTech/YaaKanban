@@ -1,8 +1,19 @@
 # Devlog
 
-## refactor(overview): tighten the cards and fill their empty space
+## feat(overview): explain each card and figure behind an info icon
 
 `pending` | 2026-10-30
+
+- **Changes**: DesignSystem: `InfoTip` (ⓘ in tertiary ink; after 250 ms of hover a popover with the title and meaning, 260 pt wide; hides on exit), `WidgetHead.info` (ⓘ beside the title), `StatChip.info` (ⓘ at the chip's trailing edge). OverviewCards: info text for the 8 cards. DashboardView: `Chip` gains `info`, text for the 10 figure chips (not the 会话明细 button). 18 strings translated into all 9 tables under `/* Overview info tips */`.
+- **Reason**: The figures' meanings (what counts as away, what leverage divides, what utilization leaves out) weren't stated anywhere in the UI.
+- **User feedback**: "每个卡片找个地方加info icon，hover显示指标意义"
+- **Process**: Texts written from the definitions in `ActivityReport` (leverage = agentTime ÷ activeTime; utilization = running ÷ (running + needsInput/stuck), review excluded; bottleneck; pickups; replies minus away), `AppModel.awayAfter` = 120 s, `Backlog` (any non-running lane), `.focus` rows from `jump`. A popover rather than `.help`: it renders in its own window so the card's clip can't cut it, and shows sooner than the system tooltip.
+- **Result**: Build, test (194), `make l10n` (423 keys, 0 problems) pass; installed. Icon placement checked in the `dashboard` and `dashboard-wide` renders; the hover popover itself can't be rendered by `yaak snapshot` and was not exercised.
+- **Notes**: The top-bar totals (会话/轮次/Agent 总工时/你在场) have no ⓘ.
+
+## refactor(overview): tighten the cards and fill their empty space
+
+`c74e730` | 2026-10-30
 
 - **Changes**: DesignSystem: `Space.widget` 16 (card padding), `Radius.widget` 20→16, `Widget` drops its unused `art` (content clipped to the card so charts bleed), `FigureSize` 34/46/15→28/38/14, tighter `FigureLine`, `StatChip` 46 pt high (title shrinks to 0.85 before truncating). OverviewCards: `LeverageCurve` (agent ÷ active time accumulated per slice from 5 min active, scaled to the 90th percentile and clamped, previous period dotted, 1× hairline over the fill); `AwayCard` → `Absences` + `AwayStrip` (away stretches, running/blocked parts clipped inside, blocked drawn last) with a key row and longest stretch; `Wave`/`Rise`/`Wash.run` removed; smaller dial, arc, rows and bubbles; tick labels skip within 44 pt of Now. DashboardView: `row {}` = top-aligned HStack + `fixedSize(vertical)`, new pairings for 3/2/1 columns, each layout with an `idealWidth` so a long name can't drop it to fewer columns. MainWindow: smaller sidebar cards. Snapshots `dashboard` 1000×1500 and `dashboard-wide` 1320×1200.
 - **Reason**: The v9 cards in the app had large blank areas: fixed-height rows and art-only accents.

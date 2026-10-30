@@ -354,6 +354,26 @@
 "Who did the work" = "誰在做事";
 "You here" = "你在場";
 
+/* Overview info tips */
+"Hours of agent work per hour you were here. Agent time counts all running, away included; yours counts only while you were at the Mac and an agent was running or waiting on you. The curve is the figure as the period went, the dotted one the period before; above 1×, agents did more than you spent." = "你在場的每小時裡，Agent 做了幾小時的工作。Agent 時間算上所有執行，包括你離開時；你的時間只算你在電腦前、且有 Agent 在執行或等你的時候。曲線是這個數字隨時間的變化，虛線是上一週期；高於 1× 即 Agent 做的比你花的多。";
+"While you were away, the share of agent time spent running rather than blocked on you (asking or stuck). Away means no mouse or keyboard input for 2 minutes, or the Mac asleep. On the track, blue is running and red is waiting on you." = "你離開期間，Agent 時間裡真正在執行、而不是卡在等你（提問或卡住）的比例。離開指 2 分鐘沒有滑鼠鍵盤操作，或 Mac 睡眠。時間軸上藍色是執行，紅色是等你。";
+"How many agents ran at the same time, on average while any ran, and at the peak. The dotted line is the period before; the gray strip under it is when you were at the Mac. In a month, each point is that day's agent hours." = "同一時間有幾個 Agent 在執行：有 Agent 執行時的平均值，以及峰值。虛線是上一週期，下方灰條是你在電腦前的時段。月檢視中每個點是當天的 Agent 總工時。";
+"Time agents sat blocked on you: asking a question, or stuck. On the dial, a bright arc is a wait while you were away, a dim one a wait while you were here; the longest are listed beside it." = "Agent 卡在等你的時間：在提問，或卡住了。錶盤上亮的弧是你離開時的等待，暗的是你在場時的等待；旁邊列出最長的幾次。";
+"How long an agent waited for your answer once it asked, away time taken out. The figure is the median; the lit band holds the middle half of replies, and each dot is one reply." = "Agent 提問後等你回答的時長，已扣除你離開的時間。數字是中位數；亮的區段是中間一半的回覆，每個點是一次回覆。";
+"Each agent's share of the running time, with its turns. The line is when it ran across the period." = "每個 Agent 佔總執行時間的比例和輪數。折線是它在這段時間裡何時在執行。";
+"Agent running time by project; a circle's area is its time. Under each name, how long its sessions waited on you." = "依專案統計的 Agent 執行時間，圓的面積代表時長。專案名稱下方是它的工作階段等你的時長。";
+"The last 7 days in half hours, brighter where more agents ran at once. Each row ends with that day's agent hours; Busiest marks the 3 hours with the most agent time." = "最近 7 天，每格半小時，同時執行的 Agent 越多越亮。每列末尾是當天的 Agent 總工時；「最忙」是 Agent 時間最多的 3 小時。";
+"While you were here, the share of agent time spent running rather than blocked on you (asking or stuck). A finished turn waiting for review counts as neither." = "你在場時，Agent 時間裡真正在執行、而不是卡在等你（提問或卡住）的比例。跑完等你驗收的不算在內。";
+"The most agents running at the same time." = "同一時間執行的 Agent 最多有幾個。";
+"Tools the agents called in the turns that finished in the period." = "這段時間內完成的輪次裡，Agent 呼叫工具的次數。";
+"Tokens the agents reported using." = "Agent 回報的 Token 用量。";
+"Finished turns you opened or followed up on." = "你開啟或跟進過的已完成輪次。";
+"Times you stepped in: prompts you sent and questions you answered." = "你介入的次數：送出的提示和回答的問題。";
+"Times you jumped to a session's terminal from the app." = "你從本 App 跳到工作階段終端機的次數。";
+"How long a finished turn waited for you to look at it, the median, away time taken out." = "輪次完成後等你去看的時長，取中位數，已扣除你離開的時間。";
+"Sessions waiting on you right now: asking, stuck, or finished and not yet reviewed." = "此刻在等你的工作階段：在提問、卡住，或已完成未驗收。";
+"Time you were here while an agent was blocked on you (asking or stuck) and none was running." = "你在場、有 Agent 卡在等你（提問或卡住）且沒有 Agent 在執行的時間。";
+
 /* SessionReducer.swift, Normalizer.swift fallbacks */
 "Needs your input" = "需要你的輸入";
 "No progress" = "沒有進展";

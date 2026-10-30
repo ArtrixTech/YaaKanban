@@ -469,19 +469,60 @@ struct Widget<Content: View>: View {
     }
 }
 
-/// The label row a card opens with: what it is in its hue, the context opposite in gray.
+/// The label row a card opens with: what it is in its hue, what it means behind the ⓘ, the context
+/// opposite in gray.
 struct WidgetHead: View {
     let title: String
     let ramp: Ramp
+    var info: String?
     var context: String?
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(title).font(.ui(.body, .semibold)).foregroundStyle(ramp.hue).lineLimit(1)
+            HStack(spacing: Space.xs) {
+                Text(title).font(.ui(.body, .semibold)).foregroundStyle(ramp.hue).lineLimit(1)
+                if let info { InfoTip(title: title, text: info) }
+            }
             Spacer(minLength: Space.m)
             if let context { Text(context).font(.figure(TextSize.callout.rawValue, .medium)).foregroundStyle(Ink.secondary).lineLimit(1) }
         }
         .frame(height: 15)
+    }
+}
+
+/// A quiet ⓘ that, hovered a moment, shows what a figure means in a popover (its own window, so a
+/// card's clip doesn't cut it).
+struct InfoTip: View {
+    let title: String
+    let text: String
+    @State private var hovering = false
+    @State private var shown = false
+    @State private var pending: Task<Void, Never>?
+
+    var body: some View {
+        Image(systemName: "info.circle").font(.system(size: 11, weight: .medium))
+            .foregroundStyle(hovering || shown ? Ink.secondary : Ink.tertiary)
+            .contentShape(Rectangle().inset(by: -3))
+            .onHover { inside in
+                hovering = inside
+                pending?.cancel()
+                if inside {
+                    pending = Task {
+                        try? await Task.sleep(for: .milliseconds(250))
+                        if !Task.isCancelled { shown = true }
+                    }
+                } else {
+                    shown = false
+                }
+            }
+            .popover(isPresented: $shown, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    Text(title).font(.ui(.callout, .semibold)).foregroundStyle(Ink.primary)
+                    Text(text).font(.ui(.callout)).foregroundStyle(Ink.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(width: 260, alignment: .leading)
+                .padding(Space.l)
+            }
     }
 }
 
@@ -544,12 +585,14 @@ struct ChartKey<Swatch: View>: View {
     }
 }
 
-/// A small Overview card with one count: a glyph in its hue, the word, the figure.
+/// A small Overview card with one count: a glyph in its hue, the word, the figure, what it means
+/// behind the ⓘ at the end.
 struct StatChip: View {
     let symbol: String
     let title: String
     let value: String
     let ramp: Ramp
+    var info: String?
 
     var body: some View {
         HStack(spacing: Space.m) {
@@ -560,6 +603,7 @@ struct StatChip: View {
                 Text(value).font(.figure(15)).foregroundStyle(Ink.primary).lineLimit(1)
             }
             Spacer(minLength: 0)
+            if let info { InfoTip(title: title, text: info) }
         }
         .statChip()
     }

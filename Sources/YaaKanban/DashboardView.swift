@@ -156,29 +156,39 @@ struct DashboardView: View {
 
     // MARK: Chips
 
-    private typealias Chip = (symbol: String, title: String, value: String, ramp: Ramp)
+    private typealias Chip = (symbol: String, title: String, value: String, ramp: Ramp, info: String)
 
     /// How the agents ran and what they produced.
     private func counts(_ r: ActivityReport) -> [Chip] {
-        [("gauge.with.needle", String(localized: "Agent utilization"), r.utilization.map(percent) ?? "–", .run),
-         ("square.stack.3d.up.fill", String(localized: "Peak at once"), "\(r.parallelPeak)", .run),
-         ("hammer.fill", String(localized: "Tool calls"), r.toolCalls.formatted(), .work),
-         ("number", String(localized: "Tokens"), r.allRebuilt ? "–" : compactCount(r.tokens), .work),
-         ("checkmark.seal.fill", String(localized: "Reviewed"), "\(r.pickups.count)", .work)]
+        [("gauge.with.needle", String(localized: "Agent utilization"), r.utilization.map(percent) ?? "–", .run,
+         String(localized: "While you were here, the share of agent time spent running rather than blocked on you (asking or stuck). A finished turn waiting for review counts as neither.")),
+         ("square.stack.3d.up.fill", String(localized: "Peak at once"), "\(r.parallelPeak)", .run,
+         String(localized: "The most agents running at the same time.")),
+         ("hammer.fill", String(localized: "Tool calls"), r.toolCalls.formatted(), .work,
+         String(localized: "Tools the agents called in the turns that finished in the period.")),
+         ("number", String(localized: "Tokens"), r.allRebuilt ? "–" : compactCount(r.tokens), .work,
+         String(localized: "Tokens the agents reported using.")),
+         ("checkmark.seal.fill", String(localized: "Reviewed"), "\(r.pickups.count)", .work,
+         String(localized: "Finished turns you opened or followed up on."))]
     }
 
     /// What it took from the user, and what waits now.
     private func attention(_ r: ActivityReport) -> [Chip] {
-        [("text.bubble.fill", String(localized: "Prompts and answers"), "\(r.interventions)", .reply),
-         ("arrow.left.arrow.right", String(localized: "Switches"), "\(r.switches)", .reply),
-         ("checkmark.circle.fill", String(localized: "Pickup time"), r.pickupMedian.map(duration) ?? "–", .reply),
-         ("tray.full.fill", String(localized: "Backlog now"), "\(model.backlog.count)", .wait),
-         ("pause.circle.fill", String(localized: "All stalled"), r.allRebuilt ? "–" : duration(r.bottleneck), .wait)]
+        [("text.bubble.fill", String(localized: "Prompts and answers"), "\(r.interventions)", .reply,
+         String(localized: "Times you stepped in: prompts you sent and questions you answered.")),
+         ("arrow.left.arrow.right", String(localized: "Switches"), "\(r.switches)", .reply,
+         String(localized: "Times you jumped to a session's terminal from the app.")),
+         ("checkmark.circle.fill", String(localized: "Pickup time"), r.pickupMedian.map(duration) ?? "–", .reply,
+         String(localized: "How long a finished turn waited for you to look at it, the median, away time taken out.")),
+         ("tray.full.fill", String(localized: "Backlog now"), "\(model.backlog.count)", .wait,
+         String(localized: "Sessions waiting on you right now: asking, stuck, or finished and not yet reviewed.")),
+         ("pause.circle.fill", String(localized: "All stalled"), r.allRebuilt ? "–" : duration(r.bottleneck), .wait,
+         String(localized: "Time you were here while an agent was blocked on you (asking or stuck) and none was running."))]
     }
 
     /// One row of chips, wrapping onto two when it doesn't fit; `more` ends it.
     private func chips(_ items: [Chip], more: AnyView? = nil) -> some View {
-        let row = ForEach(items, id: \.title) { c in StatChip(symbol: c.symbol, title: c.title, value: c.value, ramp: c.ramp).frame(minWidth: 116) }
+        let row = ForEach(items, id: \.title) { c in StatChip(symbol: c.symbol, title: c.title, value: c.value, ramp: c.ramp, info: c.info).frame(minWidth: 116) }
         return ViewThatFits(in: .horizontal) {
             HStack(spacing: Space.m) { row; more }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: Space.m)], spacing: Space.m) { row; more }

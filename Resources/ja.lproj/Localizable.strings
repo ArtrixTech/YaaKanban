@@ -354,6 +354,26 @@
 "Who did the work" = "作業したエージェント";
 "You here" = "在席";
 
+/* Overview info tips */
+"Hours of agent work per hour you were here. Agent time counts all running, away included; yours counts only while you were at the Mac and an agent was running or waiting on you. The curve is the figure as the period went, the dotted one the period before; above 1×, agents did more than you spent." = "在席していた 1 時間あたり、エージェントが何時間働いたか。エージェントの時間は離席中も含むすべての実行、あなたの時間は Mac の前にいて、エージェントが実行中かあなたを待っていた時間だけです。曲線は期間中の推移、点線は前の期間。1× を超えれば、エージェントはあなたが費やした以上に働いています。";
+"While you were away, the share of agent time spent running rather than blocked on you (asking or stuck). Away means no mouse or keyboard input for 2 minutes, or the Mac asleep. On the track, blue is running and red is waiting on you." = "離席中のエージェント時間のうち、あなたを待って止まらず（質問や停止）、実行していた割合。離席は 2 分間マウスやキーボードの操作がないか、Mac のスリープ中です。トラックの青は実行、赤はあなた待ちです。";
+"How many agents ran at the same time, on average while any ran, and at the peak. The dotted line is the period before; the gray strip under it is when you were at the Mac. In a month, each point is that day's agent hours." = "同時に実行していたエージェントの数。いずれかが実行中だった間の平均と最大。点線は前の期間、下の灰色の帯はあなたが Mac の前にいた時間です。月表示では各点がその日のエージェント稼働時間です。";
+"Time agents sat blocked on you: asking a question, or stuck. On the dial, a bright arc is a wait while you were away, a dim one a wait while you were here; the longest are listed beside it." = "エージェントがあなたを待って止まっていた時間（質問中、または停止）。ダイヤルの明るい弧は離席中の待ち、暗い弧は在席中の待ちで、長いものを横に並べています。";
+"How long an agent waited for your answer once it asked, away time taken out. The figure is the median; the lit band holds the middle half of replies, and each dot is one reply." = "エージェントが質問してからあなたが答えるまでの時間（離席時間を除く）。数字は中央値、明るい帯は返信の中央の半分、点は 1 回の返信です。";
+"Each agent's share of the running time, with its turns. The line is when it ran across the period." = "実行時間に占める各エージェントの割合とターン数。線は期間中いつ実行していたかを表します。";
+"Agent running time by project; a circle's area is its time. Under each name, how long its sessions waited on you." = "プロジェクト別のエージェント実行時間。円の面積が時間です。名前の下は、そのセッションがあなたを待った時間です。";
+"The last 7 days in half hours, brighter where more agents ran at once. Each row ends with that day's agent hours; Busiest marks the 3 hours with the most agent time." = "直近 7 日間を 30 分ごとに表示し、同時に実行したエージェントが多いほど明るくなります。各行の末尾はその日のエージェント稼働時間、「ピーク」はエージェント時間が最も多い 3 時間です。";
+"While you were here, the share of agent time spent running rather than blocked on you (asking or stuck). A finished turn waiting for review counts as neither." = "在席中のエージェント時間のうち、あなたを待って止まらず（質問や停止）、実行していた割合。完了してレビューを待つターンはどちらにも数えません。";
+"The most agents running at the same time." = "同時に実行したエージェントの最大数。";
+"Tools the agents called in the turns that finished in the period." = "期間内に完了したターンでエージェントが呼び出したツールの数。";
+"Tokens the agents reported using." = "エージェントが報告したトークン使用量。";
+"Finished turns you opened or followed up on." = "あなたが開いたか、続けて指示した完了ターン。";
+"Times you stepped in: prompts you sent and questions you answered." = "あなたが介入した回数：送ったプロンプトと答えた質問。";
+"Times you jumped to a session's terminal from the app." = "アプリからセッションのターミナルへ移動した回数。";
+"How long a finished turn waited for you to look at it, the median, away time taken out." = "完了したターンをあなたが見るまでの時間の中央値（離席時間を除く）。";
+"Sessions waiting on you right now: asking, stuck, or finished and not yet reviewed." = "今あなたを待っているセッション：質問中、停止中、または完了して未レビュー。";
+"Time you were here while an agent was blocked on you (asking or stuck) and none was running." = "在席中に、エージェントがあなたを待って止まり（質問や停止）、どれも実行していなかった時間。";
+
 /* SessionReducer.swift, Normalizer.swift fallbacks */
 "Needs your input" = "入力が必要です";
 "No progress" = "進展なし";

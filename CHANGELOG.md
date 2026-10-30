@@ -15,6 +15,7 @@ the update.
 - Tabby: clicking a card brings up the agent's own Tabby tab (with "Switch to the matching tab when jumping" on and Accessibility allowed). Tabs with a custom name, unfocused split panes and tmux still only bring Tabby forward.
 - Experimental, on by default: a finished turn is marked reviewed as soon as you bring up its terminal pane in Wave, iTerm2, Terminal or WezTerm (tmux inside them too), as if you had clicked its card. iTerm2 and Terminal need Automation access, which Settings › Session reminders asks for with an Allow… button.
 - **Reset floating panel position** in the menu-bar menu brings the floating panel back to where a new install puts it: the right edge of the main screen, centered top to bottom. New installs now start there instead of at the top right.
+- Every overview card and key figure has an ⓘ: hover it to see what the figure measures and how its chart reads.
 
 ### Changed
 - A new look across the app, with fills and space instead of lines, and status color only on session cards. Settings is now a page of the main window (⌘, or the Settings row at the bottom of its sidebar), split into tabs: Agent integrations, Alerts, Floating panel, Compatibility, General and About. The sidebar shows active sessions as cards and history as single lines, with search and an agent filter on top; the arrow keys move through it.

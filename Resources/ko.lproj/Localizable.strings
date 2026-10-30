@@ -354,6 +354,26 @@
 "Who did the work" = "작업한 에이전트";
 "You here" = "자리에 있음";
 
+/* Overview info tips */
+"Hours of agent work per hour you were here. Agent time counts all running, away included; yours counts only while you were at the Mac and an agent was running or waiting on you. The curve is the figure as the period went, the dotted one the period before; above 1×, agents did more than you spent." = "자리에 있던 1시간마다 에이전트가 몇 시간 일했는지입니다. 에이전트 시간은 자리 비운 동안을 포함한 모든 실행이고, 내 시간은 Mac 앞에 있으면서 에이전트가 실행 중이거나 나를 기다린 시간만 셉니다. 곡선은 기간 동안의 변화, 점선은 이전 기간이며, 1×를 넘으면 에이전트가 내가 쓴 시간보다 더 일한 것입니다.";
+"While you were away, the share of agent time spent running rather than blocked on you (asking or stuck). Away means no mouse or keyboard input for 2 minutes, or the Mac asleep. On the track, blue is running and red is waiting on you." = "자리 비운 동안 에이전트 시간 중 나를 기다리며 막히지 않고(질문 또는 멈춤) 실행한 비율입니다. 자리 비움은 2분간 마우스나 키보드 입력이 없거나 Mac이 잠자기 상태인 때입니다. 트랙의 파란색은 실행, 빨간색은 나를 기다린 시간입니다.";
+"How many agents ran at the same time, on average while any ran, and at the peak. The dotted line is the period before; the gray strip under it is when you were at the Mac. In a month, each point is that day's agent hours." = "동시에 실행된 에이전트 수로, 하나라도 실행 중일 때의 평균과 최대입니다. 점선은 이전 기간, 아래 회색 띠는 내가 Mac 앞에 있던 시간입니다. 월 보기에서는 각 점이 그날의 에이전트 작업 시간입니다.";
+"Time agents sat blocked on you: asking a question, or stuck. On the dial, a bright arc is a wait while you were away, a dim one a wait while you were here; the longest are listed beside it." = "에이전트가 나 때문에 막혀 있던 시간(질문 중이거나 멈춤)입니다. 다이얼의 밝은 호는 자리 비운 동안의 대기, 흐린 호는 자리에 있을 때의 대기이며, 가장 긴 대기를 옆에 보여 줍니다.";
+"How long an agent waited for your answer once it asked, away time taken out. The figure is the median; the lit band holds the middle half of replies, and each dot is one reply." = "에이전트가 질문한 뒤 내가 답할 때까지 걸린 시간으로, 자리 비운 시간은 뺍니다. 숫자는 중앙값이고, 밝은 구간은 응답의 가운데 절반, 각 점은 응답 하나입니다.";
+"Each agent's share of the running time, with its turns. The line is when it ran across the period." = "실행 시간 중 각 에이전트의 비율과 턴 수입니다. 선은 기간 동안 언제 실행했는지를 보여 줍니다.";
+"Agent running time by project; a circle's area is its time. Under each name, how long its sessions waited on you." = "프로젝트별 에이전트 실행 시간으로, 원의 면적이 시간입니다. 이름 아래는 그 세션들이 나를 기다린 시간입니다.";
+"The last 7 days in half hours, brighter where more agents ran at once. Each row ends with that day's agent hours; Busiest marks the 3 hours with the most agent time." = "최근 7일을 30분 단위로 보여 주며, 동시에 실행한 에이전트가 많을수록 밝습니다. 각 행 끝은 그날의 에이전트 작업 시간이고, '가장 바쁜 때'는 에이전트 시간이 가장 많은 3시간입니다.";
+"While you were here, the share of agent time spent running rather than blocked on you (asking or stuck). A finished turn waiting for review counts as neither." = "자리에 있는 동안 에이전트 시간 중 나를 기다리며 막히지 않고(질문 또는 멈춤) 실행한 비율입니다. 끝나고 검토를 기다리는 턴은 어느 쪽에도 세지 않습니다.";
+"The most agents running at the same time." = "동시에 실행된 에이전트의 최대 수입니다.";
+"Tools the agents called in the turns that finished in the period." = "기간 안에 끝난 턴에서 에이전트가 호출한 도구 수입니다.";
+"Tokens the agents reported using." = "에이전트가 보고한 토큰 사용량입니다.";
+"Finished turns you opened or followed up on." = "내가 열어 보거나 이어서 지시한 완료된 턴입니다.";
+"Times you stepped in: prompts you sent and questions you answered." = "내가 개입한 횟수: 보낸 프롬프트와 답한 질문입니다.";
+"Times you jumped to a session's terminal from the app." = "앱에서 세션의 터미널로 이동한 횟수입니다.";
+"How long a finished turn waited for you to look at it, the median, away time taken out." = "끝난 턴을 내가 확인하기까지 걸린 시간의 중앙값으로, 자리 비운 시간은 뺍니다.";
+"Sessions waiting on you right now: asking, stuck, or finished and not yet reviewed." = "지금 나를 기다리는 세션: 질문 중, 멈춤, 또는 끝났지만 아직 검토하지 않음.";
+"Time you were here while an agent was blocked on you (asking or stuck) and none was running." = "자리에 있는 동안 에이전트가 나를 기다리며 막혀 있고(질문 또는 멈춤) 실행 중인 에이전트가 없던 시간입니다.";
+
 /* SessionReducer.swift, Normalizer.swift fallbacks */
 "Needs your input" = "응답이 필요함";
 "No progress" = "진행 없음";
