@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(main): leverage-lit glass card carrying the logo
+## fix(main): roomier logo line and an arrow on the Overview card
 
 `pending` | 2026-10-31
+
+- **Changes**: `OverviewCard`: logo line to 概览 spacing 3 → `Space.s` (6 pt); while 概览 is selected the right side shows `arrow.up.right` (footnote semibold, 0.45 / 0.75 on hover) instead of nothing.
+- **Reason**: The logo sat too tight on 概览, and the card's right side was empty on 概览.
+- **User feedback**: "卡片里面logo和概览俩字的距离有点小，做调整确保间距合适。另外，在不显示杠杆数字的时候右侧要有箭头"
+- **Process**: App snapshots: a session selected (figure, 4.4×) and 概览 (arrow), dark; light.
+- **Result**: make test 202 pass; installed.
+- **Notes**: Card stays 72 pt; the taller text block still fits with room.
+
+## feat(main): leverage-lit glass card carrying the logo
+
+`3152266` | 2026-10-31
 
 - **Changes**: The sidebar's separate logo row is gone; `OverviewCard` (72 pt, top 38 pt under the window buttons) carries `BrandGlyph` 12 + "YaaKanban" as a caption over 概览 (17 semibold), and today's leverage (figure 20 + "Today's leverage") on the right unless 概览 is selected (`onOverview`). Dark in both appearances (forced `.dark`). `GlassLight` replaced by `FootGlow`: near-black base in the hue, three screen-blended blurred lobes rising from the foot (19/23/29 s, drift ±0.12w, size morph), a pale core sliding along the edge (17 s); rim faint at the top, the core hue at the foot (brighter on hover). `LeverageHeat` back (hue 0.6→1.0 over log2(leverage)/3; dim gray without a figure). "Today's leverage" restored in 9 languages; help tooltip back off 概览.
 - **Reason**: The user wants the figure visible off the 概览 page, the logo inside the card, and the old leverage-linked colors as a gradient, after a dark-glass reference lit from below.

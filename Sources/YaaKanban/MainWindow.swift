@@ -230,8 +230,8 @@ extension MainSidebar {
 
 /// The sidebar's way into Overview, and its brand: a dark glass pane lit from its foot in the hue of
 /// today's leverage (blue when low, violet, red when high), the logo and name over 概览, and the
-/// figure itself while another page is open. The light drifts and changes shape while the window is
-/// key; hovered, it brightens; chosen, it stays as it is.
+/// figure itself while another page is open, an arrow while 概览 is. The light drifts and changes
+/// shape while the window is key; hovered, it brightens; chosen, it stays as it is.
 private struct OverviewCard: View {
     @Environment(AppModel.self) private var model
     @Environment(\.controlActiveState) private var active
@@ -247,7 +247,7 @@ private struct OverviewCard: View {
         let heat = LeverageHeat(leverage)
         let shape = RoundedRectangle(cornerRadius: Radius.group, style: .continuous)
         HStack(spacing: Space.m) {
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: Space.s) {
                 HStack(spacing: 5) {
                     BrandGlyph(size: 12)
                     Text(verbatim: "YaaKanban").font(.ui(.footnote, .semibold)).foregroundStyle(Ink.secondary).lineLimit(1)
@@ -255,7 +255,11 @@ private struct OverviewCard: View {
                 Text("Overview").font(.system(size: 17, weight: .semibold)).foregroundStyle(.primary.opacity(0.95))
             }
             Spacer(minLength: Space.s)
-            if !onOverview { figure(leverage) }
+            if onOverview {
+                Image(systemName: "arrow.up.right").font(.ui(.footnote, .semibold)).foregroundStyle(.primary.opacity(hover ? 0.75 : 0.45))
+            } else {
+                figure(leverage)
+            }
         }
         .padding(.horizontal, Space.l + Space.xxs)
         .frame(height: 72)
