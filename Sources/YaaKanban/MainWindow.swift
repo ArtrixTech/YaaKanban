@@ -270,7 +270,7 @@ private struct OverviewCard: View {
                     FootGlow(heat: heat, t: $0.date.timeIntervalSinceReferenceDate)
                 }
                 // Dims the light a little until hovered; a view's opacity eases, the canvas would jump.
-                heat.base.opacity(hover ? 0 : 0.15)
+                heat.base.opacity(hover ? 0.07 : 0.15)
             }
             .clipShape(shape)
         }
@@ -278,7 +278,7 @@ private struct OverviewCard: View {
         .overlay {
             ZStack {
                 shape.strokeBorder(rim(heat, 0.45), lineWidth: 1)
-                shape.strokeBorder(rim(heat, 0.8), lineWidth: 1).opacity(hover ? 1 : 0)
+                shape.strokeBorder(rim(heat, 0.6), lineWidth: 1).opacity(hover ? 1 : 0)
             }
         }
         .shadow(color: .black.opacity(0.25), radius: 10, y: 4)

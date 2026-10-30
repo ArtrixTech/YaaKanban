@@ -1,8 +1,18 @@
 # Devlog
 
-## fix(main): more room between the logo and Overview on the card
+## fix(main): soften the Overview card's hover light
 
 `pending` | 2026-10-31
+
+- **Changes**: Hover lifts the 15% base veil to 7% instead of removing it, and the hovered rim tops out at 0.6 of the core hue instead of 0.8.
+- **Reason**: The hover highlight read as too bright.
+- **User feedback**: "现在hover高光太亮了。"
+- **Result**: make test pass; installed.
+- **Notes**: Hover can't be snapshotted; judged by the numbers (about half the previous lift), not seen.
+
+## fix(main): more room between the logo and Overview on the card
+
+`ae95377` | 2026-10-31
 
 - **Changes**: `OverviewCard` logo line to 概览 spacing `Space.s` (6) → `Space.m + Space.xxs` (10 pt); card stays 72 pt.
 - **Reason**: Still read as tight.
