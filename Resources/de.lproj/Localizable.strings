@@ -229,6 +229,8 @@
 "Launch at login" = "Beim Anmelden öffnen";
 "Language" = "Sprache";
 "Follow system" = "Systemsprache";
+"First day of the week" = "Erster Wochentag";
+"Where the overview's weeks start." = "Wo die Wochen in der Übersicht beginnen.";
 "Restart Now" = "Jetzt neu starten";
 "Takes effect after YaaKanban restarts." = "Wirkt nach einem Neustart von YaaKanban.";
 "Couldn't change the login item: %@" = "Anmeldeobjekt konnte nicht geändert werden: %@";

@@ -229,6 +229,8 @@
 "Launch at login" = "登录时启动";
 "Language" = "语言";
 "Follow system" = "跟随系统";
+"First day of the week" = "每周第一天";
+"Where the overview's weeks start." = "概览里一周从哪天开始。";
 "Restart Now" = "立即重启";
 "Takes effect after YaaKanban restarts." = "重启 YaaKanban 后生效。";
 "Couldn't change the login item: %@" = "登录项设置失败：%@";

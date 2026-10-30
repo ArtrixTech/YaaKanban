@@ -60,7 +60,7 @@ struct DashboardView: View {
         // Redraws every 30 s for the now line, and on each recorded row.
         TimelineView(.periodic(from: .now, by: 30)) { ctx in
             let _ = model.activityVersion
-            let p = Periods(period, back: back, now: ctx.date)
+            let p = Periods(period, back: back, now: ctx.date, calendar: model.settings.calendar)
             let r = model.report(p.range, edges: p.edges)
             // The one before over the same stretch, for the changes; in full, for the dotted lines.
             let prev = model.report(p.previousSoFar)

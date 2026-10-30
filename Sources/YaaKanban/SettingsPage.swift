@@ -230,6 +230,12 @@ extension SettingsView {
                     } label: { Text("Language") }
                     .labelsHidden().fixedSize()
                 }
+                SettingRow(String(localized: "First day of the week"), detail: String(localized: "Where the overview's weeks start."), symbol: "calendar", tint: .red) {
+                    Picker(selection: Binding(get: { model.settings.firstWeekday }, set: { model.settings.firstWeekday = $0 })) {
+                        ForEach(Preferences.weekStarts, id: \.self) { Text(verbatim: Calendar.current.standaloneWeekdaySymbols[$0 - 1]).tag($0) }
+                    } label: { Text("First day of the week") }
+                    .labelsHidden().fixedSize()
+                }
                 if language != AppLanguage.atLaunch {
                     SettingRow(String(localized: "Takes effect after YaaKanban restarts.")) {
                         Button("Restart Now") { AppLanguage.relaunch() }.buttonStyle(.action(.primary, size: .small))

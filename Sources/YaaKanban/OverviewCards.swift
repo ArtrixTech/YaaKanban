@@ -120,7 +120,7 @@ struct LeverageCard: View {
     let data: OverviewData
 
     var body: some View {
-        let r = data.report, ramp = Ramp.work, days = LeverageDays(data, model)
+        let r = data.report, ramp = Ramp.work, days = LeverageDays(data, model, calendar: model.settings.calendar)
         Widget {
             WidgetHead(title: String(localized: "Leverage"), ramp: ramp,
                        info: String(localized: "Hours of agent work per hour you were here. Agent time counts all running, away included; yours counts only while you were at the Mac and an agent was running or waiting on you. Each bar is one day's leverage, the pale one behind it the same day of the period before; above 1×, agents did more than you spent."), context: data.scope)

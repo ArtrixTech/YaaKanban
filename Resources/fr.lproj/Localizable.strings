@@ -229,6 +229,8 @@
 "Launch at login" = "Ouvrir à la connexion";
 "Language" = "Langue";
 "Follow system" = "Suivre le système";
+"First day of the week" = "Premier jour de la semaine";
+"Where the overview's weeks start." = "Le jour où commencent les semaines de l’aperçu.";
 "Restart Now" = "Redémarrer maintenant";
 "Takes effect after YaaKanban restarts." = "Prend effet après le redémarrage de YaaKanban.";
 "Couldn't change the login item: %@" = "Impossible de modifier l’ouverture à la connexion : %@";

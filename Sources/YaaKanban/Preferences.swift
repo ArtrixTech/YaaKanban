@@ -45,6 +45,8 @@ final class Preferences {
     var accessibilityDeclined: Bool { didSet { d.set(accessibilityDeclined, forKey: "accessibilityDeclined") } }
     /// The setup guide was finished or closed; it no longer opens by itself.
     var setupDone: Bool { didSet { d.set(setupDone, forKey: "setupDone") } }
+    /// The overview's first day of the week, as `Calendar.firstWeekday` (1 Sunday, 2 Monday, 7 Saturday).
+    var firstWeekday: Int { didSet { d.set(firstWeekday, forKey: "firstWeekday") } }
     /// Lets the pi extension name unnamed sessions with the session's model. Kept as a file the
     /// extension can see (`Paths.piAutoTitleOff`), not in UserDefaults.
     var piAutoTitle: Bool {
@@ -66,7 +68,7 @@ final class Preferences {
             "staleTintEnabled": true, "staleAfterMinutes": Attention.staleAfter / 60,
             "showPanel": true, "suppressWhenWaveFrontmost": true, "waveTabJump": true,
             "showRecentStats": true, "claudeBackgroundAgents": true,
-            "autoReviewOnFocus": true,
+            "autoReviewOnFocus": true, "firstWeekday": 2,
         ])
         stuckMinutes = d.double(forKey: "stuckMinutes")
         approvalTimeout = d.double(forKey: "approvalTimeout")
@@ -93,6 +95,7 @@ final class Preferences {
         waveTabSwitching = d.bool(forKey: "waveTabJump")
         accessibilityDeclined = d.bool(forKey: "accessibilityDeclined")
         setupDone = d.bool(forKey: "setupDone")
+        firstWeekday = Self.weekStarts.contains(d.integer(forKey: "firstWeekday")) ? d.integer(forKey: "firstWeekday") : 2
         piAutoTitle = !FileManager.default.fileExists(atPath: Paths().piAutoTitleOff.path)
     }
 
@@ -100,6 +103,10 @@ final class Preferences {
     /// How long reviewed sessions stay on the board, in minutes: 4, 8, 12 or 24 hours.
     static let retentionChoices: [Double] = [240, 480, 720, 1440]
     var idleVisibleSeconds: TimeInterval { idleVisibleMinutes * 60 }
+    /// The days a week can start on: Monday, Sunday, Saturday.
+    static let weekStarts = [2, 1, 7]
+    /// The calendar the overview's weeks follow.
+    var calendar: Calendar { var c = Calendar.current; c.firstWeekday = firstWeekday; return c }
     /// When a reviewed turn is bluest: halfway between turning blue and leaving the board.
     var stalePeakMinutes: Double { (staleAfterMinutes + idleVisibleMinutes) / 2 }
 }

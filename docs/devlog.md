@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(panel): compare the panel's leverage with today's usual 4 hours
+## feat(settings): let the overview's weeks start on Monday
 
 `pending` | 2026-10-30
+
+- **Changes**: Preferences: `firstWeekday` (UserDefaults `firstWeekday`, default 2 = Monday; a stored value outside `weekStarts` [2, 1, 7] falls back to Monday) and `calendar` (`Calendar.current` with that first weekday). SettingsPage: a 每周第一天 picker under 通用, after Language, labelled with `standaloneWeekdaySymbols`. DashboardView passes `model.settings.calendar` to `Periods`; LeverageCard passes it to `LeverageDays`. 2 strings in 9 tables. Spec bullet "First day of the week (2026-10-30)"; CHANGELOG Added line.
+- **Reason**: Weeks followed the system calendar, which starts on Sunday here.
+- **User feedback**: "1，是 2，设置可调，默认Monday是第一天 3，可以" (keep bars in week and month views; week start configurable, Monday by default; floating panel unchanged).
+- **Process**: Staged only these hunks over HEAD (other sessions have uncommitted edits in AppModel, DashboardView and the strings); built and tested HEAD+mine in a separate worktree. `make l10n` run with `L10N_BUILD=.build/l10n-59`: the shared `.build/l10n` could not be removed while in use.
+- **Result**: Build, test, `make l10n` (0 problems) pass; installed; the week render starts on Monday (10-26 to 11-01). The settings row itself was not rendered: `yaak snapshot` shows only the Agent and Alerts tabs.
+- **Notes**: `axisTicks` and `RhythmCard` don't depend on the first weekday (they count days from the range start, or the last 7 days).
+
+## fix(panel): compare the panel's leverage with today's usual 4 hours
+
+`6b40f1f` | 2026-10-30
 
 - **Changes**: DashboardView `RecentFigures.typicalLeverage(at:)`: one report over hourly `edges` from 4 h before the first whole hour to the current whole hour, `rollingLeverage(window: 4)`, mean of the non-nil points; it replaces `today.leverage` as the arrow's and the dashed line's baseline. Nil before 01:00. Both help texts reworded (9 tables). Test `rollingLeverageOverHourEdgesMatchesEachWindowsReport`. Spec 2026-10-30 clause; CHANGELOG Fixed line.
 - **Reason**: The hero is a 4-hour window but was compared with the leverage of the whole day so far, a different window: a quiet morning made any later stretch look up.

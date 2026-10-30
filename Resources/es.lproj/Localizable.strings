@@ -229,6 +229,8 @@
 "Launch at login" = "Abrir al iniciar sesión";
 "Language" = "Idioma";
 "Follow system" = "Usar el del sistema";
+"First day of the week" = "Primer día de la semana";
+"Where the overview's weeks start." = "Dónde empiezan las semanas del resumen.";
 "Restart Now" = "Reiniciar ahora";
 "Takes effect after YaaKanban restarts." = "Se aplica al reiniciar YaaKanban.";
 "Couldn't change the login item: %@" = "No se ha podido cambiar el ítem de inicio: %@";

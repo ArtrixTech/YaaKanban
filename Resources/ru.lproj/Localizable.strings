@@ -229,6 +229,8 @@
 "Launch at login" = "Открывать при входе";
 "Language" = "Язык";
 "Follow system" = "Как в системе";
+"First day of the week" = "Первый день недели";
+"Where the overview's weeks start." = "С какого дня начинаются недели в обзоре.";
 "Restart Now" = "Перезапустить";
 "Takes effect after YaaKanban restarts." = "Вступит в силу после перезапуска YaaKanban.";
 "Couldn't change the login item: %@" = "Не удалось изменить объект входа: %@";

@@ -229,6 +229,8 @@
 "Launch at login" = "ログイン時に起動";
 "Language" = "言語";
 "Follow system" = "システムに従う";
+"First day of the week" = "週の始まり";
+"Where the overview's weeks start." = "概要の週を何曜日から始めるか。";
 "Restart Now" = "今すぐ再起動";
 "Takes effect after YaaKanban restarts." = "YaaKanbanの再起動後に有効になります。";
 "Couldn't change the login item: %@" = "ログイン項目を変更できませんでした：%@";
