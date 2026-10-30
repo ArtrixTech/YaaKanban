@@ -209,8 +209,9 @@ struct DashboardView: View {
 
     // MARK: Cards
 
-    /// Two cards a row when wide (the wide ones alone), the pairs stacked when not, one column on
-    /// the narrowest. A row is as tall as its tallest card's content; the others stretch their
+    /// Two cards a row when wide (the wide ones alone); narrower, the agents and projects share
+    /// the width evenly, then leverage and response stack too, one column on the narrowest. Leverage
+    /// keeps one width while paired, as its week of bars looks sparse any wider. A row is as tall as its tallest card's content; the others stretch their
     /// charts to match. Each layout states its
     /// ideal width, so a long name truncates instead of pushing the layout to fewer columns.
     private func cards(_ d: OverviewData) -> some View {
@@ -222,6 +223,13 @@ struct DashboardView: View {
                 RhythmCard(data: d)
             }
             .frame(minWidth: 980, idealWidth: 980)
+            VStack(spacing: Space.l) {
+                row { LeverageCard(data: d).frame(width: 330); ResponseCard(data: d) }
+                RunningCard(data: d)
+                row { AgentsCard(data: d); ProjectsCard(data: d) }
+                RhythmCard(data: d)
+            }
+            .frame(minWidth: 830, idealWidth: 830)
             VStack(spacing: Space.l) {
                 LeverageCard(data: d)
                 ResponseCard(data: d)

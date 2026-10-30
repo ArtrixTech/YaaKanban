@@ -179,9 +179,9 @@ private struct LeverageDays {
     }
 }
 
-/// A bar a day, the period's days lit and the rest of the week mid; the same
-/// day of the period before pale behind each; days still to come a hollow stub. Break-even 1× as
-/// a hairline.
+/// A bar a day, the period's days lit and the rest of the week mid; the same day of the period
+/// before a wider pale ghost behind each, on the same centre; days still to come a hollow stub.
+/// Break-even 1× as a hairline.
 private struct LeverageBars: View {
     let days: LeverageDays
     let now: Date
@@ -191,7 +191,9 @@ private struct LeverageBars: View {
         let cal = Calendar.current
         let labels = days.starts.enumerated().map { i, d -> String? in
             if cal.isDateInToday(d) { return String(localized: "Today") }
-            if days.monthly { return i % 7 == 0 ? d.formatted(.dateTime.day()) : nil }
+            // A date beside today's label would run into it.
+            let besideToday = [i - 1, i + 1].contains { days.starts.indices.contains($0) && cal.isDateInToday(days.starts[$0]) }
+            if days.monthly { return i % 7 == 0 && !besideToday ? d.formatted(.dateTime.day()) : nil }
             return d.formatted(.dateTime.weekday(.abbreviated))
         }
         Canvas { ctx, size in
@@ -199,7 +201,7 @@ private struct LeverageBars: View {
             guard n > 0 else { return }
             let axis: CGFloat = 16, right: CGFloat = 22, top: CGFloat = days.monthly ? 4 : 16
             let base = size.height - axis, pitch = (size.width - right) / CGFloat(n)
-            let width = min(pitch * (days.monthly ? 0.62 : 0.5), 26)
+            let ghost = min(pitch * (days.monthly ? 0.8 : 0.7), 36), width = ghost * 0.64
             let ceiling = max(((days.values + days.before).compactMap { $0 }.max() ?? 0) * 1.1, 1.5)
             func y(_ v: Double) -> CGFloat { base - CGFloat(v / ceiling) * (base - top) }
             func bar(_ cx: CGFloat, _ w: CGFloat, _ v: Double) -> Path {
@@ -212,22 +214,23 @@ private struct LeverageBars: View {
             ctx.draw(tick("1×", Ink.tertiary), at: CGPoint(x: size.width, y: one), anchor: .trailing)
             for i in 0..<n {
                 let cx = pitch * (CGFloat(i) + 0.5), lit = days.shown.contains(i)
-                if days.before.indices.contains(i), let b = days.before[i] {
-                    ctx.fill(bar(cx + width * 0.22, width, b), with: .color(ramp.dim))
-                }
+                let b = days.before.indices.contains(i) ? days.before[i] : nil
+                if let b { ctx.fill(bar(cx, ghost, b), with: .color(ramp.dim)) }
                 if let v = days.values[i] {
-                    ctx.fill(bar(cx - width * 0.22, width, v), with: .color(lit ? ramp.hue : ramp.mid))
+                    ctx.fill(bar(cx, width, v), with: .color(lit ? ramp.hue : ramp.mid))
                     if !days.monthly {
                         ctx.draw(tick(String(format: v < 10 ? "%.1f" : "%.0f", v), lit ? Ink.primary : Ink.tertiary),
-                                 at: CGPoint(x: cx - width * 0.22, y: y(v) - 2), anchor: .bottom)
+                                 at: CGPoint(x: cx, y: min(y(v), b.map(y) ?? .infinity) - 2), anchor: .bottom)
                     }
                 } else if days.starts[i] >= now {
-                    let stub = CGRect(x: cx - width * 0.72, y: base - 4, width: width, height: 4)
+                    let stub = CGRect(x: cx - width / 2, y: base - 4, width: width, height: 4)
                     ctx.stroke(Path(roundedRect: stub.insetBy(dx: 0.5, dy: 0.5), cornerRadius: 2, style: .continuous), with: .color(ramp.faint), lineWidth: 1)
                 }
                 if let label = labels[i] {
-                    ctx.draw(tick(label, lit || cal.isDateInToday(days.starts[i]) ? Ink.primary : Ink.tertiary),
-                             at: CGPoint(x: cx, y: size.height), anchor: .bottom)
+                    // Centred under its bar, but kept inside the chart.
+                    let text = ctx.resolve(tick(label, lit || cal.isDateInToday(days.starts[i]) ? Ink.primary : Ink.tertiary))
+                    let half = text.measure(in: size).width / 2
+                    ctx.draw(text, at: CGPoint(x: min(max(cx, half), size.width - right - half), y: size.height), anchor: .bottom)
                 }
             }
         }

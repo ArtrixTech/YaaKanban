@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(settings): let the overview's weeks start on Monday
+## fix(overview): ghost last week's leverage behind each bar
 
 `pending` | 2026-10-30
+
+- **Changes**: DashboardView `cards`: a middle layout (min/ideal 830) keeps LeverageCard at 330 beside ResponseCard, with Agents and Projects sharing their row evenly; the full-width leverage stack starts below 830. LeverageBars: the previous period's bar is a ghost `min(pitch × 0.7, 36)` wide (0.8 in a month) on the same centre as the current bar, which is 0.64 of it; the value label sits above the taller of the two; the future stub is centred. Month view: a date beside "Today" is dropped, and labels are clamped inside the chart. CHANGELOG Changed line reworded.
+- **Reason**: Between 830 and 980 the leverage card ran the full width, so seven bars were spread across ~900 pt next to a full-width response card. The last-week bar sat offset to the right, so the two bars of a day didn't line up.
+- **User feedback**: "这两种宽度下，后者的杠杆部分的宽度太宽了，显示起来看起来非常不协调。另外，杠杆的上周数据用背景虚影显示，x轴方向不要错位。"
+- **Process**: Checked through `yaak snapshot` (dashboard 1000 pt, now the middle layout; dashboard-wide 1320; week; month). The narrower card exposed "29" running into "今天" and "1日" clipped at the left edge in the month view; both fixed.
+- **Result**: Build and test (195) pass; installed. The ghosts line up on each bar's centre in day, week and month.
+- **Notes**: Below 830 (window ~894 pt with the sidebar) leverage still runs full width; the window's minimum is 760.
+
+## feat(settings): let the overview's weeks start on Monday
+
+`a0a31aa` | 2026-10-30
 
 - **Changes**: Preferences: `firstWeekday` (UserDefaults `firstWeekday`, default 2 = Monday; a stored value outside `weekStarts` [2, 1, 7] falls back to Monday) and `calendar` (`Calendar.current` with that first weekday). SettingsPage: a 每周第一天 picker under 通用, after Language, labelled with `standaloneWeekdaySymbols`. DashboardView passes `model.settings.calendar` to `Periods`; LeverageCard passes it to `LeverageDays`. 2 strings in 9 tables. Spec bullet "First day of the week (2026-10-30)"; CHANGELOG Added line.
 - **Reason**: Weeks followed the system calendar, which starts on Sunday here.
