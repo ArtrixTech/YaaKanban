@@ -201,6 +201,7 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         #expect(r.utilizationAway == 0)
         // a's review less the 20 s away; d's review was carried in, so its start is unknown.
         #expect(r.pickups == [40])
+        #expect(r.pickupMean == 40)
         #expect(r.interventions == 2)
         #expect(r.agentTimePerIntervention == 65)
     }
@@ -233,6 +234,18 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         #expect(r.away == [DateInterval(start: at(20), duration: 50)])
         #expect(r.sessionTotals.first?.waiting == 50)
         #expect(r.waitingBuckets.reduce(0, +) > 0)
+    }
+
+    @Test func replyMeanCountsEveryReply() {
+        // One wait spent wholly away still counts, as 0 s: the mean stays off 0 where a median would not.
+        let rows = [ActivityRow(at: at(100), session: "claude-code:a", kind: .reply, value: 10),
+                    ActivityRow(at: at(200), session: "claude-code:a", kind: .reply, value: 20),
+                    ActivityRow(at: at(300), session: "claude-code:a", kind: .reply, value: 60),
+                    ActivityRow(at: at(240), session: "", kind: .away, value: 60)]
+        let r = ActivityReport.compute(rows: rows, lanesBefore: [:], range: DateInterval(start: t0, duration: 400), now: at(500))
+        #expect(r.replies == [10, 20, 0])
+        #expect(r.replyMean == 10)
+        #expect(ActivityReport.compute(rows: [], lanesBefore: [:], range: DateInterval(start: t0, duration: 400), now: at(500)).replyMean == nil)
     }
 
     @Test func lanesCarriedIntoRangeAndClippedAtNow() {

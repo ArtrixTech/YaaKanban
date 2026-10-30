@@ -356,8 +356,8 @@ private struct RunCurve: View {
 // MARK: - Response
 
 /// How fast you respond when an agent needs you: replying (to a question, or with the next prompt
-/// after a turn), and getting to a finished turn. Each half has its median against the period before and the times on a log scale, the
-/// middle half lit and beamed towards the centre, the median as the knob, each one a bead above.
+/// after a turn), and getting to a finished turn. Each half has its mean against the period before and the times on a log scale, the
+/// middle half lit and beamed towards the centre, the mean as the knob, each one a bead above.
 struct ResponseCard: View {
     let data: OverviewData
 
@@ -365,7 +365,7 @@ struct ResponseCard: View {
         let r = data.report, ramp = Ramp.reply
         Widget {
             WidgetHead(title: String(localized: "Response time"), ramp: ramp,
-                       info: String(localized: "How long agents waited for you, away time taken out. Replying: from an agent asking a question or permission, or finishing a turn, to your answer or next prompt. Reviewing: from a turn finishing to you opening it or following up. Each figure is the median; on the arcs the lit band holds the middle half and each dot is one."))
+                       info: String(localized: "How long agents waited for you, away time taken out. Replying: from an agent asking a question or permission, or finishing a turn, to your answer or next prompt. Reviewing: from a turn finishing to you opening it or following up. Each figure is the average; on the arcs the lit band holds the middle half and each dot is one."))
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .top, spacing: Space.xl) { replying(r, ramp); reviewing(r, ramp) }
                 VStack(alignment: .leading, spacing: Space.l) { replying(r, ramp); reviewing(r, ramp) }
@@ -375,14 +375,14 @@ struct ResponseCard: View {
     }
 
     private func replying(_ r: ActivityReport, _ ramp: Ramp) -> some View {
-        ResponseHalf(title: String(localized: "Replying"), times: r.replies, median: r.replyMedian, p90: r.replyP90,
-                     previous: data.previous?.replyMedian, empty: String(localized: "No replies"),
+        ResponseHalf(title: String(localized: "Replying"), times: r.replies, mean: r.replyMean, p90: r.replyP90,
+                     previous: data.previous?.replyMean, empty: String(localized: "No replies"),
                      scale: ResponseArc.replying, data: data, ramp: ramp)
     }
 
     private func reviewing(_ r: ActivityReport, _ ramp: Ramp) -> some View {
-        ResponseHalf(title: String(localized: "Reviewing"), times: r.pickups, median: r.pickupMedian, p90: r.pickupP90,
-                     previous: data.previous?.pickupMedian, empty: String(localized: "Nothing reviewed"),
+        ResponseHalf(title: String(localized: "Reviewing"), times: r.pickups, mean: r.pickupMean, p90: r.pickupP90,
+                     previous: data.previous?.pickupMean, empty: String(localized: "Nothing reviewed"),
                      scale: ResponseArc.reviewing, data: data, ramp: ramp)
     }
 }
@@ -390,7 +390,7 @@ struct ResponseCard: View {
 private struct ResponseHalf: View {
     let title: String
     let times: [TimeInterval]
-    let median: TimeInterval?
+    let mean: TimeInterval?
     let p90: TimeInterval?
     let previous: TimeInterval?
     let empty: String
@@ -408,10 +408,10 @@ private struct ResponseHalf: View {
                 }
             }
             .padding(.top, Space.l)
-            FigureLine(figure: figure(live ? median.map(duration) ?? "–" : "–", ramp),
-                       change: data.comparesWaits ? change(median, previous, vs: data.vs, fmt: duration) : nil,
+            FigureLine(figure: figure(live ? mean.map(duration) ?? "–" : "–", ramp),
+                       change: data.comparesWaits ? change(mean, previous, vs: data.vs, fmt: duration) : nil,
                        note: !live ? String(localized: "Not recorded live") : p90.map { String(localized: "90% within \(duration($0))") } ?? empty)
-            ResponseArc(times: times, median: median, scale: scale, ramp: ramp)
+            ResponseArc(times: times, mean: mean, scale: scale, ramp: ramp)
                 .frame(minHeight: 88, maxHeight: .infinity).padding(.top, Space.xs)
         }
         .frame(minWidth: 220, idealWidth: 220, maxWidth: .infinity, alignment: .leading)
@@ -427,7 +427,7 @@ private struct ResponseArc: View {
                                  mark: 600, slow: 3600)
 
     let times: [TimeInterval]
-    let median: TimeInterval?
+    let mean: TimeInterval?
     let scale: Scale
     let ramp: Ramp
 
@@ -461,7 +461,7 @@ private struct ResponseArc: View {
                 ctx.fill(disc(at(c, r, ang(s)), 1.2), with: .color(Fill.widget))
                 ctx.draw(tick(l, s == scale.mark ? Ink.primary : Ink.tertiary), at: at(c, r - 19, ang(s)), anchor: .center)
             }
-            if let median { knob(ctx, at(c, r, ang(median)), ramp.hue, r: 4.2) }
+            if let mean { knob(ctx, at(c, r, ang(mean)), ramp.hue, r: 4.2) }
         }
     }
 }

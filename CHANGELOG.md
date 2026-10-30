@@ -20,6 +20,7 @@ the update.
 - **First day of the week** in Settings › General: where the overview's weeks start, Monday by default (Sunday or Saturday also).
 
 ### Changed
+- Overview › Response time shows the average reply and review time instead of the median, which read 0 s when most waits fell while you were away.
 - Wave: reopening a session whose agent has stopped now continues it in the terminal it ran in, when that terminal is back at its shell prompt, instead of opening a new one beside it. A terminal that is busy or closed still gets a new one.
 - A new look across the app, with fills and space instead of lines, and status color only on session cards. Settings is now a page of the main window (⌘, or the Settings row at the bottom of its sidebar), split into tabs: Agent integrations, Alerts, Floating panel, Compatibility, General and About. The sidebar shows active sessions as cards and history as single lines, with search and an agent filter on top; the arrow keys move through it.
 - The overview is rebuilt as a wall of cards: totals in the top bar, a row of key figures, then cards for leverage, time away, sessions running at once, waits on you, reply times, agents, projects and a 7-day rhythm, each compared with the same point of the previous period. Below them, a row for prompts, switches, pickup time and backlog, and the session lanes behind a button.

@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(overview): cap last week's leverage only where this week beat it
+## fix(overview): show the mean response time instead of the median
 
 `pending` | 2026-10-30
+
+- **Changes**: ActivityReport gains `replyMean`/`pickupMean` (`pickupMedian` dropped, `replyMedian` kept for the popover). ResponseCard's figure, comparison and arc knob use the mean; P90 note unchanged. Info text and its 9 translations say average. Spec revised; CHANGELOG line; test `replyMeanCountsEveryReply`.
+- **Reason**: 回复 read 0 秒: 42 of today's 64 replies fell wholly in away spans (01:38–09:31, 13:09–14:39, no input or focus rows), so net latency 0 and median 0. Mean today ≈ 12 s.
+- **User feedback**: "所以我这个为啥现在显示0秒？" then "给平均吧。"
+- **Process**: Recomputed from history.sqlite (read-only): median 0, P90 50 s, matching the card. Alternatives offered (drop wholly-away replies → median 6 s; also drop raw <1 s → 18 s); user chose the mean.
+- **Result**: make test 201 pass; installed.
+- **Notes**: Zero-latency replies still count. Many are likely not the user at the Mac (loop wakeups, agent-to-agent prompts, remote answers); sub-second raw waits (e.g. 0.04 s) also look automatic. The popover's Reply figure is still the median.
+
+## fix(overview): cap last week's leverage only where this week beat it
+
+`3d2956d` | 2026-10-30
 
 - **Changes**: LeverageBars draws the cap only when the period before is lower than this one (`b < v`), always in the darkened hue; a tie, a down day, a day without a bar or a day to come shows the pale ghost alone. The `ramp.mid` cap off the bar is gone. CHANGELOG line reworded.
 - **Reason**: The user wants the mark only where this week is ahead; on the ghost the height is already visible.
