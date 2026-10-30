@@ -368,7 +368,6 @@
 "No supported agents found. Install one, then reopen Settings." = "No se ha encontrado ningún agente compatible. Instala uno y vuelve a abrir Ajustes.";
 
 /* Ended list */
-"Put back on the floating panel" = "Devolver al panel flotante";
 "Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's leverage." = "Tendencia del apalancamiento: cada punto es el apalancamiento de las 4 horas hasta ese momento, a lo largo de %@; la línea discontinua es el apalancamiento de hoy.";
 "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "En las últimas 4 horas, horas de agente (ausencias incluidas) por hora que estuviste. La flecha lo compara con el apalancamiento de hoy.";
 "Close search" = "Cerrar búsqueda";

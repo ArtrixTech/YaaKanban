@@ -271,8 +271,8 @@ struct SearchResults: View {
     }
 }
 
-/// One session in the search. Clicking it goes to it when it is on the panel,
-/// else puts it back there.
+/// One session in the search. Clicking it goes to it like a card, first putting it back on the
+/// panel when it is not there.
 struct PickRow: View {
     @Environment(AppModel.self) private var model
     let session: SessionState
@@ -297,12 +297,11 @@ struct PickRow: View {
         .contentShape(Rectangle())
         .onHover { hover = $0 }
         .onTapGesture(perform: pick)
-        .help(onBoard ? String(localized: "Jump to terminal") : String(localized: "Put back on the floating panel"))
+        .help(AppModel.isGone(s) ? "Click to resume \(s.agent.displayName) in its original terminal" : "Click to jump to \(s.agent.displayName)")
         .contextMenu {
-            if onBoard {
-                Button("Jump to terminal", action: pick)
-            } else {
-                Button("Restore to floating panel", action: pick)
+            Button(AppModel.isGone(s) ? "Resume in original terminal" : "Jump to terminal", action: pick)
+            if !onBoard {
+                Button("Restore to floating panel") { onPick(); restore() }
             }
             Button("Copy resume command") { model.jumper.copyResume(s) }
             Button("Delete from history", role: .destructive) { model.remove(s.id) }
@@ -311,8 +310,11 @@ struct PickRow: View {
 
     private func pick() {
         onPick()
-        if onBoard { model.jump(session.id) } else { withAnimation(.snappy) { model.restore(session.id) } }
+        if !onBoard { restore() }
+        model.jump(session.id)
     }
+
+    private func restore() { withAnimation(.snappy) { model.restore(session.id) } }
 }
 
 /// Floating panel content, at its natural size; the borderless window resizes to fit it. Snapped to

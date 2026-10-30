@@ -368,7 +368,6 @@
 "No supported agents found. Install one, then reopen Settings." = "沒有找到支援的 agent。安裝一個後重新開啟設定。";
 
 /* Ended list */
-"Put back on the floating panel" = "放回浮動面板";
 "Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's leverage." = "槓桿走勢：每點是截至當時 4 小時內的槓桿，涵蓋最近 %@；虛線為今日槓桿";
 "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "最近 4 小時，含你不在時的 agent 工時 ÷ 你在場的時間。箭頭與今日槓桿比較";
 "Close search" = "關閉搜尋";

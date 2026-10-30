@@ -368,7 +368,6 @@
 "No supported agents found. Install one, then reopen Settings." = "没有找到支持的 agent。装好一个后重新打开设置。";
 
 /* Ended list */
-"Put back on the floating panel" = "放回悬浮窗";
 "Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's leverage." = "杠杆走势：每点是到那时为止 4 小时的杠杆，近 %@；虚线为今日杠杆";
 "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "最近 4 小时，含你不在时的 agent 工时 ÷ 你在场的时间。箭头与今日杠杆比较";
 "Close search" = "关闭搜索";

@@ -368,7 +368,6 @@
 "No supported agents found. Install one, then reopen Settings." = "Keine unterstützten Agenten gefunden. Installiere einen und öffne die Einstellungen erneut.";
 
 /* Ended list */
-"Put back on the floating panel" = "Zurück ins Schwebefenster";
 "Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's leverage." = "Hebel-Verlauf: Jeder Punkt ist der Hebel der jeweils vorangegangenen 4 Stunden, über die letzten %@. Die gestrichelte Linie ist der heutige Hebel.";
 "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "In den letzten 4 Stunden: Agentenstunden (inkl. Abwesenheit) pro Stunde deiner Anwesenheit. Der Pfeil vergleicht mit dem heutigen Hebel.";
 "Close search" = "Suche schließen";

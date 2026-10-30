@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(overview): replace away and waiting cards with response time; needs input in purple
+## fix(panel): go to a session picked from the search, not only restore it
 
 `pending` | 2026-10-30
+
+- **Changes**: Windows `PickRow.pick`: a session not on the panel is restored (`model.restore`) and then `model.jump`ed, as on the panel; before, it was only restored. Help and the first context-menu item reuse the card's wording (resume when the agent is gone); "Restore to floating panel" stays in the menu for sessions off the panel, restoring only. "Put back on the floating panel" dropped from 9 tables. Spec Search clause revised; CHANGELOG Fixed line.
+- **Reason**: Picking a session from the search only put it back on the panel; the user expected what clicking its card does.
+- **User feedback**: "现在悬浮窗历史记录里面点击对应的对话只会刷新它的活动情况（重新出现在悬浮窗里面）但不会执行正常点击卡片的效果（跳转到窗口）。"
+- **Process**: The old behavior was the 2026-10-26 spec ("else puts it back"); revised on this request. `jump` on a gone session shows the reopen dialog after the restore, the same as a gone card.
+- **Result**: Build, test (194), `make l10n` (406 keys with another session's uncommitted first-weekday strings, 0 problems) pass; installed. Not clicked through live.
+- **Notes**: `restore` sets `reviewedAt`, so the restored card shows as reviewed, not 待验收; `jump` also marks it read and records a `.focus` row.
+
+## feat(overview): replace away and waiting cards with response time; needs input in purple
+
+`f4064f8` | 2026-10-30
 
 - **Changes**: OverviewCards: `AwayCard`/`Absences`/`AwayStrip` and `WaitingCard`/`Waits`/`WaitDial` removed; `RepliesCard`/`ReplyArc` → `ResponseCard` with two `ResponseHalf`s (回复 = `replies`, 验收 = `pickups`; median vs previous, "90% within P90", count) over `ResponseArc` with a per-half log `Scale` (10 s–5 min; 30 s–2 h). The halves sit side by side and stack via `ViewThatFits` when narrow. DashboardView: chips 全部停工, 当前积压 and 验收时间 removed; layouts: wide `row { Leverage(330); Response }`, Running, `row { Agents(520); Projects }`, Rhythm; at 2 columns Leverage, Response and Running each full width. AppModel: unused `backlog` removed (`YaaCore.Backlog` and its test kept). Status color: `Ramp.wait` red → purple, `DisplayStatus.needsInput` tint = `Ramp.wait.hue`, symbol `questionmark.bubble.fill`, menu-bar dot `.systemPurple`, the two needs-input settings rows purple. MainWindow `SidebarCard`: glyph in the title row, agent/project row from the card's edge (as `SessionCard`), pin after the title. 25 obsolete strings dropped from 9 tables, 7 added. Spec: Design system line revised and status colors defined. Archived `design/history/overview-v11`.
 - **Reason**: The away and waiting cards read as filler ("你不在时 100%" didn't say what waiting is); response speed measures the user's efficiency; red read as an error.

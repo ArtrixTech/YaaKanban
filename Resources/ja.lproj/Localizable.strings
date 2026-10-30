@@ -368,7 +368,6 @@
 "No supported agents found. Install one, then reopen Settings." = "対応しているエージェントが見つかりません。インストールしてから設定を開き直してください。";
 
 /* Ended list */
-"Put back on the floating panel" = "フローティングパネルに戻す";
 "Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's leverage." = "レバレッジの推移：各点はその時点までの4時間のレバレッジで、直近%@分を表示。破線は今日のレバレッジです。";
 "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "直近4時間の、離席中も含むエージェント稼働時間 ÷ 在席時間。矢印は今日のレバレッジとの比較です。";
 "Close search" = "検索を閉じる";

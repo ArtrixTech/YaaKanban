@@ -368,7 +368,6 @@
 "No supported agents found. Install one, then reopen Settings." = "지원되는 에이전트를 찾지 못했습니다. 하나를 설치한 뒤 설정을 다시 여세요.";
 
 /* Ended list */
-"Put back on the floating panel" = "플로팅 패널로 되돌리기";
 "Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's leverage." = "레버리지 추이: 최근 %@ 동안 각 지점은 그 시점까지 4시간의 레버리지입니다. 점선은 오늘의 레버리지입니다.";
 "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "최근 4시간, 자리를 비운 시간 포함 에이전트 작업 시간 ÷ 머문 시간. 화살표는 오늘의 레버리지와 비교합니다.";
 "Close search" = "검색 닫기";

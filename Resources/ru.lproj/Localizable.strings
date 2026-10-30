@@ -368,7 +368,6 @@
 "No supported agents found. Install one, then reopen Settings." = "Поддерживаемые агенты не найдены. Установите агента и снова откройте настройки.";
 
 /* Ended list */
-"Put back on the floating panel" = "Вернуть на плавающую панель";
 "Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's leverage." = "Тренд множителя: каждая точка — множитель за 4 часа до этого момента, за последние %@; пунктир — сегодняшний множитель.";
 "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "За последние 4 часа: часы агентов (включая ваше отсутствие) на час вашего присутствия. Стрелка сравнивает с сегодняшним множителем.";
 "Close search" = "Закрыть поиск";
