@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(reducer): keep a session's tty when its agent exits
+## fix(overview): cap last week's leverage only where this week beat it
 
 `pending` | 2026-10-30
+
+- **Changes**: LeverageBars draws the cap only when the period before is lower than this one (`b < v`), always in the darkened hue; a tie, a down day, a day without a bar or a day to come shows the pale ghost alone. The `ramp.mid` cap off the bar is gone. CHANGELOG line reworded.
+- **Reason**: The user wants the mark only where this week is ahead; on the ghost the height is already visible.
+- **User feedback**: "对于上周同比高于当期的，不要显示bar。只在上周数据低于本周数据的时候才显示这个板"
+- **Process**: `yaak snapshot` week view: caps on Wed, Thu, today (up); none on Tue (down) or Sat/Sun (to come); Mon has no week before.
+- **Result**: make test 200 pass; installed.
+- **Notes**: A tie draws no cap, so it looks the same as no comparison when the ghost is hidden behind an equal bar.
+
+## fix(reducer): keep a session's tty when its agent exits
+
+`d00fdbd` | 2026-10-30
 
 - **Changes**: SessionReducer: an event whose terminal has no tty keeps the recorded one when it comes from the same agent pid (or names none). Test `endKeepsTheTtyOfTheSameProcess`.
 - **Reason**: In-place Wave resume needs the agent's tty, but SessionEnd usually runs after the agent exited, so `ProcessUtil.tty(of:)` finds nothing and the event's terminal replaced the recorded one. Last 2 days: 23 of 33 ended Wave sessions had no tty.
@@ -57,7 +68,7 @@
 
 ## fix(wave): press the tab bar Wave shows, not a stale cached one
 
-`pending` | 2026-10-30
+`86052e8` | 2026-10-30
 
 - **Changes**: TerminalJumper `WaveTabBar`: `bars(in:)` collects every `tabs-wrapper` in a window (was the first one found); `press` keeps the bars whose names equal the workspace's and prefers the one whose `active` tab is the workspace's `activetabid`. `WaveDB.place` also returns the active tab's index (`WaveTabBar.Place`). CHANGELOG Fixed line.
 - **Reason**: Wave keeps a web view, each with its own tab bar, for every recently shown tab. Hidden ones stop updating, so after a tab is added they still list the old tabs. The first bar in the AX tree was such a stale view: its names never equalled the DB's, and the loose fallback (same count) failed too, so no tab was pressed.

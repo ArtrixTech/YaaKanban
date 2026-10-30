@@ -180,8 +180,8 @@ private struct LeverageDays {
 }
 
 /// A bar a day, the period's days lit and the rest of the week mid; the same day of the period
-/// before a pale bar of the same width behind each, its height marked by a short rounded cap (the
-/// bar's hue darkened where the bar covers it); days still to come a hollow stub. Break-even 1× as
+/// before a pale bar of the same width behind each, its height marked on the bar by a short rounded
+/// cap in the bar's hue darkened when it is lower; days still to come a hollow stub. Break-even 1× as
 /// a hairline.
 private struct LeverageBars: View {
     let days: LeverageDays
@@ -218,15 +218,11 @@ private struct LeverageBars: View {
                 let b = days.before.indices.contains(i) ? days.before[i] : nil, v = days.values[i]
                 if let b { ctx.fill(bar(cx, width, b), with: .color(ramp.dim)) }
                 if let v { ctx.fill(bar(cx, width, v), with: .color(lit ? ramp.hue : ramp.mid)) }
-                if let b {
+                if let b, let v, b < v {
                     let half = max(width * 0.3 - cap / 2, 0), style = StrokeStyle(lineWidth: cap, lineCap: .round)
                     var mark = Path(); mark.move(to: CGPoint(x: cx - half, y: y(b))); mark.addLine(to: CGPoint(x: cx + half, y: y(b)))
-                    if let v, b <= v {
-                        ctx.stroke(mark, with: .color(ramp.hue), style: style)
-                        ctx.stroke(mark, with: .color(.black.opacity(0.55)), style: style)
-                    } else {
-                        ctx.stroke(mark, with: .color(ramp.mid), style: style)
-                    }
+                    ctx.stroke(mark, with: .color(ramp.hue), style: style)
+                    ctx.stroke(mark, with: .color(.black.opacity(0.55)), style: style)
                 }
                 if let v {
                     if !days.monthly {
