@@ -273,25 +273,53 @@ struct WaveAdapter {
         }
     }
 
-    /// Opens an ordinary terminal block in the session's tab (Wave places it next to the block the
-    /// token was issued for) that runs `cmd` at its first prompt, like the user pasting it there.
-    /// Each runner's token is tried in turn (a token's block may be closed). When none works the
-    /// user pastes the copied command instead, and `failed` says so.
+    /// Continues the session where it ran: when its block is back at the shell prompt, the command
+    /// is typed there. Otherwise an ordinary terminal block opens in the session's tab (Wave places
+    /// it next to the block the token was issued for) and runs `cmd` at its first prompt, like the
+    /// user pasting it there. Each runner's token is tried in turn (a token's block may be closed).
+    /// When none works the user pastes the copied command instead, and `failed` says so.
     func resume(_ cmd: String, cwd: String?, app: NSRunningApplication, runners: [TerminalContext],
                 failed: @escaping @MainActor () -> Void) {
         app.activate()
+        let pressed = DispatchSemaphore(value: 0)
         if switchTabs, let tab = terminal.waveTabId, AXIsProcessTrusted() {
             let pid = app.processIdentifier
             let block = terminal.waveBlockId
             DispatchQueue.global(qos: .userInitiated).async {
                 _ = WaveTabBar(pid: pid).press { WaveDB.place(ofBlock: block, tab: tab) }
+                pressed.signal()
             }
+        } else {
+            pressed.signal()
         }
         let args = WaveResume.createBlockArgs(cmd, cwd: cwd)
+        let line = WaveResume.typedLine(cmd, cwd: cwd)
         DispatchQueue.global(qos: .userInitiated).async {
+            if let block = terminal.waveBlockId, let tty = terminal.tty,
+               let runner = Self.typeAtPrompt(line, block: block, tty: tty, runners: runners) {
+                // Like a jump: the block gets the keyboard once its tab is showing.
+                _ = pressed.wait(timeout: .now() + 3)
+                usleep(150_000)
+                _ = Self.runWaiting(["focusblock", "-b", block], as: runner)
+                return
+            }
             guard !runners.contains(where: { Self.runWaiting(args, as: $0) }) else { return }
             DispatchQueue.main.async { MainActor.assumeIsolated { failed() } }
         }
+    }
+
+    /// Types `line` into `block` when its shell is at a prompt, and returns the runner that did.
+    /// Both must agree: the block's tty (the agent's) has the shell itself in the foreground, and
+    /// Wave's shell integration says `ready` (a tab Wave has unloaded keeps its last state, which
+    /// the tty check catches). The first runner Wave accepts answers for the block (runners share
+    /// its tab); a block that is busy, closed or without shell integration says no.
+    static func typeAtPrompt(_ line: String, block: String, tty: String, runners: [TerminalContext]) -> TerminalContext? {
+        guard ProcessUtil.shellAtPrompt(tty: tty) else { return nil }
+        for runner in runners {
+            guard let rpc = runner.waveJWT.flatMap({ WaveRPC(jwt: $0) }) else { continue }
+            return rpc.shellState(block: block) == "ready" && rpc.type(line, block: block) ? runner : nil
+        }
+        return nil
     }
 
     /// Runs `wsh` as `terminal` and reports whether it succeeded (bounded: a hung `wsh` counts as failed).

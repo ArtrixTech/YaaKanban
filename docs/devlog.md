@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(panel): run alerts after the click so the rail folds under them
+## feat(wave): resume a stopped agent in the block it ran in
 
 `pending` | 2026-10-30
+
+- **Changes**: `YaaCore/WaveRPC.swift` (new): Wave RPC client on the socket named in the block JWT (`sock` claim): `authenticate` (route `$control`), `getrtinfo` → `shell:state`, `controllerinput` (base64 input); buffered line reader skips unrelated lines, one deadline (2 s) per connection. a reply that never comes after the request was written counts as typed (no second resume in a new block). `ProcessUtil.shellAtPrompt(tty:)`: sysctl KERN_PROC_TTY, a shell session leader whose pgid is the tty's foreground pgid. `WaveResume.typedLine`: Ctrl-E Ctrl-U + `cd <cwd> && <cmd>` + CR. `WaveAdapter.resume`: first tries `typeAtPrompt` on the session's own block (needs its recorded tty at the shell prompt, then the first runner whose token Wave accepts answers: `ready` → type, then `focusblock` after the tab press), else the old `createblock` path. Tests `WaveRPCTests` (fake Wave socket, shellAtPrompt). Spec resume line, CHANGELOG, Architecture.
+- **Reason**: Reopening opened a new block next to the old one; the user wants to continue in the original terminal.
+- **User feedback**: "现在在原来的 agent 进程已经停止的时候，重新恢复的方式是在对应的 Wave term 的里面打开一个新的 terminal 然后进行重新加载。但是我们是不是可以在原原来这个 agent 所在的原始的 terminal 里面直接 resume 而不需要开一个新的 terminal"
+- **Process**: `wsh` v0.14.5 has no input command; Wave source (v0.14.5, `wshserver.ControllerInputCommand`, `wstore_rtinfo`, `osc-handlers.ts`) shows the RPCs. `shell:state` comes from shell integration OSC 16162 (A → ready, C → running-command); rtinfo is deleted when the controller stops or the block is deleted. `shell:inputempty` is unusable (`omitempty` drops false), hence Ctrl-E Ctrl-U. Live on Wave 0.14.5: own block (agent running) `running-command`; scratch block `ready` → typed over leftover text with the cursor mid-line (cleared) → `running-command` → `ready` → deleted → nil; `shellAtPrompt` agreed with `ps` on every tty (true only for `Ss+` shells) and tracked the scratch block (true/false/true). Adversarial review (subagent) found: flaky test (dict key order in the fake JWT; fixed with sortedKeys, computed once), double resume on a late `controllerinput` reply (fixed: `.noReply` counts as typed), Ctrl-U alone keeping text after the cursor (Ctrl-E added), stale `ready` in tabs Wave unloaded (frontend ignores OSC when not loaded; `MaxCacheSize` 10) letting a second resume type into an agent the first started (fixed by the tty check).
+- **Result**: make test 199 pass (3 runs).
+- **Notes**: Authenticate checks only the JWT signature, so a closed block's token still connects; `getrtinfo` then has no state and the new-block fallback runs. The block's tab must have been shown since its shell started (the frontend reports the state). Without shell integration (e.g. custom shells) or a recorded tty, always new block. vi-mode line editing: Ctrl-U clears only before the cursor. A probe holding one `WaveRPC` past its 2 s deadline sees nil state (not a Wave bug).
+
+## fix(panel): run alerts after the click so the rail folds under them
+
+`6f0c914` | 2026-10-30
 
 - **Changes**: `NSAlert.runLater` (Windows.swift): brings the app forward and runs the alert on the next common-mode run-loop turn, handing the answer to a closure. Used by the reopen alert (`askReopen` → `reopenAlert`, which returns the alert), rename, `FeedbackPrompt.present`/`show`, and `TerminalJumper.explainAccessibility` (was a `DispatchQueue.main.async` block; now takes `then`).
 - **Reason**: An alert run inside a SwiftUI action (card tap, context menu, button) holds back `onGeometryChange` actions in every window until it closes. The peek ended under the alert and the rail redrew folded, but `onSize` never reached `fit`, so the window stayed 300 wide around 28-wide content.
@@ -13,7 +24,7 @@
 
 ## fix(overview): mark last week's leverage with a cap on a same-width bar
 
-`pending` | 2026-10-30
+`6e4edc2` | 2026-10-30
 
 - **Changes**: LeverageBars: the period before is a `ramp.dim` bar of the bar's own width on the same centre (the wider ghost is gone); a cap at its height, 60% of the bar's width, 3 pt (2 pt in a month), round ends. Where this period's bar covers it (`b <= v`) the cap is `ramp.hue` under `black 0.55`; on the ghost alone (lower bar, no bar, days to come) it is `ramp.mid`. `design/history/leverage-v2/` (study + renders), README rows; CHANGELOG line reworded.
 - **Reason**: The user picked B from leverage-v1 and asked for a narrower cap with round ends, darker and grayer than the bar, not white.

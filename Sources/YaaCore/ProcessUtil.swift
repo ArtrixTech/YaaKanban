@@ -30,6 +30,27 @@ public enum ProcessUtil {
         return "/dev/" + String(cString: name)
     }
 
+    /// Whether the terminal `tty` (`/dev/ttys003`) is back at its shell's prompt: the foreground
+    /// process group is the session leader's own and that leader is a shell. False while any
+    /// command runs in the foreground (an agent, tmux, ssh) or when the tty has no processes.
+    public static func shellAtPrompt(tty: String) -> Bool {
+        var st = stat()
+        guard stat(tty, &st) == 0, (st.st_mode & S_IFMT) == S_IFCHR else { return false }
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_TTY, Int32(bitPattern: UInt32(st.st_rdev))]
+        var size = 0
+        guard sysctl(&mib, 4, nil, &size, nil, 0) == 0, size > 0 else { return false }
+        var procs = [kinfo_proc](repeating: kinfo_proc(), count: size / MemoryLayout<kinfo_proc>.stride + 4)
+        size = procs.count * MemoryLayout<kinfo_proc>.stride
+        guard sysctl(&mib, 4, &procs, &size, nil, 0) == 0 else { return false }
+        return procs.prefix(size / MemoryLayout<kinfo_proc>.stride).contains { p in
+            let pid = p.kp_proc.p_pid
+            // A session leader's process group is its own pid.
+            guard pid > 0, p.kp_eproc.e_pgid == pid, p.kp_eproc.e_tpgid == pid, (p.kp_eproc.e_flag & EPROC_SLEADER) != 0
+            else { return false }
+            return name(of: pid).map { shells.contains($0.hasPrefix("-") ? String($0.dropFirst()) : $0) } ?? false
+        }
+    }
+
     /// Parents of `pid`, nearest first, up to (not including) launchd.
     public static func ancestors(of pid: Int32, limit: Int = 16) -> [Int32] {
         var out: [Int32] = []
