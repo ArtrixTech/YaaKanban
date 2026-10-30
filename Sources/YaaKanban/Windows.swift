@@ -33,13 +33,36 @@ struct BoardHeader<Trailing: View>: View {
         }
     }
 
-    private var counts: [(DisplayStatus, Int)] {
-        let all = model.activeSessions.map(\.display)
-        return [DisplayStatus.needsInput, .stuck, .review, .running].compactMap { st in
-            let n = all.filter { $0 == st }.count
-            return n > 0 ? (st, n) : nil
-        }
+    private var counts: [(DisplayStatus, Int)] { statusCounts(model.activeSessions) }
+}
+
+/// Sessions per state that has any, most urgent first: the count chips.
+func statusCounts(_ sessions: [SessionState]) -> [(DisplayStatus, Int)] {
+    let all = sessions.map(\.display)
+    return [DisplayStatus.needsInput, .stuck, .review, .running].compactMap { st in
+        let n = all.filter { $0 == st }.count
+        return n > 0 ? (st, n) : nil
     }
+}
+
+/// Keeps the app in the Dock and the app switcher while any window that asks is open: the main
+/// window, the setup guide. Back to the menu bar alone once the last one closes.
+@MainActor enum Dock {
+    private static var holders: Set<String> = []
+
+    static func show(_ id: String) {
+        holders.insert(id)
+        guard NSApp.activationPolicy() != .regular else { return }
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate()
+    }
+
+    static func hide(_ id: String) {
+        holders.remove(id)
+        if holders.isEmpty { NSApp.setActivationPolicy(.accessory) }
+    }
+
+    static func holds(_ id: String) -> Bool { holders.contains(id) }
 }
 
 /// App logo from the bundle, with a symbol fallback when running unbundled.

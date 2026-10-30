@@ -65,11 +65,11 @@ struct SetupGuide: View {
         .task(id: step) { await readPermissions() }
         .onAppear {
             loadChoices()
-            if live { NSApp.setActivationPolicy(.regular); NSApp.activate() }
+            if live { Dock.show(SetupGuide.id) }
         }
         .onDisappear {
             guard live else { return }
-            NSApp.setActivationPolicy(.accessory)
+            Dock.hide(SetupGuide.id)
             if !closed { model.finishSetup() }
         }
         .onExitCommand { close(apply: false) }

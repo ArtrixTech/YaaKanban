@@ -34,8 +34,9 @@ struct MainWindow: View {
     }
 }
 
-/// The sidebar: brand and counts, search, Overview, the boards' sessions as cards, history as
-/// rows, and Settings at the foot. Arrow keys move the selection once the list has been clicked.
+/// The sidebar: the logo beside the window buttons, the Overview block, search, the boards'
+/// sessions as cards, history as rows, and Settings at the foot. Arrow keys move the selection
+/// once the list has been clicked.
 private struct MainSidebar: View {
     @Environment(AppModel.self) private var model
     var shown: String?
@@ -44,18 +45,20 @@ private struct MainSidebar: View {
     @FocusState private var listFocused: Bool
 
     private var selection: String? { shown ?? model.selection }
+    /// Where the logo starts: past the three window buttons.
+    private static let buttonsWidth: CGFloat = 78
 
     var body: some View {
         let active = model.board.filter(matches)
         let history = self.history.filter(matches)
         VStack(alignment: .leading, spacing: 0) {
-            BoardHeader { EmptyView() }
-                .padding(.horizontal, Space.m).padding(.top, 34).padding(.bottom, Space.m)
-            search.padding(.horizontal, Space.s).padding(.bottom, Space.m)
+            brand.padding(.leading, Self.buttonsWidth - 10).frame(height: 28)
+            OverviewBlock(selected: selection == AppModel.overview) { select(AppModel.overview) }
+                .padding(.top, Space.m)
+            search.padding(.horizontal, Space.xs).padding(.top, Space.l).padding(.bottom, Space.xs)
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: Space.s) {
-                        nav(AppModel.overview, String(localized: "Overview"), "chart.xyaxis.line", .accentColor)
                         if !active.isEmpty {
                             section(String(localized: "Active"), active.count)
                             ForEach(active) { s in
@@ -75,9 +78,16 @@ private struct MainSidebar: View {
                                 .frame(maxWidth: .infinity).padding(.top, Space.xxl)
                         }
                     }
-                    .padding(.bottom, Space.l)
+                    .padding(.bottom, Space.xxl + Space.l)
                 }
                 .scrollIndicators(.never)
+                // The list fades out above Settings rather than being cut off.
+                .mask {
+                    VStack(spacing: 0) {
+                        Color.black
+                        LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom).frame(height: 40)
+                    }
+                }
                 .focusable()
                 .focused($listFocused)
                 .focusEffectDisabled()
@@ -86,7 +96,6 @@ private struct MainSidebar: View {
             }
             nav(AppModel.settingsPage, String(localized: "Settings"), "gearshape.fill", .gray,
                 badge: settingsBadge > 0 ? settingsBadge : nil)
-                .padding(.top, Space.s)
         }
         .padding(.horizontal, 10).padding(.bottom, Space.l)
     }
@@ -161,6 +170,13 @@ extension MainSidebar {
         }
     }
 
+    private var brand: some View {
+        HStack(spacing: 6) {
+            BrandMark(size: 18)
+            Text(verbatim: "YaaKanban").font(.ui(.body, .bold)).lineLimit(1)
+        }
+    }
+
     private func section(_ title: String, _ count: Int?) -> some View {
         HStack(spacing: Space.s) {
             Text(title).font(.ui(.footnote, .semibold)).foregroundStyle(.secondary)
@@ -183,6 +199,62 @@ extension MainSidebar {
         .buttonStyle(Pressable())
         .accessibilityAddTraits(selection == id ? .isSelected : [])
         .id(id)
+    }
+}
+
+/// The sidebar's Overview: today's key figures and the sessions per state, on one block that
+/// opens the Overview page.
+private struct OverviewBlock: View {
+    @Environment(AppModel.self) private var model
+    let selected: Bool
+    var onSelect: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        let _ = model.activityVersion
+        let today = Calendar.current.startOfDay(for: Date())
+        let r = model.report(DateInterval(start: today, end: Calendar.current.date(byAdding: .day, value: 1, to: today)!), buckets: 1)
+        let counts = statusCounts(model.activeSessions)
+        let shape = RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+        VStack(alignment: .leading, spacing: Space.m) {
+            HStack(spacing: Space.m) {
+                IconTile(symbol: "chart.xyaxis.line", tint: .accentColor, size: 22)
+                Text("Overview").font(.ui(.body, .semibold))
+                Spacer(minLength: Space.xs)
+                Text("Today").font(.ui(.footnote, .medium)).foregroundStyle(Ink.tertiary)
+            }
+            HStack(alignment: .top, spacing: Space.s) {
+                item(figure(duration(r.agentTime), Ramp.work, 20), String(localized: "agent hours"))
+                item(figure(r.leverage.map { String(format: "%.1f×", $0) } ?? "–", Ramp.work, 20), String(localized: "Leverage"))
+                item(figure(r.replyMean.map(duration) ?? "–", Ramp.reply, 20), String(localized: "Reply"))
+            }
+            if !counts.isEmpty {
+                HStack(spacing: Space.xs) {
+                    ForEach(counts, id: \.0.rank) { st, n in CountChip(count: n, status: st).transition(.scale.combined(with: .opacity)) }
+                }
+                .animation(.snappy, value: counts.map(\.1))
+            }
+        }
+        .padding(Space.l)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .surface(shape, fill: hover ? Fill.cardHover : Fill.card)
+        .overlay { if selected { shape.fill(Fill.selected) } }
+        .contentShape(shape)
+        .onTapGesture(perform: onSelect)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction(.default, onSelect)
+        .onHover { hover = $0 }
+        .animation(.easeOut(duration: 0.12), value: hover)
+        .help(String(localized: "Today. Click to open Overview in the main window."))
+    }
+
+    private func item(_ value: Text, _ name: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            value.lineLimit(1).minimumScaleFactor(0.6)
+            Text(name).font(.ui(.caption)).foregroundStyle(Ink.secondary).lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

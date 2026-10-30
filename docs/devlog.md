@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(reducer): end a sub-agent's calls when an unknown stop removes it
+## feat(main): overview block in the sidebar, Dock icon while open
 
 `pending` | 2026-10-30
+
+- **Changes**: MainSidebar: logo + name in the window-button row (leading 78 pt); `OverviewBlock` (today's agent hours, leverage, mean reply, CountChips; tap opens 概览) replaces the Overview nav row and BoardHeader; search under the block, pinned above the list; list masked to fade over its last 40 pt above 设置. `statusCounts` shared with BoardHeader. `Dock` (Windows.swift) holds the Dock icon while the main window or setup guide is open. `applicationShouldHandleReopen` returns false and opens guide/main itself after 0.3 s unless a notification was acted on within 1.5 s (`AppModel.notificationActedAt`). Spec revised (sidebar, Dock).
+- **Reason**: User asked for the sidebar changes and the Dock icon; notification clicks opened the main window instead of going to the agent.
+- **User feedback**: "1，左侧侧边栏，下方过渡到设置的位置需要有渐变遮罩 2，侧边栏顶上，概览区域整个需要改成一个更大的block，里面显示关键数据，点击就是打开概览显示 3，侧边栏搜索放到列表区域去 4，app主界面如果打开了要允许dock栏显示 5，logo放到红绿灯同一行，不同颜色badge统计放到概览block里面去"; "通知栏通知的内容点了之后是应该跳转到对应agent的，现在只是打开主界面"
+- **Process**: `yaak snapshot` before/after (main-overview). `osascript reopen` on the installed app: type went UIElement → Foreground and the main window opened.
+- **Result**: make test 202 pass; installed.
+- **Notes**: Notification fix rests on the inference that a banner click sends a reopen, which SwiftUI answered by opening the main Window; not verified with a real click. Logo vs traffic lights not checked in the real window (screen capture denied); snapshot windows have a normal title bar. The popover's QuickFigures still shows the median reply.
+
+## fix(reducer): end a sub-agent's calls when an unknown stop removes it
+
+`351bb12` | 2026-10-30
 
 - **Changes**: SubagentStop with an id not in `subagents` still removes the oldest, and now also ends that one's running calls (before, only calls under the event's id). Test `unknownSubagentStopEndsTheOnesCalls`.
 - **Reason**: 自制银质方案 (claude-code:cc693b52) showed 可能卡住 "Bash 已运行 12 分钟" while waiting on two live sub-agents. The open call was Bash 11:05:40 by sub-agent a560d731, already gone from `subagents`; its call stayed `isRunning`, so StuckDetector's tool-duration check fired.

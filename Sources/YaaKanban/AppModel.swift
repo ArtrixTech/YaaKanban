@@ -466,7 +466,11 @@ final class AppModel {
         }
     }
 
+    /// When a notification was last clicked or answered (the app ignores the reopen that comes with it).
+    @ObservationIgnored private(set) var notificationActedAt = Date.distantPast
+
     private func handleNotificationAction(key: String, requestId: String?, action: Notifier.Action) {
+        notificationActedAt = Date()
         switch action {
         case .allow: decide(key, .allow, requestId: requestId ?? "")
         case .deny: decide(key, .deny, requestId: requestId ?? "")

@@ -20,6 +20,8 @@ the update.
 - **First day of the week** in Settings › General: where the overview's weeks start, Monday by default (Sunday or Saturday also).
 
 ### Changed
+- Main window sidebar: the logo sits beside the window buttons; Overview is a larger block with today's agent hours, leverage, average reply and the per-state counts, and opens Overview on click; search moves down to the list, which fades out above Settings.
+- While the main window is open, the app shows in the Dock and the app switcher.
 - Overview › Response time shows the average reply and review time instead of the median, which read 0 s when most waits fell while you were away.
 - Wave: reopening a session whose agent has stopped now continues it in the terminal it ran in, when that terminal is back at its shell prompt, instead of opening a new one beside it. A terminal that is busy or closed still gets a new one.
 - A new look across the app, with fills and space instead of lines, and status color only on session cards. Settings is now a page of the main window (⌘, or the Settings row at the bottom of its sidebar), split into tabs: Agent integrations, Alerts, Floating panel, Compatibility, General and About. The sidebar shows active sessions as cards and history as single lines, with search and an agent filter on top; the arrow keys move through it.
@@ -38,6 +40,7 @@ the update.
 - A sub-agent whose parent session is not on the board (pi-subagents scouts of a pi session YaaKanban never heard from, for example) no longer gets a card of its own, unless it needs your input.
 
 ### Fixed
+- Clicking a notification goes to its agent's terminal again, instead of opening the main window over it.
 - A session no longer shows Maybe stuck while it waits for sub-agents, after a sub-agent stopped under an id the app had not seen and left a tool marked running.
 - The side rail folds back while an alert it opened is up (reopening a session, renaming, Accessibility, feedback), instead of staying as wide as the panel around its narrow cards until the alert closes.
 - Wave: after a new tab was added, clicking a card again brings up its own tab, instead of only bringing Wave forward (or opening a tab next to it).

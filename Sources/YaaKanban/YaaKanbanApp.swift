@@ -16,6 +16,8 @@ struct YaaKanbanApp: App {
 
         Window("YaaKanban", id: "main") {
             MainWindow().environment(delegate.model)
+                .onAppear { Dock.show("main") }
+                .onDisappear { Dock.hide("main") }
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 960, height: 620)
@@ -93,10 +95,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { self.model.selection = home }
     }
 
-    /// The app is in the Dock only while the setup guide is open: clicking it brings the guide back.
+    /// The Dock icon (shown while the main window or the setup guide is open) brings the guide
+    /// back, else the main window. Clicking a notification sends a reopen too: its jump to the
+    /// session must not end under the main window, so a reopen right after one does nothing.
+    /// False, or SwiftUI opens the main window itself.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if NSApp.activationPolicy() == .regular { AppWindows.open(.setup) }
-        return true
+        // The click's response can arrive just after the reopen.
+        Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [model] _ in
+            MainActor.assumeIsolated {
+                guard Date().timeIntervalSince(model.notificationActedAt) > 1.5 else { return }
+                AppWindows.open(Dock.holds(SetupGuide.id) ? .setup : .main)
+            }
+        }
+        return false
     }
 
     func applicationWillTerminate(_ notification: Notification) { model.stop() }
