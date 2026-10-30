@@ -1,8 +1,17 @@
 # Devlog
 
-## fix(main): fade the Overview card's rim light in gradually
+## chore(release): bump the version to 0.2.0
 
 `pending` | 2026-10-31
+
+- **Changes**: `Resources/Info.plist` 0.1.2 (3) → 0.2.0 (4); CHANGELOG `[Unreleased]` entries now under `[0.2.0] - 2026-10-31`.
+- **Reason**: Release the design-system work as 0.2.0.
+- **User feedback**: "完成之后，发新的版本，0.2.0，发release。"
+- **Notes**: The only valid signing identity here is team 5JF32B7C33; 0.1.2 was signed by 5KZD8GBF7G (expired cert AA1FC361…), and `Updater.verify` only accepts an update from the running app's team.
+
+## fix(main): fade the Overview card's rim light in gradually
+
+`eec8dcd` | 2026-10-31
 
 - **Changes**: Rim gradient stops white 0.2 @0 → white 0.08 @0.3 → hue ×0.15 @0.5 → ×0.55 @0.78 → full @1 (foot 0.45, hovered 0.8 as a second stroke faded in) instead of white 0.05 @0.45 straight to the hue at the foot. Hover no longer switches the canvas's opacity (Canvas can't animate it); `FootGlow.bright` gone, a 15% base-color veil over the light fades out on hover instead.
 - **Reason**: The rim lit up abruptly low on the sides, and the hover brightening jumped.

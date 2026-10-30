@@ -7,6 +7,8 @@ the update.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-31
+
 ### Added
 - A setup guide on first launch: install the integrations for the agents found on this Mac (each is ticked once it reports, no test session needed), then allow notifications and confirm launch at login, Accessibility, the `yaak` command and statistics (all on by default). A frameless window with one big Connect All Agents button. Reopen it from the menu or Settings › General.
 - Clicking a card that needs Accessibility (to bring up the right Wave tab or editor window) first says, in one line, why and that macOS will ask, instead of the system prompt appearing out of nowhere. "Not Now" is remembered.
