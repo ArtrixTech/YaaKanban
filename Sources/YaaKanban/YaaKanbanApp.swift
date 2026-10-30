@@ -112,8 +112,8 @@ struct MenuBarLabel: View {
     }
 
     private func icon(count: Int, running: Bool) -> NSImage {
-        // Red: blocked on you. Orange: stuck. Green: finished, waiting to be reviewed.
-        let color: NSColor? = model.hasNeedsInput ? .systemRed
+        // Purple: asking you. Orange: stuck. Green: finished, waiting to be reviewed.
+        let color: NSColor? = model.hasNeedsInput ? .systemPurple
             : model.hasStuck ? .systemOrange
             : model.reviewCount > 0 ? .systemGreen : nil
         let text = count > 0 ? "\(count)" as NSString : nil

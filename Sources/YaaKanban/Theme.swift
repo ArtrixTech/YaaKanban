@@ -15,7 +15,7 @@ extension DisplayStatus {
 
     var tint: Color {
         switch self {
-        case .needsInput: .red
+        case .needsInput: Ramp.wait.hue
         case .stuck: .orange
         case .review: .green
         case .running: .blue
@@ -25,7 +25,7 @@ extension DisplayStatus {
 
     var symbol: String {
         switch self {
-        case .needsInput: "hand.raised.fill"
+        case .needsInput: "questionmark.bubble.fill"
         case .stuck: "exclamationmark.triangle.fill"
         case .review: "checkmark.seal.fill"
         case .running: "circle.dotted"

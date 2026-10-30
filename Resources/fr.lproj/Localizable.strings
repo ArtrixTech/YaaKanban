@@ -286,9 +286,7 @@
 "That week" = "Cette semaine-là";
 "That month" = "Ce mois-là";
 "While agents ran · peak %lld" = "Quand des agents tournaient · pic à %lld";
-"All stalled" = "Tout à l’arrêt";
 "Agent utilization" = "Utilisation des agents";
-"Backlog now" = "File d’attente";
 "Switches" = "Bascules";
 "%lldm %llds" = "%lld min %lld s";
 "%@h" = "%@ h";
@@ -299,15 +297,9 @@
 "Same as %@" = "Comme %@";
 "Agent hours" = "Heures d’agent";
 "Leverage" = "Levier";
-"Reply time" = "Temps de réponse";
-"While you were away" = "Pendant votre absence";
-"No away time recorded here" = "Aucune absence enregistrée ici";
-"You were here the whole time" = "Vous étiez là tout le temps";
-"They stopped when you left" = "Ils se sont arrêtés quand vous êtes parti";
 "Deleted session" = "Session supprimée";
 "No agents ran." = "Aucun agent n’a tourné.";
 "Waiting %@" = "En attente : %@";
-"Waiting on you" = "En attente de vous";
 "Last period" = "Période précédente";
 "Other" = "Autre";
 "Session lanes" = "Détail des sessions";
@@ -323,26 +315,17 @@
 "Now" = "Maintenant";
 "%lld agents · %@" = "%lld agents · %@";
 "%lld projects" = "%lld projets";
-"%lld replies" = "%lld réponses";
-"%lld times" = "%lld fois";
 "1 agent · %@" = "1 agent · %@";
 "1 project" = "1 projet";
-"1 reply" = "1 réponse";
-"1 time" = "1 fois";
 "7-day rhythm" = "Rythme sur 7 jours";
 "Agent hours over 7 days" = "Heures d’agent sur 7 jours";
 "Agents %@ ÷ you %@" = "Agents %@ ÷ vous %@";
-"Away %@" = "Absence %@";
 "Busiest %@" = "Pic %@";
 "By %@" = "Surtout %@";
-"Here %@" = "Présence %@";
 "In %@" = "Surtout dans %@";
 "Less" = "Moins";
-"Longest %@" = "Plus longue %@";
-"Median · %@ within a minute" = "Médiane · %@ en moins d’une minute";
 "More" = "Plus";
 "Not recorded live" = "Non enregistré en direct";
-"Nothing waited on you" = "Rien ne vous a attendu";
 "Now %lld" = "Maintenant %lld";
 "Peak at once" = "Pic simultané";
 "Prompts and answers" = "Prompts et réponses";
@@ -355,11 +338,15 @@
 "You here" = "Votre présence";
 
 /* Overview info tips */
+"Response time" = "Temps de réponse";
+"Replying" = "Répondre";
+"Reviewing" = "Vérifier";
+"No replies" = "Aucune réponse";
+"Nothing reviewed" = "Rien de vérifié";
+"90%% within %@" = "90 %% en moins de %@";
+"How long agents waited for you, away time taken out. Replying: from an agent asking a question or permission, or finishing a turn, to your answer or next prompt. Reviewing: from a turn finishing to you opening it or following up. Each figure is the median; on the arcs the lit band holds the middle half and each dot is one." = "Combien de temps les agents vous ont attendu, absences exclues. Répondre : d’une question, d’une demande d’autorisation ou de la fin d’un tour jusqu’à votre réponse ou consigne suivante. Vérifier : de la fin d’un tour jusqu’à ce que vous l’ouvriez ou poursuiviez. Chaque chiffre est la médiane ; sur les arcs, la bande éclairée couvre la moitié centrale et chaque point est une occurrence.";
 "Hours of agent work per hour you were here. Agent time counts all running, away included; yours counts only while you were at the Mac and an agent was running or waiting on you. Each bar is one day's leverage, the pale one behind it the same day of the period before; above 1×, agents did more than you spent." = "Heures de travail des agents par heure de votre présence. Le temps des agents compte toute leur exécution, absences comprises ; le vôtre, seulement quand vous étiez au Mac et qu’un agent tournait ou vous attendait. Chaque barre est le levier d’un jour, la pâle derrière le même jour de la période précédente ; au-dessus de 1×, les agents ont fait plus que ce que vous y avez consacré.";
-"While you were away, the share of agent time spent running rather than blocked on you (asking or stuck). Away means no mouse or keyboard input for 2 minutes, or the Mac asleep. On the track, blue is running and red is waiting on you." = "Pendant votre absence, la part du temps des agents passée à tourner plutôt que bloqués à vous attendre (question ou blocage). Absent signifie 2 minutes sans souris ni clavier, ou le Mac en veille. Sur la piste, le bleu est l’exécution et le rouge l’attente de vous.";
 "How many agents ran at the same time, on average while any ran, and at the peak. The dotted line is the period before; the gray strip under it is when you were at the Mac. In a month, each point is that day's agent hours." = "Combien d’agents tournaient en même temps : en moyenne quand l’un tournait, et au maximum. La ligne pointillée est la période précédente ; la bande grise dessous, votre présence au Mac. Sur un mois, chaque point correspond aux heures d’agent du jour.";
-"Time agents sat blocked on you: asking a question, or stuck. On the dial, a bright arc is a wait while you were away, a dim one a wait while you were here; the longest are listed beside it." = "Temps où les agents étaient bloqués à vous attendre : une question, ou un blocage. Sur le cadran, un arc vif est une attente pendant votre absence, un arc pâle une attente pendant votre présence ; les plus longues sont listées à côté.";
-"How long an agent waited for your answer once it asked, away time taken out. The figure is the median; the lit band holds the middle half of replies, and each dot is one reply." = "Combien de temps un agent a attendu votre réponse après une question, absences déduites. Le chiffre est la médiane ; la bande lumineuse couvre la moitié centrale des réponses, chaque point est une réponse.";
 "Each agent's share of the running time, with its turns. The line is when it ran across the period." = "La part de chaque agent dans le temps d’exécution, avec ses tours. La ligne montre quand il a tourné sur la période.";
 "Agent running time by project; a circle's area is its time. Under each name, how long its sessions waited on you." = "Temps d’exécution des agents par projet ; l’aire d’un cercle est son temps. Sous chaque nom, combien de temps ses sessions vous ont attendu.";
 "The last 7 days in half hours, brighter where more agents ran at once. Each row ends with that day's agent hours; Busiest marks the 3 hours with the most agent time." = "Les 7 derniers jours par demi-heure, plus vifs là où plus d’agents tournaient en même temps. Chaque ligne finit par les heures d’agent du jour ; « Pic » marque les 3 heures les plus chargées.";
@@ -370,9 +357,6 @@
 "Finished turns you opened or followed up on." = "Tours terminés que vous avez ouverts ou relancés.";
 "Times you stepped in: prompts you sent and questions you answered." = "Vos interventions : prompts envoyés et questions répondues.";
 "Times you jumped to a session's terminal from the app." = "Fois où vous êtes passé de l’app au terminal d’une session.";
-"How long a finished turn waited for you to look at it, the median, away time taken out." = "Combien de temps un tour terminé a attendu que vous le regardiez, en médiane, absences déduites.";
-"Sessions waiting on you right now: asking, stuck, or finished and not yet reviewed." = "Sessions qui vous attendent maintenant : une question, un blocage, ou terminées et pas encore vérifiées.";
-"Time you were here while an agent was blocked on you (asking or stuck) and none was running." = "Temps où vous étiez présent pendant qu’un agent vous attendait bloqué (question ou blocage) et qu’aucun ne tournait.";
 
 /* SessionReducer.swift, Normalizer.swift fallbacks */
 "Needs your input" = "Saisie requise";
@@ -385,8 +369,6 @@
 
 /* Ended list */
 "Put back on the floating panel" = "Remettre dans le panneau flottant";
-"Pickup time" = "Délai de reprise";
-"Working %@, blocked %@" = "Actifs %@, bloqués %@";
 "Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's leverage." = "Tendance du levier : chaque point est le levier sur les 4 heures jusqu’à ce moment, sur une période de %@ ; la ligne pointillée est le levier du jour.";
 "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "Sur les 4 dernières heures, heures d’agent (absences comprises) par heure de présence. La flèche le compare au levier du jour.";
 "Close search" = "Fermer la recherche";

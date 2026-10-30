@@ -172,18 +172,12 @@ struct DashboardView: View {
          String(localized: "Finished turns you opened or followed up on."))]
     }
 
-    /// What it took from the user, and what waits now.
+    /// What it took from the user.
     private func attention(_ r: ActivityReport) -> [Chip] {
         [("text.bubble.fill", String(localized: "Prompts and answers"), "\(r.interventions)", .reply,
          String(localized: "Times you stepped in: prompts you sent and questions you answered.")),
          ("arrow.left.arrow.right", String(localized: "Switches"), "\(r.switches)", .reply,
-         String(localized: "Times you jumped to a session's terminal from the app.")),
-         ("checkmark.circle.fill", String(localized: "Pickup time"), r.pickupMedian.map(duration) ?? "–", .reply,
-         String(localized: "How long a finished turn waited for you to look at it, the median, away time taken out.")),
-         ("tray.full.fill", String(localized: "Backlog now"), "\(model.backlog.count)", .wait,
-         String(localized: "Sessions waiting on you right now: asking, stuck, or finished and not yet reviewed.")),
-         ("pause.circle.fill", String(localized: "All stalled"), r.allRebuilt ? "–" : duration(r.bottleneck), .wait,
-         String(localized: "Time you were here while an agent was blocked on you (asking or stuck) and none was running."))]
+         String(localized: "Times you jumped to a session's terminal from the app."))]
     }
 
     /// One row of chips, wrapping onto two when it doesn't fit; `more` ends it.
@@ -215,29 +209,30 @@ struct DashboardView: View {
 
     // MARK: Cards
 
-    /// Three cards a row when wide, two when not, one on the narrowest. A row is as tall as its
-    /// tallest card's content; the others stretch their charts to match. Each layout states its
+    /// Two cards a row when wide (the wide ones alone), the pairs stacked when not, one column on
+    /// the narrowest. A row is as tall as its tallest card's content; the others stretch their
+    /// charts to match. Each layout states its
     /// ideal width, so a long name truncates instead of pushing the layout to fewer columns.
     private func cards(_ d: OverviewData) -> some View {
         ViewThatFits(in: .horizontal) {
             VStack(spacing: Space.l) {
-                row { LeverageCard(data: d).frame(width: 330); RunningCard(data: d) }
-                row { WaitingCard(data: d); RepliesCard(data: d); AwayCard(data: d) }
+                row { LeverageCard(data: d).frame(width: 330); ResponseCard(data: d) }
+                RunningCard(data: d)
                 row { AgentsCard(data: d).frame(width: 520); ProjectsCard(data: d) }
                 RhythmCard(data: d)
             }
             .frame(minWidth: 980, idealWidth: 980)
             VStack(spacing: Space.l) {
-                row { LeverageCard(data: d); AwayCard(data: d) }
+                LeverageCard(data: d)
+                ResponseCard(data: d)
                 RunningCard(data: d)
-                row { WaitingCard(data: d); RepliesCard(data: d) }
                 row { AgentsCard(data: d); ProjectsCard(data: d) }
                 RhythmCard(data: d)
             }
             .frame(minWidth: 640, idealWidth: 640)
             VStack(spacing: Space.l) {
-                LeverageCard(data: d); RunningCard(data: d); WaitingCard(data: d); RepliesCard(data: d)
-                AwayCard(data: d); AgentsCard(data: d); ProjectsCard(data: d); RhythmCard(data: d)
+                LeverageCard(data: d); ResponseCard(data: d); RunningCard(data: d)
+                AgentsCard(data: d); ProjectsCard(data: d); RhythmCard(data: d)
             }
         }
     }

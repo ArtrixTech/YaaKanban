@@ -673,8 +673,6 @@ final class AppModel {
         return r
     }
 
-    var backlog: Backlog { Backlog(Array(sessions.values)) }
-
     // MARK: Sub-agents
 
     /// Transcripts already read for a parent link (the header is written once, at start).

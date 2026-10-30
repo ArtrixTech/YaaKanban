@@ -16,11 +16,15 @@ the update.
 - Experimental, on by default: a finished turn is marked reviewed as soon as you bring up its terminal pane in Wave, iTerm2, Terminal or WezTerm (tmux inside them too), as if you had clicked its card. iTerm2 and Terminal need Automation access, which Settings › Session reminders asks for with an Allow… button.
 - **Reset floating panel position** in the menu-bar menu brings the floating panel back to where a new install puts it: the right edge of the main screen, centered top to bottom. New installs now start there instead of at the top right.
 - Every overview card and key figure has an ⓘ: hover it to see what the figure measures and how its chart reads.
+- The overview's **Response time** card, beside leverage: how fast you reply to an agent (an answer, or your next prompt after a turn) and how fast you get to a finished turn, each as a median against the previous period with its spread.
 
 ### Changed
 - A new look across the app, with fills and space instead of lines, and status color only on session cards. Settings is now a page of the main window (⌘, or the Settings row at the bottom of its sidebar), split into tabs: Agent integrations, Alerts, Floating panel, Compatibility, General and About. The sidebar shows active sessions as cards and history as single lines, with search and an agent filter on top; the arrow keys move through it.
 - The overview is rebuilt as a wall of cards: totals in the top bar, a row of key figures, then cards for leverage, time away, sessions running at once, waits on you, reply times, agents, projects and a 7-day rhythm, each compared with the same point of the previous period. Below them, a row for prompts, switches, pickup time and backlog, and the session lanes behind a button.
 - The overview is denser: tighter cards that are only as tall as their content, leverage drawn as a bar per day of the week (of the month in the month view) beside the same days of the one before, over the break-even 1× line, and time away as a timeline of each stretch, lit where agents ran and red where they waited on you.
+- The overview drops the time-away and waiting cards and the all-stalled and backlog figures; reply time and pickup time now live in the Response time card.
+- An agent asking you something is purple with a question-bubble mark (cards, menu-bar dot, overview) instead of red; red is kept for errors.
+- Main-window sidebar cards line their agent and project up under the status mark, as on the floating panel, and show a pin on pinned sessions.
 - The slim side rail is no longer experimental and is now the only folded rail: snapped to a screen edge, the panel folds into a thin strip of status, agent and time. The wider folded rail and its setting are gone.
 - The setup guide shows in the Dock and the app switcher while it is open, so you can get back to it after switching to an agent; its Accessibility row asks right there with an Allow… button.
 - Codex approval steps describe the Codex desktop app (Settings → Hooks) by default, with a switch for the terminal's /hooks.

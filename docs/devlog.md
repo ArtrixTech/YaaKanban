@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(overview): show leverage as a bar per day against the period before
+## feat(overview): replace away and waiting cards with response time; needs input in purple
 
 `pending` | 2026-10-30
+
+- **Changes**: OverviewCards: `AwayCard`/`Absences`/`AwayStrip` and `WaitingCard`/`Waits`/`WaitDial` removed; `RepliesCard`/`ReplyArc` → `ResponseCard` with two `ResponseHalf`s (回复 = `replies`, 验收 = `pickups`; median vs previous, "90% within P90", count) over `ResponseArc` with a per-half log `Scale` (10 s–5 min; 30 s–2 h). The halves sit side by side and stack via `ViewThatFits` when narrow. DashboardView: chips 全部停工, 当前积压 and 验收时间 removed; layouts: wide `row { Leverage(330); Response }`, Running, `row { Agents(520); Projects }`, Rhythm; at 2 columns Leverage, Response and Running each full width. AppModel: unused `backlog` removed (`YaaCore.Backlog` and its test kept). Status color: `Ramp.wait` red → purple, `DisplayStatus.needsInput` tint = `Ramp.wait.hue`, symbol `questionmark.bubble.fill`, menu-bar dot `.systemPurple`, the two needs-input settings rows purple. MainWindow `SidebarCard`: glyph in the title row, agent/project row from the card's edge (as `SessionCard`), pin after the title. 25 obsolete strings dropped from 9 tables, 7 added. Spec: Design system line revised and status colors defined. Archived `design/history/overview-v11`.
+- **Reason**: The away and waiting cards read as filler ("你不在时 100%" didn't say what waiting is); response speed measures the user's efficiency; red read as an error.
+- **User feedback**: "概览页面的统计我感觉还是有点没话找话……除了杠杆，其他数据都有点奇怪、生硬……等你处理，似乎是一个优先级比较低的内容。反倒是回复速度是可以衡量工作效率的一个点……" / "左侧侧边栏ui有问题，agent icon+项目名称的部分需要和左上角状态图标一样左对齐。pinned的也要表明是pinned" / "有提问应该用紫色，要有配套图标". Chose 合并成「响应速度」 and removing 全部停工 and 当前积压.
+- **Process**: `Activity.replyWait` records a reply from needsInput *and* from review (a prompt after a finished turn), so the half is named 回复, not 回答提问, and its info says so. A prompt on an unreviewed turn therefore counts in both halves. `yaak snapshot --help` wrote renders into the tracked `--help/` directory (committed by 8bd3683); I restored it and removed the new files. An uninvolved review was started but stalled without reporting; I checked myself that the removed code's helpers are all still used. Rebased in the working tree over 6515b07 (another session's leverage bars), which touched the same files; built and tested on top.
+- **Result**: Build, test (194), `make l10n` (405 keys, 0 problems) pass; installed. Checked in the `dashboard`, `main-overview` and `main` renders (response halves, sidebar alignment and pins).
+- **Notes**: Today's reply median is 0 s, probably asks answered right on return from away (the away time is taken out); not verified. The purple needs-input card wasn't seen live (nothing was asking during the renders). Splitting 回复 into answers only would need the lane recorded on `.reply` rows. `--help/` in the repo is left for the user to decide.
+
+## feat(overview): show leverage as a bar per day against the period before
+
+`6515b07` | 2026-10-30
 
 - **Changes**: OverviewCards: `LeverageCurve` and `Wash` replaced by `LeverageDays` (per-day report of the week around the period, the month in the month view, plus the one before, day edges from `Periods.edges(.month, …)`; a day counts from 60 s present, same as the headline) and `LeverageBars` (bar per day, previous period's same day pale beside it, viewed day lit in the day view, future days a hollow stub, 1× hairline, values over bars in week layouts, weekday or every-7th-day labels). Card gains a key row (本周/前一周, 本月/前一月). Info text reworded in 9 tables; spec bullet "Leverage card (2026-10-30)"; CHANGELOG clause reworded.
 - **Reason**: Cumulative leverage plateaus overnight: agents run on after the user leaves (01:38–03:18 on 10-30, d6df6ca7 last), then neither part grows until 09:31, so the curve held 9.7× for six hours and read as a level being held.

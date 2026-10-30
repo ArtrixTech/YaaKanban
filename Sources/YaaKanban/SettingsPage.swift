@@ -126,7 +126,7 @@ extension SettingsView {
                     Stepped(String(localized: "\(Int(settings.stuckMinutes)) min"), value: $settings.stuckMinutes, in: 1...60)
                 }
                 SettingRow(String(localized: "Approval wait"), detail: String(localized: "How long an approval waits in the panel or a notification before the agent asks in its terminal."),
-                           symbol: "hand.raised.fill", tint: .red) {
+                           symbol: "questionmark.bubble.fill", tint: .purple) {
                     Stepped(String(localized: "\(Int(settings.approvalTimeout)) s"), value: $settings.approvalTimeout, in: 5...25)
                 }
                 SettingRow(String(localized: "No system notifications while Wave is in front"), symbol: "bell.slash.fill", tint: .gray) {
@@ -140,7 +140,7 @@ extension SettingsView {
                             settings.staleAfterMinutes = min(settings.staleAfterMinutes, settings.idleVisibleMinutes - 1)
                         }
                 }
-                SettingRow(String(localized: "Flash when input is needed"), symbol: "light.beacon.max.fill", tint: .red) {
+                SettingRow(String(localized: "Flash when input is needed"), symbol: "light.beacon.max.fill", tint: .purple) {
                     Switch(isOn: $settings.flashEnabled)
                 }
                 if settings.flashEnabled {

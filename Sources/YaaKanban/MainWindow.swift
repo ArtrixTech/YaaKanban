@@ -186,7 +186,7 @@ extension MainSidebar {
     }
 }
 
-/// An active session in the sidebar: its card, tinted when it wants the user.
+/// An active session in the sidebar: its card, tinted when it wants the user, a pin when pinned.
 private struct SidebarCard: View {
     @Environment(AppModel.self) private var model
     let session: SessionState
@@ -196,19 +196,22 @@ private struct SidebarCard: View {
 
     var body: some View {
         let s = session, status = model.display(s)
-        HStack(alignment: .top, spacing: Space.m) {
-            StatusGlyph(status: status, size: 18)
-            VStack(alignment: .leading, spacing: Space.xxs) {
-                HStack(spacing: Space.s) {
-                    Text(s.title).font(.ui(.body, .semibold)).lineLimit(1)
-                    Spacer(minLength: Space.xxs)
-                    Text(when(s.lastEventAt)).font(.ui(.caption)).foregroundStyle(.tertiary)
+        // As on the panel's cards: the glyph opens the title row, and the row under it starts at the
+        // card's edge, under the glyph.
+        VStack(alignment: .leading, spacing: Space.xs) {
+            HStack(spacing: Space.s) {
+                StatusGlyph(status: status, size: 18)
+                Text(s.title).font(.ui(.body, .semibold)).lineLimit(1)
+                if model.isPinned(s.id) {
+                    Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(Color(red: 1, green: 0.75, blue: 0)).help("Pinned")
                 }
-                HStack(spacing: 5) {
-                    AgentLogo(agent: s.agent, size: 11)
-                    Text(s.projectName ?? s.agent.displayName).font(.ui(.footnote)).foregroundStyle(.secondary).lineLimit(1)
-                    StatusPill(status: status)
-                }
+                Spacer(minLength: Space.xxs)
+                Text(when(s.lastEventAt)).font(.ui(.caption)).foregroundStyle(.tertiary)
+            }
+            HStack(spacing: 5) {
+                AgentLogo(agent: s.agent, size: 11)
+                Text(s.projectName ?? s.agent.displayName).font(.ui(.footnote)).foregroundStyle(.secondary).lineLimit(1)
+                StatusPill(status: status)
             }
         }
         .padding(.horizontal, 10).padding(.vertical, Space.m)

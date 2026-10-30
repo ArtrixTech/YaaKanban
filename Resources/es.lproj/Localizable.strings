@@ -286,9 +286,7 @@
 "That week" = "Esa semana";
 "That month" = "Ese mes";
 "While agents ran · peak %lld" = "Con agentes en ejecución · máximo %lld";
-"All stalled" = "Todo parado";
 "Agent utilization" = "Uso de los agentes";
-"Backlog now" = "Pendientes ahora";
 "Switches" = "Cambios";
 "%lldm %llds" = "%lld min %lld s";
 "%@h" = "%@ h";
@@ -299,15 +297,9 @@
 "Same as %@" = "Igual que %@";
 "Agent hours" = "Horas de agente";
 "Leverage" = "Apalancamiento";
-"Reply time" = "Tiempo de respuesta";
-"While you were away" = "Mientras no estabas";
-"No away time recorded here" = "No hay ausencias registradas en este periodo";
-"You were here the whole time" = "Estuviste aquí todo el tiempo";
-"They stopped when you left" = "Se detuvieron cuando te fuiste";
 "Deleted session" = "Sesión eliminada";
 "No agents ran." = "No se ha ejecutado ningún agente.";
 "Waiting %@" = "Esperándote %@";
-"Waiting on you" = "Esperándote";
 "Last period" = "Periodo anterior";
 "Other" = "Otros";
 "Session lanes" = "Sesiones en detalle";
@@ -323,26 +315,17 @@
 "Now" = "Ahora";
 "%lld agents · %@" = "%lld agentes · %@";
 "%lld projects" = "%lld proyectos";
-"%lld replies" = "%lld respuestas";
-"%lld times" = "%lld veces";
 "1 agent · %@" = "1 agente · %@";
 "1 project" = "1 proyecto";
-"1 reply" = "1 respuesta";
-"1 time" = "1 vez";
 "7-day rhythm" = "Ritmo de 7 días";
 "Agent hours over 7 days" = "Horas de agente en 7 días";
 "Agents %@ ÷ you %@" = "Agentes %@ ÷ tú %@";
-"Away %@" = "Ausente %@";
 "Busiest %@" = "Pico %@";
 "By %@" = "Sobre todo %@";
-"Here %@" = "Presente %@";
 "In %@" = "Sobre todo en %@";
 "Less" = "Menos";
-"Longest %@" = "Máximo %@";
-"Median · %@ within a minute" = "Mediana · %@ en menos de un minuto";
 "More" = "Más";
 "Not recorded live" = "Sin registro en vivo";
-"Nothing waited on you" = "Nada te esperó";
 "Now %lld" = "Ahora %lld";
 "Peak at once" = "Pico simultáneo";
 "Prompts and answers" = "Prompts y respuestas";
@@ -355,11 +338,15 @@
 "You here" = "Tu presencia";
 
 /* Overview info tips */
+"Response time" = "Tiempo de respuesta";
+"Replying" = "Responder";
+"Reviewing" = "Revisar";
+"No replies" = "Sin respuestas";
+"Nothing reviewed" = "Nada revisado";
+"90%% within %@" = "90 %% en menos de %@";
+"How long agents waited for you, away time taken out. Replying: from an agent asking a question or permission, or finishing a turn, to your answer or next prompt. Reviewing: from a turn finishing to you opening it or following up. Each figure is the median; on the arcs the lit band holds the middle half and each dot is one." = "Cuánto te esperaron los agentes, sin contar el tiempo ausente. Responder: desde que un agente pregunta, pide permiso o termina un turno hasta tu respuesta o siguiente indicación. Revisar: desde que termina un turno hasta que lo abres o continúas. Cada cifra es la mediana; en los arcos, la banda iluminada es la mitad central y cada punto es una vez.";
 "Hours of agent work per hour you were here. Agent time counts all running, away included; yours counts only while you were at the Mac and an agent was running or waiting on you. Each bar is one day's leverage, the pale one behind it the same day of the period before; above 1×, agents did more than you spent." = "Horas de trabajo de agente por cada hora que estuviste presente. El tiempo de agente cuenta toda la ejecución, también mientras no estabas; el tuyo, solo mientras estabas en el Mac y un agente se ejecutaba o te esperaba. Cada barra es el apalancamiento de un día, la pálida detrás el mismo día del periodo anterior; por encima de 1×, los agentes hicieron más de lo que tú dedicaste.";
-"While you were away, the share of agent time spent running rather than blocked on you (asking or stuck). Away means no mouse or keyboard input for 2 minutes, or the Mac asleep. On the track, blue is running and red is waiting on you." = "Mientras no estabas, la parte del tiempo de agente en que se ejecutaron en vez de quedar bloqueados esperándote (preguntando o atascados). No estar significa 2 minutos sin usar el ratón ni el teclado, o el Mac en reposo. En la pista, el azul es ejecución y el rojo es espera por ti.";
 "How many agents ran at the same time, on average while any ran, and at the peak. The dotted line is the period before; the gray strip under it is when you were at the Mac. In a month, each point is that day's agent hours." = "Cuántos agentes se ejecutaron a la vez: la media mientras alguno se ejecutaba y el pico. La línea punteada es el periodo anterior; la franja gris de abajo, cuando estabas en el Mac. En un mes, cada punto son las horas de agente de ese día.";
-"Time agents sat blocked on you: asking a question, or stuck. On the dial, a bright arc is a wait while you were away, a dim one a wait while you were here; the longest are listed beside it." = "Tiempo en que los agentes estuvieron bloqueados esperándote: preguntando o atascados. En el dial, un arco brillante es una espera mientras no estabas y uno tenue una espera mientras estabas; al lado se listan las más largas.";
-"How long an agent waited for your answer once it asked, away time taken out. The figure is the median; the lit band holds the middle half of replies, and each dot is one reply." = "Cuánto esperó un agente tu respuesta tras preguntar, sin contar el tiempo que no estabas. La cifra es la mediana; la banda iluminada abarca la mitad central de las respuestas y cada punto es una respuesta.";
 "Each agent's share of the running time, with its turns. The line is when it ran across the period." = "La parte del tiempo de ejecución de cada agente, con sus turnos. La línea muestra cuándo se ejecutó a lo largo del periodo.";
 "Agent running time by project; a circle's area is its time. Under each name, how long its sessions waited on you." = "Tiempo de ejecución de los agentes por proyecto; el área de cada círculo es su tiempo. Bajo cada nombre, cuánto te esperaron sus sesiones.";
 "The last 7 days in half hours, brighter where more agents ran at once. Each row ends with that day's agent hours; Busiest marks the 3 hours with the most agent time." = "Los últimos 7 días en medias horas, más brillantes donde más agentes se ejecutaron a la vez. Cada fila termina con las horas de agente de ese día; «Pico» marca las 3 horas con más tiempo de agente.";
@@ -370,9 +357,6 @@
 "Finished turns you opened or followed up on." = "Turnos terminados que abriste o continuaste.";
 "Times you stepped in: prompts you sent and questions you answered." = "Veces que interviniste: prompts que enviaste y preguntas que respondiste.";
 "Times you jumped to a session's terminal from the app." = "Veces que saltaste desde la app a la terminal de una sesión.";
-"How long a finished turn waited for you to look at it, the median, away time taken out." = "Cuánto esperó un turno terminado a que lo miraras, la mediana, sin contar el tiempo que no estabas.";
-"Sessions waiting on you right now: asking, stuck, or finished and not yet reviewed." = "Sesiones que te esperan ahora: preguntando, atascadas o terminadas sin revisar.";
-"Time you were here while an agent was blocked on you (asking or stuck) and none was running." = "Tiempo en que estabas presente mientras un agente te esperaba bloqueado (preguntando o atascado) y ninguno se ejecutaba.";
 
 /* SessionReducer.swift, Normalizer.swift fallbacks */
 "Needs your input" = "Necesita tu respuesta";
@@ -385,8 +369,6 @@
 
 /* Ended list */
 "Put back on the floating panel" = "Devolver al panel flotante";
-"Pickup time" = "Tiempo de recogida";
-"Working %@, blocked %@" = "Trabajando %@, bloqueados %@";
 "Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's leverage." = "Tendencia del apalancamiento: cada punto es el apalancamiento de las 4 horas hasta ese momento, a lo largo de %@; la línea discontinua es el apalancamiento de hoy.";
 "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "En las últimas 4 horas, horas de agente (ausencias incluidas) por hora que estuviste. La flecha lo compara con el apalancamiento de hoy.";
 "Close search" = "Cerrar búsqueda";

@@ -286,9 +286,7 @@
 "That week" = "その週";
 "That month" = "その月";
 "While agents ran · peak %lld" = "エージェント実行中 · 最大%lld";
-"All stalled" = "全停止";
 "Agent utilization" = "エージェント稼働率";
-"Backlog now" = "現在の滞留";
 "Switches" = "切り替え";
 "%lldm %llds" = "%lld分%lld秒";
 "%@h" = "%@時間";
@@ -299,15 +297,9 @@
 "Same as %@" = "%@と同じ";
 "Agent hours" = "エージェント稼働時間";
 "Leverage" = "レバレッジ";
-"Reply time" = "返信時間";
-"While you were away" = "離席中";
-"No away time recorded here" = "この期間に離席の記録はありません";
-"You were here the whole time" = "ずっと在席していました";
-"They stopped when you left" = "離席すると停止しました";
 "Deleted session" = "削除されたセッション";
 "No agents ran." = "実行されたエージェントはありません。";
 "Waiting %@" = "対応待ち%@";
-"Waiting on you" = "対応待ち";
 "Last period" = "前期間";
 "Other" = "その他";
 "Session lanes" = "セッション詳細";
@@ -323,26 +315,17 @@
 "Now" = "現在";
 "%lld agents · %@" = "%lldエージェント · %@";
 "%lld projects" = "%lldプロジェクト";
-"%lld replies" = "返信%lld回";
-"%lld times" = "%lld回";
 "1 agent · %@" = "1エージェント · %@";
 "1 project" = "1プロジェクト";
-"1 reply" = "返信1回";
-"1 time" = "1回";
 "7-day rhythm" = "7日間のリズム";
 "Agent hours over 7 days" = "7日間のエージェント稼働時間";
 "Agents %@ ÷ you %@" = "エージェント%@ ÷ あなた%@";
-"Away %@" = "離席%@";
 "Busiest %@" = "ピーク%@";
 "By %@" = "主に%@";
-"Here %@" = "在席%@";
 "In %@" = "主に%@";
 "Less" = "少";
-"Longest %@" = "最長%@";
-"Median · %@ within a minute" = "中央値 · %@が1分以内";
 "More" = "多";
 "Not recorded live" = "リアルタイム記録なし";
-"Nothing waited on you" = "待ちはありません";
 "Now %lld" = "現在%lld件";
 "Peak at once" = "最大同時実行";
 "Prompts and answers" = "プロンプトと回答";
@@ -355,11 +338,15 @@
 "You here" = "在席";
 
 /* Overview info tips */
+"Response time" = "応答時間";
+"Replying" = "返信";
+"Reviewing" = "レビュー";
+"No replies" = "返信なし";
+"Nothing reviewed" = "レビューなし";
+"90%% within %@" = "90%% が %@ 以内";
+"How long agents waited for you, away time taken out. Replying: from an agent asking a question or permission, or finishing a turn, to your answer or next prompt. Reviewing: from a turn finishing to you opening it or following up. Each figure is the median; on the arcs the lit band holds the middle half and each dot is one." = "エージェントがあなたを待った時間（離席中は除く）。返信：エージェントが質問や許可を求めるかターンを終えてから、あなたが答えるか次の指示を送るまで。レビュー：ターンが終わってから、あなたが開くか続けて指示するまで。数値は中央値。弧の明るい部分が中央の半分で、点が1回ずつ。";
 "Hours of agent work per hour you were here. Agent time counts all running, away included; yours counts only while you were at the Mac and an agent was running or waiting on you. Each bar is one day's leverage, the pale one behind it the same day of the period before; above 1×, agents did more than you spent." = "在席していた 1 時間あたり、エージェントが何時間働いたか。エージェントの時間は離席中も含むすべての実行、あなたの時間は Mac の前にいて、エージェントが実行中かあなたを待っていた時間だけです。各棒は 1 日のレバレッジ、後ろの薄い棒は前の期間の同じ日。1× を超えれば、エージェントはあなたが費やした以上に働いています。";
-"While you were away, the share of agent time spent running rather than blocked on you (asking or stuck). Away means no mouse or keyboard input for 2 minutes, or the Mac asleep. On the track, blue is running and red is waiting on you." = "離席中のエージェント時間のうち、あなたを待って止まらず（質問や停止）、実行していた割合。離席は 2 分間マウスやキーボードの操作がないか、Mac のスリープ中です。トラックの青は実行、赤はあなた待ちです。";
 "How many agents ran at the same time, on average while any ran, and at the peak. The dotted line is the period before; the gray strip under it is when you were at the Mac. In a month, each point is that day's agent hours." = "同時に実行していたエージェントの数。いずれかが実行中だった間の平均と最大。点線は前の期間、下の灰色の帯はあなたが Mac の前にいた時間です。月表示では各点がその日のエージェント稼働時間です。";
-"Time agents sat blocked on you: asking a question, or stuck. On the dial, a bright arc is a wait while you were away, a dim one a wait while you were here; the longest are listed beside it." = "エージェントがあなたを待って止まっていた時間（質問中、または停止）。ダイヤルの明るい弧は離席中の待ち、暗い弧は在席中の待ちで、長いものを横に並べています。";
-"How long an agent waited for your answer once it asked, away time taken out. The figure is the median; the lit band holds the middle half of replies, and each dot is one reply." = "エージェントが質問してからあなたが答えるまでの時間（離席時間を除く）。数字は中央値、明るい帯は返信の中央の半分、点は 1 回の返信です。";
 "Each agent's share of the running time, with its turns. The line is when it ran across the period." = "実行時間に占める各エージェントの割合とターン数。線は期間中いつ実行していたかを表します。";
 "Agent running time by project; a circle's area is its time. Under each name, how long its sessions waited on you." = "プロジェクト別のエージェント実行時間。円の面積が時間です。名前の下は、そのセッションがあなたを待った時間です。";
 "The last 7 days in half hours, brighter where more agents ran at once. Each row ends with that day's agent hours; Busiest marks the 3 hours with the most agent time." = "直近 7 日間を 30 分ごとに表示し、同時に実行したエージェントが多いほど明るくなります。各行の末尾はその日のエージェント稼働時間、「ピーク」はエージェント時間が最も多い 3 時間です。";
@@ -370,9 +357,6 @@
 "Finished turns you opened or followed up on." = "あなたが開いたか、続けて指示した完了ターン。";
 "Times you stepped in: prompts you sent and questions you answered." = "あなたが介入した回数：送ったプロンプトと答えた質問。";
 "Times you jumped to a session's terminal from the app." = "アプリからセッションのターミナルへ移動した回数。";
-"How long a finished turn waited for you to look at it, the median, away time taken out." = "完了したターンをあなたが見るまでの時間の中央値（離席時間を除く）。";
-"Sessions waiting on you right now: asking, stuck, or finished and not yet reviewed." = "今あなたを待っているセッション：質問中、停止中、または完了して未レビュー。";
-"Time you were here while an agent was blocked on you (asking or stuck) and none was running." = "在席中に、エージェントがあなたを待って止まり（質問や停止）、どれも実行していなかった時間。";
 
 /* SessionReducer.swift, Normalizer.swift fallbacks */
 "Needs your input" = "入力が必要です";
@@ -385,8 +369,6 @@
 
 /* Ended list */
 "Put back on the floating panel" = "フローティングパネルに戻す";
-"Pickup time" = "引き取り時間";
-"Working %@, blocked %@" = "稼働%@、停止%@";
 "Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's leverage." = "レバレッジの推移：各点はその時点までの4時間のレバレッジで、直近%@分を表示。破線は今日のレバレッジです。";
 "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "直近4時間の、離席中も含むエージェント稼働時間 ÷ 在席時間。矢印は今日のレバレッジとの比較です。";
 "Close search" = "検索を閉じる";

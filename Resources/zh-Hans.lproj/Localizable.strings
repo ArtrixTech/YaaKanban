@@ -286,9 +286,7 @@
 "That week" = "这一周";
 "That month" = "这个月";
 "While agents ran · peak %lld" = "有 agent 在跑时 · 最多 %lld 个";
-"All stalled" = "全部停工";
 "Agent utilization" = "Agent 利用率";
-"Backlog now" = "当前积压";
 "Switches" = "切换";
 "%lldm %llds" = "%lld分%lld秒";
 "%@h" = "%@时";
@@ -299,15 +297,9 @@
 "Same as %@" = "与%@持平";
 "Agent hours" = "Agent 总工时";
 "Leverage" = "杠杆";
-"Reply time" = "回复速度";
-"While you were away" = "你不在时";
-"No away time recorded here" = "这段没有离开的记录";
-"You were here the whole time" = "你一直都在";
-"They stopped when you left" = "你一走它们也停了";
 "Deleted session" = "已删除的会话";
 "No agents ran." = "没有 agent 在跑。";
 "Waiting %@" = "等你 %@";
-"Waiting on you" = "等你处理";
 "Last period" = "上期在跑";
 "Other" = "其他";
 "Session lanes" = "会话明细";
@@ -323,26 +315,17 @@
 "Now" = "现在";
 "%lld agents · %@" = "%lld 个 Agent · %@";
 "%lld projects" = "%lld 个项目";
-"%lld replies" = "%lld 次回复";
-"%lld times" = "%lld 次";
 "1 agent · %@" = "1 个 Agent · %@";
 "1 project" = "1 个项目";
-"1 reply" = "1 次回复";
-"1 time" = "1 次";
 "7-day rhythm" = "7 天节奏";
 "Agent hours over 7 days" = "7 天 Agent 总工时";
 "Agents %@ ÷ you %@" = "Agent %@ ÷ 你 %@";
-"Away %@" = "离开 %@";
 "Busiest %@" = "最忙 %@";
 "By %@" = "主要由 %@ 完成";
-"Here %@" = "在场 %@";
 "In %@" = "主要在 %@";
 "Less" = "少";
-"Longest %@" = "最长 %@";
-"Median · %@ within a minute" = "中位数 · %@ 在 1 分钟内";
 "More" = "多";
 "Not recorded live" = "未实时记录";
-"Nothing waited on you" = "没有等过你";
 "Now %lld" = "当前 %lld 个";
 "Peak at once" = "峰值并行";
 "Prompts and answers" = "提示与回答";
@@ -355,11 +338,15 @@
 "You here" = "你在场";
 
 /* Overview info tips */
+"Response time" = "响应速度";
+"Replying" = "回复";
+"Reviewing" = "验收";
+"No replies" = "没有回复";
+"Nothing reviewed" = "没有验收";
+"90%% within %@" = "90%% 在 %@ 内";
+"How long agents waited for you, away time taken out. Replying: from an agent asking a question or permission, or finishing a turn, to your answer or next prompt. Reviewing: from a turn finishing to you opening it or following up. Each figure is the median; on the arcs the lit band holds the middle half and each dot is one." = "Agent 等你多久，离开的时间不算。回复：从 Agent 提问、请求权限或跑完一轮，到你回答或发下一条。验收：从一轮跑完，到你打开它或接着发消息。数字是中位数；弧上亮的一段是中间一半，每个点是一次。";
 "Hours of agent work per hour you were here. Agent time counts all running, away included; yours counts only while you were at the Mac and an agent was running or waiting on you. Each bar is one day's leverage, the pale one behind it the same day of the period before; above 1×, agents did more than you spent." = "你在场的每小时里，Agent 干了几小时的活。Agent 时间算上所有运行，包括你离开时；你的时间只算你在电脑前、且有 Agent 在运行或等你的时候。每根柱是一天的杠杆，后面的浅色柱是上一周期的同一天；高于 1× 即 Agent 干的比你花的多。";
-"While you were away, the share of agent time spent running rather than blocked on you (asking or stuck). Away means no mouse or keyboard input for 2 minutes, or the Mac asleep. On the track, blue is running and red is waiting on you." = "你离开期间，Agent 时间里真正在运行、而不是卡在等你（提问或卡住）的占比。离开指 2 分钟没有鼠标键盘操作，或 Mac 睡眠。时间轴上蓝色是运行，红色是等你。";
 "How many agents ran at the same time, on average while any ran, and at the peak. The dotted line is the period before; the gray strip under it is when you were at the Mac. In a month, each point is that day's agent hours." = "同一时间有几个 Agent 在跑：有 Agent 运行时的平均值，以及峰值。虚线是上一周期，下方灰条是你在电脑前的时段。月视图中每个点是当天的 Agent 总工时。";
-"Time agents sat blocked on you: asking a question, or stuck. On the dial, a bright arc is a wait while you were away, a dim one a wait while you were here; the longest are listed beside it." = "Agent 卡在等你的时间：在提问，或卡住了。表盘上亮的弧是你离开时的等待，暗的是你在场时的等待；旁边列出最长的几次。";
-"How long an agent waited for your answer once it asked, away time taken out. The figure is the median; the lit band holds the middle half of replies, and each dot is one reply." = "Agent 提问后等你回答的时长，已扣除你离开的时间。数字是中位数；亮的区段是中间一半的回复，每个点是一次回复。";
 "Each agent's share of the running time, with its turns. The line is when it ran across the period." = "每个 Agent 占总运行时间的比例和轮数。折线是它在这段时间里何时在运行。";
 "Agent running time by project; a circle's area is its time. Under each name, how long its sessions waited on you." = "按项目统计的 Agent 运行时间，圆的面积代表时长。项目名下方是它的会话等你的时长。";
 "The last 7 days in half hours, brighter where more agents ran at once. Each row ends with that day's agent hours; Busiest marks the 3 hours with the most agent time." = "最近 7 天，每格半小时，同时运行的 Agent 越多越亮。每行末尾是当天的 Agent 总工时；「最忙」是 Agent 时间最多的 3 小时。";
@@ -370,9 +357,6 @@
 "Finished turns you opened or followed up on." = "你打开或跟进过的已完成轮次。";
 "Times you stepped in: prompts you sent and questions you answered." = "你介入的次数：发出的提示和回答的问题。";
 "Times you jumped to a session's terminal from the app." = "你从本应用跳转到会话终端的次数。";
-"How long a finished turn waited for you to look at it, the median, away time taken out." = "轮次跑完后等你去看的时长，取中位数，已扣除你离开的时间。";
-"Sessions waiting on you right now: asking, stuck, or finished and not yet reviewed." = "此刻在等你的会话：在提问、卡住，或已完成未验收。";
-"Time you were here while an agent was blocked on you (asking or stuck) and none was running." = "你在场、有 Agent 卡在等你（提问或卡住）且没有 Agent 在运行的时间。";
 
 /* SessionReducer.swift, Normalizer.swift fallbacks */
 "Needs your input" = "需要你的输入";
@@ -385,8 +369,6 @@
 
 /* Ended list */
 "Put back on the floating panel" = "放回悬浮窗";
-"Pickup time" = "接手速度";
-"Working %@, blocked %@" = "干活 %@，卡住 %@";
 "Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's leverage." = "杠杆走势：每点是到那时为止 4 小时的杠杆，近 %@；虚线为今日杠杆";
 "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's leverage." = "最近 4 小时，含你不在时的 agent 工时 ÷ 你在场的时间。箭头与今日杠杆比较";
 "Close search" = "关闭搜索";

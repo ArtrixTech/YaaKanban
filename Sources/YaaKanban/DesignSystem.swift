@@ -427,8 +427,8 @@ struct Ramp {
     static let work = Ramp((0.1, 0.64, 0.34), (0.3, 0.86, 0.5))
     /// Agents running.
     static let run = Ramp((0.1, 0.46, 0.96), (0.32, 0.64, 1))
-    /// An agent waiting on you.
-    static let wait = Ramp((0.9, 0.24, 0.21), (1, 0.4, 0.36))
+    /// An agent waiting on you: asking a question or for a permission. Red is kept for errors.
+    static let wait = Ramp((0.6, 0.32, 0.9), (0.75, 0.52, 1))
     /// You answering.
     static let reply = Ramp((0.93, 0.52, 0), (1, 0.66, 0.2))
 }
