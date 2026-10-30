@@ -180,8 +180,9 @@ private struct LeverageDays {
 }
 
 /// A bar a day, the period's days lit and the rest of the week mid; the same day of the period
-/// before a wider pale ghost behind each, on the same centre; days still to come a hollow stub.
-/// Break-even 1× as a hairline.
+/// before a pale bar of the same width behind each, its height marked by a short rounded cap (the
+/// bar's hue darkened where the bar covers it); days still to come a hollow stub. Break-even 1× as
+/// a hairline.
 private struct LeverageBars: View {
     let days: LeverageDays
     let now: Date
@@ -201,7 +202,7 @@ private struct LeverageBars: View {
             guard n > 0 else { return }
             let axis: CGFloat = 16, right: CGFloat = 22, top: CGFloat = days.monthly ? 4 : 16
             let base = size.height - axis, pitch = (size.width - right) / CGFloat(n)
-            let ghost = min(pitch * (days.monthly ? 0.8 : 0.7), 36), width = ghost * 0.64
+            let width = min(pitch * (days.monthly ? 0.62 : 0.5), 26), cap: CGFloat = days.monthly ? 2 : 3
             let ceiling = max(((days.values + days.before).compactMap { $0 }.max() ?? 0) * 1.1, 1.5)
             func y(_ v: Double) -> CGFloat { base - CGFloat(v / ceiling) * (base - top) }
             func bar(_ cx: CGFloat, _ w: CGFloat, _ v: Double) -> Path {
@@ -214,10 +215,20 @@ private struct LeverageBars: View {
             ctx.draw(tick("1×", Ink.tertiary), at: CGPoint(x: size.width, y: one), anchor: .trailing)
             for i in 0..<n {
                 let cx = pitch * (CGFloat(i) + 0.5), lit = days.shown.contains(i)
-                let b = days.before.indices.contains(i) ? days.before[i] : nil
-                if let b { ctx.fill(bar(cx, ghost, b), with: .color(ramp.dim)) }
-                if let v = days.values[i] {
-                    ctx.fill(bar(cx, width, v), with: .color(lit ? ramp.hue : ramp.mid))
+                let b = days.before.indices.contains(i) ? days.before[i] : nil, v = days.values[i]
+                if let b { ctx.fill(bar(cx, width, b), with: .color(ramp.dim)) }
+                if let v { ctx.fill(bar(cx, width, v), with: .color(lit ? ramp.hue : ramp.mid)) }
+                if let b {
+                    let half = max(width * 0.3 - cap / 2, 0), style = StrokeStyle(lineWidth: cap, lineCap: .round)
+                    var mark = Path(); mark.move(to: CGPoint(x: cx - half, y: y(b))); mark.addLine(to: CGPoint(x: cx + half, y: y(b)))
+                    if let v, b <= v {
+                        ctx.stroke(mark, with: .color(ramp.hue), style: style)
+                        ctx.stroke(mark, with: .color(.black.opacity(0.55)), style: style)
+                    } else {
+                        ctx.stroke(mark, with: .color(ramp.mid), style: style)
+                    }
+                }
+                if let v {
                     if !days.monthly {
                         ctx.draw(tick(String(format: v < 10 ? "%.1f" : "%.0f", v), lit ? Ink.primary : Ink.tertiary),
                                  at: CGPoint(x: cx, y: min(y(v), b.map(y) ?? .infinity) - 2), anchor: .bottom)

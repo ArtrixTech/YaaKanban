@@ -1,8 +1,19 @@
 # Devlog
 
-## docs(design): study same-width ways to show last week's leverage
+## fix(overview): mark last week's leverage with a cap on a same-width bar
 
 `pending` | 2026-10-30
+
+- **Changes**: LeverageBars: the period before is a `ramp.dim` bar of the bar's own width on the same centre (the wider ghost is gone); a cap at its height, 60% of the bar's width, 3 pt (2 pt in a month), round ends. Where this period's bar covers it (`b <= v`) the cap is `ramp.hue` under `black 0.55`; on the ghost alone (lower bar, no bar, days to come) it is `ramp.mid`. `design/history/leverage-v2/` (study + renders), README rows; CHANGELOG line reworded.
+- **Reason**: The user picked B from leverage-v1 and asked for a narrower cap with round ends, darker and grayer than the bar, not white.
+- **User feedback**: "选择 B 方案，然后这个 indicate 的 bar 窄一点，两端要有圆角。然后颜色变得灰一点，变成一种比当前这个 bar 的颜色更深的感觉，而不是用纯白色。"
+- **Process**: v2 study compared 40% black, 55% black, 60% dark gray. A darkened cap vanished on the dark ghost in the dark appearance (Sat/Sun, down days), so the cap switches to the mid hue off the bar. Built and installed from a worktree at this commit: another session had uncommitted Wave edits (TerminalJumper, WaveResume, WaveRPC) that broke `make install` mid-build.
+- **Result**: Build, test (195) pass; checked in `yaak snapshot` (day 1000 pt, month).
+- **Notes**: `.black.opacity` over the hue stands in for `Color.mix`, which needs macOS 15 (target 14).
+
+## docs(design): study same-width ways to show last week's leverage
+
+`99e937a` | 2026-10-30
 
 - **Changes**: `design/history/leverage-v1/`: `main.swift` (a standalone study compiled with `DesignSystem.swift`) and its dark and light renders; a row in `design/README.md`. No app change.
 - **Reason**: The user rejected the wider ghost: last week and this week must be the same width, on the same centre.
