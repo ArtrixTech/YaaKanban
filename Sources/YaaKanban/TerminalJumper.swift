@@ -332,8 +332,8 @@ enum WaveDB {
     }
 
     /// Where the block is now (the tab holding it; else the tab it started in): that tab's position
-    /// in its workspace and the names of all tabs there, in order.
-    static func place(ofBlock block: String?, tab: String) -> (index: Int, names: [String])? {
+    /// in its workspace, the names of all tabs there, in order, and the position of the active one.
+    static func place(ofBlock block: String?, tab: String) -> WaveTabBar.Place? {
         var names: [String: String] = [:]
         var holder: String?
         for row in query("SELECT data FROM db_tab") {
@@ -344,7 +344,8 @@ enum WaveDB {
         let target = holder ?? tab
         for ws in query("SELECT data FROM db_workspace") {
             guard let ids = ws["tabids"]?.array?.compactMap(\.string), let i = ids.firstIndex(of: target) else { continue }
-            return (i, ids.map { names[$0] ?? "" })
+            let active = ws["activetabid"]?.string.flatMap { ids.firstIndex(of: $0) }
+            return (i, ids.map { names[$0] ?? "" }, active)
         }
         return nil
     }
@@ -368,21 +369,29 @@ enum WaveDB {
 struct WaveTabBar {
     let pid: pid_t
 
+    typealias Place = (index: Int, names: [String], active: Int?)
+
     /// Finds the window whose tab names match the workspace and presses the tab at the index.
     /// `place` is asked again on each attempt. A looser match (same count, same name at the index)
     /// is only used once exact matching has had all its tries.
-    func press(_ place: () -> (index: Int, names: [String])?) -> Bool {
+    ///
+    /// A window holds a tab bar in each web view Wave keeps for recently shown tabs. The hidden
+    /// ones stop updating (a tab added since is missing there), so the bar showing the workspace's
+    /// active tab is preferred.
+    func press(_ place: () -> Place?) -> Bool {
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
         let attempts = 8
         for attempt in 0..<attempts {
             if attempt > 0 { usleep(250_000) }
-            guard let (index, names) = place() else { continue }
+            guard let (index, names, active) = place() else { continue }
             let windows = (attr(app, kAXWindowsAttribute) as? [AXUIElement]) ?? []
-            let bars = windows.compactMap { w in tabs(in: w).map { (w, $0) } }.filter { !$0.1.isEmpty }
-            var match = bars.first { $0.1.map(label) == names }
+            let found = windows.flatMap { w in bars(in: w).map { (w, $0) } }.filter { !$0.1.isEmpty }
+            let exact = found.filter { $0.1.map(label) == names }
+            var match = exact.first { b in active.map { b.1.indices.contains($0) && classes(b.1[$0]).contains("active") } ?? false }
+                ?? exact.first
             if match == nil, attempt == attempts - 1 {
-                match = bars.first { $0.1.count == names.count && $0.1.indices.contains(index) && label($0.1[index]) == names[index] }
+                match = found.first { $0.1.count == names.count && $0.1.indices.contains(index) && label($0.1[index]) == names[index] }
             }
             guard let (window, tabs) = match, tabs.indices.contains(index) else { continue }
             AXUIElementPerformAction(window, kAXRaiseAction as CFString)
@@ -391,11 +400,11 @@ struct WaveTabBar {
         return false
     }
 
-    private func tabs(in e: AXUIElement, depth: Int = 0) -> [AXUIElement]? {
-        if depth > 16 { return nil }
-        if classes(e).contains("tabs-wrapper") { return children(e) }
-        for c in children(e) { if let t = tabs(in: c, depth: depth + 1) { return t } }
-        return nil
+    /// The tabs of every tab bar under `e`.
+    private func bars(in e: AXUIElement, depth: Int = 0) -> [[AXUIElement]] {
+        if depth > 16 { return [] }
+        if classes(e).contains("tabs-wrapper") { return [children(e)] }
+        return children(e).flatMap { bars(in: $0, depth: depth + 1) }
     }
 
     /// Visible tab name, without the icon-font glyphs (private use area) Wave appends.

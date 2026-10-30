@@ -36,6 +36,7 @@ the update.
 - A sub-agent whose parent session is not on the board (pi-subagents scouts of a pi session YaaKanban never heard from, for example) no longer gets a card of its own, unless it needs your input.
 
 ### Fixed
+- Wave: after a new tab was added, clicking a card again brings up its own tab, instead of only bringing Wave forward (or opening a tab next to it).
 - A card no longer shows To review while an agent it started (e.g. `codex exec` through Bash) is still running under it: it stays running until that work ends.
 - The floating panel's leverage arrow and dashed line compare the last 4 hours with today's average 4 hours (the 4-hour leverage at each whole hour), not with the whole day so far.
 - Clicking a session in the floating panel's search that had left the panel now also takes you to its terminal, as clicking its card does, instead of only putting it back on the panel.

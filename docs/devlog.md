@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(overview): ghost last week's leverage behind each bar
+## fix(wave): press the tab bar Wave shows, not a stale cached one
 
 `pending` | 2026-10-30
+
+- **Changes**: TerminalJumper `WaveTabBar`: `bars(in:)` collects every `tabs-wrapper` in a window (was the first one found); `press` keeps the bars whose names equal the workspace's and prefers the one whose `active` tab is the workspace's `activetabid`. `WaveDB.place` also returns the active tab's index (`WaveTabBar.Place`). CHANGELOG Fixed line.
+- **Reason**: Wave keeps a web view, each with its own tab bar, for every recently shown tab. Hidden ones stop updating, so after a tab is added they still list the old tabs. The first bar in the AX tree was such a stale view: its names never equalled the DB's, and the loose fallback (same count) failed too, so no tab was pressed.
+- **User feedback**: "修bug：waveterm，我新增了一个tab之后，原有的窗体对应都失效了，不会跳转到正确tab"
+- **Process**: Dumped the live AX tree (Wave 0.14.5): 5 tab bars in one window; the ones whose view showed Auxillary and LY had 10 tabs without the new XAgent, the others 11. DB `db_workspace` had 11 tabs. Dry-run of the new choice (no press): old code's first bar mismatched; new pick is the bar with OLo-Site (DB active) active, and index 5 resolves to XAgent.
+- **Result**: Build and test (195) pass; installed.
+- **Notes**: No unit test: the choice depends on live AX elements. A stale bar can still be pressed if the DB's active tab is not in any up-to-date bar; it is only chosen when its names equal the DB's, so the index still points at the right tab.
+
+## fix(overview): ghost last week's leverage behind each bar
+
+`5a7f0a8` | 2026-10-30
 
 - **Changes**: DashboardView `cards`: a middle layout (min/ideal 830) keeps LeverageCard at 330 beside ResponseCard, with Agents and Projects sharing their row evenly; the full-width leverage stack starts below 830. LeverageBars: the previous period's bar is a ghost `min(pitch × 0.7, 36)` wide (0.8 in a month) on the same centre as the current bar, which is 0.64 of it; the value label sits above the taller of the two; the future stub is centred. Month view: a date beside "Today" is dropped, and labels are clamped inside the chart. CHANGELOG Changed line reworded.
 - **Reason**: Between 830 and 980 the leverage card ran the full width, so seven bars were spread across ~900 pt next to a full-width response card. The last-week bar sat offset to the right, so the two bars of a day didn't line up.
