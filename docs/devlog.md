@@ -1,5 +1,16 @@
 # Devlog
 
+## docs(design): study same-width ways to show last week's leverage
+
+`pending` | 2026-10-30
+
+- **Changes**: `design/history/leverage-v1/`: `main.swift` (a standalone study compiled with `DesignSystem.swift`) and its dark and light renders; a row in `design/README.md`. No app change.
+- **Reason**: The user rejected the wider ghost: last week and this week must be the same width, on the same centre.
+- **User feedback**: "不希望杠杆部分的柱状图显示，上周和本周的宽度有区别。需要你研究在不变化宽度的前提下在各种情况下显示好本周和上周对比的方案。"
+- **Process**: Four variants against the current one, over the cases: up, down, tie, below 1×, a big rise, no last week, no this week, days to come, 31 thin bars, lit and mid bars, light and dark. A notch: a gap in the bar at last week's level when the bar covers it. B cap: a primary-ink line at last week's level. C gain: the part up to last week faded. D hatch: last week diagonal stripes, also across the bar.
+- **Result**: C makes a lit bar on a down or tied day look unlit; B adds a second ink and is noisy in a month; D is busy in a month. A keeps the bar's colour and reads in all cases. Awaiting the user's choice.
+- **Notes**: In the month view the ghosts of days without data are as strong as the mid bars in every variant, a separate issue. Build: `swiftc -o /tmp/lev-study Sources/YaaKanban/DesignSystem.swift design/history/leverage-v1/main.swift && /tmp/lev-study <dir>`.
+
 ## fix(wave): press the tab bar Wave shows, not a stale cached one
 
 `pending` | 2026-10-30
