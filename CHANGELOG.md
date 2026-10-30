@@ -20,7 +20,7 @@ the update.
 - **First day of the week** in Settings › General: where the overview's weeks start, Monday by default (Sunday or Saturday also).
 
 ### Changed
-- Main window sidebar: the logo sits beside the window buttons; Overview is a larger block with today's agent hours, leverage, average reply and the per-state counts, and opens Overview on click; search moves down to the list, which fades out above Settings.
+- Main window sidebar: the logo sits under the window buttons; Overview is a dark card with the per-state counts and today's leverage over glowing discs in the states' colors, and opens Overview on click; search is a button beside the Active heading (⌘F), and the list fades out above Settings.
 - While the main window is open, the app shows in the Dock and the app switcher.
 - Overview › Response time shows the average reply and review time instead of the median, which read 0 s when most waits fell while you were away.
 - Wave: reopening a session whose agent has stopped now continues it in the terminal it ran in, when that terminal is back at its shell prompt, instead of opening a new one beside it. A terminal that is busy or closed still gets a new one.

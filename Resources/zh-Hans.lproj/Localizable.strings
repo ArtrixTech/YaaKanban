@@ -311,6 +311,8 @@
 "agent hours" = "agent 工时";
 "Reply" = "回复";
 "Today. Click to open Overview in the main window." = "今天，点击打开主界面「概览」";
+"Today's leverage" = "今天的杠杆";
+"Search" = "搜索";
 "Agent hours today" = "今日工时";
 "All agents' running time today, added up" = "今天所有 agent 在跑的时间相加";
 "Leverage trend" = "杠杆走势";

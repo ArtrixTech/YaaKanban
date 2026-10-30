@@ -1,8 +1,19 @@
 # Devlog
 
+## feat(main): dark Overview card and on-demand search in the sidebar
+
+`pending` | 2026-10-31
+
+- **Changes**: MainSidebar: logo back under the window buttons (top 34 pt); `OverviewCard` replaces `OverviewBlock`: dark (forced `.dark` scheme) 132 pt card, title + CountChips in the top row, "Today's leverage" and the figure at the foot, `StateDiscs` canvas (one nested glowing disc per counted state, most urgent innermost, tops evenly spaced; a gray disc when none); hover brightens, no selected fill. Search field no longer always shown: `listHead` (first section title + count + magnifier, ⌘F) is pinned above the list and becomes the search field + agent filter; Esc/cross clears query and filter. List gets a short top fade under the head. `yaak snapshot` adds `main-light` (aqua appearance). Strings: "Today's leverage", "Search" in 9 languages.
+- **Reason**: The v1 block, logo beside the buttons and the permanent search read as ugly and out of tune with the rest.
+- **User feedback**: "左边整个侧边栏现在被改的太丑了，非常的不协调……logo 还是要放到红绿灯下面去……概览区域整个的用户入口变得更大一些……比较炫酷的表达。用卡片的形式……内容又不要和右侧的有冲突，不要没有内容硬放内容……搜索栏不要常驻，放到活跃 agents……并排，放到右边有一个搜索的按钮"; "选中概览之后卡片不要有高亮。hover的时候还是要有。" References: glowing nested arcs (solar system), blue glass tiles, credit-score cards with a gradient art panel.
+- **Process**: First pass drew one thin arc per session over the whole card: read as a Wi-Fi mark and crossed the figures. Second pass: one disc per state confined to the lower right, counts moved to the title row, agent hours dropped (the 概览 top bar has them). Rendered 1/2/4/0-state variants offline (`design/history/sidebar-v2/card-specimen.swift`); spaced disc tops so the fourth shows. Snapshots dark, light and with 概览 open, in `design/history/sidebar-v2`.
+- **Result**: make test 202 pass; l10n 0 problems; installed.
+- **Notes**: The search state and the hover look were not rendered (both @State); the logo's place under the real traffic lights is only seen in snapshots, which have a normal title bar. Leverage repeats the 概览 leverage card's figure by design (the one headline).
+
 ## feat(main): overview block in the sidebar, Dock icon while open
 
-`pending` | 2026-10-30
+`d099684` | 2026-10-30
 
 - **Changes**: MainSidebar: logo + name in the window-button row (leading 78 pt); `OverviewBlock` (today's agent hours, leverage, mean reply, CountChips; tap opens 概览) replaces the Overview nav row and BoardHeader; search under the block, pinned above the list; list masked to fade over its last 40 pt above 设置. `statusCounts` shared with BoardHeader. `Dock` (Windows.swift) holds the Dock icon while the main window or setup guide is open. `applicationShouldHandleReopen` returns false and opens guide/main itself after 0.3 s unless a notification was acted on within 1.5 s (`AppModel.notificationActedAt`). Spec revised (sidebar, Dock).
 - **Reason**: User asked for the sidebar changes and the Dock icon; notification clicks opened the main window instead of going to the agent.

@@ -69,6 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
              NSSize(width: model.settings.panelWidth, height: 600)),
             ("menu", AnyView(MenuContent(panel: panel).environment(model)), NSSize(width: 230, height: 230)),
             ("main", AnyView(MainWindow().environment(model)), NSSize(width: 1000, height: 640)),
+            ("main-light", AnyView(MainWindow().environment(model)), NSSize(width: 1000, height: 640)),
             ("main-overview", AnyView(MainWindow(page: AppModel.overview).environment(model)), NSSize(width: 1000, height: 760)),
             ("settings", AnyView(MainWindow(page: AppModel.settingsPage).environment(model)), NSSize(width: 1000, height: 760)),
             ("settings-alerts", AnyView(MainWindow(page: AppModel.settingsPage, tab: .alerts).environment(model)), NSSize(width: 1000, height: 900)),
@@ -82,6 +83,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for (name, view, size) in views {
             let window = NSWindow(contentRect: NSRect(origin: NSPoint(x: -10000, y: -10000), size: size),
                                   styleMask: [.titled], backing: .buffered, defer: false)
+            // "-light" renders in the light appearance whatever the system's.
+            if name.hasSuffix("-light") { window.appearance = NSAppearance(named: .aqua) }
             // cacheDisplay skips the window background, so paint it in the view itself.
             window.contentView = NSHostingView(rootView: view.background(Color(nsColor: .windowBackgroundColor)))
             window.orderFrontRegardless()

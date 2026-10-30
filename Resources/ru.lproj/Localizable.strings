@@ -311,6 +311,8 @@
 "agent hours" = "агенто-часы";
 "Reply" = "Ответ";
 "Today. Click to open Overview in the main window." = "Сегодня. Нажмите, чтобы открыть «Обзор» в главном окне.";
+"Today's leverage" = "Рычаг за сегодня";
+"Search" = "Поиск";
 "Agent hours today" = "Агенто-часы за сегодня";
 "All agents' running time today, added up" = "Суммарное время работы всех агентов за сегодня";
 "Leverage trend" = "Тренд множителя";

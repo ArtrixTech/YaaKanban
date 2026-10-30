@@ -311,6 +311,8 @@
 "agent hours" = "horas de agente";
 "Reply" = "Respuesta";
 "Today. Click to open Overview in the main window." = "Hoy. Haz clic para abrir «Resumen» en la ventana principal.";
+"Today's leverage" = "Apalancamiento de hoy";
+"Search" = "Buscar";
 "Agent hours today" = "Horas de agente hoy";
 "All agents' running time today, added up" = "Suma del tiempo de ejecución de todos los agentes hoy";
 "Leverage trend" = "Tendencia del apalancamiento";

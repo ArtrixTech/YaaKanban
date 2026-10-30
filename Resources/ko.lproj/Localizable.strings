@@ -311,6 +311,8 @@
 "agent hours" = "에이전트 작업 시간";
 "Reply" = "응답";
 "Today. Click to open Overview in the main window." = "오늘. 클릭하여 메인 윈도우에서 개요를 엽니다.";
+"Today's leverage" = "오늘의 레버리지";
+"Search" = "검색";
 "Agent hours today" = "오늘 에이전트 작업 시간";
 "All agents' running time today, added up" = "오늘 모든 에이전트의 실행 시간 합계";
 "Leverage trend" = "레버리지 추이";

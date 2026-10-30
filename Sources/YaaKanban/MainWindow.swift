@@ -34,39 +34,40 @@ struct MainWindow: View {
     }
 }
 
-/// The sidebar: the logo beside the window buttons, the Overview block, search, the boards'
-/// sessions as cards, history as rows, and Settings at the foot. Arrow keys move the selection
-/// once the list has been clicked.
+/// The sidebar: the logo under the window buttons, the Overview card, the list's head with its
+/// search button, the boards' sessions as cards, history as rows, and Settings at the foot. Arrow
+/// keys move the selection once the list has been clicked.
 private struct MainSidebar: View {
     @Environment(AppModel.self) private var model
     var shown: String?
     @State private var filter: AgentKind?
     @State private var query = ""
+    @State private var searching = false
     @FocusState private var listFocused: Bool
+    @FocusState private var searchFocused: Bool
 
     private var selection: String? { shown ?? model.selection }
-    /// Where the logo starts: past the three window buttons.
-    private static let buttonsWidth: CGFloat = 78
 
     var body: some View {
         let active = model.board.filter(matches)
         let history = self.history.filter(matches)
+        // The list's first section heads it, with the search button; History follows in the list.
+        let leadsWithActive = !model.board.isEmpty
         VStack(alignment: .leading, spacing: 0) {
-            brand.padding(.leading, Self.buttonsWidth - 10).frame(height: 28)
-            OverviewBlock(selected: selection == AppModel.overview) { select(AppModel.overview) }
-                .padding(.top, Space.m)
-            search.padding(.horizontal, Space.xs).padding(.top, Space.l).padding(.bottom, Space.xs)
+            brand.padding(.horizontal, Space.m).padding(.top, 34)
+            OverviewCard { select(AppModel.overview) }
+                .padding(.top, Space.l)
+            listHead(leadsWithActive ? String(localized: "Active") : String(localized: "History"),
+                     leadsWithActive ? active.count : nil)
+                .padding(.top, Space.l)
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: Space.s) {
-                        if !active.isEmpty {
-                            section(String(localized: "Active"), active.count)
-                            ForEach(active) { s in
-                                SidebarCard(session: s, selected: selection == s.id) { select(s.id) }.id(s.id)
-                            }
+                        ForEach(active) { s in
+                            SidebarCard(session: s, selected: selection == s.id) { select(s.id) }.id(s.id)
                         }
                         if !history.isEmpty {
-                            section(String(localized: "History"), nil)
+                            if leadsWithActive { section(String(localized: "History"), nil) }
                             LazyVStack(spacing: Space.xxs) {
                                 ForEach(history) { s in
                                     SidebarRow(session: s, selected: selection == s.id) { select(s.id) }.id(s.id)
@@ -78,12 +79,13 @@ private struct MainSidebar: View {
                                 .frame(maxWidth: .infinity).padding(.top, Space.xxl)
                         }
                     }
-                    .padding(.bottom, Space.xxl + Space.l)
+                    .padding(.top, Space.m).padding(.bottom, Space.xxl + Space.l)
                 }
                 .scrollIndicators(.never)
-                // The list fades out above Settings rather than being cut off.
+                // The list fades in under its head and out above Settings rather than being cut off.
                 .mask {
                     VStack(spacing: 0) {
+                        LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom).frame(height: Space.m)
                         Color.black
                         LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom).frame(height: 40)
                     }
@@ -138,18 +140,38 @@ private struct MainSidebar: View {
 // MARK: Parts
 
 extension MainSidebar {
+    /// The list's first section title and count, with the search button at the end; searching,
+    /// the row is the search field and the agent filter.
+    @ViewBuilder private func listHead(_ title: String, _ count: Int?) -> some View {
+        Group {
+            if searching {
+                search
+            } else {
+                HStack(spacing: Space.s) {
+                    Text(title).font(.ui(.footnote, .semibold)).foregroundStyle(.secondary)
+                    if let count { Text(verbatim: "\(count)").font(.figure(10)).foregroundStyle(.tertiary) }
+                    Spacer(minLength: Space.xs)
+                    IconButton(symbol: "magnifyingglass", help: String(localized: "Search")) { openSearch() }
+                        .keyboardShortcut("f")
+                }
+                .padding(.leading, Space.m)
+            }
+        }
+        .frame(height: 26)
+    }
+
     private var search: some View {
         HStack(spacing: Space.s) {
             HStack(spacing: 5) {
                 Image(systemName: "magnifyingglass").font(.ui(.footnote)).foregroundStyle(.secondary)
                 TextField("Project / prompt", text: $query).textFieldStyle(.plain).font(.ui(.callout))
-                    .onExitCommand { query = "" }
-                if !query.isEmpty {
-                    Button { query = "" } label: {
-                        Image(systemName: "xmark.circle.fill").font(.ui(.footnote)).foregroundStyle(.tertiary)
-                    }
-                    .buttonStyle(.plain)
+                    .focused($searchFocused)
+                    .onExitCommand(perform: closeSearch)
+                Button(action: closeSearch) {
+                    Image(systemName: "xmark.circle.fill").font(.ui(.footnote)).foregroundStyle(.tertiary)
                 }
+                .buttonStyle(.plain)
+                .help("Close search")
             }
             .padding(.horizontal, Space.m).frame(height: 26)
             .background(RoundedRectangle(cornerRadius: Radius.medium, style: .continuous).fill(Fill.control))
@@ -168,11 +190,23 @@ extension MainSidebar {
             .frame(width: 22, height: 22)
             .help(filter?.displayName ?? String(localized: "Agent"))
         }
+        .onAppear { searchFocused = true }
+    }
+
+    private func openSearch() {
+        withAnimation(.snappy(duration: 0.2)) { searching = true }
+    }
+
+    /// Esc or the cross: the head comes back and the whole list with it.
+    private func closeSearch() {
+        withAnimation(.snappy(duration: 0.2)) { searching = false }
+        query = ""
+        filter = nil
     }
 
     private var brand: some View {
         HStack(spacing: 6) {
-            BrandMark(size: 18)
+            BrandMark(size: 20)
             Text(verbatim: "YaaKanban").font(.ui(.body, .bold)).lineLimit(1)
         }
     }
@@ -202,11 +236,11 @@ extension MainSidebar {
     }
 }
 
-/// The sidebar's Overview: today's key figures and the sessions per state, on one block that
-/// opens the Overview page.
-private struct OverviewBlock: View {
+/// The sidebar's way into Overview: a dark card with the boards' sessions per state and today's
+/// leverage, over one glowing disc per state in its hue (the most urgent innermost). Dark in both
+/// appearances: it is the sidebar's one accent. Chosen, it stays as it is; hovered, it brightens.
+private struct OverviewCard: View {
     @Environment(AppModel.self) private var model
-    let selected: Bool
     var onSelect: () -> Void
     @State private var hover = false
 
@@ -215,46 +249,81 @@ private struct OverviewBlock: View {
         let today = Calendar.current.startOfDay(for: Date())
         let r = model.report(DateInterval(start: today, end: Calendar.current.date(byAdding: .day, value: 1, to: today)!), buckets: 1)
         let counts = statusCounts(model.activeSessions)
-        let shape = RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-        VStack(alignment: .leading, spacing: Space.m) {
-            HStack(spacing: Space.m) {
-                IconTile(symbol: "chart.xyaxis.line", tint: .accentColor, size: 22)
-                Text("Overview").font(.ui(.body, .semibold))
+        let shape = RoundedRectangle(cornerRadius: Radius.group, style: .continuous)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: Space.xs) {
+                Text("Overview").font(.ui(.callout, .semibold)).foregroundStyle(.white.opacity(0.92))
                 Spacer(minLength: Space.xs)
-                Text("Today").font(.ui(.footnote, .medium)).foregroundStyle(Ink.tertiary)
+                ForEach(counts, id: \.0.rank) { st, n in CountChip(count: n, status: st).transition(.scale.combined(with: .opacity)) }
             }
-            HStack(alignment: .top, spacing: Space.s) {
-                item(figure(duration(r.agentTime), Ramp.work, 20), String(localized: "agent hours"))
-                item(figure(r.leverage.map { String(format: "%.1f×", $0) } ?? "–", Ramp.work, 20), String(localized: "Leverage"))
-                item(figure(r.replyMean.map(duration) ?? "–", Ramp.reply, 20), String(localized: "Reply"))
-            }
-            if !counts.isEmpty {
-                HStack(spacing: Space.xs) {
-                    ForEach(counts, id: \.0.rank) { st, n in CountChip(count: n, status: st).transition(.scale.combined(with: .opacity)) }
-                }
-                .animation(.snappy, value: counts.map(\.1))
+            .frame(height: 22)
+            .animation(.snappy, value: counts.map(\.1))
+            Spacer(minLength: Space.m)
+            Text("Today's leverage").font(.ui(.footnote, .medium)).foregroundStyle(.white.opacity(0.55))
+            figure(r.leverage.map { String(format: "%.1f×", $0) } ?? "–", Ramp.work, 34).lineLimit(1).fixedSize()
+        }
+        .padding(Space.l + Space.xxs)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 132)
+        .background {
+            ZStack {
+                Color(white: 0.06)
+                StateDiscs(tints: counts.reversed().map(\.0.tint), bright: hover)
             }
         }
-        .padding(Space.l)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .surface(shape, fill: hover ? Fill.cardHover : Fill.card)
-        .overlay { if selected { shape.fill(Fill.selected) } }
+        .clipShape(shape)
+        .overlay { shape.strokeBorder(.white.opacity(hover ? 0.16 : 0.08), lineWidth: 1) }
+        .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+        .environment(\.colorScheme, .dark)
         .contentShape(shape)
         .onTapGesture(perform: onSelect)
         .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAddTraits(.isButton)
         .accessibilityAction(.default, onSelect)
         .onHover { hover = $0 }
-        .animation(.easeOut(duration: 0.12), value: hover)
+        .animation(.easeOut(duration: 0.15), value: hover)
         .help(String(localized: "Today. Click to open Overview in the main window."))
     }
+}
 
-    private func item(_ value: Text, _ name: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            value.lineLimit(1).minimumScaleFactor(0.6)
-            Text(name).font(.ui(.caption)).foregroundStyle(Ink.secondary).lineLimit(1)
+/// Nested discs rising from the card's lower right, outermost first: each lit at its rim and
+/// fading downward, as planets lit from above, their tops evenly spaced so every one shows. None:
+/// one faint gray disc, so the card isn't bare.
+private struct StateDiscs: View {
+    let tints: [Color]
+    let bright: Bool
+
+    var body: some View {
+        Canvas { ctx, size in
+            let tints = self.tints.isEmpty ? [Color.white.opacity(0.4)] : self.tints
+            let outer = size.height * 0.66, cx = size.width - size.height * 0.4
+            let top0 = size.height * 1.08 - outer
+            let gap = min(size.height * 0.16, (size.height - Space.l - top0) / CGFloat(tints.count))
+            for (i, tint) in tints.enumerated() {
+                let r = outer * (1 - 0.2 * CGFloat(i))
+                let c = CGPoint(x: cx, y: top0 + gap * CGFloat(i) + r)
+                let disc = Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r))
+                let top = CGPoint(x: c.x, y: c.y - r), down = CGPoint(x: c.x, y: c.y - r * 0.15)
+                // A bloom above the rim, then the disc hides the one behind it and glows from the top.
+                ctx.drawLayer { halo in
+                    halo.addFilter(.blur(radius: 16))
+                    halo.opacity = bright ? 0.75 : 0.5
+                    halo.fill(disc, with: .linearGradient(Gradient(colors: [tint, tint.opacity(0)]), startPoint: top, endPoint: CGPoint(x: c.x, y: c.y - r * 0.5)))
+                }
+                ctx.fill(disc, with: .color(Color(white: 0.05)))
+                ctx.fill(disc, with: .linearGradient(Gradient(stops: [.init(color: tint.opacity(0.6), location: 0),
+                                                                       .init(color: tint.opacity(0.18), location: 0.25),
+                                                                       .init(color: tint.opacity(0.04), location: 0.6)]),
+                                                     startPoint: top, endPoint: CGPoint(x: c.x, y: c.y + r * 0.2)))
+                ctx.drawLayer { glow in
+                    glow.addFilter(.blur(radius: 4))
+                    glow.opacity = bright ? 1 : 0.85
+                    glow.stroke(disc, with: .linearGradient(Gradient(colors: [tint, tint.opacity(0)]), startPoint: top, endPoint: down), lineWidth: 4)
+                }
+                ctx.stroke(disc, with: .linearGradient(Gradient(colors: [.white.opacity(0.9), tint.opacity(0.8), tint.opacity(0)]),
+                                                       startPoint: top, endPoint: down), lineWidth: 1)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
