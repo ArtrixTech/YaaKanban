@@ -157,10 +157,13 @@ public enum SessionReducer {
             resume(&s)
 
         case .subagentStop(let id):
+            // An id we don't know stops the oldest; its calls end with it, or one left open reads
+            // as a tool running for ever and flags the session stuck.
+            var gone = id
             if let i = s.subagents.firstIndex(where: { $0.id == id }) ?? (s.subagents.isEmpty ? nil : 0) {
-                s.subagents.remove(at: i)
+                gone = s.subagents.remove(at: i).id
             }
-            for i in s.tools.indices where s.tools[i].isRunning && s.tools[i].subagentId == id {
+            for i in s.tools.indices where s.tools[i].isRunning && (s.tools[i].subagentId == id || s.tools[i].subagentId == gone) {
                 s.tools[i].endedAt = e.at
             }
 

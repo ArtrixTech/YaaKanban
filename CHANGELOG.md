@@ -38,6 +38,7 @@ the update.
 - A sub-agent whose parent session is not on the board (pi-subagents scouts of a pi session YaaKanban never heard from, for example) no longer gets a card of its own, unless it needs your input.
 
 ### Fixed
+- A session no longer shows Maybe stuck while it waits for sub-agents, after a sub-agent stopped under an id the app had not seen and left a tool marked running.
 - The side rail folds back while an alert it opened is up (reopening a session, renaming, Accessibility, feedback), instead of staying as wide as the panel around its narrow cards until the alert closes.
 - Wave: after a new tab was added, clicking a card again brings up its own tab, instead of only bringing Wave forward (or opening a tab next to it).
 - A card no longer shows To review while an agent it started (e.g. `codex exec` through Bash) is still running under it: it stays running until that work ends.

@@ -108,6 +108,22 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(stopped.status == .running)
     }
 
+    @Test func unknownSubagentStopEndsTheOnesCalls() {
+        // A stop under an id never started stops the oldest; its Bash must not stay running (stuck).
+        let s = fold([
+            claude("UserPromptSubmit", ["prompt": .string("x")]),
+            claude("SubagentStart", ["agent_id": .string("a1"), "agent_type": .string("general-purpose")], at: 1),
+            claude("SubagentStart", ["agent_id": .string("a2"), "agent_type": .string("general-purpose")], at: 1),
+            claude("PreToolUse", ["agent_id": .string("a1"), "tool_name": .string("Bash"), "tool_use_id": .string("b1"),
+                                  "tool_input": .object(["command": .string("make")])], at: 2),
+            claude("PreToolUse", ["agent_id": .string("a2"), "tool_name": .string("Bash"), "tool_use_id": .string("b2"),
+                                  "tool_input": .object(["command": .string("make")])], at: 2),
+            claude("SubagentStop", ["agent_id": .string("zz")], at: 3),
+        ])
+        #expect(s.subagents.map(\.id) == ["a2"])
+        #expect(s.runningTools.map(\.id) == ["b2"])
+    }
+
     @Test func toolWithoutIdMatchesAcrossProcesses() {
         let input: JSONValue = .object(["command": .string("ls")])
         let s = fold([

@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(overview): show the mean response time instead of the median
+## fix(reducer): end a sub-agent's calls when an unknown stop removes it
 
 `pending` | 2026-10-30
+
+- **Changes**: SubagentStop with an id not in `subagents` still removes the oldest, and now also ends that one's running calls (before, only calls under the event's id). Test `unknownSubagentStopEndsTheOnesCalls`.
+- **Reason**: 自制银质方案 (claude-code:cc693b52) showed 可能卡住 "Bash 已运行 12 分钟" while waiting on two live sub-agents. The open call was Bash 11:05:40 by sub-agent a560d731, already gone from `subagents`; its call stayed `isRunning`, so StuckDetector's tool-duration check fired.
+- **User feedback**: "这个地方显示卡住，但实际上对话正在等待subagent"
+- **Process**: Read the stored session (read-only). Only path that removes a sub-agent without ending its calls is the fallback in `.subagentStop`; inferred, no event log to confirm which stop. Test fails before (b1, b2 running), passes after.
+- **Result**: make test 202 pass; installed.
+- **Notes**: The already-stored session keeps its open call until its turn ends (endTurn closes all calls). A live sub-agent's own foreground tool running >5 min still flags stuck, by design.
+
+## fix(overview): show the mean response time instead of the median
+
+`f2df4f9` | 2026-10-30
 
 - **Changes**: ActivityReport gains `replyMean`/`pickupMean` (`pickupMedian` dropped, `replyMedian` kept for the popover). ResponseCard's figure, comparison and arc knob use the mean; P90 note unchanged. Info text and its 9 translations say average. Spec revised; CHANGELOG line; test `replyMeanCountsEveryReply`.
 - **Reason**: 回复 read 0 秒: 42 of today's 64 replies fell wholly in away spans (01:38–09:31, 13:09–14:39, no input or focus rows), so net latency 0 and median 0. Mean today ≈ 12 s.
