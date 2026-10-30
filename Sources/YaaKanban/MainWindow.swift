@@ -34,7 +34,7 @@ struct MainWindow: View {
     }
 }
 
-/// The sidebar: the logo under the window buttons, the Overview card, the list's head with its
+/// The sidebar: under the window buttons the Overview card, which carries the logo, the list's head with its
 /// search button, the boards' sessions as cards, history as rows, and Settings at the foot. Arrow
 /// keys move the selection once the list has been clicked.
 private struct MainSidebar: View {
@@ -54,9 +54,8 @@ private struct MainSidebar: View {
         // The list's first section heads it, with the search button; History follows in the list.
         let leadsWithActive = !model.board.isEmpty
         VStack(alignment: .leading, spacing: 0) {
-            brand.padding(.horizontal, Space.m).padding(.top, 34)
-            OverviewCard { select(AppModel.overview) }
-                .padding(.top, Space.l)
+            OverviewCard(onOverview: selection == AppModel.overview) { select(AppModel.overview) }
+                .padding(.top, 38)
             listHead(leadsWithActive ? String(localized: "Active") : String(localized: "History"),
                      leadsWithActive ? active.count : nil)
                 .padding(.top, Space.l)
@@ -204,13 +203,6 @@ extension MainSidebar {
         filter = nil
     }
 
-    private var brand: some View {
-        HStack(spacing: 6) {
-            BrandMark(size: 20)
-            Text(verbatim: "YaaKanban").font(.ui(.body, .bold)).lineLimit(1)
-        }
-    }
-
     private func section(_ title: String, _ count: Int?) -> some View {
         HStack(spacing: Space.s) {
             Text(title).font(.ui(.footnote, .semibold)).foregroundStyle(.secondary)
@@ -236,44 +228,52 @@ extension MainSidebar {
     }
 }
 
-/// The sidebar's way into Overview: a frosted pane with soft lights in acid hues drifting and
-/// changing shape under it, and only its name on top. The light moves while the window is key;
-/// hovered, it brightens; chosen, it stays as it is.
+/// The sidebar's way into Overview, and its brand: a dark glass pane lit from its foot in the hue of
+/// today's leverage (blue when low, violet, red when high), the logo and name over 概览, and the
+/// figure itself while another page is open. The light drifts and changes shape while the window is
+/// key; hovered, it brightens; chosen, it stays as it is.
 private struct OverviewCard: View {
+    @Environment(AppModel.self) private var model
     @Environment(\.controlActiveState) private var active
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var scheme
+    /// Overview is open beside it, showing the figure already.
+    var onOverview: Bool
     var onSelect: () -> Void
     @State private var hover = false
 
     var body: some View {
-        let dark = scheme == .dark
+        let _ = model.activityVersion
+        let leverage = model.report(Periods(.day, back: 0, now: Date(), calendar: model.settings.calendar).range, buckets: 1).leverage
+        let heat = LeverageHeat(leverage)
         let shape = RoundedRectangle(cornerRadius: Radius.group, style: .continuous)
-        HStack(spacing: Space.s) {
-            Text("Overview").font(.ui(.headline, .semibold)).foregroundStyle(Ink.primary)
+        HStack(spacing: Space.m) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 5) {
+                    BrandGlyph(size: 12)
+                    Text(verbatim: "YaaKanban").font(.ui(.footnote, .semibold)).foregroundStyle(Ink.secondary).lineLimit(1)
+                }
+                Text("Overview").font(.system(size: 17, weight: .semibold)).foregroundStyle(.primary.opacity(0.95))
+            }
             Spacer(minLength: Space.s)
-            Image(systemName: "arrow.up.right").font(.ui(.footnote, .semibold)).foregroundStyle(.primary.opacity(hover ? 0.75 : 0.45))
+            if !onOverview { figure(leverage) }
         }
         .padding(.horizontal, Space.l + Space.xxs)
-        .frame(height: 62)
+        .frame(height: 72)
         .background {
-            ZStack {
-                shape.fill(dark ? Color(white: 0.1) : Color(white: 0.97))
-                // Only the light is redrawn at 30 fps; still when the window isn't key or motion is reduced.
-                TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion || active == .inactive)) {
-                    GlassLight(t: $0.date.timeIntervalSinceReferenceDate, bright: hover)
-                }
-                // The frost: a pale veil over the light, clearer towards the foot.
-                LinearGradient(colors: [.white.opacity(dark ? 0.1 : 0.45), .white.opacity(dark ? 0.02 : 0.15)], startPoint: .top, endPoint: .bottom)
+            // Only the light is redrawn at 30 fps; still when the window isn't key or motion is reduced.
+            TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion || active == .inactive)) {
+                FootGlow(heat: heat, t: $0.date.timeIntervalSinceReferenceDate, bright: hover)
             }
             .clipShape(shape)
         }
-        // The pane's edge: lit at the top left, fading round to the foot.
+        // The pane's edge: faint at the top, catching the light at the foot.
         .overlay {
-            shape.strokeBorder(LinearGradient(colors: [.white.opacity(dark ? 0.35 : 0.9), .white.opacity(dark ? 0.04 : 0.2), .white.opacity(dark ? 0.12 : 0.5)],
-                                              startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
+            shape.strokeBorder(LinearGradient(stops: [.init(color: .white.opacity(0.22), location: 0), .init(color: .white.opacity(0.05), location: 0.45),
+                                                     .init(color: heat.core.opacity(hover ? 0.75 : 0.5), location: 1)],
+                                              startPoint: .top, endPoint: .bottom), lineWidth: 1)
         }
-        .shadow(color: .black.opacity(dark ? 0.3 : 0.08), radius: 10, y: 4)
+        .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
+        .environment(\.colorScheme, .dark)
         .contentShape(shape)
         .onTapGesture(perform: onSelect)
         .accessibilityElement(children: .combine)
@@ -281,35 +281,67 @@ private struct OverviewCard: View {
         .accessibilityAction(.default, onSelect)
         .onHover { hover = $0 }
         .animation(.easeOut(duration: 0.15), value: hover)
+        .help(onOverview ? "" : String(localized: "Today. Click to open Overview in the main window."))
+    }
+
+    private func figure(_ leverage: Double?) -> some View {
+        VStack(alignment: .trailing, spacing: 1) {
+            HStack(alignment: .firstTextBaseline, spacing: 1) {
+                Text(verbatim: leverage.map { String(format: "%.1f", $0) } ?? "–").font(.figure(20)).tracking(-0.4)
+                    .contentTransition(.numericText())
+                if leverage != nil { Text(verbatim: "×").font(.ui(.body, .semibold)).foregroundStyle(Ink.secondary) }
+            }
+            .foregroundStyle(.primary.opacity(0.95))
+            Text("Today's leverage").font(.ui(.caption, .medium)).foregroundStyle(Ink.secondary)
+        }
+        .lineLimit(1)
     }
 }
 
-/// Four soft lights, acid lime, cyan, violet and a touch of pink, each drifting and stretching one
-/// way then the other on its own slow loop, so the pane's light keeps changing shape.
-private struct GlassLight: View {
+/// Leverage on a cool-to-hot scale, by doublings: 1× and under blue, about 3× violet, 8× and over
+/// red. No figure yet: a dim gray.
+private struct LeverageHeat {
+    let level: Double?
+    init(_ leverage: Double?) { level = leverage.map { min(max(log2(max($0, 1)) / 3, 0), 1) } }
+    /// The pane, almost black with a trace of the hue.
+    var base: Color { color(b: 0.07) }
+    /// The broad glow, a shade either way along the scale.
+    func glow(_ shift: Double) -> Color { color(shift, b: level == nil ? 0.4 : 0.85) }
+    /// The pale light along the foot, a step cooler.
+    var core: Color { color(-0.06, saturation: 0.5, b: level == nil ? 0.5 : 1) }
+
+    private func color(_ shift: Double = 0, saturation: Double = 1, b: Double) -> Color {
+        Color(hue: (0.6 + 0.4 * (level ?? 0) + shift + 1).truncatingRemainder(dividingBy: 1),
+              saturation: (level == nil ? 0.12 : 0.85) * saturation, brightness: b)
+    }
+}
+
+/// Light rising from the pane's foot: three broad lobes in the heat's hue, each drifting and changing
+/// shape on its own slow loop, and a paler core sliding along the edge.
+private struct FootGlow: View {
+    let heat: LeverageHeat
     let t: Double
     var bright = false
-    @Environment(\.colorScheme) private var scheme
-    private static let lights: [(color: Color, x: Double, y: Double, period: Double, phase: Double)] = [
-        (Color(red: 0.72, green: 1, blue: 0.18), 0.18, 0.7, 17, 0),
-        (Color(red: 0.1, green: 0.9, blue: 1), 0.55, 0.2, 23, 1.7),
-        (Color(red: 0.55, green: 0.36, blue: 1), 0.86, 0.75, 29, 3.4),
-        (Color(red: 1, green: 0.35, blue: 0.75), 0.4, 1.1, 37, 5.1),
-    ]
+    private static let lobes: [(x: Double, period: Double, phase: Double, shift: Double)] = [
+        (0.25, 19, 0, 0.035), (0.75, 23, 2.2, -0.035), (0.5, 29, 4.1, 0)]
 
     var body: some View {
         Canvas { ctx, size in
-            let w = size.width, h = size.height, dark = scheme == .dark
+            let w = size.width, h = size.height
+            ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .color(heat.base))
             ctx.drawLayer { l in
-                l.addFilter(.blur(radius: h * 0.32))
-                if dark { l.blendMode = .screen }
-                l.opacity = (dark ? 0.55 : 0.7) * (bright ? 1.25 : 1)
-                for s in Self.lights {
+                l.addFilter(.blur(radius: h * 0.3))
+                l.blendMode = .screen
+                l.opacity = bright ? 1 : 0.85
+                for s in Self.lobes {
                     let a = 2 * .pi * t / s.period + s.phase
-                    let c = CGPoint(x: w * (s.x + 0.14 * sin(a)), y: h * (s.y + 0.3 * cos(a * 1.4)))
-                    let rx = h * (0.9 + 0.35 * sin(a * 0.8)), ry = h * (0.55 + 0.2 * cos(a * 1.1))
-                    l.fill(Path(ellipseIn: CGRect(x: c.x - rx, y: c.y - ry, width: 2 * rx, height: 2 * ry)), with: .color(s.color))
+                    let c = CGPoint(x: w * (s.x + 0.12 * sin(a)), y: h * (1.05 + 0.08 * cos(a * 1.3)))
+                    let rx = w * (0.32 + 0.08 * sin(a * 0.7)), ry = h * (0.5 + 0.12 * cos(a * 0.9))
+                    l.fill(Path(ellipseIn: CGRect(x: c.x - rx, y: c.y - ry, width: 2 * rx, height: 2 * ry)), with: .color(heat.glow(s.shift)))
                 }
+                let a = 2 * .pi * t / 17
+                let cx = w * (0.5 + 0.18 * sin(a)), rx = w * (0.38 + 0.06 * cos(a * 1.2)), ry = h * 0.22
+                l.fill(Path(ellipseIn: CGRect(x: cx - rx, y: h * 1.02 - ry, width: 2 * rx, height: 2 * ry)), with: .color(heat.core))
             }
         }
     }

@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(main): glass Overview card with morphing acid light
+## feat(main): leverage-lit glass card carrying the logo
 
 `pending` | 2026-10-31
+
+- **Changes**: The sidebar's separate logo row is gone; `OverviewCard` (72 pt, top 38 pt under the window buttons) carries `BrandGlyph` 12 + "YaaKanban" as a caption over 概览 (17 semibold), and today's leverage (figure 20 + "Today's leverage") on the right unless 概览 is selected (`onOverview`). Dark in both appearances (forced `.dark`). `GlassLight` replaced by `FootGlow`: near-black base in the hue, three screen-blended blurred lobes rising from the foot (19/23/29 s, drift ±0.12w, size morph), a pale core sliding along the edge (17 s); rim faint at the top, the core hue at the foot (brighter on hover). `LeverageHeat` back (hue 0.6→1.0 over log2(leverage)/3; dim gray without a figure). "Today's leverage" restored in 9 languages; help tooltip back off 概览.
+- **Reason**: The user wants the figure visible off the 概览 page, the logo inside the card, and the old leverage-linked colors as a gradient, after a dark-glass reference lit from below.
+- **User feedback**: "没在概览页还是要显示杠杆数据。另外，把logo合到卡片来，高度不合适的话可以做细微调整。" / "视觉风格参考。颜色还是老样子，需要有渐变，且与杠杆关联" (reference: dark glass card with a blue glow rising from its foot)
+- **Process**: Layout specimen A (one row, 64 pt) vs B (name caption over 概览, 72 pt); took B to keep the name. Heat specimen at 1/2/3/5/8.5×/none, normal/hovered/on 概览, light and dark sidebars; the no-figure gray core read too white and was dimmed (glow 0.4, core 0.5). App snapshots dark and light (both on 概览, 4.5× → magenta).
+- **Result**: make test 202 pass; l10n 408, 0 problems; installed.
+- **Notes**: In the app only the 概览-selected state was rendered (snapshots follow the live selection); the figure-on-the-right state is seen in the specimen only. Motion judged from stills. The card reports today's leverage on every activity change even while hidden, for its color.
+
+## feat(main): glass Overview card with morphing acid light
+
+`97a7616` | 2026-10-31
 
 - **Changes**: `OverviewCard` replaced by a 62 pt glass pane (55% of the 112 pt split card): only "Overview" (15 semibold) and an `arrow.up.right`, no figures; follows the appearance (no forced dark). Background: base fill (white 0.1 dark / 0.97 light), `GlassLight` (Canvas layer blurred at h×0.32, screen blend in dark; four ellipses lime/cyan/violet/pink on 17/23/29/37 s loops, each drifting ±0.14w/±0.3h and stretching rx 0.9±0.35h, ry 0.55±0.2h), a white frost veil fading to the foot, a top-left-lit gradient rim. Only `GlassLight` sits in the 30 fps `TimelineView` (paused when not key or reduce motion). Hover brightens light ×1.25 and the arrow; no selected fill. `LeverageHeat`, `HeatField`, `SeamGlow`, the help tooltip and the "Today's leverage" string (9 languages) removed.
 - **Reason**: The split card read as ugly and too busy; the user wanted only the name and a calmer, glassy look.
