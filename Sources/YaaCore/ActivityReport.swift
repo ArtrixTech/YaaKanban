@@ -48,13 +48,14 @@ public struct ActivityReport: Sendable {
     public var bottleneck: TimeInterval = 0
     /// How long finished turns waited for the user to look or follow up, away time taken out.
     public var pickups: [TimeInterval] = []
-    public var pickupMedian: TimeInterval?
+    public var pickupMean: TimeInterval?
     public var pickupP90: TimeInterval?
     /// Times the user stepped in: prompts sent and asks answered.
     public var interventions = 0
     /// How long agents waited for the user to answer, away time taken out.
     public var replies: [TimeInterval] = []
     public var replyMedian: TimeInterval?
+    public var replyMean: TimeInterval?
     public var replyP90: TimeInterval?
     /// Median reply per project, slowest first.
     public var replyByProject: [(project: String, median: TimeInterval, count: Int)] = []
@@ -183,11 +184,12 @@ public struct ActivityReport: Sendable {
             if !row.text.isEmpty { byProject[row.text, default: []].append(latency) }
         }
         r.replyMedian = percentile(r.replies, 0.5)
+        r.replyMean = mean(r.replies)
         r.replyP90 = percentile(r.replies, 0.9)
         r.replyByProject = byProject.map { ($0.key, percentile($0.value, 0.5)!, $0.value.count) }
             .sorted { $0.median > $1.median }
         r.pickups = closedReviews.map { max(0, $0.duration - overlap($0, allAway)) }
-        r.pickupMedian = percentile(r.pickups, 0.5)
+        r.pickupMean = mean(r.pickups)
         r.pickupP90 = percentile(r.pickups, 0.9)
         return r
     }
@@ -296,6 +298,10 @@ public struct ActivityReport: Sendable {
             let a = max(i.start, s.start), b = min(i.end, s.end)
             return sum + max(0, b.timeIntervalSince(a))
         }
+    }
+
+    static func mean(_ xs: [TimeInterval]) -> TimeInterval? {
+        xs.isEmpty ? nil : xs.reduce(0, +) / Double(xs.count)
     }
 
     /// Nearest-rank percentile.

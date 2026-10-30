@@ -19,6 +19,18 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
 }
 
 @Suite struct ClaudeFlow {
+    /// SessionEnd usually arrives after the agent exited, when its tty can no longer be read.
+    @Test func endKeepsTheTtyOfTheSameProcess() {
+        var start = claude("SessionStart")
+        start.terminal.tty = "/dev/ttys004"
+        let ended = fold([start, claude("UserPromptSubmit", ["prompt": .string("go")], at: 1), claude("SessionEnd", at: 2)])
+        #expect(ended.terminal?.tty == "/dev/ttys004")
+        // Another process (the session resumed elsewhere) does not inherit it.
+        var other = claude("SessionStart", at: 3)
+        other.agentPid = 43
+        #expect(fold([other], into: ended).terminal?.tty == nil)
+    }
+
     @Test func promptToolStop() {
         let s = fold([
             claude("SessionStart"),
@@ -94,6 +106,22 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(stopped.subagents.isEmpty)
         #expect(stopped.runningTools.isEmpty)
         #expect(stopped.status == .running)
+    }
+
+    @Test func unknownSubagentStopEndsTheOnesCalls() {
+        // A stop under an id never started stops the oldest; its Bash must not stay running (stuck).
+        let s = fold([
+            claude("UserPromptSubmit", ["prompt": .string("x")]),
+            claude("SubagentStart", ["agent_id": .string("a1"), "agent_type": .string("general-purpose")], at: 1),
+            claude("SubagentStart", ["agent_id": .string("a2"), "agent_type": .string("general-purpose")], at: 1),
+            claude("PreToolUse", ["agent_id": .string("a1"), "tool_name": .string("Bash"), "tool_use_id": .string("b1"),
+                                  "tool_input": .object(["command": .string("make")])], at: 2),
+            claude("PreToolUse", ["agent_id": .string("a2"), "tool_name": .string("Bash"), "tool_use_id": .string("b2"),
+                                  "tool_input": .object(["command": .string("make")])], at: 2),
+            claude("SubagentStop", ["agent_id": .string("zz")], at: 3),
+        ])
+        #expect(s.subagents.map(\.id) == ["a2"])
+        #expect(s.runningTools.map(\.id) == ["b2"])
     }
 
     @Test func toolWithoutIdMatchesAcrossProcesses() {
@@ -216,6 +244,36 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(StuckDetector.evaluate(running(tool: "Monitor"), now: t0.addingTimeInterval(4000), config: cfg, isAlive: { _ in true }) == nil)
     }
 
+    /// A Codex exec that outlives its yield is left running while the agent moves on; its end only
+    /// comes when the agent polls it again, which it may never do.
+    @Test func toolLeftBehindIsNotStuck() {
+        var s = running(tool: "Bash")
+        s.tools.append(ToolCall(id: "2", name: "Bash", summary: "", input: "{}", output: nil, isError: false,
+                                startedAt: t0.addingTimeInterval(10), endedAt: t0.addingTimeInterval(11)))
+        s.lastEventAt = t0.addingTimeInterval(390)
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: cfg, isAlive: { _ in true }) == nil)
+        s.status = .stuck
+        s.stuckReason = "Bash has been running for 6 min"
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: cfg, isAlive: { _ in true })?.status == .running)
+        // It no longer holds off silence: a parallel call that really hangs is caught that way.
+        s.status = .running
+        s.stuckReason = nil
+        s.lastEventAt = t0.addingTimeInterval(11)
+        let out = StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: cfg, isAlive: { _ in true })
+        #expect(out?.stuckReason == "No new events for 6 min")
+        // A waiting tool still holds it off.
+        s.tools[0].name = "Monitor"
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: cfg, isAlive: { _ in true }) == nil)
+    }
+
+    @Test func subagentToolDoesNotLeaveMainToolBehind() {
+        var s = running(tool: "Bash")
+        s.tools.append(ToolCall(id: "2", name: "Read", summary: "", input: "{}", output: nil, isError: false,
+                                startedAt: t0.addingTimeInterval(10), subagentId: "a"))
+        let out = StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: cfg, isAlive: { _ in true })
+        #expect(out?.stuckReason == "Bash has been running for 6 min")
+    }
+
     @Test func subagentCountsAsActivity() {
         var s = running()
         s.subagents = [Subagent(id: "a", type: nil, startedAt: t0)]
@@ -229,6 +287,17 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         idle.status = .idle
         // A finished turn stays idle: the conversation is still there to reopen.
         #expect(StuckDetector.evaluate(idle, now: t0, config: cfg, isAlive: { _ in false }) == nil)
+    }
+
+    @Test func subagentProcessExitIsNotStuck() {
+        var s = running(pid: 7)
+        s.parentId = "claude-code:parent"
+        let out = StuckDetector.evaluate(s, now: t0.addingTimeInterval(1), config: cfg, isAlive: { _ in false })
+        #expect(out?.status == .idle)
+        #expect(out?.stuckReason == nil)
+        s.status = .stuck
+        s.stuckReason = "Process exited"
+        #expect(StuckDetector.evaluate(s, now: t0, config: cfg, isAlive: { _ in false })?.status == .idle)
     }
 
     @Test func unhookedSessionsSkipSilence() {
@@ -280,6 +349,25 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         let idle = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(30), kind: .statusSnapshot(.idle)), to: s)
         #expect(idle.status == .idle)
         #expect(idle.runningTools.isEmpty)
+    }
+
+    /// `/bg` moves the conversation into a job session; the original gets no Stop and must not
+    /// read as stuck, and the file repeating it later must not end the session again.
+    @Test func parkedSessionEndsOnce() {
+        let s = fold([
+            claude("UserPromptSubmit", ["prompt": .string("x")]),
+            claude("PreToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("u1"),
+                                  "tool_input": .object(["command": .string("ls")])], at: 1),
+        ])
+        let park = AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0, kind: .parked(jobId: "e708264f"))
+        let parked = SessionReducer.apply(park, to: s)
+        #expect(parked.status == .ended && parked.parkedIn == "e708264f")
+        #expect(parked.runningTools.isEmpty)
+        #expect(StuckDetector.evaluate(parked, now: t0.addingTimeInterval(3600), config: StuckConfig(), isAlive: { _ in true }) == nil)
+
+        let back = fold([claude("UserPromptSubmit", ["prompt": .string("y")], at: 10)], into: parked)
+        #expect(back.status == .running)
+        #expect(SessionReducer.apply(park, to: back).status == .running)
     }
 }
 
@@ -632,6 +720,29 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(t.lastReply == nil && t.usage.output == 10)
     }
 
+    @Test func modificationDateFollowsWritesOnAKeptURL() throws {
+        // The usage tracker keeps one URL per transcript; a cached mtime froze the tokens at 0.
+        let url = tmp("a\n")
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_000)], ofItemAtPath: url.path)
+        #expect(url.currentModificationDate == Date(timeIntervalSince1970: 1_000))
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 2_000)], ofItemAtPath: url.path)
+        #expect(url.currentModificationDate == Date(timeIntervalSince1970: 2_000))
+    }
+
+    @Test func lineLongerThanAChunkIsSkipped() throws {
+        // An image or huge tool result on one line must not hold up the lines after it.
+        let huge = #"{"type":"user","message":{"content":[{"type":"tool_result","content":""# +
+            String(repeating: "x", count: TranscriptTally.chunk + 100) + "\"}]}}\n"
+        let reply = #"{"type":"assistant","message":{"id":"m9","content":[{"type":"text","text":"之后"}],"usage":{"output_tokens":4}}}"# + "\n"
+        let url = tmp(huge + reply)
+        defer { try? FileManager.default.removeItem(at: url) }
+        var t = TranscriptTally(format: .claude)
+        let read = t.update(from: url)
+        #expect(read)
+        #expect(t.lastReply == "之后" && t.usage.output == 4)
+        #expect(t.offset == UInt64(Data((huge + reply).utf8).count))
+    }
+
     @Test func codexCumulativeTokensAndReply() {
         let lines = [
             #"{"type":"event_msg","payload":{"type":"task_started"}}"#,
@@ -682,14 +793,25 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         let u = try file(#"{"type":"session","version":3,"id":"c","cwd":"/x","parentSession":"/s/parent.jsonl"}"# + "\n" +
                          #"{"type":"model_change","id":"1"}"# + "\n")
         defer { try? FileManager.default.removeItem(at: u) }
-        #expect(SubagentLink.parentSession(transcript: u) == "/s/parent.jsonl")
+        #expect(SubagentLink.header(transcript: u)?.parentSession == "/s/parent.jsonl")
     }
 
     @Test func topLevelSessionHasNoParent() throws {
         let u = try file(#"{"type":"session","version":3,"id":"p","cwd":"/x"}"# + "\n")
         defer { try? FileManager.default.removeItem(at: u) }
-        #expect(SubagentLink.parentSession(transcript: u) == nil)
-        #expect(SubagentLink.parentSession(transcript: u.appendingPathExtension("missing")) == nil)
+        let h = SubagentLink.header(transcript: u)
+        #expect(h != nil && h?.parentSession == nil)
+    }
+
+    @Test func unwrittenHeaderIsRetried() throws {
+        // No file yet, or the first line still being written: nil, so the caller looks again.
+        let u = try file(#"{"type":"session","version":3,"id":"c","parentSe"#)
+        defer { try? FileManager.default.removeItem(at: u) }
+        #expect(SubagentLink.header(transcript: u.appendingPathExtension("missing")) == nil)
+        #expect(SubagentLink.header(transcript: u) == nil)
+        try (#"{"type":"session","version":3,"id":"c","parentSession":"/s/p.jsonl"}"# + "\n")
+            .write(to: u, atomically: true, encoding: .utf8)
+        #expect(SubagentLink.header(transcript: u)?.parentSession == "/s/p.jsonl")
     }
 }
 
@@ -1335,5 +1457,110 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(!s.matches("leverage"))
         s.customName = "Leverage rework"
         #expect(s.matches("leverage"))
+    }
+}
+
+@Suite struct CallerLinkTests {
+    private func session(_ agent: AgentKind, _ id: String, pid: Int32?, status: SessionStatus = .running,
+                         lastEvent: TimeInterval = 0, parent: String? = nil) -> SessionState {
+        var s = SessionState(agent: agent, sessionId: id, at: t0)
+        s.agentPid = pid
+        s.status = status
+        s.lastEventAt = t0.addingTimeInterval(lastEvent)
+        s.parentId = parent
+        return s
+    }
+
+    /// Claude ran `codex exec` through Bash: codex → zsh → claude.
+    @Test func agentStartedByAnotherAgentIsItsSubagent() {
+        let claude = session(.claudeCode, "c", pid: 100)
+        let codex = session(.codex, "x", pid: 300)
+        #expect(CallerLink.caller(of: codex, ancestors: [200, 100, 50], among: [claude, codex]) == claude.id)
+    }
+
+    @Test func agentStartedByTheUserHasNoCaller() {
+        let claude = session(.claudeCode, "c", pid: 100)
+        let codex = session(.codex, "x", pid: 300)
+        #expect(CallerLink.caller(of: codex, ancestors: [200, 50], among: [claude, codex]) == nil)
+        #expect(CallerLink.caller(of: codex, ancestors: [], among: [claude, codex]) == nil)
+    }
+
+    /// Cursor's hooks run in the editor, which also hosts the terminal the user typed `claude` in.
+    @Test func editorHostingTheTerminalIsNotACaller() {
+        let cursor = session(.cursor, "u", pid: 100)
+        let claude = session(.claudeCode, "c", pid: 300)
+        #expect(CallerLink.caller(of: claude, ancestors: [200, 100], among: [cursor, claude]) == nil)
+    }
+
+    @Test func nearestLiveTopLevelCallerWins() {
+        let outer = session(.claudeCode, "outer", pid: 100)
+        let inner = session(.codex, "inner", pid: 200)
+        let gone = session(.claudeCode, "gone", pid: 150, status: .ended)
+        let sub = session(.pi, "sub", pid: 180, parent: outer.id)
+        let leaf = session(.opencode, "leaf", pid: 300)
+        let all = [outer, inner, gone, sub, leaf]
+        #expect(CallerLink.caller(of: leaf, ancestors: [250, 200, 180, 150, 100], among: all) == inner.id)
+        #expect(CallerLink.caller(of: leaf, ancestors: [180, 150, 100], among: all) == outer.id)
+    }
+
+    /// After `/clear` one process holds the old and the new session; the latest one is calling.
+    @Test func latestSessionOfTheCallingProcess() {
+        let old = session(.claudeCode, "old", pid: 100, status: .idle, lastEvent: 0)
+        let new = session(.claudeCode, "new", pid: 100, lastEvent: 60)
+        let codex = session(.codex, "x", pid: 300)
+        #expect(CallerLink.caller(of: codex, ancestors: [100], among: [old, new, codex]) == new.id)
+    }
+
+    @Test func ancestorsOfThisProcessEndBeforeLaunchd() {
+        let chain = ProcessUtil.ancestors(of: getpid())
+        #expect(chain.first == getppid())
+        #expect(!chain.contains(1) && !chain.contains(getpid()))
+    }
+
+    @Test func ttyOfAProcess() throws {
+        #expect(ProcessUtil.tty(of: -1) == nil)
+        #expect(ProcessUtil.tty(of: 1) == nil)  // launchd has no terminal
+        // script(1) runs its child on a new pty; the child's tty is what ps reports for it.
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/script")
+        p.arguments = ["-q", "/dev/null", "/bin/sleep", "5"]
+        p.standardInput = Pipe()
+        p.standardOutput = FileHandle.nullDevice
+        try p.run()
+        defer { p.terminate() }
+        func run(_ tool: String, _ args: [String]) throws -> String {
+            let q = Process()
+            q.executableURL = URL(fileURLWithPath: tool)
+            q.arguments = args
+            let out = Pipe()
+            q.standardOutput = out
+            try q.run()
+            q.waitUntilExit()
+            return String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        var child: Int32?
+        for _ in 0..<50 where child == nil {
+            usleep(50_000)
+            child = Int32(try run("/usr/bin/pgrep", ["-P", "\(p.processIdentifier)"]))
+        }
+        let pid = try #require(child)
+        let name = try run("/bin/ps", ["-o", "tty=", "-p", "\(pid)"])
+        #expect(name.hasPrefix("ttys"))
+        #expect(ProcessUtil.tty(of: pid) == "/dev/" + name)
+    }
+
+    @Test func titleSequenceDropsControlCharacters() {
+        #expect(TerminalContext.titleSequence("a\u{07}b\u{1b}]c\nd") == "\u{1b}]0;ab]cd\u{07}")
+        #expect(TerminalContext(environment: ["TERM_PROGRAM": "Tabby"]).isTabby)
+    }
+
+    /// Spooled envelopes from before the field decode unchanged.
+    @Test func envelopeWithoutAncestorsDecodes() throws {
+        let old = HookEnvelope(agent: .codex, event: "Stop", payload: .object([:]))
+        var json = try #require(JSONValue.parse(Wire.encode(old)))
+        if case .object(var o) = json { o["ancestorPids"] = nil; json = .object(o) }
+        let back = Wire.decode(HookEnvelope.self, try JSONEncoder().encode(json))
+        #expect(back?.ancestorPids == nil && back?.agent == .codex)
     }
 }

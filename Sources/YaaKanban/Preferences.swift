@@ -19,15 +19,14 @@ final class Preferences {
     /// A reviewed turn left alone turns blue from this long after it ended (see `Attention.staleness`).
     var staleTintEnabled: Bool { didSet { d.set(staleTintEnabled, forKey: "staleTintEnabled") } }
     var staleAfterMinutes: Double { didSet { d.set(staleAfterMinutes, forKey: "staleAfterMinutes") } }
-    var panelOpacity: Double { didSet { d.set(panelOpacity, forKey: "panelOpacity") } }
     var showPanel: Bool { didSet { d.set(showPanel, forKey: "showPanel") } }
     var panelCollapsed: Bool { didSet { d.set(panelCollapsed, forKey: "panelCollapsed") } }
     /// Snapped to a side, the panel folds into a rail unless the user unfolded it.
     var sidebarExpanded: Bool { didSet { d.set(sidebarExpanded, forKey: "sidebarExpanded") } }
-    /// Experimental: the folded rail is a thin strip of status colors, each card's block as tall as the card.
-    var slimRail: Bool { didSet { d.set(slimRail, forKey: "slimRail") } }
     /// Experimental: a Claude Code turn that stops with background agents still out stays running.
     var claudeBackgroundAgents: Bool { didSet { d.set(claudeBackgroundAgents, forKey: "claudeBackgroundAgents") } }
+    /// Experimental: a finished turn counts as reviewed once its terminal pane is in front (`FocusWatcher`).
+    var autoReviewOnFocus: Bool { didSet { d.set(autoReviewOnFocus, forKey: "autoReviewOnFocus") } }
     /// Height of the floating panel's list set with its resize grip, kept whatever the content; nil
     /// (the grip dragged all the way up) lets the list follow its content.
     var panelListHeight: CGFloat? { didSet { d.set(panelListHeight.map(Double.init), forKey: "panelListHeightManual") } }
@@ -41,6 +40,13 @@ final class Preferences {
     var pinned: [String] { didSet { d.set(Array(pinned.prefix(100)), forKey: "pinnedSessions") } }
     var suppressWhenWaveFrontmost: Bool { didSet { d.set(suppressWhenWaveFrontmost, forKey: "suppressWhenWaveFrontmost") } }
     var waveTabSwitching: Bool { didSet { d.set(waveTabSwitching, forKey: "waveTabJump") } }
+    /// The user answered "Not Now" to the note before the Accessibility prompt; a click on a card
+    /// no longer asks.
+    var accessibilityDeclined: Bool { didSet { d.set(accessibilityDeclined, forKey: "accessibilityDeclined") } }
+    /// The setup guide was finished or closed; it no longer opens by itself.
+    var setupDone: Bool { didSet { d.set(setupDone, forKey: "setupDone") } }
+    /// The overview's first day of the week, as `Calendar.firstWeekday` (1 Sunday, 2 Monday, 7 Saturday).
+    var firstWeekday: Int { didSet { d.set(firstWeekday, forKey: "firstWeekday") } }
     /// Lets the pi extension name unnamed sessions with the session's model. Kept as a file the
     /// extension can see (`Paths.piAutoTitleOff`), not in UserDefaults.
     var piAutoTitle: Bool {
@@ -56,12 +62,13 @@ final class Preferences {
 
     init() {
         d.register(defaults: [
-            "stuckMinutes": 5.0, "approvalTimeout": 20.0, "idleVisibleMinutes": 1440.0, "panelOpacity": 0.95,
+            "stuckMinutes": 5.0, "approvalTimeout": 20.0, "idleVisibleMinutes": 1440.0,
             "flashEnabled": true, "flashAfterSeconds": Attention.flashAfter,
             "reviewFlashEnabled": true, "reviewFlashMinutes": Attention.reviewFlashAfter / 60,
             "staleTintEnabled": true, "staleAfterMinutes": Attention.staleAfter / 60,
             "showPanel": true, "suppressWhenWaveFrontmost": true, "waveTabJump": true,
             "showRecentStats": true, "claudeBackgroundAgents": true,
+            "autoReviewOnFocus": true, "firstWeekday": 2,
         ])
         stuckMinutes = d.double(forKey: "stuckMinutes")
         approvalTimeout = d.double(forKey: "approvalTimeout")
@@ -74,12 +81,11 @@ final class Preferences {
         reviewFlashMinutes = d.double(forKey: "reviewFlashMinutes")
         staleTintEnabled = d.bool(forKey: "staleTintEnabled")
         staleAfterMinutes = d.double(forKey: "staleAfterMinutes")
-        panelOpacity = d.double(forKey: "panelOpacity")
         showPanel = d.bool(forKey: "showPanel")
         panelCollapsed = d.bool(forKey: "panelCollapsed")
         sidebarExpanded = d.bool(forKey: "sidebarExpanded")
-        slimRail = d.bool(forKey: "slimRail")
         claudeBackgroundAgents = d.bool(forKey: "claudeBackgroundAgents")
+        autoReviewOnFocus = d.bool(forKey: "autoReviewOnFocus")
         panelListHeight = d.object(forKey: "panelListHeightManual") == nil ? nil : CGFloat(d.double(forKey: "panelListHeightManual"))
         panelWidth = d.object(forKey: "panelWidth") == nil ? 340 : CGFloat(d.double(forKey: "panelWidth"))
         showRecentStats = d.bool(forKey: "showRecentStats")
@@ -87,6 +93,9 @@ final class Preferences {
         pinned = d.stringArray(forKey: "pinnedSessions") ?? []
         suppressWhenWaveFrontmost = d.bool(forKey: "suppressWhenWaveFrontmost")
         waveTabSwitching = d.bool(forKey: "waveTabJump")
+        accessibilityDeclined = d.bool(forKey: "accessibilityDeclined")
+        setupDone = d.bool(forKey: "setupDone")
+        firstWeekday = Self.weekStarts.contains(d.integer(forKey: "firstWeekday")) ? d.integer(forKey: "firstWeekday") : 2
         piAutoTitle = !FileManager.default.fileExists(atPath: Paths().piAutoTitleOff.path)
     }
 
@@ -94,6 +103,10 @@ final class Preferences {
     /// How long reviewed sessions stay on the board, in minutes: 4, 8, 12 or 24 hours.
     static let retentionChoices: [Double] = [240, 480, 720, 1440]
     var idleVisibleSeconds: TimeInterval { idleVisibleMinutes * 60 }
+    /// The days a week can start on: Monday, Sunday, Saturday.
+    static let weekStarts = [2, 1, 7]
+    /// The calendar the overview's weeks follow.
+    var calendar: Calendar { var c = Calendar.current; c.firstWeekday = firstWeekday; return c }
     /// When a reviewed turn is bluest: halfway between turning blue and leaving the board.
     var stalePeakMinutes: Double { (staleAfterMinutes + idleVisibleMinutes) / 2 }
 }

@@ -4,3 +4,5 @@ build/
 *.xcodeproj
 DerivedData/
 .DS_Store
+# Third-party style references for the design specimens, kept locally
+design/references/

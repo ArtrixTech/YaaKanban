@@ -1,1 +1,1 @@
-"NSAppleEventsUsageDescription" = "O YaaKanban alterna entre abas do Wave quando você vai para um agente (experimental).";
+"NSAppleEventsUsageDescription" = "O YaaKanban lê qual aba do iTerm2 ou do Terminal está na frente para marcar o agente nela como revisado, e alterna entre abas do Wave quando você vai para um agente (experimental).";

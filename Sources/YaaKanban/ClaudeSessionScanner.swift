@@ -16,13 +16,18 @@ final class ClaudeSessionScanner {
                   let j = JSONValue.parse(data),
                   let sid = j["sessionId"]?.string,
                   let pid = j["pid"]?.number.map({ Int32($0) }), ProcessUtil.isAlive(pid) else { return nil }
+            let at = j["statusUpdatedAt"]?.number.map { Date(timeIntervalSince1970: $0 / 1000) } ?? Date()
+            // Parked by `/bg`: the file stays "busy" while the job carries the conversation on.
+            if let job = j["parkedJobId"]?.string, !job.isEmpty {
+                return AgentEvent(agent: .claudeCode, sessionId: sid, at: at, kind: .parked(jobId: job),
+                                  cwd: j["cwd"]?.string, agentPid: pid)
+            }
             let status: SessionStatus
             switch j["status"]?.string {
             case "busy", "shell": status = .running
             case "waiting": status = .needsInput
             default: status = .idle
             }
-            let at = j["statusUpdatedAt"]?.number.map { Date(timeIntervalSince1970: $0 / 1000) } ?? Date()
             return AgentEvent(agent: .claudeCode, sessionId: sid, at: at, kind: .statusSnapshot(status),
                               cwd: j["cwd"]?.string, agentPid: pid)
         }
@@ -31,7 +36,7 @@ final class ClaudeSessionScanner {
     /// Reads the transcript of a session when it changed since the last call; nil otherwise.
     func peek(_ s: SessionState) -> TranscriptPeek? {
         guard let url = transcriptURL(s),
-              let mtime = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate,
+              let mtime = url.currentModificationDate,
               transcripts[s.sessionId]?.mtime != mtime else { return nil }
         transcripts[s.sessionId] = (url, mtime)
         return TranscriptPeek.read(url)
@@ -43,7 +48,7 @@ final class ClaudeSessionScanner {
 
     func codexTitle(_ sessionId: String) -> String? {
         let url = Paths.home().appendingPathComponent(".codex/session_index.jsonl")
-        if let m = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate, m != codexIndexMtime,
+        if let m = url.currentModificationDate, m != codexIndexMtime,
            let data = try? Data(contentsOf: url) {
             codexIndexMtime = m
             for line in data.split(separator: UInt8(ascii: "\n")) {
@@ -103,7 +108,7 @@ final class UsageTracker: @unchecked Sendable {
                     entry = (url, TranscriptTally(format: format), nil)
                 }
                 guard var e = entry else { continue }
-                let mtime = (try? e.url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+                let mtime = e.url.currentModificationDate
                 guard mtime != e.mtime else { continue }
                 e.mtime = mtime
                 let changed = e.tally.update(from: e.url)

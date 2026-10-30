@@ -44,7 +44,7 @@ public struct HermesIntegration: Integration {
         guard waiting > 0 else { return [] }
         return [String(localized: "Run hermes once in a terminal."),
                 String(localized: "It asks about each YaaKanban hook (\(waiting) in total); answer y to all."),
-                String(localized: "Come back and click “Recheck”.")]
+                String(localized: "Come back here.")]
     }
 
     // MARK: YAML

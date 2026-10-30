@@ -164,6 +164,25 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         #expect(abs(r.rollingLeverage(window: 4)[0]! - r.leverage!) < 1e-9)
     }
 
+    @Test func rollingLeverageOverHourEdgesMatchesEachWindowsReport() {
+        // The panel's baseline: hourly slices, read 4 at a time, give each 4-hour window's leverage.
+        let rows = [lane("a", 0, .running), lane("a", 9000, nil), lane("b", 3600, .running), lane("b", 20000, .needsInput),
+                    lane("b", 22000, nil), ActivityRow(at: at(5000), session: "", kind: .away, value: 4000)]
+        let edges = (0...6).map { at(Double($0) * 3600) }
+        let r = ActivityReport.compute(rows: rows, lanesBefore: [:], range: DateInterval(start: edges[0], end: edges[6]),
+                                       now: at(30000), edges: edges)
+        let rolled = r.rollingLeverage(window: 4)
+        #expect(rolled.count == 3)
+        for (k, v) in rolled.enumerated() {
+            // What the store hands a report starting there: each session's lane before it.
+            var before: [String: Lane] = [:]
+            for row in rows where row.kind == .lane && row.at < edges[k] { before[row.session] = Lane(rawValue: row.text) }
+            let w = ActivityReport.compute(rows: rows, lanesBefore: before.compactMapValues { $0 }, range: DateInterval(start: edges[k], end: edges[k + 4]),
+                                           now: at(30000), buckets: 1)
+            #expect(abs(v! - w.leverage!) < 1e-9)
+        }
+    }
+
     @Test func blockedReviewAndInterventions() {
         // a runs 0–100, waits for review 100–160 (away 120–140 inside), then is looked at.
         // b asks 0–50, is answered and runs to 80; one turn. c asks 200–400, user away 250–500.
@@ -182,6 +201,7 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         #expect(r.utilizationAway == 0)
         // a's review less the 20 s away; d's review was carried in, so its start is unknown.
         #expect(r.pickups == [40])
+        #expect(r.pickupMean == 40)
         #expect(r.interventions == 2)
         #expect(r.agentTimePerIntervention == 65)
     }
@@ -214,6 +234,18 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         #expect(r.away == [DateInterval(start: at(20), duration: 50)])
         #expect(r.sessionTotals.first?.waiting == 50)
         #expect(r.waitingBuckets.reduce(0, +) > 0)
+    }
+
+    @Test func replyMeanCountsEveryReply() {
+        // One wait spent wholly away still counts, as 0 s: the mean stays off 0 where a median would not.
+        let rows = [ActivityRow(at: at(100), session: "claude-code:a", kind: .reply, value: 10),
+                    ActivityRow(at: at(200), session: "claude-code:a", kind: .reply, value: 20),
+                    ActivityRow(at: at(300), session: "claude-code:a", kind: .reply, value: 60),
+                    ActivityRow(at: at(240), session: "", kind: .away, value: 60)]
+        let r = ActivityReport.compute(rows: rows, lanesBefore: [:], range: DateInterval(start: t0, duration: 400), now: at(500))
+        #expect(r.replies == [10, 20, 0])
+        #expect(r.replyMean == 10)
+        #expect(ActivityReport.compute(rows: [], lanesBefore: [:], range: DateInterval(start: t0, duration: 400), now: at(500)).replyMean == nil)
     }
 
     @Test func lanesCarriedIntoRangeAndClippedAtNow() {
@@ -265,6 +297,21 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         store.record([], meta: ["heartbeat": 42])
         #expect(store.meta("heartbeat") == 42)
         #expect(store.meta("nope") == nil)
+    }
+
+    @Test func replyWaitStartingBeforeTheRangeTakesItsAwayOut() throws {
+        // Waiting since 0, away 10–90, replied at 110: the day starting at 100 sees a 30 s reply.
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("yaak-\(UUID().uuidString).sqlite")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = try Store(path: url)
+        store.record([ActivityRow(at: at(10), session: "", kind: .away, value: 80),
+                      ActivityRow(at: at(110), session: "claude-code:a", kind: .reply, value: 110)])
+        let range = DateInterval(start: at(100), end: at(200))
+        let r = ActivityReport.compute(rows: store.activity(from: range.start, to: range.end), lanesBefore: [:],
+                                       range: range, now: at(200))
+        #expect(r.replies == [30])
+        // The earlier away row only serves the reply; the range's own away is unchanged.
+        #expect(r.away.isEmpty)
     }
 }
 

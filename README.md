@@ -22,19 +22,42 @@ statistics, off by default; [docs/telemetry.md](docs/telemetry.md) lists every f
 Found a bug or have an idea? Menu → Feedback… (反馈…) opens a prefilled GitHub issue; `yaak doctor` prints
 the same diagnostics.
 
-## Requirements
+## Install
 
-macOS 14+, Swift 6 toolchain (Xcode or Command Line Tools).
+macOS 14+. Download the `.dmg` from [Releases](https://github.com/ArtrixTech/YaaKanban/releases/latest),
+open it and drag YaaKanban into Applications, then launch it.
 
-## Build and install
+On first launch a setup guide walks you through it:
+
+1. **Connect** — the agents found on this Mac; install the integration for all of them with one
+   button, or one by one. Each agent is ticked by itself the next time you use it (sessions already
+   running don't load the hooks; restart them). Some agents also ask you to approve the hooks; the
+   guide shows the steps.
+2. **Alerts and preferences** — notifications, launch at login, Accessibility (for jumping to the
+   exact window or Wave tab), the `yaak` command and statistics, all on unless you turn them off.
+
+Reopen it any time from the menu (**Connect agents…** while nothing is connected) or Settings →
+General → Setup guide. Settings → Agent integrations manages the integrations afterwards.
+
+## Build from source
+
+Swift 6 toolchain (Xcode or Command Line Tools).
 
 ```sh
 make test      # run the test suite
 make install   # build, copy to ~/Applications, link the yaak CLI to ~/.local/bin, launch
 ```
 
-Then open Settings → Agent integrations and install the hooks for the agents you use, or from the
-command line:
+## Command line
+
+The `yaak` CLI is inside the app. `make install` links it to `~/.local/bin`; with the disk image,
+link it yourself:
+
+```sh
+ln -s /Applications/YaaKanban.app/Contents/Helpers/yaak ~/.local/bin/yaak
+```
+
+Integrations can be installed from the command line too:
 
 ```sh
 yaak install --dry-run          # show what would change

@@ -1,1 +1,1 @@
-"NSAppleEventsUsageDescription" = "YaaKanban wechselt Wave-Tabs, wenn du zu einem Agenten springst (experimentell).";
+"NSAppleEventsUsageDescription" = "YaaKanban liest, welcher iTerm2- oder Terminal-Tab vorne ist, um den Agenten dort als geprüft zu markieren, und wechselt Wave-Tabs, wenn du zu einem Agenten springst (experimentell).";

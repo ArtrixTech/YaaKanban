@@ -22,7 +22,7 @@ public struct KiroIntegration: Integration {
         let engine = "\(value)"
         guard engine.lowercased() != "v3" else { return [] }
         return [String(localized: "Kiro CLI uses the \(engine) engine (chat.agentEngine in ~/.kiro/settings/cli.json); only the V3 engine reads ~/.kiro/hooks."),
-                String(localized: "Run kiro-cli settings chat.agentEngine v3 (or start it with --v3), then come back and click “Recheck”.")]
+                String(localized: "Run kiro-cli settings chat.agentEngine v3 (or start it with --v3), then come back here.")]
     }
 
     func source(yaak: String) throws -> String {

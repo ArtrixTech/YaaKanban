@@ -60,9 +60,14 @@ func runHook(agent: AgentKind, event: String) -> Never {
     }
     // Plugins stamp `ts` (ms) when the event happened; hooks without it use now.
     let at = payload["ts"]?.number.map { Date(timeIntervalSince1970: $0 / 1000) } ?? Date()
+    // A Claude Code background job (`/bg`) runs under its daemon, whose terminal variables are
+    // those of whichever pane happened to start the daemon, not where the job is shown.
+    let terminal = env["CLAUDE_CODE_SESSION_KIND"] == "bg" ? TerminalContext()
+        : TerminalContext(environment: env, tty: pid.flatMap(ProcessUtil.tty(of:)))
     let envelope = HookEnvelope(agent: agent, event: event, receivedAt: at, agentPid: pid,
                                 cwd: FileManager.default.currentDirectoryPath,
-                                terminal: TerminalContext(environment: env), payload: payload)
+                                terminal: terminal, payload: payload,
+                                ancestorPids: pid.map { ProcessUtil.ancestors(of: $0) })
 
     if wantsDecision {
         let wait = TimeInterval(Integrations.approvalTimeout + 5)
@@ -144,7 +149,7 @@ func runInstall(_ install: Bool) -> Never {
                 try Installer.apply(changes)
                 print("\(i.agent.rawValue): \(install ? "installed" : "uninstalled")")
                 if install, let note = i.postInstallNote { print("  note: \(note)") }
-                if install { printSteps(i.pendingSteps(home: home)) }
+                if install { printSteps(i.pendingSteps(home: home, in: .terminal)) }
             }
         } catch {
             failed = true
@@ -164,7 +169,7 @@ func runStatus() -> Never {
     let home = Paths.home(env)
     for i in Integrations.all {
         let s = i.status(home: home)
-        let steps = s == .installed ? i.pendingSteps(home: home) : []
+        let steps = s == .installed ? i.pendingSteps(home: home, in: .terminal) : []
         print("\(i.agent.rawValue): \(steps.isEmpty ? s.rawValue : IntegrationStatus.needsAuthorization.rawValue)")
         printSteps(steps)
     }

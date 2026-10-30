@@ -27,6 +27,9 @@ public enum IntegrationStatus: String, Sendable {
     case needsAuthorization
 }
 
+/// Where the user approves hooks, for an agent that has both a desktop app and a CLI.
+public enum ApprovalPlace: Sendable { case app, terminal }
+
 public protocol Integration: Sendable {
     var agent: AgentKind { get }
     /// Shown after install and under the agent in Settings: caveats the app cannot check.
@@ -34,6 +37,10 @@ public protocol Integration: Sendable {
     /// What the user still has to do in the agent before it runs the installed hooks, one step per
     /// line. Empty when nothing is pending, or when the agent keeps no state we can read.
     func pendingSteps(home: URL) -> [String]
+    /// The same steps, told for the place the user approves them in.
+    func pendingSteps(home: URL, in place: ApprovalPlace) -> [String]
+    /// The agent can be approved from either place, so the steps can be shown both ways.
+    var approvesInEitherPlace: Bool { get }
     func isDetected(home: URL) -> Bool
     func isInstalled(home: URL) -> Bool
     /// Changes needed to install (or uninstall) YaaKanban hooks. Empty when already in that state.
@@ -43,6 +50,8 @@ public protocol Integration: Sendable {
 extension Integration {
     public var postInstallNote: String? { nil }
     public func pendingSteps(home: URL) -> [String] { [] }
+    public func pendingSteps(home: URL, in place: ApprovalPlace) -> [String] { pendingSteps(home: home) }
+    public var approvesInEitherPlace: Bool { false }
 
     public func status(home: URL) -> IntegrationStatus {
         if isInstalled(home: home) { return .installed }

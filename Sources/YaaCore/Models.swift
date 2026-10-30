@@ -56,23 +56,53 @@ public struct TerminalContext: Codable, Equatable, Sendable {
     public var waveTabId: String?
     public var waveWorkspaceId: String?
     public var waveJWT: String?
+    /// The pane or tab inside other terminals, for telling whether the user is looking at it
+    /// (`TerminalFocus`): iTerm2's session UUID, the agent's tty, WezTerm's pane id, and tmux's
+    /// pane id and server socket.
+    public var itermSession: String?
+    public var tty: String?
+    public var weztermPane: String?
+    public var tmuxPane: String?
+    public var tmuxSocket: String?
 
     public init(termProgram: String? = nil, waveBlockId: String? = nil, waveTabId: String? = nil,
-                waveWorkspaceId: String? = nil, waveJWT: String? = nil) {
+                waveWorkspaceId: String? = nil, waveJWT: String? = nil, itermSession: String? = nil,
+                tty: String? = nil, weztermPane: String? = nil, tmuxPane: String? = nil, tmuxSocket: String? = nil) {
         self.termProgram = termProgram
         self.waveBlockId = waveBlockId
         self.waveTabId = waveTabId
         self.waveWorkspaceId = waveWorkspaceId
         self.waveJWT = waveJWT
+        self.itermSession = itermSession
+        self.tty = tty
+        self.weztermPane = weztermPane
+        self.tmuxPane = tmuxPane
+        self.tmuxSocket = tmuxSocket
     }
 
-    public init(environment env: [String: String]) {
-        self.init(termProgram: env["TERM_PROGRAM"], waveBlockId: env["WAVETERM_BLOCKID"],
+    public init(environment env: [String: String], tty: String? = nil) {
+        // Each id only when TERM_PROGRAM names its terminal: an app started from a shell there
+        // (`cursor .`, another terminal) inherits them.
+        let program = env["TERM_PROGRAM"]
+        // ITERM_SESSION_ID is "w0t1p0:<UUID>"; AppleScript's `unique id` is the UUID.
+        let iterm = program != "iTerm.app" ? nil
+            : env["ITERM_SESSION_ID"].map { $0.split(separator: ":", maxSplits: 1).last.map(String.init) ?? $0 }
+        // TMUX is "<socket>,<server pid>,<session>".
+        let socket = program != "tmux" ? nil : env["TMUX"].flatMap { $0.split(separator: ",").first.map(String.init) }
+        self.init(termProgram: program, waveBlockId: env["WAVETERM_BLOCKID"],
                   waveTabId: env["WAVETERM_TABID"], waveWorkspaceId: env["WAVETERM_WORKSPACEID"],
-                  waveJWT: env["WAVETERM_JWT"])
+                  waveJWT: env["WAVETERM_JWT"], itermSession: iterm, tty: tty,
+                  weztermPane: program == "WezTerm" ? env["WEZTERM_PANE"] : nil,
+                  tmuxPane: socket == nil ? nil : env["TMUX_PANE"], tmuxSocket: socket)
     }
 
     public var isWave: Bool { waveBlockId != nil }
+    public var isTabby: Bool { termProgram == "Tabby" }
+
+    /// OSC 0: sets the tab title of the terminal it is written to (control characters dropped).
+    public static func titleSequence(_ title: String) -> String {
+        "\u{1b}]0;" + String(String.UnicodeScalarView(title.unicodeScalars.filter { $0.value >= 0x20 && $0.value != 0x7f })) + "\u{07}"
+    }
 }
 
 /// What a hook invocation sends to the app: the raw agent payload plus local context.
@@ -84,9 +114,13 @@ public struct HookEnvelope: Codable, Equatable, Sendable {
     public var cwd: String?
     public var terminal: TerminalContext
     public var payload: JSONValue
+    /// Parents of `agentPid`, nearest first, taken while the hook ran (a one-shot agent may be gone
+    /// by the time the app reads it). An agent among them called this one as a tool.
+    public var ancestorPids: [Int32]?
 
     public init(agent: AgentKind, event: String, receivedAt: Date = Date(), agentPid: Int32? = nil,
-                cwd: String? = nil, terminal: TerminalContext = TerminalContext(), payload: JSONValue = .null) {
+                cwd: String? = nil, terminal: TerminalContext = TerminalContext(), payload: JSONValue = .null,
+                ancestorPids: [Int32]? = nil) {
         self.agent = agent
         self.event = event
         self.receivedAt = receivedAt
@@ -94,6 +128,28 @@ public struct HookEnvelope: Codable, Equatable, Sendable {
         self.cwd = cwd
         self.terminal = terminal
         self.payload = payload
+        self.ancestorPids = ancestorPids
+    }
+}
+
+/// Agents run as tools of another agent (Claude running `codex exec` through Bash): the caller is a
+/// session whose agent process is an ancestor of this one's.
+public enum CallerLink {
+    /// Agents whose hook process is an editor or app that also hosts its terminals; an agent started
+    /// in such a terminal by hand is not called by them.
+    static let hosts: Set<AgentKind> = [.cursor, .windsurf]
+
+    /// Key of the session that called `s`, the nearest ancestor first; nil when it was not called.
+    public static func caller(of s: SessionState, ancestors: [Int32], among sessions: some Collection<SessionState>) -> String? {
+        guard !ancestors.isEmpty else { return nil }
+        let callers = sessions.filter {
+            $0.id != s.id && $0.parentId == nil && $0.status != .ended && !hosts.contains($0.agent) && $0.agentPid != nil
+        }
+        for pid in ancestors where pid != s.agentPid {
+            // One process may host several sessions (after `/clear`); the latest one is calling.
+            if let c = callers.filter({ $0.agentPid == pid }).max(by: { $0.lastEventAt < $1.lastEventAt }) { return c.id }
+        }
+        return nil
     }
 }
 
@@ -144,6 +200,9 @@ public struct AgentEvent: Equatable, Sendable {
         case statusSnapshot(SessionStatus)
         /// The agent's own name for the session (pi's `/name` or an auto title); nil clears it.
         case titleChanged(String?)
+        /// Claude Code moved the conversation into a background job (`/bg`), which goes on as a
+        /// session of its own; this one gets no Stop or SessionEnd.
+        case parked(jobId: String)
     }
 
     public var agent: AgentKind
@@ -246,6 +305,8 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     /// Background agents launched and not yet reported back; while any is out, a stopped turn
     /// is not finished. Optional so sessions stored before it decode.
     public var backgroundTasks: [String]?
+    /// The background job the conversation was moved into, whose session id starts with it.
+    public var parkedIn: String?
 
     public static let toolHistoryLimit = 200
 

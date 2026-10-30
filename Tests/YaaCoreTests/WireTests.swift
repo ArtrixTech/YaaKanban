@@ -89,8 +89,10 @@ private func tempPaths() -> Paths {
             let env = HookEnvelope(agent: .pi, event: "e\(i)", receivedAt: Date(timeIntervalSince1970: Double(1000 + i)))
             try Wire.spool(WireRequest(kind: .event, envelope: env), paths: paths)
         }
-        #expect(Wire.drainSpool(paths: paths).map(\.envelope.event) == ["e0", "e1", "e2"])
-        #expect(Wire.drainSpool(paths: paths).isEmpty)
+        var drained: [String] = []
+        #expect(Wire.drainSpool(paths: paths) { drained.append($0.envelope.event) } == 3)
+        #expect(drained == ["e0", "e1", "e2"])
+        #expect(Wire.drainSpool(paths: paths) { _ in } == 0)
     }
 
     @Test func storeSaveLoadPurge() throws {

@@ -1,6 +1,8 @@
 import Foundation
 
-/// The `wsh` arguments that continue a session in Wave as if the user had opened a terminal and
+/// Continuing a session in Wave. When the block the agent ran in is back at its shell prompt, the
+/// command is typed there (`typedLine`, through `WaveRPC`). Otherwise a new block runs it:
+/// the `wsh` arguments that continue a session in Wave as if the user had opened a terminal and
 /// pasted the command: an ordinary shell block (Wave's rc, header and restart behaviour) whose
 /// init script runs the command at the first prompt, once the user's own rc has set PATH.
 /// Wave sources the init script before the user's rc, so it only arms a one-shot hook. The hook
@@ -48,6 +50,13 @@ public enum WaveResume {
         if let cwd { args.append("cmd:cwd=\(json(cwd))") }
         for (key, script) in zip(keys, [zsh, bash, fish]) { args.append("\(key)=\(json(script))") }
         return args
+    }
+
+    /// What is typed into the block the agent ran in when its shell is back at a prompt: Ctrl-E
+    /// Ctrl-U clears anything left on the line (zsh, bash and fish in their default emacs keys; in
+    /// vi keys only what is before the cursor), then the command and Return, as if the user typed it.
+    public static func typedLine(_ cmd: String, cwd: String?) -> String {
+        "\u{05}\u{15}" + [cwd.map { "cd \(shellQuote($0))" }, cmd].compactMap { $0 }.joined(separator: " && ") + "\r"
     }
 
     /// `wsh` reads a value starting with `"` as JSON, so any text arrives as is.

@@ -86,15 +86,21 @@ public enum Wire {
         try encode(req).write(to: paths.spool.appendingPathComponent(name), options: .atomic)
     }
 
-    /// Reads and deletes spooled requests, oldest first.
-    public static func drainSpool(paths: Paths) -> [WireRequest] {
+    /// Hands spooled requests to `handle`, oldest first, deleting each once handled; a file that
+    /// cannot be read stays for the next replay, one that does not decode is dropped. Returns
+    /// how many were handled.
+    @discardableResult
+    public static func drainSpool(paths: Paths, _ handle: (WireRequest) -> Void) -> Int {
         let fm = FileManager.default
-        guard let names = try? fm.contentsOfDirectory(atPath: paths.spool.path) else { return [] }
-        return names.filter { $0.hasSuffix(".json") }.sorted().compactMap { name in
+        guard let names = try? fm.contentsOfDirectory(atPath: paths.spool.path) else { return 0 }
+        var count = 0
+        for name in names.filter({ $0.hasSuffix(".json") }).sorted() {
             let url = paths.spool.appendingPathComponent(name)
-            defer { try? fm.removeItem(at: url) }
-            return (try? Data(contentsOf: url)).flatMap { decode(WireRequest.self, $0) }
+            guard let data = try? Data(contentsOf: url) else { continue }
+            if let req = decode(WireRequest.self, data) { handle(req); count += 1 }
+            try? fm.removeItem(at: url)
         }
+        return count
     }
 }
 

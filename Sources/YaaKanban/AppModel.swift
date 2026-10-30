@@ -32,11 +32,22 @@ final class AppModel {
     var serverError: String?
     /// Installed integrations whose hooks the agent will not run yet, with what the user has to do.
     private(set) var integrationIssues: [AgentKind: [String]] = [:]
+    /// Agents found on this Mac without our hooks: their sessions show only what a scan can see.
+    private(set) var unhookedAgents: Set<AgentKind> = []
+    /// No integration installed at all: the panel and menu point to the setup guide.
+    private(set) var noIntegrations = false
+    /// Opens the setup guide once launch is done: a first launch with nothing connected.
+    @ObservationIgnored private(set) var showSetupAtLaunch = false
+    /// Agents that have reached YaaKanban through their hooks (the setup guide's check).
+    var connectedAgents: Set<AgentKind> { Set(sessions.values.filter(\.hooked).map(\.agent)) }
     /// Debug hook: render windows to PNGs (`yaak snapshot <dir>`), for verification without screen recording.
     @ObservationIgnored var onSnapshot: ((URL) -> Void)?
-    /// Session selected in the main window, or `overview` (the home page).
+    /// Session selected in the main window, or `overview` (the home page) or `settingsPage`.
     var selection: String? = AppModel.overview
     static let overview = "overview"
+    static let settingsPage = "settings"
+    /// The tab the Settings page shows, so a link elsewhere can open the one it means.
+    var settingsTab = SettingsView.Tab.agents
 
     init() {
         telemetry = TelemetryReporter(paths: paths)
@@ -46,12 +57,36 @@ final class AppModel {
     // MARK: Derived views
 
     /// Active sessions for the floating panel; idle and ended ones only for a while (24 h by default).
-    /// Sub-agents of a session on the board show inside its card instead.
+    /// Sub-agents of a session on the board show inside its card instead; one waiting on the user
+    /// shows its parent as waiting too, since the whole call is held up; one still running keeps a
+    /// parent whose turn ended running, since its result is not in yet. A sub-agent whose parent is
+    /// not on the board (it never reported, or has left) gets no card unless it waits on the user.
     var activeSessions: [SessionState] {
         let now = Date()
         let live = sessions.values.filter { isLive($0, now: now) }
         let shown = Set(live.map(\.id))
-        return sorted(live.filter { s in s.parentId.map { !shown.contains($0) } ?? true })
+        var waiting: [String: SessionState] = [:]
+        for c in live where c.status == .needsInput { if let p = c.parentId { waiting[p] = c } }
+        let working = workingParents
+        return sorted(live.compactMap { s in
+            if let p = s.parentId, shown.contains(p) || s.status != .needsInput { return nil }
+            if let c = waiting[s.id], s.status != .needsInput {
+                var shownAs = s
+                shownAs.status = .needsInput
+                shownAs.needsInputMessage = c.needsInputMessage
+                shownAs.needsInputSince = c.needsInputSince
+                return shownAs
+            }
+            guard s.status == .idle, working.contains(s.id) else { return s }
+            var shownAs = s
+            shownAs.status = .running
+            return shownAs
+        })
+    }
+
+    /// Sessions with a sub-agent still running: a finished turn of theirs is not ready to review.
+    private var workingParents: Set<String> {
+        Set(sessions.values.filter { $0.status == .running && $0.dismissedAt == nil }.compactMap(\.parentId))
     }
 
     /// Live sub-agent sessions of `key`, oldest first.
@@ -72,6 +107,10 @@ final class AppModel {
         // new session (`/clear`, `/new`).
         case .ended:
             if s.parentId != nil || now.timeIntervalSince(s.quietSince) >= settings.idleVisibleSeconds { return false }
+            // Moved into a background job: the job's own session shows the conversation.
+            if let job = s.parkedIn, sessions.values.contains(where: {
+                $0.agent == s.agent && $0.id != s.id && $0.sessionId.hasPrefix(job)
+            }) { return false }
             // One process may host sibling sessions (OpenCode, the Codex app): only a top-level
             // session started after this one's last event (or its restore) replaced it.
             guard let pid = s.agentPid else { return true }
@@ -93,7 +132,8 @@ final class AppModel {
     /// A session's status as the user sees it: one that has left the boards (retention over, or
     /// ended on the panel) is ended, whatever the agent did.
     func display(_ s: SessionState) -> DisplayStatus {
-        s.parentId == nil && !isLive(s, now: Date()) ? .ended : s.display
+        if s.parentId == nil && !isLive(s, now: Date()) { return .ended }
+        return s.status == .idle && workingParents.contains(s.id) ? .running : s.display
     }
 
     var allSessions: [SessionState] { sorted(sessions.values.filter { !$0.isUnstarted }) }
@@ -127,13 +167,19 @@ final class AppModel {
     private var visible: [SessionState] { sessions.values.filter { $0.dismissedAt == nil } }
     var attentionCount: Int { visible.filter { $0.status.needsAttention }.count }
     /// Sessions waiting on the user: blocked, stuck, or finished and not yet reviewed.
-    var pendingCount: Int { sessions.values.filter(Self.wantsUser).count }
+    var pendingCount: Int {
+        let working = workingParents
+        return sessions.values.filter { Self.wantsUser($0) && !($0.status == .idle && working.contains($0.id)) }.count
+    }
     static func wantsUser(_ s: SessionState) -> Bool {
         s.dismissedAt == nil && (s.status.needsAttention || s.display == .review)
     }
     var hasStuck: Bool { visible.contains { $0.status == .stuck } }
     var hasNeedsInput: Bool { visible.contains { $0.status == .needsInput } }
-    var reviewCount: Int { visible.filter { $0.display == .review }.count }
+    var reviewCount: Int {
+        let working = workingParents
+        return visible.filter { $0.display == .review && !($0.status == .idle && working.contains($0.id)) }.count
+    }
     var runningCount: Int { visible.filter { $0.status == .running }.count }
 
     /// History order: most recent first.
@@ -172,16 +218,21 @@ final class AppModel {
         } catch {
             serverError = "Cannot listen on \(paths.socket.path): \(error)"
         }
-        let spooled = Wire.drainSpool(paths: paths)
-        for req in spooled { ingest(req.envelope, alert: false) }
-        telemetry.count(.spoolReplay, by: spooled.count)
+        let spooled = Wire.drainSpool(paths: paths) { ingest($0.envelope, alert: false) }
+        telemetry.count(.spoolReplay, by: spooled)
 
         notifier.onAction = { [weak self] key, requestId, action in
             self?.handleNotificationAction(key: key, requestId: requestId, action: action)
         }
-        notifier.requestAuthorization()
+        notifier.setUp()
 
         checkIntegrations()
+        if !settings.setupDone {
+            // Someone who already connected agents (an older version) needs no guide.
+            if noIntegrations { showSetupAtLaunch = true } else { settings.setupDone = true }
+        }
+        // Without the guide nothing else asks; asking again is a no-op.
+        if !showSetupAtLaunch { notifier.requestAuthorization() }
         timers.append(Timer(timeInterval: 10, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         })
@@ -200,17 +251,96 @@ final class AppModel {
         ws.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.awaySince = self?.awaySince ?? Date() }
         }
+        // Auto review: on switching apps at once, then every second while a terminal is in front.
+        ws.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.checkFocus() }
+        }
+        let focus = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.checkFocus() }
+        }
+        RunLoop.main.add(focus, forMode: .common)
+        timers.append(focus)
+    }
+
+    // MARK: Auto review
+
+    @ObservationIgnored private var probingFocus = false
+
+    /// Experimental: a finished turn whose pane the user has in front counts as reviewed, as if
+    /// its card was clicked. Only while the user is at the Mac, and only for terminals that can
+    /// say which pane is in front (`FocusWatcher`).
+    private func checkFocus() {
+        guard settings.autoReviewOnFocus, !probingFocus,
+              let front = NSWorkspace.shared.frontmostApplication,
+              let bundle = front.bundleIdentifier, FocusWatcher.terminals.contains(bundle),
+              awaySince == nil, !Self.screenLocked,
+              CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!) < Self.awayAfter
+        else { return }
+        let waiting = sessions.values.filter { s in s.display == .review && s.terminal.map { Self.focusable($0, of: s) } == true }
+        guard !waiting.isEmpty else { return }
+        probingFocus = true
+        FocusWatcher.probe(front: front, wanted: waiting.compactMap(\.terminal)) { [weak self] focus in
+            guard let self else { return }
+            probingFocus = false
+            for s in waiting where s.terminal.map(focus.shows) == true && sessions[s.id]?.display == .review {
+                markRead(s.id)
+            }
+        }
+    }
+
+    /// A pane known only by its tty counts while the agent still holds that tty: once it is gone,
+    /// macOS hands the tty to the next new tab.
+    private static func focusable(_ t: TerminalContext, of s: SessionState) -> Bool {
+        if t.isWave || t.itermSession != nil || t.weztermPane != nil || t.tmuxPane != nil { return true }
+        guard let tty = t.tty, let pid = s.agentPid else { return false }
+        return ProcessUtil.isAlive(pid) && ProcessUtil.tty(of: pid) == tty
+    }
+
+    private static var screenLocked: Bool {
+        (CGSessionCopyCurrentDictionary() as? [String: Any])?["CGSSessionScreenIsLocked"] as? Bool ?? false
     }
 
     /// Re-reads each installed integration's authorization state from the agents' own files.
     func checkIntegrations() {
         let home = Paths.home()
         var issues: [AgentKind: [String]] = [:]
-        for i in Integrations.all where i.isInstalled(home: home) {
+        var unhooked: Set<AgentKind> = []
+        var installed = 0
+        for i in Integrations.all {
+            guard i.isInstalled(home: home) else {
+                if i.isDetected(home: home) { unhooked.insert(i.agent) }
+                continue
+            }
+            installed += 1
             let steps = i.pendingSteps(home: home)
             if !steps.isEmpty { issues[i.agent] = steps }
         }
         if issues != integrationIssues { integrationIssues = issues }
+        if unhooked != unhookedAgents { unhookedAgents = unhooked }
+        if (installed == 0) != noIntegrations { noIntegrations = installed == 0 }
+    }
+
+    /// Installs or removes `i`'s hooks; the message to show, nil on success with nothing to add.
+    @discardableResult
+    func applyIntegration(_ i: any Integration, install: Bool) -> String {
+        let name = i.agent.displayName
+        defer { checkIntegrations() }
+        do {
+            try Installer.apply(try i.plan(install: install, home: Paths.home(), yaak: Self.yaakPath))
+            telemetry.count(install ? .integrationInstall : .integrationUninstall)
+            return !install ? String(localized: "\(name) uninstalled.")
+                : i.pendingSteps(home: Paths.home()).isEmpty ? String(localized: "\(name) installed. Sessions you start from now on report to YaaKanban; restart ones already running.")
+                : String(localized: "\(name) installed. You still need to approve it in \(name); the steps are above.")
+        } catch {
+            telemetry.count(.integrationFail)
+            return "\(name): \(error)"
+        }
+    }
+
+    /// The guide was finished or closed: it stays closed, and notifications are asked for if not yet.
+    func finishSetup() {
+        settings.setupDone = true
+        notifier.requestAuthorization()
     }
 
     /// Path the hooks call: the stable link to this app's yaak, made or re-pointed on first use.
@@ -266,7 +396,14 @@ final class AppModel {
         var key: String?
         for ev in Normalizer.normalize(env) {
             if case .backgroundStart = ev.kind, !settings.claudeBackgroundAgents { continue }
-            key = update(SessionState.key(ev.agent, ev.sessionId), alert: alert) { SessionReducer.apply(ev, to: $0) }
+            key = update(SessionState.key(ev.agent, ev.sessionId), alert: alert) { old in
+                var s = SessionReducer.apply(ev, to: old)
+                // Another agent started it as a tool: it works for that one, from its first turn on.
+                if s.parentId == nil, old?.turns.isEmpty ?? true, let pids = env.ancestorPids {
+                    s.parentId = CallerLink.caller(of: s, ancestors: pids, among: sessions.values)
+                }
+                return s
+            }
         }
         if let key { linkParent(key) }
         return key
@@ -329,7 +466,11 @@ final class AppModel {
         }
     }
 
+    /// When a notification was last clicked or answered (the app ignores the reopen that comes with it).
+    @ObservationIgnored private(set) var notificationActedAt = Date.distantPast
+
     private func handleNotificationAction(key: String, requestId: String?, action: Notifier.Action) {
+        notificationActedAt = Date()
         switch action {
         case .allow: decide(key, .allow, requestId: requestId ?? "")
         case .deny: decide(key, .deny, requestId: requestId ?? "")
@@ -555,8 +696,6 @@ final class AppModel {
         return r
     }
 
-    var backlog: Backlog { Backlog(Array(sessions.values)) }
-
     // MARK: Sub-agents
 
     /// Transcripts already read for a parent link (the header is written once, at start).
@@ -568,9 +707,9 @@ final class AppModel {
               let path = s.transcriptPath else { return }
         let url = URL(fileURLWithPath: path)
         // Not written yet: try again on the next event or scan.
-        guard FileManager.default.fileExists(atPath: path) else { return }
+        guard let header = SubagentLink.header(transcript: url) else { return }
         linkChecked.insert(key)
-        guard let parent = SubagentLink.parentSession(transcript: url) else { return }
+        guard let parent = header.parentSession else { return }
         let pk = SessionState.key(s.agent, parent)
         guard pk != key else { return }
         update(key, alert: false) { s in
@@ -622,10 +761,12 @@ final class AppModel {
             : TerminalJumper.runsResume(s) ? nil
             : s.terminal?.termProgram == "waveterm" ? String(localized: "It’s not known which Wave tab it was in")
             : String(localized: "\(name) doesn’t accept typed-in commands from other apps")
-        switch Self.askReopen(s, cannotRun: why.map { ($0, name) }) {
-        case .alertFirstButtonReturn: telemetry.count(.resume); jumper.resume(s, wave: runners) { Self.tellResumeFailed(s) }
-        case .alertSecondButtonReturn: telemetry.count(.resume); jumper.copyResume(s)
-        default: break
+        Self.reopenAlert(s, cannotRun: why.map { ($0, name) }).runLater { [self] answer in
+            switch answer {
+            case .alertFirstButtonReturn: telemetry.count(.resume); jumper.resume(s, wave: runners) { Self.tellResumeFailed(s) }
+            case .alertSecondButtonReturn: telemetry.count(.resume); jumper.copyResume(s)
+            default: break
+            }
         }
     }
 
@@ -656,7 +797,7 @@ final class AppModel {
     }
 
     /// `cannotRun`: why the command can't be typed in for the user, and the terminal to go to.
-    private static func askReopen(_ s: SessionState, cannotRun: (why: String, app: String)?) -> NSApplication.ModalResponse {
+    private static func reopenAlert(_ s: SessionState, cannotRun: (why: String, app: String)?) -> NSAlert {
         let alert = NSAlert()
         if let icon = BrandMark.image { alert.icon = icon }
         alert.messageText = String(localized: "\(s.agent.displayName) is no longer running")
@@ -670,8 +811,7 @@ final class AppModel {
         }
         alert.addButton(withTitle: String(localized: "Copy Resume Command"))
         alert.addButton(withTitle: String(localized: "Cancel"))
-        NSApp.activate(ignoringOtherApps: true)
-        return alert.runModal()
+        return alert
     }
 
     /// The agent is no longer running this session: it ended, or its process died (a crashed terminal).
@@ -736,14 +876,15 @@ final class AppModel {
         alert.addButton(withTitle: String(localized: "OK"))
         alert.addButton(withTitle: String(localized: "Cancel"))
         alert.window.initialFirstResponder = field
-        NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        telemetry.count(.rename)
-        update(key, alert: false) { s in
-            guard var s else { return nil }
-            s.customName = name.isEmpty ? nil : String(name.prefix(80))
-            return s
+        alert.runLater { [self] answer in
+            guard answer == .alertFirstButtonReturn else { return }
+            let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            telemetry.count(.rename)
+            update(key, alert: false) { s in
+                guard var s else { return nil }
+                s.customName = name.isEmpty ? nil : String(name.prefix(80))
+                return s
+            }
         }
     }
 

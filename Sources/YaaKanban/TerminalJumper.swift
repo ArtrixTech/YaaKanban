@@ -6,6 +6,7 @@ import YaaCore
 @MainActor
 struct TerminalJumper {
     static let waveBundleId = "dev.commandline.waveterm"
+    static let tabbyBundleId = "org.tabby"
     static let codexBundleId = "com.openai.codex"
     let settings: Preferences
 
@@ -13,9 +14,24 @@ struct TerminalJumper {
 
     @discardableResult
     func jump(to s: SessionState) -> Outcome {
+        // The alert comes up once the click has returned (see `runLater`), and the jump goes ahead
+        // once it is answered.
+        if needsAccessibility(s), shouldAsk {
+            Self.askedThisLaunch = true
+            explainAccessibility { jump(to: s) }
+            return .activated("")
+        }
         if let t = s.terminal, t.isWave, let wave = NSRunningApplication.runningApplications(withBundleIdentifier: Self.waveBundleId).first {
-            WaveAdapter(terminal: t, switchTabs: settings.waveTabSwitching).jump(app: wave)
+            let tabs = settings.waveTabSwitching && t.waveTabId != nil && AXIsProcessTrusted()
+            WaveAdapter(terminal: t, switchTabs: tabs).jump(app: wave)
             return .activated("Wave")
+        }
+        if s.terminal?.isTabby == true, let tabby = NSRunningApplication.runningApplications(withBundleIdentifier: Self.tabbyBundleId).first {
+            tabby.activate()
+            if settings.waveTabSwitching, AXIsProcessTrusted(), let tty = s.agentPid.flatMap(ProcessUtil.tty(of:)) {
+                TabbyAdapter(pid: tabby.processIdentifier, tty: tty, fallbackTitle: s.title).selectTab()
+            }
+            return .activated("Tabby")
         }
         // The app the agent runs under: Cursor's own agent has no terminal at all, and an editor's
         // built-in terminal says TERM_PROGRAM=vscode whether it is VS Code or Cursor.
@@ -84,6 +100,44 @@ struct TerminalJumper {
                 return .activated(app.localizedName ?? "")
             }
             return .copied
+        }
+    }
+
+    /// Asked once a launch at most, and never again after "Not Now".
+    private static var askedThisLaunch = false
+    private var shouldAsk: Bool { !AXIsProcessTrusted() && !settings.accessibilityDeclined && !Self.askedThisLaunch }
+
+    /// Whether this jump would use Accessibility: a Wave or Tabby tab, or an editor's project window.
+    private func needsAccessibility(_ s: SessionState) -> Bool {
+        if let t = s.terminal, t.isWave {
+            return settings.waveTabSwitching && t.waveTabId != nil
+                && !NSRunningApplication.runningApplications(withBundleIdentifier: Self.waveBundleId).isEmpty
+        }
+        if s.terminal?.isTabby == true {
+            return settings.waveTabSwitching && s.agentPid != nil
+                && !NSRunningApplication.runningApplications(withBundleIdentifier: Self.tabbyBundleId).isEmpty
+        }
+        guard let app = s.agentPid.flatMap(Self.hostApp(of:)) ?? s.terminal?.termProgram.flatMap(Self.app(forTermProgram:))
+        else { return false }
+        return app.bundleIdentifier != Self.codexBundleId && Self.isEditor(app)
+    }
+
+    /// Says what Accessibility is for before the system asks, so its prompt never comes out of the
+    /// blue. Until the user has allowed it in System Settings, jumps go ahead without it.
+    private func explainAccessibility(then: @escaping @MainActor () -> Void) {
+        let alert = NSAlert()
+        if let icon = BrandMark.image { alert.icon = icon }
+        alert.messageText = String(localized: "Allow Accessibility access?")
+        alert.informativeText = String(localized: "Needed to jump to the exact window or Wave tab. Without it, only the app comes forward.")
+        alert.addButton(withTitle: String(localized: "Continue"))
+        alert.addButton(withTitle: String(localized: "Not Now"))
+        alert.runLater { [settings] answer in
+            if answer == .alertFirstButtonReturn {
+                _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
+            } else {
+                settings.accessibilityDeclined = true
+            }
+            then()
         }
     }
 
@@ -158,7 +212,7 @@ struct TerminalJumper {
     static let termProgramIds: [String: String] = [
         "iTerm.app": "com.googlecode.iterm2", "Apple_Terminal": "com.apple.Terminal",
         "ghostty": "com.mitchellh.ghostty", "WezTerm": "com.github.wez.wezterm", "vscode": "com.microsoft.VSCode", "cursor": "com.todesktop.230313mzl4w4u92",
-        "waveterm": waveBundleId,
+        "waveterm": waveBundleId, "Tabby": tabbyBundleId,
     ]
 
     static func app(forTermProgram p: String) -> NSRunningApplication? {
@@ -204,8 +258,8 @@ struct WaveAdapter {
     func jump(app: NSRunningApplication) {
         app.activate()
         badge(on: true)
-        guard switchTabs, let tab = terminal.waveTabId else { return }
-        guard AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary) else { return }
+        // `switchTabs` is only set once Accessibility is allowed (`TerminalJumper.accessibility`).
+        guard switchTabs, let tab = terminal.waveTabId, AXIsProcessTrusted() else { return }
         let pid = app.processIdentifier
         let block = terminal.waveBlockId
         DispatchQueue.global(qos: .userInitiated).async {
@@ -219,25 +273,53 @@ struct WaveAdapter {
         }
     }
 
-    /// Opens an ordinary terminal block in the session's tab (Wave places it next to the block the
-    /// token was issued for) that runs `cmd` at its first prompt, like the user pasting it there.
-    /// Each runner's token is tried in turn (a token's block may be closed). When none works the
-    /// user pastes the copied command instead, and `failed` says so.
+    /// Continues the session where it ran: when its block is back at the shell prompt, the command
+    /// is typed there. Otherwise an ordinary terminal block opens in the session's tab (Wave places
+    /// it next to the block the token was issued for) and runs `cmd` at its first prompt, like the
+    /// user pasting it there. Each runner's token is tried in turn (a token's block may be closed).
+    /// When none works the user pastes the copied command instead, and `failed` says so.
     func resume(_ cmd: String, cwd: String?, app: NSRunningApplication, runners: [TerminalContext],
                 failed: @escaping @MainActor () -> Void) {
         app.activate()
+        let pressed = DispatchSemaphore(value: 0)
         if switchTabs, let tab = terminal.waveTabId, AXIsProcessTrusted() {
             let pid = app.processIdentifier
             let block = terminal.waveBlockId
             DispatchQueue.global(qos: .userInitiated).async {
                 _ = WaveTabBar(pid: pid).press { WaveDB.place(ofBlock: block, tab: tab) }
+                pressed.signal()
             }
+        } else {
+            pressed.signal()
         }
         let args = WaveResume.createBlockArgs(cmd, cwd: cwd)
+        let line = WaveResume.typedLine(cmd, cwd: cwd)
         DispatchQueue.global(qos: .userInitiated).async {
+            if let block = terminal.waveBlockId, let tty = terminal.tty,
+               let runner = Self.typeAtPrompt(line, block: block, tty: tty, runners: runners) {
+                // Like a jump: the block gets the keyboard once its tab is showing.
+                _ = pressed.wait(timeout: .now() + 3)
+                usleep(150_000)
+                _ = Self.runWaiting(["focusblock", "-b", block], as: runner)
+                return
+            }
             guard !runners.contains(where: { Self.runWaiting(args, as: $0) }) else { return }
             DispatchQueue.main.async { MainActor.assumeIsolated { failed() } }
         }
+    }
+
+    /// Types `line` into `block` when its shell is at a prompt, and returns the runner that did.
+    /// Both must agree: the block's tty (the agent's) has the shell itself in the foreground, and
+    /// Wave's shell integration says `ready` (a tab Wave has unloaded keeps its last state, which
+    /// the tty check catches). The first runner Wave accepts answers for the block (runners share
+    /// its tab); a block that is busy, closed or without shell integration says no.
+    static func typeAtPrompt(_ line: String, block: String, tty: String, runners: [TerminalContext]) -> TerminalContext? {
+        guard ProcessUtil.shellAtPrompt(tty: tty) else { return nil }
+        for runner in runners {
+            guard let rpc = runner.waveJWT.flatMap({ WaveRPC(jwt: $0) }) else { continue }
+            return rpc.shellState(block: block) == "ready" && rpc.type(line, block: block) ? runner : nil
+        }
+        return nil
     }
 
     /// Runs `wsh` as `terminal` and reports whether it succeeded (bounded: a hung `wsh` counts as failed).
@@ -280,8 +362,8 @@ enum WaveDB {
     }
 
     /// Where the block is now (the tab holding it; else the tab it started in): that tab's position
-    /// in its workspace and the names of all tabs there, in order.
-    static func place(ofBlock block: String?, tab: String) -> (index: Int, names: [String])? {
+    /// in its workspace, the names of all tabs there, in order, and the position of the active one.
+    static func place(ofBlock block: String?, tab: String) -> WaveTabBar.Place? {
         var names: [String: String] = [:]
         var holder: String?
         for row in query("SELECT data FROM db_tab") {
@@ -292,12 +374,13 @@ enum WaveDB {
         let target = holder ?? tab
         for ws in query("SELECT data FROM db_workspace") {
             guard let ids = ws["tabids"]?.array?.compactMap(\.string), let i = ids.firstIndex(of: target) else { continue }
-            return (i, ids.map { names[$0] ?? "" })
+            let active = ws["activetabid"]?.string.flatMap { ids.firstIndex(of: $0) }
+            return (i, ids.map { names[$0] ?? "" }, active)
         }
         return nil
     }
 
-    private static func query(_ sql: String) -> [JSONValue] {
+    static func query(_ sql: String) -> [JSONValue] {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
         p.arguments = ["-readonly", "file:\(path)?mode=ro", sql]
@@ -316,21 +399,29 @@ enum WaveDB {
 struct WaveTabBar {
     let pid: pid_t
 
+    typealias Place = (index: Int, names: [String], active: Int?)
+
     /// Finds the window whose tab names match the workspace and presses the tab at the index.
     /// `place` is asked again on each attempt. A looser match (same count, same name at the index)
     /// is only used once exact matching has had all its tries.
-    func press(_ place: () -> (index: Int, names: [String])?) -> Bool {
+    ///
+    /// A window holds a tab bar in each web view Wave keeps for recently shown tabs. The hidden
+    /// ones stop updating (a tab added since is missing there), so the bar showing the workspace's
+    /// active tab is preferred.
+    func press(_ place: () -> Place?) -> Bool {
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
         let attempts = 8
         for attempt in 0..<attempts {
             if attempt > 0 { usleep(250_000) }
-            guard let (index, names) = place() else { continue }
+            guard let (index, names, active) = place() else { continue }
             let windows = (attr(app, kAXWindowsAttribute) as? [AXUIElement]) ?? []
-            let bars = windows.compactMap { w in tabs(in: w).map { (w, $0) } }.filter { !$0.1.isEmpty }
-            var match = bars.first { $0.1.map(label) == names }
+            let found = windows.flatMap { w in bars(in: w).map { (w, $0) } }.filter { !$0.1.isEmpty }
+            let exact = found.filter { $0.1.map(label) == names }
+            var match = exact.first { b in active.map { b.1.indices.contains($0) && classes(b.1[$0]).contains("active") } ?? false }
+                ?? exact.first
             if match == nil, attempt == attempts - 1 {
-                match = bars.first { $0.1.count == names.count && $0.1.indices.contains(index) && label($0.1[index]) == names[index] }
+                match = found.first { $0.1.count == names.count && $0.1.indices.contains(index) && label($0.1[index]) == names[index] }
             }
             guard let (window, tabs) = match, tabs.indices.contains(index) else { continue }
             AXUIElementPerformAction(window, kAXRaiseAction as CFString)
@@ -339,17 +430,93 @@ struct WaveTabBar {
         return false
     }
 
-    private func tabs(in e: AXUIElement, depth: Int = 0) -> [AXUIElement]? {
-        if depth > 16 { return nil }
-        if classes(e).contains("tabs-wrapper") { return children(e) }
-        for c in children(e) { if let t = tabs(in: c, depth: depth + 1) { return t } }
-        return nil
+    /// The tabs of every tab bar under `e`.
+    private func bars(in e: AXUIElement, depth: Int = 0) -> [[AXUIElement]] {
+        if depth > 16 { return [] }
+        if classes(e).contains("tabs-wrapper") { return [children(e)] }
+        return children(e).flatMap { bars(in: $0, depth: depth + 1) }
     }
 
     /// Visible tab name, without the icon-font glyphs (private use area) Wave appends.
     private func label(_ e: AXUIElement) -> String {
         let scalars = text(e).unicodeScalars.filter { !(0xE000...0xF8FF).contains($0.value) }
         return String(String.UnicodeScalarView(scalars)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func text(_ e: AXUIElement) -> String {
+        ((attr(e, kAXValueAttribute) as? String) ?? "") + children(e).map(text).joined()
+    }
+
+    private func children(_ e: AXUIElement) -> [AXUIElement] { (attr(e, kAXChildrenAttribute) as? [AXUIElement]) ?? [] }
+    private func classes(_ e: AXUIElement) -> [String] { (attr(e, "AXDOMClassList") as? [String]) ?? [] }
+
+    private func attr(_ e: AXUIElement, _ name: String) -> AnyObject? {
+        var v: AnyObject?
+        return AXUIElementCopyAttributeValue(e, name as CFString, &v) == .success ? v : nil
+    }
+}
+
+/// Tabby: no tab ids and no external control, and tab names are whatever the shell or agent set.
+/// The agent's tab is found by writing a one-off title to its tty (OSC 0), looking for it in the
+/// tab bar through Accessibility (Electron exposes the DOM, the tab names included), pressing that
+/// tab and putting the old name back. A tab with a custom name, a split pane that is not focused,
+/// or tmux never shows the marker; then Tabby only comes forward.
+struct TabbyAdapter {
+    let pid: pid_t
+    let tty: String
+    /// Restored when the marker never showed up, so it doesn't linger on that tab.
+    let fallbackTitle: String
+
+    func selectTab() {
+        let pid = pid, tty = tty, fallback = fallbackTitle
+        DispatchQueue.global(qos: .userInitiated).async {
+            let fd = open(tty, O_WRONLY | O_NOCTTY | O_NONBLOCK)
+            guard fd >= 0 else { return }
+            defer { close(fd) }
+            func setTitle(_ t: String) { _ = TerminalContext.titleSequence(t).withCString { write(fd, $0, strlen($0)) } }
+            let bar = TabbyTabBar(pid: pid)
+            let before = bar.tabs().map(\.name)
+            let marker = "yaak-" + UUID().uuidString.prefix(8)
+            for attempt in 0..<12 {
+                if attempt > 0 { usleep(100_000) }
+                // A busy agent rewrites its title all the time; write the marker again on each try.
+                setTitle(marker)
+                usleep(50_000)
+                let tabs = bar.tabs()
+                guard let i = tabs.firstIndex(where: { $0.name.contains(marker) }) else { continue }
+                AXUIElementPerformAction(tabs[i].window, kAXRaiseAction as CFString)
+                AXUIElementPerformAction(tabs[i].header, kAXPressAction as CFString)
+                setTitle(before.count == tabs.count ? before[i] : fallback)
+                return
+            }
+            setTitle(fallback)
+        }
+    }
+}
+
+/// Tabby's tab bar through Accessibility: `tab-header` elements under the `.tabs` list, the name in
+/// the `.name` child.
+struct TabbyTabBar {
+    let pid: pid_t
+
+    struct Tab { let window: AXUIElement; let header: AXUIElement; let name: String }
+
+    func tabs() -> [Tab] {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        let windows = (attr(app, kAXWindowsAttribute) as? [AXUIElement]) ?? []
+        return windows.flatMap { w in
+            (list(in: w) ?? []).map { h in
+                Tab(window: w, header: h, name: children(h).first { classes($0).contains("name") }.map(text) ?? text(h))
+            }
+        }
+    }
+
+    private func list(in e: AXUIElement, depth: Int = 0) -> [AXUIElement]? {
+        if depth > 16 { return nil }
+        if classes(e).contains("tabs") { return children(e) }
+        for c in children(e) { if let t = list(in: c, depth: depth + 1) { return t } }
+        return nil
     }
 
     private func text(_ e: AXUIElement) -> String {

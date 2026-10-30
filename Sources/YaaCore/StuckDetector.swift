@@ -36,6 +36,13 @@ public enum StuckDetector {
             out.needsInputSince = nil
             return out
         case .running, .stuck:
+            // A sub-agent's process ending is its run ending, however it went: the agent that
+            // started it reads the result. Only top-level sessions are flagged for leaving.
+            if processGone, s.parentId != nil {
+                out.status = .idle
+                out.stuckReason = nil
+                return out
+            }
             // Nothing happened after its turn ended: it is finished, whatever revived it (an old
             // event replayed before the reducer ignored them). A background agent still out keeps
             // it running, unless the process is gone (its agents went with it).
@@ -47,11 +54,12 @@ public enum StuckDetector {
                 return out
             }
             let reason: String?
+            let waited = s.runningTools.filter { !leftBehind($0, in: s) }
             if processGone {
                 reason = String(localized: "Process exited")
-            } else if let t = s.runningTools.first(where: { !isBackground($0) && now.timeIntervalSince($0.startedAt) > config.toolDuration }) {
+            } else if let t = waited.first(where: { !isBackground($0) && now.timeIntervalSince($0.startedAt) > config.toolDuration }) {
                 reason = String(localized: "\(t.name) has been running for \(minutes(now.timeIntervalSince(t.startedAt))) min")
-            } else if s.hooked, s.runningTools.isEmpty, s.subagents.isEmpty || s.awaitsBackground,
+            } else if s.hooked, waited.isEmpty, s.subagents.isEmpty || s.awaitsBackground,
                       now.timeIntervalSince(s.lastEventAt) > config.silence {
                 // Silence is only meaningful when hooks report every step. Waiting on background
                 // agents it still applies, in case a stop or notification never comes.
@@ -75,6 +83,13 @@ public enum StuckDetector {
     static func isBackground(_ t: ToolCall) -> Bool {
         if waitingTools.contains(t.name.lowercased()) { return true }
         return t.input.contains("\"run_in_background\":true")
+    }
+
+    /// The same agent started another call after it, so it is not waiting on this one. A Codex
+    /// exec that outlives its yield keeps running while the agent moves on, and its end only comes
+    /// when the agent polls it again. A waiting tool still counts: silence must not end its wait.
+    static func leftBehind(_ t: ToolCall, in s: SessionState) -> Bool {
+        !isBackground(t) && s.tools.contains { $0.subagentId == t.subagentId && $0.startedAt > t.startedAt }
     }
 
     static func minutes(_ t: TimeInterval) -> Int { Int(t / 60) }

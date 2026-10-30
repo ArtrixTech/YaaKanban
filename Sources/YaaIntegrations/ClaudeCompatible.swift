@@ -20,7 +20,7 @@ public struct QwenIntegration: Integration {
     public func pendingSteps(home: URL) -> [String] {
         guard let root = try? JSONFile.load(file(home)).root, root["disableAllHooks"] as? Bool == true else { return [] }
         return [String(localized: "~/.qwen/settings.json has \"disableAllHooks\": true, so Qwen Code runs no hooks."),
-                String(localized: "Remove it (or set it to false), restart qwen, then come back and click “Recheck”.")]
+                String(localized: "Remove it (or set it to false), restart qwen, then come back here.")]
     }
 
     public func plan(install: Bool, home: URL, yaak: String) throws -> [FileChange] {
@@ -52,12 +52,12 @@ public struct GeminiIntegration: Integration {
         guard let root = try? JSONFile.load(file(home)).root, let cfg = root["hooksConfig"] as? [String: Any] else { return [] }
         if cfg["enabled"] as? Bool == false {
             return [String(localized: "hooksConfig.enabled is false in ~/.gemini/settings.json, so Gemini CLI runs no hooks."),
-                    String(localized: "Set it to true (or remove it), restart gemini, then come back and click “Recheck”.")]
+                    String(localized: "Set it to true (or remove it), restart gemini, then come back here.")]
         }
         let disabled = (cfg["disabled"] as? [String] ?? []).filter { $0 == Self.name || HookCommand.isOurs($0) }
         guard !disabled.isEmpty else { return [] }
         return [String(localized: "The yaak hook is disabled in Gemini CLI (hooksConfig.disabled)."),
-                String(localized: "In gemini, run /hooks enable \(Self.name), or remove it from hooksConfig.disabled in ~/.gemini/settings.json, then come back and click “Recheck”.")]
+                String(localized: "In gemini, run /hooks enable \(Self.name), or remove it from hooksConfig.disabled in ~/.gemini/settings.json, then come back here.")]
     }
 
     public func plan(install: Bool, home: URL, yaak: String) throws -> [FileChange] {
@@ -101,7 +101,7 @@ public struct DroidIntegration: Integration {
         let roots = [settings(home), activeHooksFile(home)].compactMap { $0.flatMap { try? JSONFile.load($0).root } }
         guard roots.contains(where: { $0["hooksDisabled"] as? Bool == true }) else { return [] }
         return [String(localized: "Droid has hooksDisabled set to true (~/.factory/settings.json or hooks.json), so it runs no hooks."),
-                String(localized: "Re-enable them with /hooks in droid, or remove the setting, then come back and click “Recheck”.")]
+                String(localized: "Re-enable them with /hooks in droid, or remove the setting, then come back here.")]
     }
 
     /// Events with foreign entries in a file, ours excluded.
@@ -165,12 +165,12 @@ public struct ZCodeIntegration: Integration {
         guard let hooks = (try? JSONFile.load(file(home)).root)?["hooks"] as? [String: Any] else { return [] }
         if hooks["enabled"] as? Bool != true {
             return [String(localized: "ZCode's main hook switch is off (hooks.enabled in ~/.zcode/cli/config.json)."),
-                    String(localized: "Turn it on in ZCode under Settings → Hooks, or set hooks.enabled to true, then come back and click “Recheck”.")]
+                    String(localized: "Turn it on in ZCode under Settings → Hooks, or set hooks.enabled to true, then come back here.")]
         }
         let off = Self.disabledEvents(hooks["events"] as? [String: Any] ?? [:])
         guard !off.isEmpty else { return [] }
         return [String(localized: "YaaKanban's \(off.sorted().formatted(.list(type: .and))) hooks are disabled in ZCode."),
-                String(localized: "Turn them back on in ZCode under Settings → Hooks, then come back and click “Recheck”.")]
+                String(localized: "Turn them back on in ZCode under Settings → Hooks, then come back here.")]
     }
 
     /// Events whose hook of ours is switched off.

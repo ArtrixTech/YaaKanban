@@ -1,8 +1,656 @@
 # Devlog
 
+## fix(main): soften the Overview card's hover light
+
+`0aeddb2` | 2026-10-31
+
+- **Changes**: Hover lifts the 15% base veil to 7% instead of removing it, and the hovered rim tops out at 0.6 of the core hue instead of 0.8.
+- **Reason**: The hover highlight read as too bright.
+- **User feedback**: "现在hover高光太亮了。"
+- **Result**: make test pass; installed.
+- **Notes**: Hover can't be snapshotted; judged by the numbers (about half the previous lift), not seen.
+
+## fix(main): more room between the logo and Overview on the card
+
+`ae95377` | 2026-10-31
+
+- **Changes**: `OverviewCard` logo line to 概览 spacing `Space.s` (6) → `Space.m + Space.xxs` (10 pt); card stays 72 pt.
+- **Reason**: Still read as tight.
+- **User feedback**: "另外 logo和"概览"再上下分开一点。"
+- **Process**: Zoomed app snapshots, a session selected and 概览 (`design/history/sidebar-v8`).
+- **Result**: make test 202 pass; installed.
+
+## chore(release): bump the version to 0.2.0
+
+`d6e965f` | 2026-10-31
+
+- **Changes**: `Resources/Info.plist` 0.1.2 (3) → 0.2.0 (4); CHANGELOG `[Unreleased]` entries now under `[0.2.0] - 2026-10-31`.
+- **Reason**: Release the design-system work as 0.2.0.
+- **User feedback**: "完成之后，发新的版本，0.2.0，发release。"
+- **Notes**: The only valid signing identity here is team 5JF32B7C33; 0.1.2 was signed by 5KZD8GBF7G (expired cert AA1FC361…), and `Updater.verify` only accepts an update from the running app's team.
+
+## fix(main): fade the Overview card's rim light in gradually
+
+`eec8dcd` | 2026-10-31
+
+- **Changes**: Rim gradient stops white 0.2 @0 → white 0.08 @0.3 → hue ×0.15 @0.5 → ×0.55 @0.78 → full @1 (foot 0.45, hovered 0.8 as a second stroke faded in) instead of white 0.05 @0.45 straight to the hue at the foot. Hover no longer switches the canvas's opacity (Canvas can't animate it); `FootGlow.bright` gone, a 15% base-color veil over the light fades out on hover instead.
+- **Reason**: The rim lit up abruptly low on the sides, and the hover brightening jumped.
+- **User feedback**: "卡片高光要有渐变，现在突变。"
+- **Process**: Zoomed app snapshots before (v6) and after, a session selected and 概览.
+- **Result**: make test 202 pass; installed.
+- **Notes**: Hover easing not seen live (snapshots can't hover).
+
+## fix(main): roomier logo line and an arrow on the Overview card
+
+`407a015` | 2026-10-31
+
+- **Changes**: `OverviewCard`: logo line to 概览 spacing 3 → `Space.s` (6 pt); while 概览 is selected the right side shows `arrow.up.right` (footnote semibold, 0.45 / 0.75 on hover) instead of nothing.
+- **Reason**: The logo sat too tight on 概览, and the card's right side was empty on 概览.
+- **User feedback**: "卡片里面logo和概览俩字的距离有点小，做调整确保间距合适。另外，在不显示杠杆数字的时候右侧要有箭头"
+- **Process**: App snapshots: a session selected (figure, 4.4×) and 概览 (arrow), dark; light.
+- **Result**: make test 202 pass; installed.
+- **Notes**: Card stays 72 pt; the taller text block still fits with room.
+
+## feat(main): leverage-lit glass card carrying the logo
+
+`3152266` | 2026-10-31
+
+- **Changes**: The sidebar's separate logo row is gone; `OverviewCard` (72 pt, top 38 pt under the window buttons) carries `BrandGlyph` 12 + "YaaKanban" as a caption over 概览 (17 semibold), and today's leverage (figure 20 + "Today's leverage") on the right unless 概览 is selected (`onOverview`). Dark in both appearances (forced `.dark`). `GlassLight` replaced by `FootGlow`: near-black base in the hue, three screen-blended blurred lobes rising from the foot (19/23/29 s, drift ±0.12w, size morph), a pale core sliding along the edge (17 s); rim faint at the top, the core hue at the foot (brighter on hover). `LeverageHeat` back (hue 0.6→1.0 over log2(leverage)/3; dim gray without a figure). "Today's leverage" restored in 9 languages; help tooltip back off 概览.
+- **Reason**: The user wants the figure visible off the 概览 page, the logo inside the card, and the old leverage-linked colors as a gradient, after a dark-glass reference lit from below.
+- **User feedback**: "没在概览页还是要显示杠杆数据。另外，把logo合到卡片来，高度不合适的话可以做细微调整。" / "视觉风格参考。颜色还是老样子，需要有渐变，且与杠杆关联" (reference: dark glass card with a blue glow rising from its foot)
+- **Process**: Layout specimen A (one row, 64 pt) vs B (name caption over 概览, 72 pt); took B to keep the name. Heat specimen at 1/2/3/5/8.5×/none, normal/hovered/on 概览, light and dark sidebars; the no-figure gray core read too white and was dimmed (glow 0.4, core 0.5). App snapshots dark and light (both on 概览, 4.5× → magenta).
+- **Result**: make test 202 pass; l10n 408, 0 problems; installed.
+- **Notes**: In the app only the 概览-selected state was rendered (snapshots follow the live selection); the figure-on-the-right state is seen in the specimen only. Motion judged from stills. The card reports today's leverage on every activity change even while hidden, for its color.
+
+## feat(main): glass Overview card with morphing acid light
+
+`97a7616` | 2026-10-31
+
+- **Changes**: `OverviewCard` replaced by a 62 pt glass pane (55% of the 112 pt split card): only "Overview" (15 semibold) and an `arrow.up.right`, no figures; follows the appearance (no forced dark). Background: base fill (white 0.1 dark / 0.97 light), `GlassLight` (Canvas layer blurred at h×0.32, screen blend in dark; four ellipses lime/cyan/violet/pink on 17/23/29/37 s loops, each drifting ±0.14w/±0.3h and stretching rx 0.9±0.35h, ry 0.55±0.2h), a white frost veil fading to the foot, a top-left-lit gradient rim. Only `GlassLight` sits in the 30 fps `TimelineView` (paused when not key or reduce motion). Hover brightens light ×1.25 and the arrow; no selected fill. `LeverageHeat`, `HeatField`, `SeamGlow`, the help tooltip and the "Today's leverage" string (9 languages) removed.
+- **Reason**: The split card read as ugly and too busy; the user wanted only the name and a calmer, glassy look.
+- **User feedback**: "卡片高度降低到现在的55%，另外去掉一些元素，也不要再做左右分割的设计，太丑了。主要显示"概览"这俩字就行了，不在概览页面再显示杠杆数据。少一点内容。风格优化成：现代、玻璃感、科技光渐变（有一点酸感），动态效果比较柔和、光影的morphing。"
+- **Process**: Offline specimen at t=0/5/10/15/20 s, normal and hovered, light and dark (`design/history/sidebar-v4`); app snapshots dark and light.
+- **Result**: make test 202 pass; l10n 0 problems; installed.
+- **Notes**: Motion judged from stills, not watched live; hover not rendered in the app (only in the specimen). In dark mode lime over pink can mix toward olive at some moments.
+
+## feat(main): split Overview card with leverage heat and moving light
+
+`f1ae97b` | 2026-10-31
+
+- **Changes**: `OverviewCard` rebuilt after a red/black split reference: left 104 pt panel (figure + "Today's leverage") on `HeatField`, right black side with 概览, a ↑/↓ change chip vs yesterday so far (`Periods(.day).previousSoFar`, hidden without a base or at 0.0), "Agents … ÷ you …", state dots and a chart pill, `SeamGlow` bleeding the hue in. `LeverageHeat`: hue 0.6→1.0 over log2(leverage)/3 (1× blue, ~2.8× violet, 8× red), dim gray without a figure. `HeatField`: base gradient, three screen-blended radial lights on 13/19/29 s loops, a 12 s sheen, a top shade. Only the two backgrounds sit in `TimelineView(.animation(minimumInterval: 1/30, paused: reduceMotion || !key))`. `StateDiscs` removed. Card 112 pt.
+- **Reason**: v2 discs still read as ugly; user wanted a cool, moving but quiet background and leverage colored low blue → high red.
+- **User feedback**: "风格可以延续，但现在实现的卡片还是丑，里面的背景我希望是炫酷的动态的内容，但不要太抓眼。希望做成这种感觉。另外对杠杆做颜色分级，低是蓝，高是红，图上参考风格之外混叠一些动态效果。" (reference: a split card, red gradient figure panel left, black detail side right)
+- **Process**: Offline specimen at 1.1/2/3/4.4/8×/none × t=0/4/8 s (`design/history/sidebar-v3/card-heat.png`); the no-data gray came out too bright and was dimmed. App snapshots dark and light. CPU: the installed app sat at 30–50% with the main window key; a build with the animation forced paused measured the same (40–50%), so the animation is not the cost. `sample` put most main-thread time in SwiftUI graph updates, NSWindow layout and `FloatingPanelController.fit/startSlide/place`.
+- **Result**: make test 202 pass; l10n 0 problems; installed.
+- **Notes**: The ~45% baseline predates this card by the measurement above; not investigated further (floating panel slide/fit and window layout are the leads). Motion itself was judged from stills at three moments, not watched live.
+
+## feat(main): dark Overview card and on-demand search in the sidebar
+
+`aea6e43` | 2026-10-31
+
+- **Changes**: MainSidebar: logo back under the window buttons (top 34 pt); `OverviewCard` replaces `OverviewBlock`: dark (forced `.dark` scheme) 132 pt card, title + CountChips in the top row, "Today's leverage" and the figure at the foot, `StateDiscs` canvas (one nested glowing disc per counted state, most urgent innermost, tops evenly spaced; a gray disc when none); hover brightens, no selected fill. Search field no longer always shown: `listHead` (first section title + count + magnifier, ⌘F) is pinned above the list and becomes the search field + agent filter; Esc/cross clears query and filter. List gets a short top fade under the head. `yaak snapshot` adds `main-light` (aqua appearance). Strings: "Today's leverage", "Search" in 9 languages.
+- **Reason**: The v1 block, logo beside the buttons and the permanent search read as ugly and out of tune with the rest.
+- **User feedback**: "左边整个侧边栏现在被改的太丑了，非常的不协调……logo 还是要放到红绿灯下面去……概览区域整个的用户入口变得更大一些……比较炫酷的表达。用卡片的形式……内容又不要和右侧的有冲突，不要没有内容硬放内容……搜索栏不要常驻，放到活跃 agents……并排，放到右边有一个搜索的按钮"; "选中概览之后卡片不要有高亮。hover的时候还是要有。" References: glowing nested arcs (solar system), blue glass tiles, credit-score cards with a gradient art panel.
+- **Process**: First pass drew one thin arc per session over the whole card: read as a Wi-Fi mark and crossed the figures. Second pass: one disc per state confined to the lower right, counts moved to the title row, agent hours dropped (the 概览 top bar has them). Rendered 1/2/4/0-state variants offline (`design/history/sidebar-v2/card-specimen.swift`); spaced disc tops so the fourth shows. Snapshots dark, light and with 概览 open, in `design/history/sidebar-v2`.
+- **Result**: make test 202 pass; l10n 0 problems; installed.
+- **Notes**: The search state and the hover look were not rendered (both @State); the logo's place under the real traffic lights is only seen in snapshots, which have a normal title bar. Leverage repeats the 概览 leverage card's figure by design (the one headline).
+
+## feat(main): overview block in the sidebar, Dock icon while open
+
+`d099684` | 2026-10-30
+
+- **Changes**: MainSidebar: logo + name in the window-button row (leading 78 pt); `OverviewBlock` (today's agent hours, leverage, mean reply, CountChips; tap opens 概览) replaces the Overview nav row and BoardHeader; search under the block, pinned above the list; list masked to fade over its last 40 pt above 设置. `statusCounts` shared with BoardHeader. `Dock` (Windows.swift) holds the Dock icon while the main window or setup guide is open. `applicationShouldHandleReopen` returns false and opens guide/main itself after 0.3 s unless a notification was acted on within 1.5 s (`AppModel.notificationActedAt`). Spec revised (sidebar, Dock).
+- **Reason**: User asked for the sidebar changes and the Dock icon; notification clicks opened the main window instead of going to the agent.
+- **User feedback**: "1，左侧侧边栏，下方过渡到设置的位置需要有渐变遮罩 2，侧边栏顶上，概览区域整个需要改成一个更大的block，里面显示关键数据，点击就是打开概览显示 3，侧边栏搜索放到列表区域去 4，app主界面如果打开了要允许dock栏显示 5，logo放到红绿灯同一行，不同颜色badge统计放到概览block里面去"; "通知栏通知的内容点了之后是应该跳转到对应agent的，现在只是打开主界面"
+- **Process**: `yaak snapshot` before/after (main-overview). `osascript reopen` on the installed app: type went UIElement → Foreground and the main window opened.
+- **Result**: make test 202 pass; installed.
+- **Notes**: Notification fix rests on the inference that a banner click sends a reopen, which SwiftUI answered by opening the main Window; not verified with a real click. Logo vs traffic lights not checked in the real window (screen capture denied); snapshot windows have a normal title bar. The popover's QuickFigures still shows the median reply.
+
+## fix(reducer): end a sub-agent's calls when an unknown stop removes it
+
+`351bb12` | 2026-10-30
+
+- **Changes**: SubagentStop with an id not in `subagents` still removes the oldest, and now also ends that one's running calls (before, only calls under the event's id). Test `unknownSubagentStopEndsTheOnesCalls`.
+- **Reason**: 自制银质方案 (claude-code:cc693b52) showed 可能卡住 "Bash 已运行 12 分钟" while waiting on two live sub-agents. The open call was Bash 11:05:40 by sub-agent a560d731, already gone from `subagents`; its call stayed `isRunning`, so StuckDetector's tool-duration check fired.
+- **User feedback**: "这个地方显示卡住，但实际上对话正在等待subagent"
+- **Process**: Read the stored session (read-only). Only path that removes a sub-agent without ending its calls is the fallback in `.subagentStop`; inferred, no event log to confirm which stop. Test fails before (b1, b2 running), passes after.
+- **Result**: make test 202 pass; installed.
+- **Notes**: The already-stored session keeps its open call until its turn ends (endTurn closes all calls). A live sub-agent's own foreground tool running >5 min still flags stuck, by design.
+
+## fix(overview): show the mean response time instead of the median
+
+`f2df4f9` | 2026-10-30
+
+- **Changes**: ActivityReport gains `replyMean`/`pickupMean` (`pickupMedian` dropped, `replyMedian` kept for the popover). ResponseCard's figure, comparison and arc knob use the mean; P90 note unchanged. Info text and its 9 translations say average. Spec revised; CHANGELOG line; test `replyMeanCountsEveryReply`.
+- **Reason**: 回复 read 0 秒: 42 of today's 64 replies fell wholly in away spans (01:38–09:31, 13:09–14:39, no input or focus rows), so net latency 0 and median 0. Mean today ≈ 12 s.
+- **User feedback**: "所以我这个为啥现在显示0秒？" then "给平均吧。"
+- **Process**: Recomputed from history.sqlite (read-only): median 0, P90 50 s, matching the card. Alternatives offered (drop wholly-away replies → median 6 s; also drop raw <1 s → 18 s); user chose the mean.
+- **Result**: make test 201 pass; installed.
+- **Notes**: Zero-latency replies still count. Many are likely not the user at the Mac (loop wakeups, agent-to-agent prompts, remote answers); sub-second raw waits (e.g. 0.04 s) also look automatic. The popover's Reply figure is still the median.
+
+## fix(overview): cap last week's leverage only where this week beat it
+
+`3d2956d` | 2026-10-30
+
+- **Changes**: LeverageBars draws the cap only when the period before is lower than this one (`b < v`), always in the darkened hue; a tie, a down day, a day without a bar or a day to come shows the pale ghost alone. The `ramp.mid` cap off the bar is gone. CHANGELOG line reworded.
+- **Reason**: The user wants the mark only where this week is ahead; on the ghost the height is already visible.
+- **User feedback**: "对于上周同比高于当期的，不要显示bar。只在上周数据低于本周数据的时候才显示这个板"
+- **Process**: `yaak snapshot` week view: caps on Wed, Thu, today (up); none on Tue (down) or Sat/Sun (to come); Mon has no week before.
+- **Result**: make test 200 pass; installed.
+- **Notes**: A tie draws no cap, so it looks the same as no comparison when the ghost is hidden behind an equal bar.
+
+## fix(reducer): keep a session's tty when its agent exits
+
+`d00fdbd` | 2026-10-30
+
+- **Changes**: SessionReducer: an event whose terminal has no tty keeps the recorded one when it comes from the same agent pid (or names none). Test `endKeepsTheTtyOfTheSameProcess`.
+- **Reason**: In-place Wave resume needs the agent's tty, but SessionEnd usually runs after the agent exited, so `ProcessUtil.tty(of:)` finds nothing and the event's terminal replaced the recorded one. Last 2 days: 23 of 33 ended Wave sessions had no tty.
+- **User feedback**: "对于这个任务，我点击了仍然在新的terminal打开。" (artrix-reach card, session 0fc0ae34)
+- **Process**: Installed app had the eb9e687 code (WaveRPC symbols). The session had no tty; its block (8d32114f) is no longer in its tab (`wsh blocks list`, Wave DB), so this click would have fallen back regardless. Ablation: the new test fails without the reducer change.
+- **Result**: make test 200 pass.
+- **Notes**: Sessions already ended without a tty still open a new block. Another process (different pid) never inherits the tty.
+
+## feat(wave): resume a stopped agent in the block it ran in
+
+`eb9e687` | 2026-10-30
+
+- **Changes**: `YaaCore/WaveRPC.swift` (new): Wave RPC client on the socket named in the block JWT (`sock` claim): `authenticate` (route `$control`), `getrtinfo` → `shell:state`, `controllerinput` (base64 input); buffered line reader skips unrelated lines, one deadline (2 s) per connection. a reply that never comes after the request was written counts as typed (no second resume in a new block). `ProcessUtil.shellAtPrompt(tty:)`: sysctl KERN_PROC_TTY, a shell session leader whose pgid is the tty's foreground pgid. `WaveResume.typedLine`: Ctrl-E Ctrl-U + `cd <cwd> && <cmd>` + CR. `WaveAdapter.resume`: first tries `typeAtPrompt` on the session's own block (needs its recorded tty at the shell prompt, then the first runner whose token Wave accepts answers: `ready` → type, then `focusblock` after the tab press), else the old `createblock` path. Tests `WaveRPCTests` (fake Wave socket, shellAtPrompt). Spec resume line, CHANGELOG, Architecture.
+- **Reason**: Reopening opened a new block next to the old one; the user wants to continue in the original terminal.
+- **User feedback**: "现在在原来的 agent 进程已经停止的时候，重新恢复的方式是在对应的 Wave term 的里面打开一个新的 terminal 然后进行重新加载。但是我们是不是可以在原原来这个 agent 所在的原始的 terminal 里面直接 resume 而不需要开一个新的 terminal"
+- **Process**: `wsh` v0.14.5 has no input command; Wave source (v0.14.5, `wshserver.ControllerInputCommand`, `wstore_rtinfo`, `osc-handlers.ts`) shows the RPCs. `shell:state` comes from shell integration OSC 16162 (A → ready, C → running-command); rtinfo is deleted when the controller stops or the block is deleted. `shell:inputempty` is unusable (`omitempty` drops false), hence Ctrl-E Ctrl-U. Live on Wave 0.14.5: own block (agent running) `running-command`; scratch block `ready` → typed over leftover text with the cursor mid-line (cleared) → `running-command` → `ready` → deleted → nil; `shellAtPrompt` agreed with `ps` on every tty (true only for `Ss+` shells) and tracked the scratch block (true/false/true). Adversarial review (subagent) found: flaky test (dict key order in the fake JWT; fixed with sortedKeys, computed once), double resume on a late `controllerinput` reply (fixed: `.noReply` counts as typed), Ctrl-U alone keeping text after the cursor (Ctrl-E added), stale `ready` in tabs Wave unloaded (frontend ignores OSC when not loaded; `MaxCacheSize` 10) letting a second resume type into an agent the first started (fixed by the tty check).
+- **Result**: make test 199 pass (3 runs).
+- **Notes**: Authenticate checks only the JWT signature, so a closed block's token still connects; `getrtinfo` then has no state and the new-block fallback runs. The block's tab must have been shown since its shell started (the frontend reports the state). Without shell integration (e.g. custom shells) or a recorded tty, always new block. vi-mode line editing: Ctrl-U clears only before the cursor. A probe holding one `WaveRPC` past its 2 s deadline sees nil state (not a Wave bug).
+
+## fix(panel): run alerts after the click so the rail folds under them
+
+`6f0c914` | 2026-10-30
+
+- **Changes**: `NSAlert.runLater` (Windows.swift): brings the app forward and runs the alert on the next common-mode run-loop turn, handing the answer to a closure. Used by the reopen alert (`askReopen` → `reopenAlert`, which returns the alert), rename, `FeedbackPrompt.present`/`show`, and `TerminalJumper.explainAccessibility` (was a `DispatchQueue.main.async` block; now takes `then`).
+- **Reason**: An alert run inside a SwiftUI action (card tap, context menu, button) holds back `onGeometryChange` actions in every window until it closes. The peek ended under the alert and the rail redrew folded, but `onSize` never reached `fit`, so the window stayed 300 wide around 28-wide content.
+- **User feedback**: "抓到bug了：之前说的，窗体的宽度仍然是宽的，但是显示的内容已经是窄模式的内容。那目前发现会在有任何系统自带的 model 模态选择窗打开的时候触发这个问题"
+- **Process**: Probe app (/tmp) with a copy of `FloatingPanel.swift` and a stub panel view, docked right, peeked, folded 0.5 s into a modal. Modal from a timer, a GCD block, a Task, `NSOpenPanel` or another process's dialog: the rail folds at once. Modal from a SwiftUI `onTapGesture` (posted click): body redraws folded at the fold, geometry action and `fit` only once the modal returns (window 300 wide for 2.5 s). Through `runLater`: slide done 150 ms after the fold, alert still up. `make build` ok; `make test` 197/198, the failure is the other session's uncommitted `WaveRPCTests.readsShellStateAndTypes` (JWT claim order).
+- **Result**: Fixed in the probe; installed. Not yet checked in the real app with the user's trigger.
+- **Notes**: bef18a9 (`fit` via `RunLoop.perform(.common)`) fixed a different stall: there the callback ran but the main queue did not drain. Its probe opened the modal from a timer, so this one did not show. `tellResumeFailed` (GCD block) and `askIfNeeded` (timer) are not inside a SwiftUI action and were left alone; SetupGuide's SwiftUI `.alert` is not a nested modal loop.
+
+## fix(overview): mark last week's leverage with a cap on a same-width bar
+
+`6e4edc2` | 2026-10-30
+
+- **Changes**: LeverageBars: the period before is a `ramp.dim` bar of the bar's own width on the same centre (the wider ghost is gone); a cap at its height, 60% of the bar's width, 3 pt (2 pt in a month), round ends. Where this period's bar covers it (`b <= v`) the cap is `ramp.hue` under `black 0.55`; on the ghost alone (lower bar, no bar, days to come) it is `ramp.mid`. `design/history/leverage-v2/` (study + renders), README rows; CHANGELOG line reworded.
+- **Reason**: The user picked B from leverage-v1 and asked for a narrower cap with round ends, darker and grayer than the bar, not white.
+- **User feedback**: "选择 B 方案，然后这个 indicate 的 bar 窄一点，两端要有圆角。然后颜色变得灰一点，变成一种比当前这个 bar 的颜色更深的感觉，而不是用纯白色。"
+- **Process**: v2 study compared 40% black, 55% black, 60% dark gray. A darkened cap vanished on the dark ghost in the dark appearance (Sat/Sun, down days), so the cap switches to the mid hue off the bar. Built and installed from a worktree at this commit: another session had uncommitted Wave edits (TerminalJumper, WaveResume, WaveRPC) that broke `make install` mid-build.
+- **Result**: Build, test (195) pass; checked in `yaak snapshot` (day 1000 pt, month).
+- **Notes**: `.black.opacity` over the hue stands in for `Color.mix`, which needs macOS 15 (target 14).
+
+## docs(design): study same-width ways to show last week's leverage
+
+`99e937a` | 2026-10-30
+
+- **Changes**: `design/history/leverage-v1/`: `main.swift` (a standalone study compiled with `DesignSystem.swift`) and its dark and light renders; a row in `design/README.md`. No app change.
+- **Reason**: The user rejected the wider ghost: last week and this week must be the same width, on the same centre.
+- **User feedback**: "不希望杠杆部分的柱状图显示，上周和本周的宽度有区别。需要你研究在不变化宽度的前提下在各种情况下显示好本周和上周对比的方案。"
+- **Process**: Four variants against the current one, over the cases: up, down, tie, below 1×, a big rise, no last week, no this week, days to come, 31 thin bars, lit and mid bars, light and dark. A notch: a gap in the bar at last week's level when the bar covers it. B cap: a primary-ink line at last week's level. C gain: the part up to last week faded. D hatch: last week diagonal stripes, also across the bar.
+- **Result**: C makes a lit bar on a down or tied day look unlit; B adds a second ink and is noisy in a month; D is busy in a month. A keeps the bar's colour and reads in all cases. Awaiting the user's choice.
+- **Notes**: In the month view the ghosts of days without data are as strong as the mid bars in every variant, a separate issue. Build: `swiftc -o /tmp/lev-study Sources/YaaKanban/DesignSystem.swift design/history/leverage-v1/main.swift && /tmp/lev-study <dir>`.
+
+## fix(wave): press the tab bar Wave shows, not a stale cached one
+
+`86052e8` | 2026-10-30
+
+- **Changes**: TerminalJumper `WaveTabBar`: `bars(in:)` collects every `tabs-wrapper` in a window (was the first one found); `press` keeps the bars whose names equal the workspace's and prefers the one whose `active` tab is the workspace's `activetabid`. `WaveDB.place` also returns the active tab's index (`WaveTabBar.Place`). CHANGELOG Fixed line.
+- **Reason**: Wave keeps a web view, each with its own tab bar, for every recently shown tab. Hidden ones stop updating, so after a tab is added they still list the old tabs. The first bar in the AX tree was such a stale view: its names never equalled the DB's, and the loose fallback (same count) failed too, so no tab was pressed.
+- **User feedback**: "修bug：waveterm，我新增了一个tab之后，原有的窗体对应都失效了，不会跳转到正确tab"
+- **Process**: Dumped the live AX tree (Wave 0.14.5): 5 tab bars in one window; the ones whose view showed Auxillary and LY had 10 tabs without the new XAgent, the others 11. DB `db_workspace` had 11 tabs. Dry-run of the new choice (no press): old code's first bar mismatched; new pick is the bar with OLo-Site (DB active) active, and index 5 resolves to XAgent.
+- **Result**: Build and test (195) pass; installed.
+- **Notes**: No unit test: the choice depends on live AX elements. A stale bar can still be pressed if the DB's active tab is not in any up-to-date bar; it is only chosen when its names equal the DB's, so the index still points at the right tab.
+
+## fix(overview): ghost last week's leverage behind each bar
+
+`5a7f0a8` | 2026-10-30
+
+- **Changes**: DashboardView `cards`: a middle layout (min/ideal 830) keeps LeverageCard at 330 beside ResponseCard, with Agents and Projects sharing their row evenly; the full-width leverage stack starts below 830. LeverageBars: the previous period's bar is a ghost `min(pitch × 0.7, 36)` wide (0.8 in a month) on the same centre as the current bar, which is 0.64 of it; the value label sits above the taller of the two; the future stub is centred. Month view: a date beside "Today" is dropped, and labels are clamped inside the chart. CHANGELOG Changed line reworded.
+- **Reason**: Between 830 and 980 the leverage card ran the full width, so seven bars were spread across ~900 pt next to a full-width response card. The last-week bar sat offset to the right, so the two bars of a day didn't line up.
+- **User feedback**: "这两种宽度下，后者的杠杆部分的宽度太宽了，显示起来看起来非常不协调。另外，杠杆的上周数据用背景虚影显示，x轴方向不要错位。"
+- **Process**: Checked through `yaak snapshot` (dashboard 1000 pt, now the middle layout; dashboard-wide 1320; week; month). The narrower card exposed "29" running into "今天" and "1日" clipped at the left edge in the month view; both fixed.
+- **Result**: Build and test (195) pass; installed. The ghosts line up on each bar's centre in day, week and month.
+- **Notes**: Below 830 (window ~894 pt with the sidebar) leverage still runs full width; the window's minimum is 760.
+
+## feat(settings): let the overview's weeks start on Monday
+
+`a0a31aa` | 2026-10-30
+
+- **Changes**: Preferences: `firstWeekday` (UserDefaults `firstWeekday`, default 2 = Monday; a stored value outside `weekStarts` [2, 1, 7] falls back to Monday) and `calendar` (`Calendar.current` with that first weekday). SettingsPage: a 每周第一天 picker under 通用, after Language, labelled with `standaloneWeekdaySymbols`. DashboardView passes `model.settings.calendar` to `Periods`; LeverageCard passes it to `LeverageDays`. 2 strings in 9 tables. Spec bullet "First day of the week (2026-10-30)"; CHANGELOG Added line.
+- **Reason**: Weeks followed the system calendar, which starts on Sunday here.
+- **User feedback**: "1，是 2，设置可调，默认Monday是第一天 3，可以" (keep bars in week and month views; week start configurable, Monday by default; floating panel unchanged).
+- **Process**: Staged only these hunks over HEAD (other sessions have uncommitted edits in AppModel, DashboardView and the strings); built and tested HEAD+mine in a separate worktree. `make l10n` run with `L10N_BUILD=.build/l10n-59`: the shared `.build/l10n` could not be removed while in use.
+- **Result**: Build, test, `make l10n` (0 problems) pass; installed; the week render starts on Monday (10-26 to 11-01). The settings row itself was not rendered: `yaak snapshot` shows only the Agent and Alerts tabs.
+- **Notes**: `axisTicks` and `RhythmCard` don't depend on the first weekday (they count days from the range start, or the last 7 days).
+
+## fix(panel): compare the panel's leverage with today's usual 4 hours
+
+`6b40f1f` | 2026-10-30
+
+- **Changes**: DashboardView `RecentFigures.typicalLeverage(at:)`: one report over hourly `edges` from 4 h before the first whole hour to the current whole hour, `rollingLeverage(window: 4)`, mean of the non-nil points; it replaces `today.leverage` as the arrow's and the dashed line's baseline. Nil before 01:00. Both help texts reworded (9 tables). Test `rollingLeverageOverHourEdgesMatchesEachWindowsReport`. Spec 2026-10-30 clause; CHANGELOG Fixed line.
+- **Reason**: The hero is a 4-hour window but was compared with the leverage of the whole day so far, a different window: a quiet morning made any later stretch look up.
+- **User feedback**: "悬浮窗里面的杠杆的趋势的显示，应该是基于同样的4个小时窗口，在每一个小时下的一个平均表现来去做对比，而不是基于整天的累计窗口"
+- **Process**: Read as: baseline = mean over today's whole hours h of leverage(h−4h, h). Windows reach before midnight for the early hours. The range moves only on the hour, so the report cache keeps it (10 min refresh for a past range).
+- **Result**: Build, test (195), `make l10n` (406 keys, 0 problems) pass.
+- **Notes**: Hours with under a minute present are skipped, not counted as 0. The current, unfinished hour is not in the mean.
+
+## fix(board): keep a caller running while an agent it started still runs
+
+`1ab46c6` | 2026-10-30
+
+- **Changes**: AppModel: `workingParents` (parents of non-dismissed running sessions). `activeSessions` shows an idle parent in it as `.running` (after the existing needs-input fold); `display(_:)`, `reviewCount` and `pendingCount` (menu-bar icon) agree. Spec 2026-10-30 clause under the caller rule; CHANGELOG Fixed line.
+- **Reason**: A Claude card showed 待验收 while the `codex exec` it started (linked by `CallerLink`) was still running under it, shown with a spinner; only a child's needs input was carried up to the caller.
+- **User feedback**: "现在这个任务你明显可以看到还有一个sub agent在跑，但是又显示等待验收的状态，这是预期外的" (screenshot: Claude card 待验收 with a running "You are workin…" row, Bash rg).
+- **Process**: The parent's turn had ended (Stop → idle + `unreadSince`) while the child kept running, e.g. a backgrounded or detached Bash call. Fixed on the display side; the parent's `unreadSince` is kept, so it turns 待验收 once the child stops.
+- **Result**: Build and test (195) pass. Not reproduced live.
+- **Notes**: Only `.idle` parents are promoted: an ended (exited) caller stays as it is. The terminal badge (`wantsUser` per session) and the Stop notification are unchanged, so a "done" notification can still arrive while the child runs.
+
+## fix(panel): go to a session picked from the search, not only restore it
+
+`1bfbe8a` | 2026-10-30
+
+- **Changes**: Windows `PickRow.pick`: a session not on the panel is restored (`model.restore`) and then `model.jump`ed, as on the panel; before, it was only restored. Help and the first context-menu item reuse the card's wording (resume when the agent is gone); "Restore to floating panel" stays in the menu for sessions off the panel, restoring only. "Put back on the floating panel" dropped from 9 tables. Spec Search clause revised; CHANGELOG Fixed line.
+- **Reason**: Picking a session from the search only put it back on the panel; the user expected what clicking its card does.
+- **User feedback**: "现在悬浮窗历史记录里面点击对应的对话只会刷新它的活动情况（重新出现在悬浮窗里面）但不会执行正常点击卡片的效果（跳转到窗口）。"
+- **Process**: The old behavior was the 2026-10-26 spec ("else puts it back"); revised on this request. `jump` on a gone session shows the reopen dialog after the restore, the same as a gone card.
+- **Result**: Build, test (194), `make l10n` (406 keys with another session's uncommitted first-weekday strings, 0 problems) pass; installed. Not clicked through live.
+- **Notes**: `restore` sets `reviewedAt`, so the restored card shows as reviewed, not 待验收; `jump` also marks it read and records a `.focus` row.
+
+## feat(overview): replace away and waiting cards with response time; needs input in purple
+
+`f4064f8` | 2026-10-30
+
+- **Changes**: OverviewCards: `AwayCard`/`Absences`/`AwayStrip` and `WaitingCard`/`Waits`/`WaitDial` removed; `RepliesCard`/`ReplyArc` → `ResponseCard` with two `ResponseHalf`s (回复 = `replies`, 验收 = `pickups`; median vs previous, "90% within P90", count) over `ResponseArc` with a per-half log `Scale` (10 s–5 min; 30 s–2 h). The halves sit side by side and stack via `ViewThatFits` when narrow. DashboardView: chips 全部停工, 当前积压 and 验收时间 removed; layouts: wide `row { Leverage(330); Response }`, Running, `row { Agents(520); Projects }`, Rhythm; at 2 columns Leverage, Response and Running each full width. AppModel: unused `backlog` removed (`YaaCore.Backlog` and its test kept). Status color: `Ramp.wait` red → purple, `DisplayStatus.needsInput` tint = `Ramp.wait.hue`, symbol `questionmark.bubble.fill`, menu-bar dot `.systemPurple`, the two needs-input settings rows purple. MainWindow `SidebarCard`: glyph in the title row, agent/project row from the card's edge (as `SessionCard`), pin after the title. 25 obsolete strings dropped from 9 tables, 7 added. Spec: Design system line revised and status colors defined. Archived `design/history/overview-v11`.
+- **Reason**: The away and waiting cards read as filler ("你不在时 100%" didn't say what waiting is); response speed measures the user's efficiency; red read as an error.
+- **User feedback**: "概览页面的统计我感觉还是有点没话找话……除了杠杆，其他数据都有点奇怪、生硬……等你处理，似乎是一个优先级比较低的内容。反倒是回复速度是可以衡量工作效率的一个点……" / "左侧侧边栏ui有问题，agent icon+项目名称的部分需要和左上角状态图标一样左对齐。pinned的也要表明是pinned" / "有提问应该用紫色，要有配套图标". Chose 合并成「响应速度」 and removing 全部停工 and 当前积压.
+- **Process**: `Activity.replyWait` records a reply from needsInput *and* from review (a prompt after a finished turn), so the half is named 回复, not 回答提问, and its info says so. A prompt on an unreviewed turn therefore counts in both halves. `yaak snapshot --help` wrote renders into the tracked `--help/` directory (committed by 8bd3683); I restored it and removed the new files. An uninvolved review was started but stalled without reporting; I checked myself that the removed code's helpers are all still used. Rebased in the working tree over 6515b07 (another session's leverage bars), which touched the same files; built and tested on top.
+- **Result**: Build, test (194), `make l10n` (405 keys, 0 problems) pass; installed. Checked in the `dashboard`, `main-overview` and `main` renders (response halves, sidebar alignment and pins).
+- **Notes**: Today's reply median is 0 s, probably asks answered right on return from away (the away time is taken out); not verified. The purple needs-input card wasn't seen live (nothing was asking during the renders). Splitting 回复 into answers only would need the lane recorded on `.reply` rows. `--help/` in the repo is left for the user to decide.
+
+## feat(overview): show leverage as a bar per day against the period before
+
+`6515b07` | 2026-10-30
+
+- **Changes**: OverviewCards: `LeverageCurve` and `Wash` replaced by `LeverageDays` (per-day report of the week around the period, the month in the month view, plus the one before, day edges from `Periods.edges(.month, …)`; a day counts from 60 s present, same as the headline) and `LeverageBars` (bar per day, previous period's same day pale beside it, viewed day lit in the day view, future days a hollow stub, 1× hairline, values over bars in week layouts, weekday or every-7th-day labels). Card gains a key row (本周/前一周, 本月/前一月). Info text reworded in 9 tables; spec bullet "Leverage card (2026-10-30)"; CHANGELOG clause reworded.
+- **Reason**: Cumulative leverage plateaus overnight: agents run on after the user leaves (01:38–03:18 on 10-30, d6df6ca7 last), then neither part grows until 09:31, so the curve held 9.7× for six hours and read as a level being held.
+- **User feedback**: "为啥昨晚凌晨的时候杠杆一直在高位？" then "杠杆在日视图里面显示为柱状图，对比本周/上周的杠杆。累积杠杆值不应该显示为一个curve。"
+- **Process**: Recomputed from `history.sqlite` (read-only) with `sweep`'s rules per minute: today cumulative 4.53 h ÷ 28 min = 9.7× from 03:18 to 09:31; panel 4 h rolling 10–24× at 04:00–05:20 (present time sliding out of the window), nil after 05:40. Week and month views switched to bars too, for one chart form per card. Staged only these hunks over HEAD (another session has uncommitted overview work in the same files) and built and tested that tree in a separate worktree.
+- **Result**: Build, test (194), `make l10n` (0 problems) pass; installed; checked in the `dashboard` render.
+- **Notes**: The floating panel's 4-hour leverage and its sparkline are unchanged. Weeks start on the calendar's first weekday (Sunday here), as the week view does.
+
+## feat(overview): explain each card and figure behind an info icon
+
+`068f454` | 2026-10-30
+
+- **Changes**: DesignSystem: `InfoTip` (ⓘ in tertiary ink; after 250 ms of hover a popover with the title and meaning, 260 pt wide; hides on exit), `WidgetHead.info` (ⓘ beside the title), `StatChip.info` (ⓘ at the chip's trailing edge). OverviewCards: info text for the 8 cards. DashboardView: `Chip` gains `info`, text for the 10 figure chips (not the 会话明细 button). 18 strings translated into all 9 tables under `/* Overview info tips */`.
+- **Reason**: The figures' meanings (what counts as away, what leverage divides, what utilization leaves out) weren't stated anywhere in the UI.
+- **User feedback**: "每个卡片找个地方加info icon，hover显示指标意义"
+- **Process**: Texts written from the definitions in `ActivityReport` (leverage = agentTime ÷ activeTime; utilization = running ÷ (running + needsInput/stuck), review excluded; bottleneck; pickups; replies minus away), `AppModel.awayAfter` = 120 s, `Backlog` (any non-running lane), `.focus` rows from `jump`. A popover rather than `.help`: it renders in its own window so the card's clip can't cut it, and shows sooner than the system tooltip.
+- **Result**: Build, test (194), `make l10n` (423 keys, 0 problems) pass; installed. Icon placement checked in the `dashboard` and `dashboard-wide` renders; the hover popover itself can't be rendered by `yaak snapshot` and was not exercised.
+- **Notes**: The top-bar totals (会话/轮次/Agent 总工时/你在场) have no ⓘ.
+
+## refactor(overview): tighten the cards and fill their empty space
+
+`c74e730` | 2026-10-30
+
+- **Changes**: DesignSystem: `Space.widget` 16 (card padding), `Radius.widget` 20→16, `Widget` drops its unused `art` (content clipped to the card so charts bleed), `FigureSize` 34/46/15→28/38/14, tighter `FigureLine`, `StatChip` 46 pt high (title shrinks to 0.85 before truncating). OverviewCards: `LeverageCurve` (agent ÷ active time accumulated per slice from 5 min active, scaled to the 90th percentile and clamped, previous period dotted, 1× hairline over the fill); `AwayCard` → `Absences` + `AwayStrip` (away stretches, running/blocked parts clipped inside, blocked drawn last) with a key row and longest stretch; `Wave`/`Rise`/`Wash.run` removed; smaller dial, arc, rows and bubbles; tick labels skip within 44 pt of Now. DashboardView: `row {}` = top-aligned HStack + `fixedSize(vertical)`, new pairings for 3/2/1 columns, each layout with an `idealWidth` so a long name can't drop it to fewer columns. MainWindow: smaller sidebar cards. Snapshots `dashboard` 1000×1500 and `dashboard-wide` 1320×1200.
+- **Reason**: The v9 cards in the app had large blank areas: fixed-height rows and art-only accents.
+- **User feedback**: "新版ui挺不错的，问题就是信息密度有点低，很多组件有大量空白/无信息的地方，需要优化，更紧凑、精致、设计考究"
+- **Process**: Iterated on `yaak snapshot` renders (day 2-col, 3-col wide, week, month, main). Tried growing a lone agent's sparkline to the row's height: early in the day it is mostly empty, so reverted to centring the row. An uninvolved review found the leverage scale flattened by an early spike (agents ran overnight), the fill hiding the 1× and previous lines, a lone point with no line, runs hiding waits in the strip, and the idealWidth risk; all fixed. Archived as `design/history/overview-v10`.
+- **Result**: Build, test (194) pass; installed.
+- **Notes**: Not changed: the month 等你处理 dial shows a large red blot around the 22nd–24th (also in the v9 render; many overlapping away waits; merging their glow into one layer did not remove it, cause not found). The leverage figure shows from 60 s active, the curve from 300 s.
+
+## fix(panel): snap with the panel's own slide; sub-agent exit is not stuck
+
+`83812fe` | 2026-10-29
+
+- **Changes**: FloatingPanel.swift: slide setup moved from `fit` into `startSlide(to:)`; `snap()` uses it instead of `setFrame(animate: true)`; `updateDock` reads `slide?.to ?? panel.frame`; `place()` offsets the panel from the window's actual frame and logs when it differs from the request; `windowShouldZoom` returns false. StuckDetector: a running/stuck session with a `parentId` whose process is gone becomes idle, not stuck "Process exited". Test `subagentProcessExitIsNotStuck`.
+- **Reason**: `setFrame(animate:)` runs a nested run loop (NSMoveHelper, seen in /tmp/snaprace/sample-1793282439.txt under `snapLater`), so a fold's frame writes can interleave with the snap animation: two writers on one window. The sub-agent row was a `codex exec` run by Claude that failed to connect and exited without a Stop hook.
+- **User feedback**: "你让codex（gpt 6 astra/med…）来找找问题看。上次触发是在手动托到屏幕右边然后触发系统的窗体最大化动作之后出现的。" / "这个地方其实是subagent自然退出 不应该提示异常。"
+- **Process**: Codex (auto/gpt-6-astra, medium, read-only) analyzed the code, panel log, watch log and samples; it pointed at the nested animate run loop and `place()` trusting the requested frame. First Codex run failed (no route to chatgpt.com); retried. Watcher's "wide for 1 s" captures were all normal hover-peeks.
+- **Result**: Build, test (194) pass. Root cause not reproduced on demand; this removes the one demonstrated competing frame writer.
+- **Notes**: No public API opts a window out of macOS desktop edge tiling; if the state recurs, check the `panel` log for "window went to … not …" (the system overriding a frame) or "refitting".
+
+## chore(panel): log the panel's slides, peeks and docking
+
+`de5e4db` | 2026-10-29
+
+- **Changes**: FloatingPanel.swift logs (category `panel`) each slide (from → to), its end, frames more than 100 ms late, peek / peek ends, dock changes; a `.common` timer at 5× `slideDuration` calls `finishStaleSlide()` in case the display link stops.
+- **Reason**: The wide-window-around-the-rail state recurs; f05488b only repairs it on the next resize or settled move.
+- **User feedback**: "再找找看，就是我发消息的时候触发的，1min内的样子"
+- **Process**: Disproved by /tmp probes: `RunLoop.main.perform` of a geometry change waiting for the next wake (runs within 1 ms); `setFrame(animate:)` overriding a later frame; display link dying when hidden. Sampled the app for 5 s during tool events: main thread idle, panel 28 wide throughout. Tool events (Pre/PostToolUse) alone do not change the panel frame (CGWindowList polled every 30 ms).
+- **Result**: Build, test (193) pass. Diagnostic only.
+- **Notes**: `log show --last 1h --predicate 'subsystem == "com.artrix.yaakanban" AND category == "panel"'`. A probe at /tmp/snaprace/watch polls the window frame and pointer and samples the app once if the window stays wide over 1 s.
+
+## fix(panel): put the window right when it outgrows the folded rail
+
+`f05488b` | 2026-10-29
+
+- **Changes**: FloatingPanel.swift: `reconcile()` (outside a slide, the glass must fill the window and the window must be the size the content last reported; otherwise re-place and `fit`), run on `windowDidResize` and after each `snapLater`; `finishStaleSlide()` finishes a slide still in flight 4× past `slideDuration` (from `windowDidMove` / `snapLater`, re-entry guarded); both log to `Logger(subsystem: com.artrix.yaakanban, category: panel)`.
+- **Reason**: User saw, after dragging to an edge, the folded rail's cards at the right of a full-width (300 pt) glass window.
+- **User feedback**: "最近偶尔出现，窗口拉到边缘的时候，显示为超窄模式但窗体宽度仍然大。" (screenshot 19:58, 1m43s after an install launch)
+- **Process**: Root cause not reproduced. Ruled out with throwaway AppKit probes in /tmp: `setFrame(animate:)` blocks and a later direct `setFrame` wins (snap animation does not override the fold); an NSView display link pauses while ordered out or never shown and resumes on show (a hidden panel only delays a slide). Code paths for drag/snap/peek/dock traced without finding a width that `fit` misses. By then the live window was 28×991 again (CGWindowList), same process.
+- **Result**: `make build`, `make test` (193) pass. Self-healing, not a proven root-cause fix.
+- **Notes**: If it recurs: `log show --last 1h --predicate 'subsystem == "com.artrix.yaakanban" AND category == "panel"'`. "slide stalled" means the display link stopped; "off window" means the glass and window disagreed; "refitting" means something other than `fit` resized the window (or `fit` never ran for the last size).
+
+## fix(claude): end sessions moved to /bg jobs and drop their stray terminal
+
+`3f51705` | 2026-10-29
+
+- **Changes**: ClaudeSessionScanner: a session file with `parkedJobId` yields `.parked(jobId:)` instead of its stale "busy" snapshot. Reducer: `.parked` ends the session once per job (`parkedIn`), ending tools/subagents/attention. AppModel.isLive: an ended parked session leaves the boards once a session whose id starts with the job id exists. yaak hook: `CLAUDE_CODE_SESSION_KIND=bg` sends an empty TerminalContext. Test `parkedSessionEndsOnce`.
+- **Reason**: `/bg` moves the conversation into a daemon job (new session id, `kind: "bg"`), leaving the original with no Stop/SessionEnd, so silence detection called it stuck next to the job's card of the same title. The job inherits WAVETERM_*/TERM_PROGRAM of the pane that started the daemon (here a `claude attach 7c953bcf` pane), so its card jumped to an unrelated session.
+- **User feedback**: "看到有两个同名，且一个显示为卡住。实际上是正常的。" / "另外一个bug：图上这个，点开实际上对应的是 7c953bcf-…"
+- **Process**: Old transcript ends with `{"type":"continued-in","continuedInSessionId":…}`; `~/.claude/sessions/<pid>.json` stays `"status":"busy"` with `"parkedJobId":"e708264f"`; job session file has `"kind":"bg","jobId":"e708264f"`; job process tree: `claude daemon run` ← spawned by pid 16835 `claude attach 7c953bcf` (ttys021, Wave block 46524dca).
+- **Result**: `make test` (193) passes; installed.
+- **Notes**: Job id = session id prefix in the one sample seen; if that ever differs the parked card just lingers as ended. A bg job card now has no terminal: clicking copies context. The stored job session keeps its wrong terminal until its next hook event replaces it. Reopening a parked session in the foreground is not modelled; its next hook revives it, and repeated parked snapshots for the same job are ignored.
+
+## feat(panel): reset the floating panel to the right edge of the main screen
+
+`650a860` | 2026-10-29
+
+- **Changes**: FloatingPanel.swift: `home(size:)` = against the right edge of `NSScreen.screens.first`'s visible frame (less `margin`), vertically centered; used for a first launch (no saved frame) instead of top right on `NSScreen.main`; `resetPosition()` moves there keeping the current size, updates room/dock, saves the frame, shows the panel if hidden. Menu row "Reset floating panel position" (9 languages). Spec line on the panel's home position.
+- **Reason**: Lost or awkwardly placed panel had no way back; new installs should start at the same place.
+- **User feedback**: "新增一个功能，重置悬浮窗位置（菜单栏选项里面要有），重置到初始化的位置。初始化的位置应该是在电脑主屏右侧中央悬浮。这个对于刚安装软件之后的初始化位置是一致的要求。"
+- **Result**: `make build`, `make test` (192), `make l10n` (405 keys, 0 problems) pass. Not checked visually.
+- **Notes**: Home is within `snapDistance` of the right edge, so it docks right: with `sidebarExpanded` off (the default) it folds into the rail, as the old top-right default also did. Reset keeps width, list height and fold. Ignored while a fold/unfold slide is in flight. After the frame is set, cards laying out grow it about the middle (`fit`, not pinned top or bottom).
+
+## fix(panel): keep the floating panel no taller than its list
+
+`833f16a` | 2026-10-29
+
+- **Changes**: Windows.swift `FloatingPanelView.shownList` = `min(listHeight, panelListHeight ?? maxList, fits)`; the height grip clamps the hand-set height to `max(minList, min(maxList, listHeight))` while dragging.
+- **Reason**: A hand-set list height (`settings.panelListHeight`) was used as is, so a short list (few sessions, a short search result) left empty space under the cards.
+- **User feedback**: "不应该允许悬浮窗高度大于内容高度。"
+- **Result**: The hand-set height is now a ceiling; the list still scrolls when it is longer. `make build` and `make test` (192 tests) pass. Not checked visually.
+- **Notes**: The behavior predates the design-system branch (same `shownList` on main). Lists shorter than `minList` (120) are shown at their own height; releasing the grip at the minimum still clears the hand-set height. The accessibility grant lost after 9938dc5's install came from the expired 7XZ34D8PVC certificate the TCC entry's csreq names; the build is now signed by 4D5TXM7349, so the entry must be removed and granted again (`tccutil reset Accessibility com.artrix.yaakanban`).
+
+## fix(ui): address the design-system migration review
+
+`9938dc5` | 2026-10-28
+
+- **Changes**: MainWindow: History rows use `model.display(s)` (ended once off the boards); ↑/↓ from outside the list (Settings, hidden by search) enter at the near end instead of jumping from index 0; sidebar cards/rows are combined accessibility elements with button + selected traits and a default action; nav rows, `PageTabs`, `Segmented` expose `.isSelected`. DesignSystem: `SettingRow` passes its title down as `\.settingTitle`; `Switch`, `Stepped`, steppers and the language picker carry real labels (hidden). Settings tab moved from `MainWindow` state to `AppModel.settingsTab`; the menu's "hooks need approval" row opens Agent integrations. Overview: Projects card's empty note is "No agents ran." (it sizes by agent time); reply beads sampled evenly over all replies instead of the 200 slowest. l10n: "Busiest %@" retranslated in de/es/fr/ko/pt-BR/ru (value is a 3-hour stretch, not a day), de "You here" → "Anwesend", unused key dropped.
+- **Reason**: Adversarial review of dfc5011..20ea53f by an uninvolved agent.
+- **User feedback**: "先按照当前设计系统来完整迁移整个ui。"
+- **Process**: `@Entry` failed (no SwiftUIMacros plugin with Command Line Tools) → plain `EnvironmentKey`. `accessibilityAction(perform:)` doesn't exist → `.accessibilityAction(.default, _:)`.
+- **Result**: `make build`, `make l10n` (404 keys, 0 problems ×9), `make test` (192 passed).
+- **Notes**: Not fixed, by decision or pending the user: opening Settings replaces the main window's selection (inherent to the merged page); hour ticks are 24-h "h:00" and `%.1f×` uses a point in every locale (pre-existing pattern); ~54 `.system(size:)` and raw `.primary.opacity` wells left in SessionViews/DetailView/QuickFigures/SessionLanes, to move with a visual check; in-progress 7-day report recomputed per 30 s tick (unprofiled); metrics dropped from the old overview (P90s, throughput, hardest worker, longest run, oldest backlog age, hover readout) await the user's call.
+
+## feat(overview): rebuild the overview as the v9 widget wall
+
+`20ea53f` | 2026-10-28
+
+- **Changes**: DesignSystem.swift: `Measure`/old `Widget` → `// MARK: Overview` (`Ramp` work/run/wait/reply, `Ink`, `Fill.widget`, `WidgetSurface`, `Widget(content:art:)`, `WidgetHead`, `FigureSize` 34/46/15, `figure()` with half-size units, `FigureLine`, `ChartKey`, `StatChip`/`.statChip()`). New OverviewCards.swift: `OverviewData` (report, previous same-point report, `vs`, `comparesWaits`), `change()`, cards Leverage (Wave), Away (Rise), RunningCard (RunCurve with previous period dotted and presence strip), WaitingCard (WaitDial, 5 longest waits, away/here split), Replies (log arc 10 s–5 min, q1–q3 band), Agents (sparks), Projects (packed bubbles), Rhythm (7 days from one cached report, WeekGrid). DashboardView.swift: top bar with totals strip + controls, count chips, cards in a 3/2/1-column `ViewThatFits`, attention chips with a lanes toggle, `SessionLanes` on `WidgetSurface`; summary sentence, Tiles, Headline, Highlights, AgentMix, ActivityChart, ProjectBreakdown removed. l10n: 57 unused keys dropped, 32 added ×9.
+- **Reason**: UI migration step 6; brings the overview to the approved v9 specimen (`design/specimen/overview.swift`).
+- **User feedback**: "先按照当前设计系统来完整迁移整个ui。"; v9 feedback: white cards in light mode, smaller big figures, small chips up top, use the top bar; earlier "开头这个一句话总结有点丑陋".
+- **Process**: `Rise` points closure hit "unable to type-check in reasonable time"; typed `(i: Int) -> CGPoint` and split `phase`. Curves skip the running slice so lines do not dip at now.
+- **Result**: `make build`, `make l10n` (405 keys, 0 problems ×9), `make test` (192 passed). Not yet seen in the running app.
+- **Notes**: Layout breakpoints 980/640 pt of content width (window min 760 − 280 sidebar). Waits count as away when more than half overlaps away time. `Radius.widget` stays 20 (specimen 22).
+
+## refactor(ui): restyle the menu and panel parts
+
+`282001b` | 2026-10-28
+
+- **Changes**: Windows.swift: menu `Divider`s → 6-pt gaps; `MenuRow` hover is `Fill.selected` with neutral text (was accent fill, white text), height 26, `Radius.small`; `MenuHeader` hover `Fill.selected`, `Pressable`; `UpdateNotice` → compact `Banner` with a ghost blue action; `EmptyBoard` button `.action(.primary, size: .small)`; `PickRow` hover `Fill.selected`; `SearchField` `Fill.control`; type via `.ui`. DashboardView `RecentFigures`/`TodayFigures`: rounded face → `.figure`, plate stroke and gradient → flat `Fill.control`.
+- **Reason**: UI migration step 5; "尽量去线、留白", neutral selection, SF Pro figures.
+- **User feedback**: "先按照当前设计系统来完整迁移整个ui。"
+- **Result**: `make build`, `make l10n` ok. Card context-menu dividers stay (native menus).
+
+## feat(ui): settings page and card sidebar in the main window
+
+`eaa26b3` | 2026-10-28
+
+- **Changes**: New `MainWindow.swift`: hidden title bar, drawn 280-pt sidebar (BoardHeader counts, search + agent filter menu, Overview nav, Active cards via `.card(status)` + neutral `Fill.selected` overlay, History lazy single-line rows, Settings nav with a badge for agents awaiting approval + a ready update), ↑/↓ via `.focusable().onKeyPress`, same context menu and `matches()`; content on `Fill.canvas`. New `SettingsPage.swift`: `SettingsView(tab:)` as a page (`PageHeader`, `PageTabs` in a horizontal scroll, `GroupSection`s of `SettingRow`s, value pill + stepper, switches), `AboutHeader`, `AuthorizationSteps` (`Segmented`, no built-in indent), `StatusBadge` → `Badge` (needs approval orange). Windows.swift: old `MainWindow`, `SettingsView`, `SettingLabel` removed; `WindowOpener` `.settings` selects `AppModel.settingsPage` and opens main. App: `Settings` scene removed, ⌘, via `CommandGroup(replacing: .appSettings)`, `WindowOpener` now below `.environment`; snapshots `main-overview`, `settings`, `settings-alerts` via `MainWindow(page:tab:)`. `AutomationAccessRows` restyled. 3 new strings ×9 (stuck/approval details, Compatibility).
+- **Reason**: UI migration step 4; agreed: settings merged into the main window, only 设置 in the sidebar foot, tabs inside the page, custom card sidebar.
+- **User feedback**: "先按照当前设计系统来完整迁移整个ui。"; earlier "并入主界面", "自绘卡片侧栏", "设置在外面只能看到设置，点进去才看得到更多选项。"
+- **Result**: `make build`, `make l10n` (430 keys, 0 problems), `make test` (192 passed). Not yet seen running: the live app serves this session's hooks, so no install/screenshot yet.
+- **Notes**: `MainWindow(page:)` renders a page without touching `model.selection`. The settings tab lives in `MainWindow` state (resets per window). `.ignoresSafeArea(.container, edges: .top)` puts the sidebar header 34 pt down, under the traffic lights.
+
+## refactor(setup): build the setup guide from design-system parts
+
+`32c6aef` | 2026-10-28
+
+- **Changes**: SetupGuide.swift: title `.ui(.display,.bold)`, connect button on `Plate`, `Banner`, agent rows with `LogoTile` and `Badge` and no dividers, Install/Update `.action(.secondary, tint: accent)`, finish step as `GroupCard` of `SettingRow`s with `.action(.primary)` and `switchStyle()` toggles, footer `.action(.primary/.secondary, size: .large)` and ghost Back/Skip. Private `GuideBadge`, `PillButton`, `row`, `card`, `banner` removed. DesignSystem: `Toggle.switchStyle()`.
+- **Reason**: UI migration step 3.
+- **User feedback**: "先按照当前设计系统来完整迁移整个ui。"
+- **Result**: `make build` ok; same strings, same behavior (alert, default actions, rechecks).
+
+## refactor(ui): draw cards, badges and buttons from the design system
+
+`ebace2d` | 2026-10-28
+
+- **Changes**: Theme.swift: `StatusPill` wraps `Badge` (compact by default), `CountChip` uses `.figure`/`.soft()`, `.card` becomes `CardSurface` (loud → `tinted` deep-top wash, else `surface` with `Fill.card`/`cardHover`; no stroke), `Flash`/`Stale` lose their strokes (fills 0.34 / 0.2 to compensate), `PillButtonStyle` removed for `.action`, `AgentLogo(ink:)` defaults to `.secondary`, new `LogoTile`. SessionViews: permission buttons `.action`, wells `Fill.control`, title `.ui(.body,.semibold)`. DetailView: page margins, `Fill.canvas`, group-radius sections, `.action` buttons.
+- **Reason**: UI migration step 2 (shared primitives every surface uses).
+- **User feedback**: "先按照当前设计系统来完整迁移整个ui。"; earlier "尽量去线、留白".
+- **Result**: `make build` ok.
+- **Notes**: logos were white everywhere; on light cards they would vanish, hence secondary ink (spec revised in the previous commit).
+
+## refactor(ui): move the design system into the app
+
+`dfc5011` | 2026-10-28
+
+- **Changes**: `design/specimen/DesignSystem.swift` → `Sources/YaaKanban/DesignSystem.swift` (git mv); Theme.swift's `IconButton` and SetupGuide.swift's private `Pressable` removed (the design-system ones replace them); `design/specimen/build.sh` compiles the app's copy. Spec §5: design-system line (2026-10-28) and logo revision. design/README v9 feedback, devlog 7a99439 hash, Architecture.
+- **Reason**: v9 approved; first step of the full UI migration.
+- **User feedback**: "先按照当前设计系统来完整迁移整个ui。"
+- **Process**: `make build` failed once on the duplicate `Pressable` (SetupGuide), fixed by deleting the private copy; specimen still renders.
+- **Result**: builds; no visible change yet beyond `IconButton`'s hover fill (`Fill.controlHover`, primary 0.13 vs 0.12).
+- **Notes**: the spec line records all the agreed design decisions at once; later commits implement them.
+
+## fix(stuck): ignore a tool the agent has moved on from
+
+`7a99439` | 2026-10-28
+
+- **Changes**: `StuckDetector.leftBehind`: a running, non-waiting tool counts as left behind when the same agent (same `subagentId`) started another call after it; such tools are dropped from both the long-tool rule and the "no running tools" condition of the silence rule. Tests `toolLeftBehindIsNotStuck`, `subagentToolDoesNotLeaveMainToolBehind`. Spec stuck line revised; CHANGELOG Fixed.
+- **Reason**: a Codex card showed 可能卡住 "Bash 已运行 21 分钟" while the session was clearly working.
+- **User feedback**: "看起来是正常在跑的。。为啥显示卡住了。" → "需要改。"
+- **Process**: session `codex:01a17e46…`: `exec_command(identify.py auto 2400, yield_time_ms 1000)` at 13:44:10 returned after 1 s with an exec session; the process exited 13:44:29 (rollout `item_completed`, exit 0), but Codex fires PostToolUse only when the agent polls that session with `write_stdin` (earlier identify runs' endedAt match their write_stdin times exactly). The agent read the log with `tail` instead, so the call stayed open until Stop's `endRunningTools` (14:07:00, 1370 s); activity shows running↔stuck flapping every few seconds. A start-gap threshold to tell parallel calls apart was rejected: history has parallel starts 1–2.5 s apart in Claude Code (WebFetch) and Codex. Baseline: new test failed with 3 issues on the old detector; after: 192/192, `make build` ok.
+- **Result**: such calls no longer trip the long-tool rule; a parallel call that really hangs is still caught by the 5 min silence rule (reason "No new events" instead of "X has been running").
+- **Notes**: waiting tools (Monitor, sleep, …) are never left behind, so they keep holding off silence. The tool still shows as running on the card until it ends or the turn ends.
+
+## docs(design): overview v9 with light cards, a totals bar and chips
+
+`ffb2f0f` | 2026-10-28
+
+- **Changes**: `design/specimen/overview.swift` v9: `Surface` (white + soft shadow light, white 0.165 dark) replaces the always-black slab; `Tint` hues adapt (deeper in light); `ink1-3` follow `.primary`; figures semibold in primary ink at 34 (accents 46) with the unit in the hue; `TopBar` (title + date, 会话/轮次/Agent 工时/你在场, range controls); `Chips` rows (5 counts under the bar, 4 + 会话明细 at the foot); 杠杆 / 你不在时 keep a colour fill at the card's foot (`Wash`, deep crest → light foot in both appearances) instead of the giant cropped figure; knob = hue disc with white core; glow 0.3 light / 0.7 dark; 谁在干 leads with 64% (hours moved to the top bar). Render 1300×1300. Archived as `design/history/overview-v9`.
+- **Reason**: v8 feedback.
+- **User feedback**: "1，只有黑色卡片，浅色模式不协调 2，大字的部分文字太大了。需要更规整的文字展示。3，小圆角卡片可以放一些到上面来。4，顶栏需要用好，顶上可以放一些关键信息。"
+- **Process**: rendered light/dark, checked full peeks and a dark crop of the accent and running cards; fixed the dark 3.2h circle label (white on light green → card fill) and lifted the leverage wave.
+- **Result**: approved ("先按照当前设计系统来完整迁移整个ui。"), migrated into the app from the next commit on.
+- **Notes**: specimen only; nothing in the app changed.
+
+## docs(design): archive design specimens and overview v1-v8
+
+`a67c9a2` | 2026-10-28
+
+- **Changes**: new `design/`: `specimen/` (the proposed `DesignSystem.swift`, moved out of `Sources/YaaKanban/` where its `IconButton` clashed with Theme.swift and broke `make build`; `main.swift` and `overview.swift` with repo-relative Resources and an out-dir argument; `build.sh`), `directions/` (boards A–D + sources), `history/` (before, ds-1..3, overview-v1..v8 with sources), `README.md` (version → feedback table). `design/references/` (Pinterest pins, pasted widgets) git-ignored. Architecture.md entry. Local tag `design-v8`.
+- **Reason**: everything lived in /tmp/yaak-ds; the user asked to save all versions and mark v8 as a milestone.
+- **User feedback**: "本版本记录一下做一个里程碑。另外之前的所有版本都需要保存避免tmp被清空。"
+- **Process**: overview v3–v7 sources from the `.bak` copies; v1/v2 rebuilt by replaying the session's Write/Edit calls plus its python edits (v2 rerender matches its saved preview layout). Images of v2–v7 and ds-1/2 decoded from the previews read during the session (downscaled); ds-3, boards and v8 are the full renders. `build.sh` reproduces v8 byte for byte.
+- **Result**: all versions in the repo; `make build` passes again.
+- **Notes**: v1 has no saved image; `rerender-*.png` uses today's DesignSystem (later fonts). History images are the previews the user reviewed, not full-res.
+
+## feat(review): mark a turn reviewed when its terminal pane is in front
+
+`004ed24` | 2026-10-27
+
+- **Changes**: Hook records more pane ids in `TerminalContext` (`itermSession` from ITERM_SESSION_ID's UUID, agent `tty` via `ProcessUtil.tty(of:)`, `weztermPane`, `tmuxPane` + `tmuxSocket` from TMUX), each only when TERM_PROGRAM names that terminal. `YaaCore/TerminalFocus` (what is in front + `shows(_:)` matching + parsers for Wave layout, `wezterm cli list-clients`, `tmux list-clients`). `YaaKanban/FocusWatcher`: probes the frontmost terminal off the main thread: Wave DB (window→workspace.activetabid→tab.layoutstate→focusednodeid→leaforder blockid; only with one window row), iTerm2/Terminal AppleScript (only if `AEDeterminePermissionToAutomateTarget` already allows; `AutomationAccessRows` in Settings has Allow…), WezTerm bundled CLI, tmux clients with each client's own env read via `KERN_PROCARGS2`. `AppModel.checkFocus` on app activation + 1 s timer: present (not away, screen not locked, input < 2 min), `display == .review`, pane shown → `markRead`. tty-only panes require the agent alive and still on that tty. Pref `autoReviewOnFocus` (default on, beta toggle in Session reminders). `WaveDB.query` made internal. NSAppleEventsUsageDescription updated ×10; 3 strings ×9.
+- **Reason**: a turn the user already read in its terminal kept showing 待验收 until its card was clicked.
+- **User feedback**: "如果用户主动查看了某个terminal/对话，则自动标记已经验收。调研各个harness/terminal怎么实现。" → "1,打开就算 2，按照上面你推荐、认为效果比较好、主流的terminal做。3，默认开，作为实验功能。"
+- **Process**: research agent on each host's API (iTerm2/Terminal AppleScript, WezTerm list-clients, kitty/zellij/ghostty skipped; no agent harness has a focus hook). Wave DB join run live: `focusednodeid` followed the focused block within seconds. `environment(of:)` probe: claude process returned 52 vars incl. WAVETERM_BLOCKID, tty `/dev/ttys002`; unreadable pids return nil (fixed a crash when the second sysctl returned ≤4 bytes). Adversarial review found: inherited ids under another TERM_PROGRAM, tty reuse after a crashed agent, background Wave windows, lock screen within 2 min, iTerm `tab` resolving to its class (now `"\t"`), tmux in non-probed terminals never matching (list trimmed to 4), null WezTerm focused pane; all fixed. `make test` 190 pass, `make l10n` 0 problems.
+- **Result**: built and unit-tested; not exercised in the running app on any terminal. iTerm2 and WezTerm are not installed here (paths untested live).
+- **Notes**: sessions started before this build lack the new ids until their next hook through the new `yaak`. tmux pane match needs the client process env readable (same user). Several Wave windows → no auto review at all. Auto review equals 标记为已验收 (no `acknowledged`/jump row).
+
+## fix(jump): refresh transcript usage and switch to the Tabby tab
+
+`07527f4` | 2026-10-27
+
+- **Changes**: `URL.currentModificationDate` (YaaCore/Usage.swift) drops the URL's cached resource values before reading the mtime; used by `UsageTracker.refresh`, `ClaudeSessionScanner.peek` and the Codex index reload. Tabby: `TerminalContext.isTabby` (TERM_PROGRAM=Tabby), `titleSequence` (OSC 0), `ProcessUtil.tty(of:)` (sysctl `e_tdev` → devname); `TabbyAdapter` writes a `yaak-<uuid8>` title to the agent's tty, finds it among `.tabs` children via AX, presses that tab-header and raises its window, then restores the tab's previous name (or the session title if the marker never showed). Gated by the existing `waveTabSwitching` setting + Accessibility; section header "Wave Terminal · Tabby"; `Tabby` → `org.tabby` in `termProgramIds`.
+- **Reason**: cards showed 0 for every token count while the agent ran; only Wave switched tabs.
+- **User feedback**: "这里没数据但任务正常运行。另外，需要对tabby进行支持，支持自动切换" / "目前只有wave支持切换tab。tabby也要支持。"
+- **Process**: app DB showed live Claude sessions with correct transcriptPath and all-zero usage; the same transcript tallied correctly from scratch and in random growing chunks, so the parser was fine. A probe showed `resourceValues` on a kept URL returns the first mtime forever (fresh URL / `removeAllCachedResourceValues` sees the new one). New test fails without the flush, passes with it. Tabby 1.0.238: no tab id env or select-tab CLI; tab names are shell/agent titles (duplicates). Marker on ttys025 appeared in the AX tab bar after ~0.2 s; AXPress selected it (`current-tab-indicator` moved). `make test` 186 pass on the staged tree in a separate worktree.
+- **Result**: tokens update live (after reinstalling the app); Tabby jumps select the agent's tab. Not verified: a real card click in the rebuilt app.
+- **Notes**: Tabby shows `customTitle` over the terminal title, so renamed tabs, unfocused split panes and tmux never show the marker → app only activated. Another session was editing Models.swift / yaak main.swift / TerminalJumper.swift (terminal focus tracking) at the same time; only this change's hunks were committed.
+
+## fix(onboarding): tidy agent states, ask before leaving unapproved
+
+`c546e60` | 2026-10-27
+
+- **Changes**: Guide agent rows: one capsule style (`GuideBadge`, icon + text) for 已连接 (green), 等待首次使用 (gray clock; was the green 已安装 badge), 待授权 (orange); per-row "ticked next time" subtitles and the "All installed" banner replaced by one footnote under the list while any row waits; success messages after Install / Connect All dropped (failures still shown); Codex `postInstallNote` removed (its trust state is already the status + steps). Rows needing approval sort first. Continue on the agents step with any `needsAuthorization` opens an alert naming them (暂不 / 仍然继续); Skip Setup does not. Accessibility pre-prompt: shorter text, and shown on the next main-queue turn instead of inside the card's tap (then the jump runs), at most once a launch. Panel opacity setting removed: the panel is always fully opaque (`panelOpacity` pref, slider, `applyOpacity`, and the now-unused `SettingsView.panel` gone). 8 strings added, 7 removed ×9 languages.
+- **Reason**: the guide mixed a plain green label, a green capsule meaning "not yet" and a yellow capsule, with the same explanation repeated per row and again below; the pre-prompt alert was a paragraph.
+- **User feedback**: "已完成/已安装/待验证状态看起来非常不协调" → "都用胶囊" / "点击下一步需要提醒xx仍需授权，除非用户明确跳过" / alert "文字太多了，看不明白。同时右侧侧边栏内容已经是超窄版本但窗口宽度还是宽的" / "不再允许调整透明度，一律100%不透明度。选项去掉。"
+- **Process**: `make build`, `make l10n` 0 problems, `make test` 183 pass. Snapshot (temp HOME, zh-Hans; codex needsAuthorization, claude installed, cursor not installed): Codex first with 待授权, Claude 等待首次使用, Cursor 安装, footnote once. A probe app showed a common-mode display link keeps firing under `NSAlert.runModal` (57 vs 47 ticks/s), so the slide itself is not stopped by the modal.
+- **Result**: done for the guide, alert text and opacity. The wide-window-with-slim-rail state was not reproduced (live panel frame read 28×907 via CGWindowList); moving the alert out of the tap is a likely but unverified fix.
+- **Notes**: stale `panelOpacity` stays in users' defaults, unread. Accessibility was reset by `tccutil` during onboarding testing and is not in the backup, so the user has to allow it again.
+
+## fix(onboarding): keep the guide reachable and ask for access in place
+
+`ea13764` | 2026-10-27
+
+- **Changes**: SetupGuide sets `.regular` activation policy while live and open (back to `.accessory` on disappear); `applicationShouldHandleReopen` reopens the guide when in the Dock. The 2 s poll is replaced by `View.onComeBack` (app didBecomeActive / window didBecomeKey), used by the guide and Settings; Settings' Recheck button and all "click “Recheck”" wording are gone ("then come back here"). `ApprovalPlace` + `pendingSteps(home:in:)` / `approvesInEitherPlace`: Codex defaults to the desktop app ("Settings → Hooks"), `AuthorizationSteps` (now takes the integration) shows an app/terminal switch; `yaak status/install` print the terminal steps. Guide's Accessibility row is an Allow… button that prompts at once (no apply-on-Done toggle). `TerminalJumper.accessibility()` shows an explanatory alert (Continue / Not Now, `accessibilityDeclined` pref) before `AXIsProcessTrustedWithOptions` for Wave tab switching and editor window raising; `WaveAdapter` no longer prompts itself. 6 new/changed strings ×9 languages, 13 obsolete removed.
+- **Reason**: onboarding testing after a reset to defaults.
+- **User feedback**: "onboarding窗口无法切换回去，也不出现在dock栏，失去focus后无法再次看到它" / "codex应该显示桌面端操作方式（默认桌面，可切换cli）" / "应该自动检查钩子是否授权完成，至少在回到窗口的时候可以检查（不要持续轮询）" / "点击agent item跳转的时候，弹出了…权限提醒。…首先要在onboard要求授权，其次如果没有授权也要先告诉用户接下来将请求授权"
+- **Process**: Codex desktop app is `/Applications/ChatGPT.app` (`com.openai.codex`, 26.1016); its bundle (read-only string search) has a Settings section `hooks-settings` titled "Hooks" with per-hook Trust, and a composer "Review hooks → Allow all". `make build`, `make l10n` 0 problems, `make test` 183 pass (codexTrustStates extended for app/terminal steps). Snapshots from a second instance with temporary HOME/YAAK_HOME (zh-Hans): Codex row shows "Codex App | 终端" with the app steps; rail renders 28 pt.
+- **Result**: done. Dock presence, reopen and the pre-prompt alert were not exercised live (only built); the user is to run onboarding.
+- **Notes**: the system prompt the user saw came from `WaveAdapter.jump` calling `AXIsProcessTrustedWithOptions(prompt: true)` on a card click (Accessibility had been reset with `tccutil`). The 60 s `checkIntegrations` timer in AppModel stays for card warnings while the app is in the background. No deep link to Codex's Hooks page was found (`codex://settings` routes only mcp-app/plugins), so the step is text.
+
+## fix(panel): hide sub-agents whose parent is not on the board
+
+`eb02be6` | 2026-10-27
+
+- **Changes**: `AppModel.activeSessions` drops a session with `parentId` set unless its parent is on the board or it needs input (was: only when the parent was on the board). Spec and CHANGELOG updated.
+- **Reason**: pi-subagents async-workflow scouts (`…/<parent>/<run>/run-0/session.jsonl`, header `parentSession`) were linked to their parent but showed as top-level cards because the parent pi session (pid 85048, started 10:28:20, one minute before the app was reinstalled at 10:29:22) never reached YaaKanban, so it was not on the board to fold into.
+- **User feedback**: "这种scout是明显的async workflow，看看怎么处理避免直接显示。应该被判定为subagent。"
+- **Process**: read history.sqlite (read-only): both scouts had `parentId` = the parent transcript key; no row or activity for that key. `make build`, `make test` 183 pass.
+- **Result**: orphaned sub-agents stay off the board; one waiting on the user still gets a card and alert.
+- **Notes**: why that pi process never reported is unverified (its extension file is identical to the current one); restarting that pi session brings the parent card back, and the scouts fold into it. Hidden orphans also skip the peek/usage refresh, which is keyed to `activeSessions`.
+
+## feat(panel): make the slim rail the only folded rail
+
+`9f07ebf` | 2026-10-27
+
+- **Changes**: removed the 120 pt folded rail and the `slimRail` preference/Settings toggle; `Rail.width/inset` are the old slim values; `railSlim` environment, `RailHeader`'s unfold button, the wide `NarrowSessionCard` body (and `FitStack`, `NarrowSubagents`, `UsageBadge.toolCalls`, used only there), `RecentFigures`' wide folded variant and the `rail-slim` snapshot are gone. Telemetry drops the `slim_rail` setting (docs/telemetry.md). Spec and Architecture updated; 3 unused strings removed from all tables.
+- **Reason**: user decision.
+- **User feedback**: "超窄模式不再是实验性功能，直接成为默认。原来的宽侧边栏模式去掉"
+- **Process**: `make build`, `make l10n` (0 problems), `make test` 183 pass.
+- **Result**: done.
+- **Notes**: card measuring width kept as before (`panelWidth - 16 - (Rail.width - 2·inset)` extra), so folded heights don't change. The stale `slimRail` UserDefaults key is left alone (unread).
+
+## fix(core): fix reply waits, oversized lines, spool and pi links
+
+`9caac1d` | 2026-10-27
+
+- **Changes**: `Store.activity` also returns away rows reaching into the wait of any reply in the range; `TranscriptTally.update` skips a line longer than its 8 MiB chunk instead of stopping; `Wire.drainSpool` takes a handler and deletes each file after it is ingested (unreadable files stay); `SubagentLink.header` tells "header not written yet" (nil) from "no parent", and `linkParent` caches only the former; MainWindow's History builds the active-id set once. Tests for each.
+- **Reason**: fixes chosen from a Codex (gpt-6-astra, medium, read-only) review, each re-checked against the code.
+- **User feedback**: "让codex分析并评估当前项目可能的性能优化、代码实现质量问题。" then "按照你认为关键的来修。"
+- **Process**: with Usage.swift/Store.swift reverted, the new tests fail (reply 110 s instead of 30; tally offset stuck at 0); with the fixes, 183/183 pass.
+- **Result**: done.
+- **Notes**: findings left open on purpose: unchecked SQLite results, hook end-to-end deadline, toolEnd name fallback, lane correlated subquery, installer stale plan / read errors, OpenCode permission ordering, full-history loadAll and main-actor scans, and retention vs. spec (`toolHistoryLimit` 200 drops metadata that spec says is kept forever — a spec decision for the user). Spool is still replayed only at launch: replaying mid-run could apply stale events after newer live ones.
+
+## fix(onboarding): open the app's own notification settings page
+
+`e44e218` | 2026-10-27
+
+- **Changes**: the guide's "Open System Settings" (notifications denied) opens `x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=<bundle id>` instead of the Notifications list.
+- **Reason**: user found searching for YaaKanban in Settings too much friction and expected an allow/deny prompt.
+- **User feedback**: "消息提醒，不是应该会有一个窗口让用户选择是否允许吗？现在似乎只有强制进入设置找yaakanban，阻力很大。"
+- **Process**: tried the URL with `open`: System Settings lands on YaaKanban's page (window "YaaKanban", "允许通知" switch). usernoted log showed settings changes for the app at 00:40, and its plist entry has `auth` 7.
+- **Result**: done; a new user still gets the system prompt automatically on step 2 (status notDetermined).
+- **Notes**: macOS shows the permission prompt once per bundle id; after a denial `requestAuthorization` returns false with no UI and no API can bring it back, so the deep link is the shortest path. Resetting it means deleting the app's entry from usernoted's plist, which only a developer should do.
+
+## style(onboarding): draw the guide's footer buttons by hand
+
+`a2b071f` | 2026-10-27
+
+- **Changes**: Continue/Done use a new `PillButton` style (40 pt capsule, min width 120, semibold 14, accent gradient + white text when prominent, faint fill otherwise, press scale) instead of `.borderedProminent` + `.extraLarge`.
+- **Reason**: system prominent buttons turn grey when the window is not key, so both Done and Continue looked grey.
+- **User feedback**: "完成按钮和继续按钮都是。"
+- **Process**: `make build`, `make test` 180 pass; `yaak snapshot` (non-key windows) now shows both buttons blue.
+- **Result**: done.
+- **Notes**: the connect step's non-default Continue (agents still pending) keeps the faint style on purpose so the Connect All button stays the main action.
+
+## style(onboarding): unframe the guide's agent list and enlarge its button
+
+`d821001` | 2026-10-27
+
+- **Changes**: SetupGuide's agent list loses its rounded card (fill, clip, stroke); rows align to the page margins (row inset 0, divider inset 44), list padded 8 pt top and bottom and masked with an 18 pt fade at the top and 24 pt at the bottom. Footer primary buttons (Continue/Done) use `.controlSize(.extraLarge)`.
+- **Reason**: user asked for no frame around the list, fades at both edges, and a taller Continue button.
+- **User feedback**: "onboarding页面的列表去掉圆角外框。上下要有渐变遮罩。继续按钮高一点。"
+- **Process**: `make build`, `make test` 180 pass, `yaak snapshot` checked the layout.
+- **Result**: done.
+- **Notes**: the 8 pt list padding keeps the first and last rows clear of the fades when the list is not scrolled.
+
+## fix(onboarding): drop the empty band under the guide's footer
+
+`f31e914` | 2026-10-27
+
+- **Changes**: SetupGuide reads the hidden title bar's height from its window (`frame − contentLayoutRect`, scene windows only: `identifier != nil`) and gives the content that much less height; the content still draws under the bar via `ignoresSafeArea`. Bottom padding 24 (was 18) to match the sides; the agent list fades out over 18 pt at its bottom edge instead of cutting a row.
+- **Reason**: user screenshot showed a band of empty space below the footer.
+- **User feedback**: "ui底下有问题。帮我优化排版细节"
+- **Process**: CGWindowList: the window was 632 pt for 600 pt of content, since `.hiddenTitleBar` still sizes the window as content + 32 pt bar; after the fix it is 600. `make test` 180 pass; `yaak snapshot` checked the fade.
+- **Result**: done; window size verified, the on-screen look not (screen recording is not allowed for this shell).
+- **Notes**: snapshot windows are fixed-size and keep a title-bar inset, so they still show a gap at the bottom; it isn't in the real window.
+
+## feat(onboarding): merge the guide's connect and check steps
+
+`0fafe2c` | 2026-10-27
+
+- **Changes**: SetupGuide down to 2 steps (`Step.verify` and its view removed); each agent row goes Install → Installed ("Ticked by itself the next time you use X. Sessions already running need a restart.") → Connected (`model.connectedAgents`), approvals inline; banner "All installed…" / "Every agent below is connected." when nothing is pending. Layout: page fixed at 560×600, no outer ScrollView, only the agent list scrolls inside its card; header = logo + title, progress dots and ✕ at the top right, lead below; `.ignoresSafeArea()` drops the top gap. `setup-verify` snapshot removed. Spec, README, CHANGELOG; 2 new / 8 removed strings × 9 languages.
+- **Reason**: user: page cut off and scrolled as a whole, wasted top space; installing all then waiting on a separate verify page felt bad, and asking to send an OpenCode message to verify was confusing.
+- **User feedback**: "ui超长了，被截断。让列表仅限harness，页面不要整体滑动…进度放右上角去"; "能不能点了安装之后一个个提醒验证？另外为啥opencode需要发一条消息验证？"
+- **Process**: OpenCode's plugin only sends on `session.created`/`chat.message`, and OpenCode creates the session at the first message, so opening it sends nothing; verification is now passive instead of a task. `make l10n` 0 problems, `make test`, `yaak snapshot` of both steps checked (list scrolls inside the card).
+- **Result**: done.
+- **Notes**: a load-time ping from plugins (connected without any session) would need a new hook event and makes every installed plugin outdated; not done. Hermes' approval text says to press 重新检查, which exists in Settings; the guide rechecks every 2 s by itself.
+
+## feat(onboarding): restyle the setup guide and default its choices on
+
+`306717e` | 2026-10-27
+
+- **Changes**: SetupGuide frameless (`.hiddenTitleBar`, a probe hides traffic lights, transparent title bar, movable by background; own ✕ and Esc = skip), translucent `.sidebar` backdrop with an accent glow, hero header (step n of 3, 26 pt title, lead), cards with 32 pt icons; step 1 a full-width gradient "Connect All Agents" button (Return) while anything is not installed, a green banner when all are; step 2 each waiting agent says "No events yet. Open a new X session and send a message." with "Listening…", or "approve the hook first"; step 3 launch at login, Accessibility, CLI, statistics all toggles starting on, applied only on Done (reopened guide shows current login item / statistics; a statistics no given before stands via new `TelemetryReporter.asked`); notifications requested automatically on reaching step 3, denied shows a warning and a prominent Open System Settings. Spec, CHANGELOG; 13 new / 9 removed strings × 9 languages.
+- **Reason**: user review of the first version.
+- **User feedback**: "界面太丑了 不够现代。不要有mac标准顶栏，无边框设计"; "等待对话是啥意思？看不明白"; "hook全部允许的按钮不够明显…引导用户点全部"; "最后一页的选项…帮我默认打开，用户明确关闭再说"; "没有看到请求通知权限".
+- **Process**: log stream showed `Requested authorization [ didGrant: 0 hasError: 1 ]` and the usernoted entry for com.artrix.yaakanban exists: notifications were already denied on this Mac, so macOS shows no prompt again; the old guide showed only a small button for that. `make l10n` 0 problems, `make test`; `yaak snapshot` of the 3 steps checked.
+- **Result**: done; the frameless window on a real screen (dragging, focus) seen only by the user.
+- **Notes**: snapshot renders draw toggles/buttons as inactive (grey) since the offscreen window is not key. Skip/✕/Esc apply nothing from step 3 but still ask for notifications (finishSetup).
+
+## feat(onboarding): add a first-run setup guide
+
+`6be9985` | 2026-10-27
+
+- **Changes**: new `SetupGuide.swift` window (scene id `setup`): step 1 detected agents with Install / Install All, approval steps, 2 s recheck; step 2 ticks each installed agent once `AppModel.connectedAgents` (agents of `hooked` sessions) has it, waiting hints otherwise; step 3 notifications (status via `Notifier.isAuthorized`), launch at login, Accessibility, link `~/.local/bin/yaak` → stable yaak link (only when missing; replaces only a symlink), statistics toggle applied on Done. `Preferences.setupDone`; `AppModel.start` sets `showSetupAtLaunch` when not done and nothing installed (else marks done), and then skips the launch notification request; AppDelegate opens the guide after 1 s instead of the telemetry alert. `Notifier.requestAuthorization` split into `setUp()` (delegate, categories) and the request. Install logic moved from SettingsView to `AppModel.applyIntegration`. Connect agents… (panel, menu) and Settings › General › Setup guide open it. Spec, CHANGELOG, README, Architecture; 33 strings × 9 languages.
+- **Reason**: the earlier hints still left a new user to find Settings, with no way to see that an agent reports and permission prompts arriving unexplained at launch.
+- **User feedback**: "onboarding做了吗？没做的话用什么方案做？目标是让新用户能顺利完成初始化设置"; chose the guide ("按照建议做"); "开新分支，完成后pr".
+- **Process**: `make test` 180 pass, `make l10n` 0 problems; temp HOME (with `.claude`, `.codex`) + DO_NOT_TRACK run: the guide window (540 pt) opened by itself; `yaak snapshot` rendered all three steps. Adversarial review agent: found reopening + Done turned statistics off (toggle started false; turning off also clears counts) → toggle now starts from `telemetry.isOn`; snapshot renders could finish setup → `live: false` for them.
+- **Result**: done on `feature/onboarding-wizard`; clicking through on a real screen (install, first-event tick, permission prompts) not done.
+- **Notes**: quitting with the guide open leaves setupDone false, so it opens again next launch if still nothing is installed (intended). Unverified: whether SwiftUI restores the open guide window on relaunch. Snapshot runs with a temp HOME still write the real defaults domain; export/import around them and `defaults delete` keys the backup lacked.
+
+## feat(onboarding): point a new user to connecting their agents
+
+`13846ce` | 2026-10-27
+
+- **Changes**: `AppModel.checkIntegrations` also tracks `unhookedAgents` (detected, not installed) and `noIntegrations`; `EmptyBoard` shows "No agents connected yet" with 连接 Agent… (opens Settings) while nothing is installed, and the menu has the same row; a card of an unhooked agent shows a plug mark (status approximate, no approvals or done alerts); the install message says only sessions started afterwards report; README gains a DMG install section, a first-run walkthrough and how to link `yaak` without `make install`; spec §Integrations and CHANGELOG updated; 9 translations.
+- **Reason**: an onboarding review found no first-run guidance: a new user saw "No active tasks" and had to discover Settings; Claude sessions found by the scan looked connected without hooks; running sessions don't pick up new hooks; README covered only building from source and its CLI commands assumed `make install`.
+- **User feedback**: "看下当前onboarding做的如何，是否满足让一个新用户完整搞定初始化配置的流程的要求", then "按照你的方案来。"
+- **Process**: `make test` 180 pass, `make l10n` 0 problems; ran the built app with a temp HOME/YAAK_HOME and DO_NOT_TRACK, `yaak snapshot`: empty panel and menu show the connect prompt.
+- **Result**: done; the plug mark on a card and the Settings message were not seen on screen (need a live unhooked session / a real install).
+- **Notes**: running the app with a temp HOME still writes the real `com.artrix.yaakanban` defaults (it saved `floatingPanelFrame`); export the domain before and `defaults import` it after. No multi-step wizard by choice; the agents list stays in Settings.
+
+## feat(session): fold agents called by another agent under the caller
+
+`e96fbe5` | 2026-10-26
+
+- **Changes**: `yaak hook` records the agent process's ancestor pids (`ProcessUtil.ancestors`, `HookEnvelope.ancestorPids`, optional so old spool files decode); `CallerLink.caller` (Models.swift) picks the nearest ancestor that is a live top-level session's `agentPid` (latest session of that pid; Cursor/Windsurf excluded as hosts); `AppModel.ingest` sets `parentId` from it while the session has no turns yet, so the existing sub-agent folding, notification and stats rules apply; `activeSessions` shows a parent as needs input (with the child's message) while a linked child needs input.
+- **Reason**: Codex/other agents run by Claude as tools appeared as user-started cards on the board.
+- **User feedback**: "现在还没有办法识别一个Agent是用户主动调用的，还是从其他的Agent里面作为外部的工具调用的……先看看有没有办法解决这个问题"; chose "折叠进调用者卡片" and "冒泡到调用者卡片".
+- **Process**: checked the process tree (Bash tool command → zsh → claude) and hook env; unit tests for CallerLink and ancestors; e2e with a temp YAAK_HOME: a stand-in agent under this Claude spooled `ancestorPids` containing Claude's pid; hook 8–26 ms warm.
+- **Result**: `make test` 180 tests pass.
+- **Notes**: linking happens once, before the first turn; a session already seen with turns is never re-parented. Callers must be known to YaaKanban (hooked or scanned). Env vars like `CLAUDE_CODE_SESSION_ID` are inherited by children and were not used. A linked child's long run does not count as activity for the caller's stuck check (Bash tool > 5 min still flags it, as before).
+
 ## chore(release): bump the version to 0.1.2
 
-`pending` | 2026-10-26
+`fcd6881` | 2026-10-26
 
 - **Changes**: `Info.plist` 0.1.1 (2) → 0.1.2 (3); CHANGELOG Unreleased → `[0.1.2]`.
 - **Reason**: ship the DMG and app icon; 0.1.1 (zip only, no icon) stays as published.

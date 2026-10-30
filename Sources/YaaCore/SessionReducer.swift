@@ -52,14 +52,31 @@ public enum SessionReducer {
             s.peek = peek == TranscriptPeek() ? nil : peek
             return s
         }
+        // The session file says so on every scan; only the first time counts, so a session that
+        // comes back here later is not ended again.
+        if case .parked(let job) = e.kind {
+            guard s.parkedIn != job else { return s }
+            s.parkedIn = job
+            endRunningTools(&s, at: max(e.at, s.lastEventAt))
+            s.subagents.removeAll()
+            s.backgroundTasks = nil
+            s.status = .ended
+            s.unreadSince = nil
+            clearAttention(&s)
+            return s
+        }
         // An event from before the last turn ended (spooled while the app was busy or down, replayed
         // at its next start) must not reopen the finished turn.
         if let end = s.turns.last?.endedAt, e.at < end, s.status == .idle || s.status == .ended { return s }
         s.lastEventAt = max(s.lastEventAt, e.at)
         if let v = e.cwd { s.cwd = v }
         if let v = e.transcriptPath { s.transcriptPath = v }
+        // A process keeps its tty; an event sent as it exits (SessionEnd) finds none to read.
+        if var v = e.terminal {
+            if v.tty == nil, e.agentPid == nil || e.agentPid == s.agentPid { v.tty = s.terminal?.tty }
+            s.terminal = v
+        }
         if let v = e.agentPid { s.agentPid = v }
-        if let v = e.terminal { s.terminal = v }
         s.hooked = true
 
         switch e.kind {
@@ -140,10 +157,13 @@ public enum SessionReducer {
             resume(&s)
 
         case .subagentStop(let id):
+            // An id we don't know stops the oldest; its calls end with it, or one left open reads
+            // as a tool running for ever and flags the session stuck.
+            var gone = id
             if let i = s.subagents.firstIndex(where: { $0.id == id }) ?? (s.subagents.isEmpty ? nil : 0) {
-                s.subagents.remove(at: i)
+                gone = s.subagents.remove(at: i).id
             }
-            for i in s.tools.indices where s.tools[i].isRunning && s.tools[i].subagentId == id {
+            for i in s.tools.indices where s.tools[i].isRunning && (s.tools[i].subagentId == id || s.tools[i].subagentId == gone) {
                 s.tools[i].endedAt = e.at
             }
 
@@ -154,7 +174,7 @@ public enum SessionReducer {
             s.backgroundTasks?.removeAll { $0 == id }
             if s.backgroundTasks?.isEmpty == true { s.backgroundTasks = nil }
 
-        case .statusSnapshot, .titleChanged:
+        case .statusSnapshot, .titleChanged, .parked:
             break
         }
         return s

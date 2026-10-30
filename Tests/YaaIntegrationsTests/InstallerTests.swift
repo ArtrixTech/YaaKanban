@@ -209,6 +209,12 @@ private func json(_ url: URL) throws -> [String: Any] {
         try Installer.apply(try i.plan(install: true, home: h, yaak: yaak))
         #expect(i.status(home: h, yaak: yaak) == .needsAuthorization)
         #expect(i.pendingSteps(home: h).contains { $0.contains("untrusted yaak hooks (8)") })
+        // The desktop app's steps by default, the terminal's on request; the rest is the same.
+        let app = i.pendingSteps(home: h), terminal = i.pendingSteps(home: h, in: .terminal)
+        #expect(i.approvesInEitherPlace && app == i.pendingSteps(home: h, in: .app))
+        #expect(app[0].contains("Settings → Hooks") && terminal[0].contains("/hooks"))
+        #expect(app.dropFirst() == terminal.dropFirst())
+        #expect(!ClaudeIntegration().approvesInEitherPlace)
 
         // Trust every hook as Codex would, then change one, disable one.
         let hooks = try json(h.appendingPathComponent(".codex/hooks.json"))["hooks"] as! [String: Any]

@@ -129,12 +129,15 @@ public final class Store {
         try? exec("COMMIT")
     }
 
-    /// Rows from `start` until `end`, and away rows that began earlier but reach into the range.
+    /// Rows from `start` until `end`, and away rows that began earlier but reach into the range,
+    /// or into the wait of a reply in it (a wait can start before the range).
     public func activity(from start: Date, to end: Date) -> [ActivityRow] {
         var out: [ActivityRow] = []
         let sql = """
             SELECT at, session, kind, value, text FROM activity
-            WHERE at < ?2 AND (at >= ?1 OR (kind = 'away' AND at + value > ?1)) ORDER BY at
+            WHERE at < ?2 AND (at >= ?1 OR (kind = 'away' AND at + value > MIN(?1, COALESCE(
+                (SELECT MIN(at - value) FROM activity WHERE kind = 'reply' AND at >= ?1 AND at < ?2), ?1))))
+            ORDER BY at
             """
         query(sql, bind: { st in
             sqlite3_bind_double(st, 1, start.timeIntervalSince1970)
