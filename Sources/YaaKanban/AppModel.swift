@@ -757,10 +757,12 @@ final class AppModel {
             : TerminalJumper.runsResume(s) ? nil
             : s.terminal?.termProgram == "waveterm" ? String(localized: "It’s not known which Wave tab it was in")
             : String(localized: "\(name) doesn’t accept typed-in commands from other apps")
-        switch Self.askReopen(s, cannotRun: why.map { ($0, name) }) {
-        case .alertFirstButtonReturn: telemetry.count(.resume); jumper.resume(s, wave: runners) { Self.tellResumeFailed(s) }
-        case .alertSecondButtonReturn: telemetry.count(.resume); jumper.copyResume(s)
-        default: break
+        Self.reopenAlert(s, cannotRun: why.map { ($0, name) }).runLater { [self] answer in
+            switch answer {
+            case .alertFirstButtonReturn: telemetry.count(.resume); jumper.resume(s, wave: runners) { Self.tellResumeFailed(s) }
+            case .alertSecondButtonReturn: telemetry.count(.resume); jumper.copyResume(s)
+            default: break
+            }
         }
     }
 
@@ -791,7 +793,7 @@ final class AppModel {
     }
 
     /// `cannotRun`: why the command can't be typed in for the user, and the terminal to go to.
-    private static func askReopen(_ s: SessionState, cannotRun: (why: String, app: String)?) -> NSApplication.ModalResponse {
+    private static func reopenAlert(_ s: SessionState, cannotRun: (why: String, app: String)?) -> NSAlert {
         let alert = NSAlert()
         if let icon = BrandMark.image { alert.icon = icon }
         alert.messageText = String(localized: "\(s.agent.displayName) is no longer running")
@@ -805,8 +807,7 @@ final class AppModel {
         }
         alert.addButton(withTitle: String(localized: "Copy Resume Command"))
         alert.addButton(withTitle: String(localized: "Cancel"))
-        NSApp.activate(ignoringOtherApps: true)
-        return alert.runModal()
+        return alert
     }
 
     /// The agent is no longer running this session: it ended, or its process died (a crashed terminal).
@@ -871,14 +872,15 @@ final class AppModel {
         alert.addButton(withTitle: String(localized: "OK"))
         alert.addButton(withTitle: String(localized: "Cancel"))
         alert.window.initialFirstResponder = field
-        NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        telemetry.count(.rename)
-        update(key, alert: false) { s in
-            guard var s else { return nil }
-            s.customName = name.isEmpty ? nil : String(name.prefix(80))
-            return s
+        alert.runLater { [self] answer in
+            guard answer == .alertFirstButtonReturn else { return }
+            let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            telemetry.count(.rename)
+            update(key, alert: false) { s in
+                guard var s else { return nil }
+                s.customName = name.isEmpty ? nil : String(name.prefix(80))
+                return s
+            }
         }
     }
 

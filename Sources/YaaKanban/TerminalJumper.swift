@@ -14,11 +14,11 @@ struct TerminalJumper {
 
     @discardableResult
     func jump(to s: SessionState) -> Outcome {
-        // Asked from the click itself, the alert stalls the panel mid-fold (the rail stays wide);
-        // it comes up just after, and the jump goes ahead once it is answered.
+        // The alert comes up once the click has returned (see `runLater`), and the jump goes ahead
+        // once it is answered.
         if needsAccessibility(s), shouldAsk {
             Self.askedThisLaunch = true
-            DispatchQueue.main.async { explainAccessibility(); jump(to: s) }
+            explainAccessibility { jump(to: s) }
             return .activated("")
         }
         if let t = s.terminal, t.isWave, let wave = NSRunningApplication.runningApplications(withBundleIdentifier: Self.waveBundleId).first {
@@ -124,18 +124,20 @@ struct TerminalJumper {
 
     /// Says what Accessibility is for before the system asks, so its prompt never comes out of the
     /// blue. Until the user has allowed it in System Settings, jumps go ahead without it.
-    private func explainAccessibility() {
+    private func explainAccessibility(then: @escaping @MainActor () -> Void) {
         let alert = NSAlert()
         if let icon = BrandMark.image { alert.icon = icon }
         alert.messageText = String(localized: "Allow Accessibility access?")
         alert.informativeText = String(localized: "Needed to jump to the exact window or Wave tab. Without it, only the app comes forward.")
         alert.addButton(withTitle: String(localized: "Continue"))
         alert.addButton(withTitle: String(localized: "Not Now"))
-        NSApp.activate(ignoringOtherApps: true)
-        if alert.runModal() == .alertFirstButtonReturn {
-            _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
-        } else {
-            settings.accessibilityDeclined = true
+        alert.runLater { [settings] answer in
+            if answer == .alertFirstButtonReturn {
+                _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
+            } else {
+                settings.accessibilityDeclined = true
+            }
+            then()
         }
     }
 

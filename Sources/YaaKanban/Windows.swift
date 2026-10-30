@@ -681,6 +681,23 @@ enum AppWindows {
     static func open(_ k: Kind) { NotificationCenter.default.post(name: request, object: k.rawValue) }
 }
 
+extension NSAlert {
+    /// Brings the app forward and runs the alert once the current action has returned, then hands
+    /// back the answer. Run inside a SwiftUI action, the modal holds back every view's geometry
+    /// callbacks until it closes: a rail that folds under it draws narrow in a window left wide.
+    /// Not a GCD block: one stalls every main-actor Task until the alert is closed.
+    @MainActor func runLater(_ then: @escaping @MainActor (NSApplication.ModalResponse) -> Void = { _ in }) {
+        nonisolated(unsafe) let alert = self
+        nonisolated(unsafe) let then = then
+        RunLoop.main.perform(inModes: [.common]) {
+            MainActor.assumeIsolated {
+                NSApp.activate(ignoringOtherApps: true)
+                then(alert.runModal())
+            }
+        }
+    }
+}
+
 struct WindowOpener: ViewModifier {
     @Environment(\.openWindow) private var openWindow
     @Environment(AppModel.self) private var model

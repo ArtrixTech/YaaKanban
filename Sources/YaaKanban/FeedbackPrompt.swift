@@ -21,14 +21,15 @@ enum FeedbackPrompt {
         alert.addButton(withTitle: String(localized: "Report a Problem"))
         alert.addButton(withTitle: String(localized: "Suggest an Idea"))
         alert.addButton(withTitle: String(localized: "Cancel"))
-        NSApp.activate(ignoringOtherApps: true)
-        let kind: Feedback.Kind
-        switch alert.runModal() {
-        case .alertFirstButtonReturn: kind = .bug
-        case .alertSecondButtonReturn: kind = .feature
-        default: return
+        alert.runLater { answer in
+            let kind: Feedback.Kind
+            switch answer {
+            case .alertFirstButtonReturn: kind = .bug
+            case .alertSecondButtonReturn: kind = .feature
+            default: return
+            }
+            NSWorkspace.shared.open(Feedback.issueURL(kind, diagnostics: attach.state == .on ? report : nil))
         }
-        NSWorkspace.shared.open(Feedback.issueURL(kind, diagnostics: attach.state == .on ? report : nil))
     }
 
     /// Shows text to read and copy, e.g. the next telemetry report.
@@ -39,8 +40,8 @@ enum FeedbackPrompt {
         alert.accessoryView = textBox(text, height: 320)
         alert.addButton(withTitle: String(localized: "OK"))
         alert.addButton(withTitle: String(localized: "Copy"))
-        NSApp.activate(ignoringOtherApps: true)
-        if alert.runModal() == .alertSecondButtonReturn {
+        alert.runLater { answer in
+            guard answer == .alertSecondButtonReturn else { return }
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
         }

@@ -1,5 +1,16 @@
 # Devlog
 
+## fix(panel): run alerts after the click so the rail folds under them
+
+`pending` | 2026-10-30
+
+- **Changes**: `NSAlert.runLater` (Windows.swift): brings the app forward and runs the alert on the next common-mode run-loop turn, handing the answer to a closure. Used by the reopen alert (`askReopen` → `reopenAlert`, which returns the alert), rename, `FeedbackPrompt.present`/`show`, and `TerminalJumper.explainAccessibility` (was a `DispatchQueue.main.async` block; now takes `then`).
+- **Reason**: An alert run inside a SwiftUI action (card tap, context menu, button) holds back `onGeometryChange` actions in every window until it closes. The peek ended under the alert and the rail redrew folded, but `onSize` never reached `fit`, so the window stayed 300 wide around 28-wide content.
+- **User feedback**: "抓到bug了：之前说的，窗体的宽度仍然是宽的，但是显示的内容已经是窄模式的内容。那目前发现会在有任何系统自带的 model 模态选择窗打开的时候触发这个问题"
+- **Process**: Probe app (/tmp) with a copy of `FloatingPanel.swift` and a stub panel view, docked right, peeked, folded 0.5 s into a modal. Modal from a timer, a GCD block, a Task, `NSOpenPanel` or another process's dialog: the rail folds at once. Modal from a SwiftUI `onTapGesture` (posted click): body redraws folded at the fold, geometry action and `fit` only once the modal returns (window 300 wide for 2.5 s). Through `runLater`: slide done 150 ms after the fold, alert still up. `make build` ok; `make test` 197/198, the failure is the other session's uncommitted `WaveRPCTests.readsShellStateAndTypes` (JWT claim order).
+- **Result**: Fixed in the probe; installed. Not yet checked in the real app with the user's trigger.
+- **Notes**: bef18a9 (`fit` via `RunLoop.perform(.common)`) fixed a different stall: there the callback ran but the main queue did not drain. Its probe opened the modal from a timer, so this one did not show. `tellResumeFailed` (GCD block) and `askIfNeeded` (timer) are not inside a SwiftUI action and were left alone; SetupGuide's SwiftUI `.alert` is not a nested modal loop.
+
 ## fix(overview): mark last week's leverage with a cap on a same-width bar
 
 `pending` | 2026-10-30
