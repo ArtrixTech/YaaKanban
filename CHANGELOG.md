@@ -35,6 +35,7 @@ the update.
 - A sub-agent whose parent session is not on the board (pi-subagents scouts of a pi session YaaKanban never heard from, for example) no longer gets a card of its own, unless it needs your input.
 
 ### Fixed
+- A card no longer shows To review while an agent it started (e.g. `codex exec` through Bash) is still running under it: it stays running until that work ends.
 - Clicking a session in the floating panel's search that had left the panel now also takes you to its terminal, as clicking its card does, instead of only putting it back on the panel.
 - The floating panel no longer stays wide around the folded rail after being dragged to a screen edge: a window that ends up a different size from its content is put right.
 - Dropping the floating panel near a screen edge glides it there with the panel's own animation, which a fold can no longer cut into, and the system can no longer zoom it.

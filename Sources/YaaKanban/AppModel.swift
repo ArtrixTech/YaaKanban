@@ -58,7 +58,8 @@ final class AppModel {
 
     /// Active sessions for the floating panel; idle and ended ones only for a while (24 h by default).
     /// Sub-agents of a session on the board show inside its card instead; one waiting on the user
-    /// shows its parent as waiting too, since the whole call is held up. A sub-agent whose parent is
+    /// shows its parent as waiting too, since the whole call is held up; one still running keeps a
+    /// parent whose turn ended running, since its result is not in yet. A sub-agent whose parent is
     /// not on the board (it never reported, or has left) gets no card unless it waits on the user.
     var activeSessions: [SessionState] {
         let now = Date()
@@ -66,15 +67,26 @@ final class AppModel {
         let shown = Set(live.map(\.id))
         var waiting: [String: SessionState] = [:]
         for c in live where c.status == .needsInput { if let p = c.parentId { waiting[p] = c } }
+        let working = workingParents
         return sorted(live.compactMap { s in
             if let p = s.parentId, shown.contains(p) || s.status != .needsInput { return nil }
-            guard let c = waiting[s.id], s.status != .needsInput else { return s }
+            if let c = waiting[s.id], s.status != .needsInput {
+                var shownAs = s
+                shownAs.status = .needsInput
+                shownAs.needsInputMessage = c.needsInputMessage
+                shownAs.needsInputSince = c.needsInputSince
+                return shownAs
+            }
+            guard s.status == .idle, working.contains(s.id) else { return s }
             var shownAs = s
-            shownAs.status = .needsInput
-            shownAs.needsInputMessage = c.needsInputMessage
-            shownAs.needsInputSince = c.needsInputSince
+            shownAs.status = .running
             return shownAs
         })
+    }
+
+    /// Sessions with a sub-agent still running: a finished turn of theirs is not ready to review.
+    private var workingParents: Set<String> {
+        Set(sessions.values.filter { $0.status == .running && $0.dismissedAt == nil }.compactMap(\.parentId))
     }
 
     /// Live sub-agent sessions of `key`, oldest first.
@@ -120,7 +132,8 @@ final class AppModel {
     /// A session's status as the user sees it: one that has left the boards (retention over, or
     /// ended on the panel) is ended, whatever the agent did.
     func display(_ s: SessionState) -> DisplayStatus {
-        s.parentId == nil && !isLive(s, now: Date()) ? .ended : s.display
+        if s.parentId == nil && !isLive(s, now: Date()) { return .ended }
+        return s.status == .idle && workingParents.contains(s.id) ? .running : s.display
     }
 
     var allSessions: [SessionState] { sorted(sessions.values.filter { !$0.isUnstarted }) }
@@ -154,13 +167,19 @@ final class AppModel {
     private var visible: [SessionState] { sessions.values.filter { $0.dismissedAt == nil } }
     var attentionCount: Int { visible.filter { $0.status.needsAttention }.count }
     /// Sessions waiting on the user: blocked, stuck, or finished and not yet reviewed.
-    var pendingCount: Int { sessions.values.filter(Self.wantsUser).count }
+    var pendingCount: Int {
+        let working = workingParents
+        return sessions.values.filter { Self.wantsUser($0) && !($0.status == .idle && working.contains($0.id)) }.count
+    }
     static func wantsUser(_ s: SessionState) -> Bool {
         s.dismissedAt == nil && (s.status.needsAttention || s.display == .review)
     }
     var hasStuck: Bool { visible.contains { $0.status == .stuck } }
     var hasNeedsInput: Bool { visible.contains { $0.status == .needsInput } }
-    var reviewCount: Int { visible.filter { $0.display == .review }.count }
+    var reviewCount: Int {
+        let working = workingParents
+        return visible.filter { $0.display == .review && !($0.status == .idle && working.contains($0.id)) }.count
+    }
     var runningCount: Int { visible.filter { $0.status == .running }.count }
 
     /// History order: most recent first.

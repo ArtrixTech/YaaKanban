@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(panel): go to a session picked from the search, not only restore it
+## fix(board): keep a caller running while an agent it started still runs
 
 `pending` | 2026-10-30
+
+- **Changes**: AppModel: `workingParents` (parents of non-dismissed running sessions). `activeSessions` shows an idle parent in it as `.running` (after the existing needs-input fold); `display(_:)`, `reviewCount` and `pendingCount` (menu-bar icon) agree. Spec 2026-10-30 clause under the caller rule; CHANGELOG Fixed line.
+- **Reason**: A Claude card showed 待验收 while the `codex exec` it started (linked by `CallerLink`) was still running under it, shown with a spinner; only a child's needs input was carried up to the caller.
+- **User feedback**: "现在这个任务你明显可以看到还有一个sub agent在跑，但是又显示等待验收的状态，这是预期外的" (screenshot: Claude card 待验收 with a running "You are workin…" row, Bash rg).
+- **Process**: The parent's turn had ended (Stop → idle + `unreadSince`) while the child kept running, e.g. a backgrounded or detached Bash call. Fixed on the display side; the parent's `unreadSince` is kept, so it turns 待验收 once the child stops.
+- **Result**: Build and test (195) pass. Not reproduced live.
+- **Notes**: Only `.idle` parents are promoted: an ended (exited) caller stays as it is. The terminal badge (`wantsUser` per session) and the Stop notification are unchanged, so a "done" notification can still arrive while the child runs.
+
+## fix(panel): go to a session picked from the search, not only restore it
+
+`1bfbe8a` | 2026-10-30
 
 - **Changes**: Windows `PickRow.pick`: a session not on the panel is restored (`model.restore`) and then `model.jump`ed, as on the panel; before, it was only restored. Help and the first context-menu item reuse the card's wording (resume when the agent is gone); "Restore to floating panel" stays in the menu for sessions off the panel, restoring only. "Put back on the floating panel" dropped from 9 tables. Spec Search clause revised; CHANGELOG Fixed line.
 - **Reason**: Picking a session from the search only put it back on the panel; the user expected what clicking its card does.
