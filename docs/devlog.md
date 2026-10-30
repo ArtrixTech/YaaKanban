@@ -1,8 +1,18 @@
 # Devlog
 
-## chore(release): bump the version to 0.2.0
+## fix(main): more room between the logo and Overview on the card
 
 `pending` | 2026-10-31
+
+- **Changes**: `OverviewCard` logo line to 概览 spacing `Space.s` (6) → `Space.m + Space.xxs` (10 pt); card stays 72 pt.
+- **Reason**: Still read as tight.
+- **User feedback**: "另外 logo和"概览"再上下分开一点。"
+- **Process**: Zoomed app snapshots, a session selected and 概览 (`design/history/sidebar-v8`).
+- **Result**: make test 202 pass; installed.
+
+## chore(release): bump the version to 0.2.0
+
+`ecf4cb9` | 2026-10-31
 
 - **Changes**: `Resources/Info.plist` 0.1.2 (3) → 0.2.0 (4); CHANGELOG `[Unreleased]` entries now under `[0.2.0] - 2026-10-31`.
 - **Reason**: Release the design-system work as 0.2.0.

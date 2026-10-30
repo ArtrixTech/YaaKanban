@@ -247,7 +247,7 @@ private struct OverviewCard: View {
         let heat = LeverageHeat(leverage)
         let shape = RoundedRectangle(cornerRadius: Radius.group, style: .continuous)
         HStack(spacing: Space.m) {
-            VStack(alignment: .leading, spacing: Space.s) {
+            VStack(alignment: .leading, spacing: Space.m + Space.xxs) {
                 HStack(spacing: 5) {
                     BrandGlyph(size: 12)
                     Text(verbatim: "YaaKanban").font(.ui(.footnote, .semibold)).foregroundStyle(Ink.secondary).lineLimit(1)
