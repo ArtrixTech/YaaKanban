@@ -265,16 +265,21 @@ private struct OverviewCard: View {
         .frame(height: 72)
         .background {
             // Only the light is redrawn at 30 fps; still when the window isn't key or motion is reduced.
-            TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion || active == .inactive)) {
-                FootGlow(heat: heat, t: $0.date.timeIntervalSinceReferenceDate, bright: hover)
+            ZStack {
+                TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion || active == .inactive)) {
+                    FootGlow(heat: heat, t: $0.date.timeIntervalSinceReferenceDate)
+                }
+                // Dims the light a little until hovered; a view's opacity eases, the canvas would jump.
+                heat.base.opacity(hover ? 0 : 0.15)
             }
             .clipShape(shape)
         }
-        // The pane's edge: faint at the top, catching the light at the foot.
+        // The pane's edge: faint at the top, catching the light gradually towards the foot; brighter hovered.
         .overlay {
-            shape.strokeBorder(LinearGradient(stops: [.init(color: .white.opacity(0.22), location: 0), .init(color: .white.opacity(0.05), location: 0.45),
-                                                     .init(color: heat.core.opacity(hover ? 0.75 : 0.5), location: 1)],
-                                              startPoint: .top, endPoint: .bottom), lineWidth: 1)
+            ZStack {
+                shape.strokeBorder(rim(heat, 0.45), lineWidth: 1)
+                shape.strokeBorder(rim(heat, 0.8), lineWidth: 1).opacity(hover ? 1 : 0)
+            }
         }
         .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
         .environment(\.colorScheme, .dark)
@@ -286,6 +291,13 @@ private struct OverviewCard: View {
         .onHover { hover = $0 }
         .animation(.easeOut(duration: 0.15), value: hover)
         .help(onOverview ? "" : String(localized: "Today. Click to open Overview in the main window."))
+    }
+
+    private func rim(_ heat: LeverageHeat, _ foot: Double) -> LinearGradient {
+        LinearGradient(stops: [.init(color: .white.opacity(0.2), location: 0), .init(color: .white.opacity(0.08), location: 0.3),
+                               .init(color: heat.core.opacity(foot * 0.15), location: 0.5), .init(color: heat.core.opacity(foot * 0.55), location: 0.78),
+                               .init(color: heat.core.opacity(foot), location: 1)],
+                       startPoint: .top, endPoint: .bottom)
     }
 
     private func figure(_ leverage: Double?) -> some View {
@@ -325,7 +337,6 @@ private struct LeverageHeat {
 private struct FootGlow: View {
     let heat: LeverageHeat
     let t: Double
-    var bright = false
     private static let lobes: [(x: Double, period: Double, phase: Double, shift: Double)] = [
         (0.25, 19, 0, 0.035), (0.75, 23, 2.2, -0.035), (0.5, 29, 4.1, 0)]
 
@@ -336,7 +347,6 @@ private struct FootGlow: View {
             ctx.drawLayer { l in
                 l.addFilter(.blur(radius: h * 0.3))
                 l.blendMode = .screen
-                l.opacity = bright ? 1 : 0.85
                 for s in Self.lobes {
                     let a = 2 * .pi * t / s.period + s.phase
                     let c = CGPoint(x: w * (s.x + 0.12 * sin(a)), y: h * (1.05 + 0.08 * cos(a * 1.3)))

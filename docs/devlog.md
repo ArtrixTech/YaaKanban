@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(main): roomier logo line and an arrow on the Overview card
+## fix(main): fade the Overview card's rim light in gradually
 
 `pending` | 2026-10-31
+
+- **Changes**: Rim gradient stops white 0.2 @0 → white 0.08 @0.3 → hue ×0.15 @0.5 → ×0.55 @0.78 → full @1 (foot 0.45, hovered 0.8 as a second stroke faded in) instead of white 0.05 @0.45 straight to the hue at the foot. Hover no longer switches the canvas's opacity (Canvas can't animate it); `FootGlow.bright` gone, a 15% base-color veil over the light fades out on hover instead.
+- **Reason**: The rim lit up abruptly low on the sides, and the hover brightening jumped.
+- **User feedback**: "卡片高光要有渐变，现在突变。"
+- **Process**: Zoomed app snapshots before (v6) and after, a session selected and 概览.
+- **Result**: make test 202 pass; installed.
+- **Notes**: Hover easing not seen live (snapshots can't hover).
+
+## fix(main): roomier logo line and an arrow on the Overview card
+
+`407a015` | 2026-10-31
 
 - **Changes**: `OverviewCard`: logo line to 概览 spacing 3 → `Space.s` (6 pt); while 概览 is selected the right side shows `arrow.up.right` (footnote semibold, 0.45 / 0.75 on hover) instead of nothing.
 - **Reason**: The logo sat too tight on 概览, and the card's right side was empty on 概览.
