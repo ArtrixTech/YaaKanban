@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(main): dark Overview card and on-demand search in the sidebar
+## feat(main): split Overview card with leverage heat and moving light
 
 `pending` | 2026-10-31
+
+- **Changes**: `OverviewCard` rebuilt after a red/black split reference: left 104 pt panel (figure + "Today's leverage") on `HeatField`, right black side with 概览, a ↑/↓ change chip vs yesterday so far (`Periods(.day).previousSoFar`, hidden without a base or at 0.0), "Agents … ÷ you …", state dots and a chart pill, `SeamGlow` bleeding the hue in. `LeverageHeat`: hue 0.6→1.0 over log2(leverage)/3 (1× blue, ~2.8× violet, 8× red), dim gray without a figure. `HeatField`: base gradient, three screen-blended radial lights on 13/19/29 s loops, a 12 s sheen, a top shade. Only the two backgrounds sit in `TimelineView(.animation(minimumInterval: 1/30, paused: reduceMotion || !key))`. `StateDiscs` removed. Card 112 pt.
+- **Reason**: v2 discs still read as ugly; user wanted a cool, moving but quiet background and leverage colored low blue → high red.
+- **User feedback**: "风格可以延续，但现在实现的卡片还是丑，里面的背景我希望是炫酷的动态的内容，但不要太抓眼。希望做成这种感觉。另外对杠杆做颜色分级，低是蓝，高是红，图上参考风格之外混叠一些动态效果。" (reference: a split card, red gradient figure panel left, black detail side right)
+- **Process**: Offline specimen at 1.1/2/3/4.4/8×/none × t=0/4/8 s (`design/history/sidebar-v3/card-heat.png`); the no-data gray came out too bright and was dimmed. App snapshots dark and light. CPU: the installed app sat at 30–50% with the main window key; a build with the animation forced paused measured the same (40–50%), so the animation is not the cost. `sample` put most main-thread time in SwiftUI graph updates, NSWindow layout and `FloatingPanelController.fit/startSlide/place`.
+- **Result**: make test 202 pass; l10n 0 problems; installed.
+- **Notes**: The ~45% baseline predates this card by the measurement above; not investigated further (floating panel slide/fit and window layout are the leads). Motion itself was judged from stills at three moments, not watched live.
+
+## feat(main): dark Overview card and on-demand search in the sidebar
+
+`aea6e43` | 2026-10-31
 
 - **Changes**: MainSidebar: logo back under the window buttons (top 34 pt); `OverviewCard` replaces `OverviewBlock`: dark (forced `.dark` scheme) 132 pt card, title + CountChips in the top row, "Today's leverage" and the figure at the foot, `StateDiscs` canvas (one nested glowing disc per counted state, most urgent innermost, tops evenly spaced; a gray disc when none); hover brightens, no selected fill. Search field no longer always shown: `listHead` (first section title + count + magnifier, ⌘F) is pinned above the list and becomes the search field + agent filter; Esc/cross clears query and filter. List gets a short top fade under the head. `yaak snapshot` adds `main-light` (aqua appearance). Strings: "Today's leverage", "Search" in 9 languages.
 - **Reason**: The v1 block, logo beside the buttons and the permanent search read as ugly and out of tune with the rest.
