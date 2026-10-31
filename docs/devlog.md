@@ -1,8 +1,17 @@
 # Devlog
 
-## fix(main): centre the logo between the window top and the card
+## docs(design): archive the dropped home icon on the Overview card
 
 `pending` | 2026-10-31
+
+- **Changes**: `design/history/sidebar-v11` and its README row; no code change.
+- **Reason**: A house icon before 概览 was tried (filled, then outline and closer) and dropped.
+- **User feedback**: "概览左边加上home的图标"; "图标和文字距离近一点，然后换一个简洁一点的图标"; "去掉home图标。"
+- **Result**: Code back to `cd03eaf` (v10); reinstalled.
+
+## fix(main): centre the logo between the window top and the card
+
+`cd03eaf` | 2026-10-31
 
 - **Changes**: The logo row is 38 pt tall (was 28 plus a 10 pt gap to the card), so the mark sits 19 pt down, midway between the window's top edge and the card; card top unchanged at 38 pt. CHANGELOG and spec wording follow; design `sidebar-v10`.
 - **Reason**: On the window buttons' line (14 pt down) it sat too high.
