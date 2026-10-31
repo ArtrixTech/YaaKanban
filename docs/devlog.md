@@ -1,5 +1,123 @@
 # Devlog
 
+## refactor(main): drop the trial sidebar heads
+
+`pending` | 2026-10-31
+
+- **Changes**: Removed `SidebarHeadStyle`, the Settings › General trial picker, `Preferences.sidebarStyle` (and the user's `sidebarStyleTrial` default), `OverviewCard` (glass), `OverviewRow`, `OverviewTile`, `FootGlow` and the glow parts of `LeverageHeat` (only `ink` left); `MainSidebar` always shows the logo row and `OverviewPill`; `LeverageFigure` always in the text color. Spec drops the trial clause.
+- **Reason**: The user settled on D: "收尾，可以release了。"
+- **Result**: make test 203 pass; make install; snapshot unchanged from v18.
+
+## feat(main): make the slim capsule the sidebar head
+
+`5273947` | 2026-10-31
+
+- **Changes**: Default trial style `pill` (`Preferences` fallback; the user's stored value set to pill). Pill: house button first, a `.regularMaterial` capsule label "Overview" under it while hovered (replaces `.help`; head gets `zIndex(1)` so it covers the list head); capsule holds `StateCounts` (new, shared with the other styles' top row) at the left and at the right a 3×14 bar in `LeverageHeat.ink`, "Leverage" (secondary, `layoutPriority(-1)` so it truncates first) and the figure in `.primary` (`LeverageFigure(tinted:)`). Window-button row: name then `BrandGlyph(size: 13)` for pill; counts + name for the others. CHANGELOG, spec, design `sidebar-v18`.
+- **Reason**: User chose D and reshaped it.
+- **User feedback**: "默认使用最后一个方案……红绿灯这一行的 logo 换成完整的……图形放在右边……胶囊部分的左边放……Badge……概览页面按钮和胶囊的左右位置互换……hover 的时候要显示对应语言的概览的文案" then "右侧胶囊要显示杠杆文案……文字颜色还是用白色，但旁边可以有色块点缀"
+- **Process**: Hover can't be screenshotted here (no Screen Recording grant; `screencapture -l` failed), so one build forced `hover = true` for a snapshot, then reverted and reinstalled.
+- **Result**: make install; snapshots dark, light, Overview selected, hover label.
+- **Notes**: The trial picker and styles A–C are still in; remove them once the user confirms D.
+
+## feat(main): try four sidebar heads behind a temporary setting
+
+`8ac138f` | 2026-10-31
+
+- **Changes**: `SidebarHeadStyle` (glass, row, card, pill) picked by `Preferences.sidebarStyle` (UserDefaults `sidebarStyleTrial`, default glass) from a non-localized row in Settings › General; `MainSidebar.head` switches. New `OverviewRow` (B), `OverviewTile` (C), `OverviewPill` (D), shared `LeverageFigure` and `LeverageHeat.ink` (the heat's hue, legible in both appearances). Floating panel `BoardHeader` mark gets 4 pt leading padding. Design `sidebar-v17`.
+- **Reason**: The 66 pt magenta capsule read as huge and out of key with the gray sidebar; the user asked for several versions to switch between, the setting to be removed once one is chosen.
+- **User feedback**: "展开状态的logo，左侧要和下面卡片左侧对齐，再往右收一点点。另外，侧边栏现在还是太丑……你可以做几个不同版本让我切换看看（设置里面添加一项，未来选定后删掉）"
+- **Process**: Measured the panel: mark and the figures card both started at x 20 px (10 pt), so "a little right" = 4 pt. Snapshotted each style by quitting the app, `defaults write com.artrix.yaakanban sidebarStyleTrial <style>`, relaunching (Preferences reads at launch); restored the user's value after.
+- **Result**: make install; all four render in dark, light and with Overview selected.
+- **Notes**: No spec or CHANGELOG change until a style is chosen; then delete the losers, the setting and its key.
+
+## feat(main): quiet the home button and name the app on the button row
+
+`4fb7c37` | 2026-10-31
+
+- **Changes**: Window-button row: `Text("YaaKanban")` (footnote semibold, `Ink.secondary`) after the counts. Capsule: rim overlay dropped, only FootGlow + veil + shadow, inlined (the `Pane` modifier removed). Home button: no fill; while Overview is open `Circle` filled black 0.22 (dark) / 0.08 (light), follows the sidebar's scheme instead of forced dark. Capsule `BrandGlyph` 20→16. `BoardHeader` (floating panel) `BrandMark(size: 20)` (tiled) → `BrandGlyph(size: 14)`; `RailHeader` 17→14. CHANGELOG, spec, design `sidebar-v16`.
+- **Reason**: User feedback on v15.
+- **User feedback**: "原来红绿灯logo位置，增加文字logo……胶囊去掉高光边缘……home按钮，不点的时候没有背景，点了之后稍微深一点即可……图形logo小一点" then "超窄模式的侧边栏的图形logo也小一点，同时展开模式侧边栏的logo换成和超窄一样的"
+- **Process**: Read "展开模式侧边栏" as the unfolded floating panel (its header held the tiled `BrandMark`; the folded rail the bare `BrandGlyph`). The menu popover header still uses `BrandMark(size: 18)`.
+- **Result**: make install; snapshots main (dark, light, overview), panel and rail checked.
+
+## feat(main): split the Overview card into a leverage capsule and a home button
+
+`3134e72` | 2026-10-31
+
+- **Changes**: `OverviewCard` is an HStack of a `Capsule` (`BrandGlyph(size: 20)` left, today's leverage figure right; not clickable) and a 66 pt `Circle` `Button` with `HomeMark` that selects Overview. Both use the new `Pane` modifier (the old FootGlow, veil and gradient rim; lit = veil 0.07 and the brighter rim, on hover or while Overview is open). New `Resources/Brand/home.svg` (220 × 160 path), copied into the bundle by `scripts/bundle.sh`, loaded as a template `NSImage` (`house.fill` fallback). `BrandGlyph` removed from the window-button row; counts stay. CHANGELOG, spec, design `sidebar-v15`.
+- **Reason**: User redesign of the sidebar head.
+- **User feedback**: "左部分是一个比较长的圆角胶囊……右边这个圆形是一个按钮……点击之后可以进入概览页面……提取成 SVG 形态……红绿灯这一行位置的图形化 logo 应该去掉" (artwork: a low house leaning on a tall one, 699 px PNG)
+- **Process**: Traced the PNG by scanning pixel runs per row: shapes span x 241–460, y 271–429; polygons small (0,102)(56,74)(56,160)(0,160), big (56,52)(138,0)(220,52)(220,160)(112,160)(112,102)(56,74) at offset (241,270). Rasterized back: 497 of 21,874 filled pixels differ, all edge antialiasing.
+- **Result**: make install; snapshots show capsule + circle filling the old card's width.
+- **Notes**: The capsule's tooltip is "Today's leverage", the button's "Overview" (existing strings, no new localizations). Selected vs. unselected on the button is subtle (veil and rim only).
+
+## feat(main): show the logo over the name on an open Overview card
+
+`9d00849` | 2026-10-31
+
+- **Changes**: `OverviewCard`'s left side, while Overview is the selection, is `BrandGlyph(size: 18)` over "YaaKanban" (footnote semibold, 4 pt apart) in place of YaaKanban over 概览. CHANGELOG, spec, design `sidebar-v14`.
+- **Reason**: On Overview the page itself says 概览; the card names the app instead.
+- **User feedback**: "在点开概览之后，概览字样不再显示，左侧显示Yaakanbanlogo，分两行，第一行图形，第二行文字，高度靠近。"
+- **Result**: Snapshot `main-overview` shows mark over name; other pages unchanged.
+
+## fix(core): forget a previous process's background agents on resume
+
+`bcbf50a` | 2026-10-31
+
+- **Changes**: `SessionReducer.apply` clears `backgroundTasks` when an event's `agentPid` differs from the stored one. Test `resumedProcessForgetsTheOldOnesAgents` (fails without the fix: `backgroundTasks` stays `["a1"]`). CHANGELOG Fixed line.
+- **Reason**: Claude session cc693b52 (自制银质方案, artrix-reach) showed 可能卡住 · 10 分钟无新事件 after a finished turn. Its record held `backgroundTasks` a560d731e1c60dcd4 and a2f384fc22a8f3ce3, async Agent launches never notified (no `<task-notification>` with those ids in 98 turns). The process was `claude --resume` started 11:05:31 (pid 3826); `endTurn` saw `awaitsBackground` and kept the 11:16:45 stop running, so the 5 min silence check flagged it.
+- **User feedback**: "有bug，这个对话已经完成了但显示卡住" (screenshot of the card)
+- **Process**: Read a copy of `history.sqlite` (the app's store) only; no agent config or transcript read. hookOwner's pid is the agent process, stable within a run.
+- **Result**: make test 203 pass.
+- **Notes**: The stored pid of that card is already 3826, so the fix does not heal it until its next new process; turning off Settings › Compatibility › Wait for background agents (then on) clears it now. Not proven which process launched the two agents (the launch tools are older than the 200 kept); a notification lost within one process would still end in silence-stuck by design.
+
+## feat(main): show the state counts on the logo row
+
+`682509e` | 2026-10-31
+
+- **Changes**: The sidebar's logo row holds `statusCounts(model.activeSessions)` as `CountChip`s (needs input, stuck, review, running; animated like the menu's) left of `BrandGlyph`. CHANGELOG, spec, design `sidebar-v13`.
+- **Reason**: The colored count badges of sidebar-v1/v2 were wanted back, on the window buttons' line.
+- **User feedback**: "在运行的原来的那些不同颜色的badge放到红绿灯logo行去"
+- **Result**: make test pass; installed; snapshot shows 1 stuck and 3 running chips beside the logo, clear of the window buttons.
+- **Notes**: Release 0.2.0 held at the user's request (PR #8 open, not merged).
+
+## fix(main): make the Overview card a little shorter and tighter
+
+`7b67500` | 2026-10-31
+
+- **Changes**: `OverviewCard` height 72 → 66 pt; YaaKanban line to 概览 spacing 10 → 8 pt (`Space.m`). Design `sidebar-v12`.
+- **Reason**: Requested.
+- **User feedback**: "block稍微矮一点点，降低yaakanban文字和概览文字的距离一点点"
+- **Result**: make test pass; installed; checked in zoomed snapshots.
+
+## docs(design): archive the dropped home icon on the Overview card
+
+`bb6638f` | 2026-10-31
+
+- **Changes**: `design/history/sidebar-v11` and its README row; no code change.
+- **Reason**: A house icon before 概览 was tried (filled, then outline and closer) and dropped.
+- **User feedback**: "概览左边加上home的图标"; "图标和文字距离近一点，然后换一个简洁一点的图标"; "去掉home图标。"
+- **Result**: Code back to `cd03eaf` (v10); reinstalled.
+
+## fix(main): centre the logo between the window top and the card
+
+`cd03eaf` | 2026-10-31
+
+- **Changes**: The logo row is 38 pt tall (was 28 plus a 10 pt gap to the card), so the mark sits 19 pt down, midway between the window's top edge and the card; card top unchanged at 38 pt. CHANGELOG and spec wording follow; design `sidebar-v10`.
+- **Reason**: On the window buttons' line (14 pt down) it sat too high.
+- **User feedback**: "logo位置太上了，需要在窗体边缘和block上边缘中间"
+- **Result**: make test 202 pass; installed; zoomed snapshot shows the mark midway.
+
+## feat(main): put the logo mark on the window buttons' line
+
+`9386d0e` | 2026-10-31
+
+- **Changes**: `MainSidebar` gets a 28 pt top row with `BrandGlyph(size: 14)` (was 12) at its right edge; the card drops the glyph and keeps "YaaKanban" over 概览, its top still 38 pt (28 + 10). CHANGELOG, spec and design README (`sidebar-v9`) follow.
+- **Reason**: Requested placement.
+- **User feedback**: "帮我把概览block的yaakanban logo的图形logo移到红绿灯同一行、居右侧，比现在稍微大一点点"
+- **Process**: System Events: window top -1142, close button at -1136 with height 16, so the buttons are centred 14 pt down, the centre of the 28 pt row. Snapshots don't draw the window buttons; checked the glyph in zoomed `main`/`main-overview`.
+- **Result**: make test 202 pass; installed.
+
 ## fix(main): soften the Overview card's hover light
 
 `0aeddb2` | 2026-10-31

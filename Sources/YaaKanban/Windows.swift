@@ -20,7 +20,8 @@ struct BoardHeader<Trailing: View>: View {
 
     private func row(named: Bool) -> some View {
         HStack(spacing: 6) {
-            BrandMark(size: 20)
+            // In from the edge, level with the cards' content rather than their corners.
+            BrandGlyph(size: 14).padding(.leading, Space.xs)
             if named { Text(verbatim: "YaaKanban").font(.ui(.body, .bold)).lineLimit(1).fixedSize() }
             Spacer(minLength: 4)
             HStack(spacing: 4) {
