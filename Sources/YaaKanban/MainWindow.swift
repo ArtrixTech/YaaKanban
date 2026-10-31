@@ -54,19 +54,23 @@ private struct MainSidebar: View {
         // The list's first section heads it, with the search button; History follows in the list.
         let leadsWithActive = !model.board.isEmpty
         VStack(alignment: .leading, spacing: 0) {
-            // The running sessions' state counts and the name sit at the sidebar's right edge, midway
-            // between the window's top and the card.
-            HStack(spacing: Space.m) {
+            // The name sits at the sidebar's right edge, midway between the window's top and the card:
+            // the whole logo, its mark last, over the slim capsule that holds the counts; the counts
+            // and the name in text over the other trial heads.
+            let style = SidebarHeadStyle(rawValue: model.settings.sidebarStyle) ?? .pill
+            HStack(spacing: Space.s) {
                 Spacer()
-                let counts = statusCounts(model.activeSessions)
-                HStack(spacing: Space.xs) {
-                    ForEach(counts, id: \.0.rank) { st, n in CountChip(count: n, status: st).transition(.scale.combined(with: .opacity)) }
+                if style == .pill {
+                    Text(verbatim: "YaaKanban").font(.ui(.footnote, .semibold)).foregroundStyle(Ink.secondary).lineLimit(1)
+                    BrandGlyph(size: 13)
+                } else {
+                    StateCounts(sessions: model.activeSessions)
+                    Text(verbatim: "YaaKanban").font(.ui(.footnote, .semibold)).foregroundStyle(Ink.secondary).lineLimit(1)
                 }
-                .animation(.snappy, value: counts.map(\.1))
-                Text(verbatim: "YaaKanban").font(.ui(.footnote, .semibold)).foregroundStyle(Ink.secondary).lineLimit(1)
             }
             .frame(height: 38).padding(.trailing, Space.xs)
-            head
+            // Above the list's head, which the Overview button's label may cover.
+            head(style).zIndex(1)
             listHead(leadsWithActive ? String(localized: "Active") : String(localized: "History"),
                      leadsWithActive ? active.count : nil)
                 .padding(.top, Space.l)
@@ -112,9 +116,9 @@ private struct MainSidebar: View {
         .padding(.horizontal, 10).padding(.bottom, Space.l)
     }
 
-    @ViewBuilder private var head: some View {
+    @ViewBuilder private func head(_ style: SidebarHeadStyle) -> some View {
         let on = selection == AppModel.overview, open = { select(AppModel.overview) }
-        switch SidebarHeadStyle(rawValue: model.settings.sidebarStyle) ?? .glass {
+        switch style {
         case .glass: OverviewCard(onOverview: on, onSelect: open)
         case .row: OverviewRow(onOverview: on, onSelect: open)
         case .card: OverviewTile(onOverview: on, onSelect: open)
@@ -346,10 +350,10 @@ enum SidebarHeadStyle: String, CaseIterable {
 
     var name: String {
         switch self {
-        case .glass: "A 玻璃胶囊（当前）"
+        case .glass: "A 玻璃胶囊"
         case .row: "B 列表行"
         case .card: "C 卡片"
-        case .pill: "D 细胶囊"
+        case .pill: "D 细胶囊（默认）"
         }
     }
 }
@@ -429,8 +433,9 @@ private struct OverviewTile: View {
     }
 }
 
-/// Trial D: v16's two parts made small and plain: a slim capsule on the cards' surface with the
-/// logo and today's figure in the heat's ink, and the bare house button beside it.
+/// Trial D: v16's two parts made small and plain: the bare house button, its name shown under it
+/// while hovered, and beside it a slim capsule on the cards' surface with the running sessions'
+/// state counts and today's leverage, named, with a bar in the heat's hue.
 private struct OverviewPill: View {
     @Environment(AppModel.self) private var model
     var onOverview: Bool
@@ -441,17 +446,6 @@ private struct OverviewPill: View {
     var body: some View {
         let leverage = todayLeverage(model)
         HStack(spacing: Space.s) {
-            HStack(spacing: Space.s) {
-                BrandGlyph(size: 13)
-                Text("Today's leverage").font(.ui(.footnote)).foregroundStyle(.secondary).lineLimit(1)
-                Spacer(minLength: Space.xs)
-                LeverageFigure(leverage: leverage, size: 15)
-            }
-            .padding(.horizontal, Space.l + Space.xxs)
-            .frame(maxWidth: .infinity).frame(height: Self.height)
-            .surface(Capsule())
-            .accessibilityElement(children: .combine)
-
             Button(action: onSelect) {
                 HomeMark(size: 18).opacity(onOverview || hover ? 1 : 0.75)
                     .frame(width: Self.height, height: Self.height)
@@ -463,8 +457,45 @@ private struct OverviewPill: View {
             .animation(.easeOut(duration: 0.12), value: hover)
             .accessibilityLabel(Text("Overview"))
             .accessibilityAddTraits(onOverview ? .isSelected : [])
-            .help(onOverview ? "" : String(localized: "Overview"))
+            .overlay(alignment: .top) {
+                if hover {
+                    Text("Overview").font(.ui(.caption, .medium)).lineLimit(1).fixedSize()
+                        .padding(.horizontal, Space.m).padding(.vertical, Space.xs)
+                        .background(Capsule().fill(.regularMaterial).shadow(color: .black.opacity(0.15), radius: 4, y: 1))
+                        .offset(y: Self.height + Space.xs)
+                        .transition(.opacity)
+                        .allowsHitTesting(false)
+                }
+            }
+
+            HStack(spacing: Space.s) {
+                StateCounts(sessions: model.activeSessions)
+                Spacer(minLength: Space.xs)
+                // Named, in the text color, the heat a short bar beside it.
+                Capsule().fill(LeverageHeat(leverage).ink).frame(width: 3, height: 14)
+                Text("Leverage").font(.ui(.footnote, .medium)).foregroundStyle(.secondary).lineLimit(1)
+                    .layoutPriority(-1)
+                LeverageFigure(leverage: leverage, size: 15, tinted: false)
+            }
+            .padding(.leading, Space.s + Space.xxs).padding(.trailing, Space.l + Space.xxs)
+            .frame(maxWidth: .infinity).frame(height: Self.height)
+            .surface(Capsule())
+            .accessibilityElement(children: .combine)
         }
+    }
+}
+
+/// The running sessions' count chips, most urgent first, changing with a spring.
+private struct StateCounts: View {
+    let sessions: [SessionState]
+
+    var body: some View {
+        let counts = statusCounts(sessions)
+        HStack(spacing: Space.xs) {
+            ForEach(counts, id: \.0.rank) { st, n in CountChip(count: n, status: st).transition(.scale.combined(with: .opacity)) }
+        }
+        .fixedSize()
+        .animation(.snappy, value: counts.map(\.1))
     }
 }
 
@@ -472,11 +503,13 @@ private struct OverviewPill: View {
 private struct LeverageFigure: View {
     let leverage: Double?
     var size: CGFloat
+    /// In the heat's ink; otherwise the text color.
+    var tinted = true
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 1) {
             Text(verbatim: leverage.map { String(format: "%.1f", $0) } ?? "–").font(.figure(size))
-                .foregroundStyle(LeverageHeat(leverage).ink)
+                .foregroundStyle(tinted ? LeverageHeat(leverage).ink : .primary)
                 .contentTransition(.numericText())
             if leverage != nil { Text(verbatim: "×").font(.ui(.caption, .semibold)).foregroundStyle(.secondary) }
         }

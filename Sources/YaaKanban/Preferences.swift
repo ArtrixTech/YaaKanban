@@ -92,7 +92,7 @@ final class Preferences {
         panelListHeight = d.object(forKey: "panelListHeightManual") == nil ? nil : CGFloat(d.double(forKey: "panelListHeightManual"))
         panelWidth = d.object(forKey: "panelWidth") == nil ? 340 : CGFloat(d.double(forKey: "panelWidth"))
         showRecentStats = d.bool(forKey: "showRecentStats")
-        sidebarStyle = d.string(forKey: "sidebarStyleTrial") ?? "glass"
+        sidebarStyle = d.string(forKey: "sidebarStyleTrial") ?? "pill"
         manualOrder = d.stringArray(forKey: "manualOrder") ?? []
         pinned = d.stringArray(forKey: "pinnedSessions") ?? []
         suppressWhenWaveFrontmost = d.bool(forKey: "suppressWhenWaveFrontmost")

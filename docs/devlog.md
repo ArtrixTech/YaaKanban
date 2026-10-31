@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(main): try four sidebar heads behind a temporary setting
+## feat(main): make the slim capsule the sidebar head
 
 `pending` | 2026-10-31
+
+- **Changes**: Default trial style `pill` (`Preferences` fallback; the user's stored value set to pill). Pill: house button first, a `.regularMaterial` capsule label "Overview" under it while hovered (replaces `.help`; head gets `zIndex(1)` so it covers the list head); capsule holds `StateCounts` (new, shared with the other styles' top row) at the left and at the right a 3×14 bar in `LeverageHeat.ink`, "Leverage" (secondary, `layoutPriority(-1)` so it truncates first) and the figure in `.primary` (`LeverageFigure(tinted:)`). Window-button row: name then `BrandGlyph(size: 13)` for pill; counts + name for the others. CHANGELOG, spec, design `sidebar-v18`.
+- **Reason**: User chose D and reshaped it.
+- **User feedback**: "默认使用最后一个方案……红绿灯这一行的 logo 换成完整的……图形放在右边……胶囊部分的左边放……Badge……概览页面按钮和胶囊的左右位置互换……hover 的时候要显示对应语言的概览的文案" then "右侧胶囊要显示杠杆文案……文字颜色还是用白色，但旁边可以有色块点缀"
+- **Process**: Hover can't be screenshotted here (no Screen Recording grant; `screencapture -l` failed), so one build forced `hover = true` for a snapshot, then reverted and reinstalled.
+- **Result**: make install; snapshots dark, light, Overview selected, hover label.
+- **Notes**: The trial picker and styles A–C are still in; remove them once the user confirms D.
+
+## feat(main): try four sidebar heads behind a temporary setting
+
+`8ac138f` | 2026-10-31
 
 - **Changes**: `SidebarHeadStyle` (glass, row, card, pill) picked by `Preferences.sidebarStyle` (UserDefaults `sidebarStyleTrial`, default glass) from a non-localized row in Settings › General; `MainSidebar.head` switches. New `OverviewRow` (B), `OverviewTile` (C), `OverviewPill` (D), shared `LeverageFigure` and `LeverageHeat.ink` (the heat's hue, legible in both appearances). Floating panel `BoardHeader` mark gets 4 pt leading padding. Design `sidebar-v17`.
 - **Reason**: The 66 pt magenta capsule read as huge and out of key with the gray sidebar; the user asked for several versions to switch between, the setting to be removed once one is chosen.
