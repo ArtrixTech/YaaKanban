@@ -76,6 +76,9 @@ public enum SessionReducer {
             if v.tty == nil, e.agentPid == nil || e.agentPid == s.agentPid { v.tty = s.terminal?.tty }
             s.terminal = v
         }
+        // Background agents end with the process that launched them: a resumed session (a new
+        // process) waits for none of the old one's, or its every stop is held for them.
+        if let v = e.agentPid, let old = s.agentPid, v != old { s.backgroundTasks = nil }
         if let v = e.agentPid { s.agentPid = v }
         s.hooked = true
 

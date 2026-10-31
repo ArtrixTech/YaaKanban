@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(main): show the state counts on the logo row
+## fix(core): forget a previous process's background agents on resume
 
 `pending` | 2026-10-31
+
+- **Changes**: `SessionReducer.apply` clears `backgroundTasks` when an event's `agentPid` differs from the stored one. Test `resumedProcessForgetsTheOldOnesAgents` (fails without the fix: `backgroundTasks` stays `["a1"]`). CHANGELOG Fixed line.
+- **Reason**: Claude session cc693b52 (自制银质方案, artrix-reach) showed 可能卡住 · 10 分钟无新事件 after a finished turn. Its record held `backgroundTasks` a560d731e1c60dcd4 and a2f384fc22a8f3ce3, async Agent launches never notified (no `<task-notification>` with those ids in 98 turns). The process was `claude --resume` started 11:05:31 (pid 3826); `endTurn` saw `awaitsBackground` and kept the 11:16:45 stop running, so the 5 min silence check flagged it.
+- **User feedback**: "有bug，这个对话已经完成了但显示卡住" (screenshot of the card)
+- **Process**: Read a copy of `history.sqlite` (the app's store) only; no agent config or transcript read. hookOwner's pid is the agent process, stable within a run.
+- **Result**: make test 203 pass.
+- **Notes**: The stored pid of that card is already 3826, so the fix does not heal it until its next new process; turning off Settings › Compatibility › Wait for background agents (then on) clears it now. Not proven which process launched the two agents (the launch tools are older than the 200 kept); a notification lost within one process would still end in silence-stuck by design.
+
+## feat(main): show the state counts on the logo row
+
+`682509e` | 2026-10-31
 
 - **Changes**: The sidebar's logo row holds `statusCounts(model.activeSessions)` as `CountChip`s (needs input, stuck, review, running; animated like the menu's) left of `BrandGlyph`. CHANGELOG, spec, design `sidebar-v13`.
 - **Reason**: The colored count badges of sidebar-v1/v2 were wanted back, on the window buttons' line.

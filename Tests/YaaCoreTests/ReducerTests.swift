@@ -1065,6 +1065,23 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(s.status == .ended)
     }
 
+    @Test func resumedProcessForgetsTheOldOnesAgents() {
+        let held = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1), claude("Stop", at: 2)])
+        #expect(held.backgroundTasks == ["a1"])
+        // `claude --resume` later: a new process, whose stop is not held for a1.
+        var prompt = claude("UserPromptSubmit", ["prompt": .string("again")], at: 100)
+        prompt.agentPid = 43
+        var stop = claude("Stop", ["last_assistant_message": .string("Done.")], at: 108)
+        stop.agentPid = 43
+        let resumed = fold([prompt, stop], into: held)
+        #expect(resumed.backgroundTasks == nil)
+        #expect(resumed.status == .idle)
+        // The same process keeps waiting.
+        let same = fold([claude("UserPromptSubmit", ["prompt": .string("again")], at: 100), claude("Stop", at: 108)], into: held)
+        #expect(same.backgroundTasks == ["a1"])
+        #expect(same.status == .running)
+    }
+
     @Test func exitedProcessFinishesAHeldSession() {
         let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1), claude("Stop", at: 2)])
         let out = StuckDetector.evaluate(s, now: t0.addingTimeInterval(10), config: StuckConfig(), isAlive: { _ in false })
