@@ -34,7 +34,7 @@ struct MainWindow: View {
     }
 }
 
-/// The sidebar: the logo on the window buttons' line, under it the Overview card, the list's head with its
+/// The sidebar: the logo beside the window buttons, under it the Overview card, the list's head with its
 /// search button, the boards' sessions as cards, history as rows, and Settings at the foot. Arrow
 /// keys move the selection once the list has been clicked.
 private struct MainSidebar: View {
@@ -54,10 +54,9 @@ private struct MainSidebar: View {
         // The list's first section heads it, with the search button; History follows in the list.
         let leadsWithActive = !model.board.isEmpty
         VStack(alignment: .leading, spacing: 0) {
-            // The logo sits on the window buttons' line, at the sidebar's right edge.
-            HStack { Spacer(); BrandGlyph(size: 14) }.frame(height: 28).padding(.trailing, Space.xs)
+            // The logo sits at the sidebar's right edge, midway between the window's top and the card.
+            HStack { Spacer(); BrandGlyph(size: 14) }.frame(height: 38).padding(.trailing, Space.xs)
             OverviewCard(onOverview: selection == AppModel.overview) { select(AppModel.overview) }
-                .padding(.top, 10)
             listHead(leadsWithActive ? String(localized: "Active") : String(localized: "History"),
                      leadsWithActive ? active.count : nil)
                 .padding(.top, Space.l)

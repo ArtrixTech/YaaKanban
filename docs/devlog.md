@@ -1,8 +1,17 @@
 # Devlog
 
-## feat(main): put the logo mark on the window buttons' line
+## fix(main): centre the logo between the window top and the card
 
 `pending` | 2026-10-31
+
+- **Changes**: The logo row is 38 pt tall (was 28 plus a 10 pt gap to the card), so the mark sits 19 pt down, midway between the window's top edge and the card; card top unchanged at 38 pt. CHANGELOG and spec wording follow; design `sidebar-v10`.
+- **Reason**: On the window buttons' line (14 pt down) it sat too high.
+- **User feedback**: "logo位置太上了，需要在窗体边缘和block上边缘中间"
+- **Result**: make test 202 pass; installed; zoomed snapshot shows the mark midway.
+
+## feat(main): put the logo mark on the window buttons' line
+
+`9386d0e` | 2026-10-31
 
 - **Changes**: `MainSidebar` gets a 28 pt top row with `BrandGlyph(size: 14)` (was 12) at its right edge; the card drops the glyph and keeps "YaaKanban" over 概览, its top still 38 pt (28 + 10). CHANGELOG, spec and design README (`sidebar-v9`) follow.
 - **Reason**: Requested placement.
