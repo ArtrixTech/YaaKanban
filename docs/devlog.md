@@ -1,8 +1,18 @@
 # Devlog
 
-## fix(main): make the Overview card a little shorter and tighter
+## feat(main): show the state counts on the logo row
 
 `pending` | 2026-10-31
+
+- **Changes**: The sidebar's logo row holds `statusCounts(model.activeSessions)` as `CountChip`s (needs input, stuck, review, running; animated like the menu's) left of `BrandGlyph`. CHANGELOG, spec, design `sidebar-v13`.
+- **Reason**: The colored count badges of sidebar-v1/v2 were wanted back, on the window buttons' line.
+- **User feedback**: "在运行的原来的那些不同颜色的badge放到红绿灯logo行去"
+- **Result**: make test pass; installed; snapshot shows 1 stuck and 3 running chips beside the logo, clear of the window buttons.
+- **Notes**: Release 0.2.0 held at the user's request (PR #8 open, not merged).
+
+## fix(main): make the Overview card a little shorter and tighter
+
+`7b67500` | 2026-10-31
 
 - **Changes**: `OverviewCard` height 72 → 66 pt; YaaKanban line to 概览 spacing 10 → 8 pt (`Space.m`). Design `sidebar-v12`.
 - **Reason**: Requested.

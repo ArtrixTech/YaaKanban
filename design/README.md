@@ -48,4 +48,5 @@ Style specimens for the design-system redesign (branch `feature/design-system`).
 | `sidebar-v9` | the logo mark leaves the card for the right end of the window buttons' line (14 pt, was 12; the row is the title bar's 28 pt, centred on the buttons), the card keeps the name over 概览 at the same height | logo 位置太上了，需要在窗体边缘和 block 上边缘中间 |
 | `sidebar-v10` | the logo row is the full 38 pt above the card, so the mark is centred 19 pt down, midway between the window's top and the card | 概览左边加上 home 的图标; then block 稍矮、YaaKanban 和概览距离近一点 |
 | `sidebar-v11` | a house before 概览: first `house.fill` 14 pt semibold at the Label's default gap, then `house` 14 pt medium 4 pt away (`card-session`) | 图标和文字近一点、换简洁图标; then 去掉 home 图标 (dropped, back to v10) |
-| `sidebar-v12` | card 66 pt tall (was 72), 8 pt between the YaaKanban line and 概览 (was 10) | |
+| `sidebar-v12` | card 66 pt tall (was 72), 8 pt between the YaaKanban line and 概览 (was 10) | 在运行的原来的那些不同颜色的 badge 放到红绿灯 logo 行去 |
+| `sidebar-v13` | the active sessions' state counts (`CountChip`, as in v1/v2) in the logo row, left of the logo | |
