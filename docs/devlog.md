@@ -1,8 +1,16 @@
 # Devlog
 
-## feat(main): make the slim capsule the sidebar head
+## refactor(main): drop the trial sidebar heads
 
 `pending` | 2026-10-31
+
+- **Changes**: Removed `SidebarHeadStyle`, the Settings › General trial picker, `Preferences.sidebarStyle` (and the user's `sidebarStyleTrial` default), `OverviewCard` (glass), `OverviewRow`, `OverviewTile`, `FootGlow` and the glow parts of `LeverageHeat` (only `ink` left); `MainSidebar` always shows the logo row and `OverviewPill`; `LeverageFigure` always in the text color. Spec drops the trial clause.
+- **Reason**: The user settled on D: "收尾，可以release了。"
+- **Result**: make test 203 pass; make install; snapshot unchanged from v18.
+
+## feat(main): make the slim capsule the sidebar head
+
+`5273947` | 2026-10-31
 
 - **Changes**: Default trial style `pill` (`Preferences` fallback; the user's stored value set to pill). Pill: house button first, a `.regularMaterial` capsule label "Overview" under it while hovered (replaces `.help`; head gets `zIndex(1)` so it covers the list head); capsule holds `StateCounts` (new, shared with the other styles' top row) at the left and at the right a 3×14 bar in `LeverageHeat.ink`, "Leverage" (secondary, `layoutPriority(-1)` so it truncates first) and the figure in `.primary` (`LeverageFigure(tinted:)`). Window-button row: name then `BrandGlyph(size: 13)` for pill; counts + name for the others. CHANGELOG, spec, design `sidebar-v18`.
 - **Reason**: User chose D and reshaped it.
