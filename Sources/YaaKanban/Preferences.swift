@@ -34,6 +34,9 @@ final class Preferences {
     var panelWidth: CGFloat { didSet { d.set(Double(panelWidth), forKey: "panelWidth") } }
     /// The floating panel's strip of figures (`RecentFigures`), under its header.
     var showRecentStats: Bool { didSet { d.set(showRecentStats, forKey: "showRecentStats") } }
+    /// Trial, to go once one is chosen: how the main window's sidebar shows the way into Overview
+    /// (`SidebarHead.Style`).
+    var sidebarStyle: String { didSet { d.set(sidebarStyle, forKey: "sidebarStyleTrial") } }
     /// Session ids in the order the user arranged them (see `Board`).
     var manualOrder: [String] { didSet { d.set(Array(manualOrder.prefix(500)), forKey: "manualOrder") } }
     /// Pinned session ids, newest pin first; they sit above every status on the boards.
@@ -89,6 +92,7 @@ final class Preferences {
         panelListHeight = d.object(forKey: "panelListHeightManual") == nil ? nil : CGFloat(d.double(forKey: "panelListHeightManual"))
         panelWidth = d.object(forKey: "panelWidth") == nil ? 340 : CGFloat(d.double(forKey: "panelWidth"))
         showRecentStats = d.bool(forKey: "showRecentStats")
+        sidebarStyle = d.string(forKey: "sidebarStyleTrial") ?? "glass"
         manualOrder = d.stringArray(forKey: "manualOrder") ?? []
         pinned = d.stringArray(forKey: "pinnedSessions") ?? []
         suppressWhenWaveFrontmost = d.bool(forKey: "suppressWhenWaveFrontmost")

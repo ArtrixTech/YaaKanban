@@ -236,6 +236,13 @@ extension SettingsView {
                     } label: { Text("First day of the week") }
                     .labelsHidden().fixedSize()
                 }
+                // Trial, to go once a style is chosen; not localized.
+                SettingRow("侧边栏样式（试用）", symbol: "sidebar.left", tint: .purple) {
+                    Picker(selection: Binding(get: { model.settings.sidebarStyle }, set: { model.settings.sidebarStyle = $0 })) {
+                        ForEach(SidebarHeadStyle.allCases, id: \.self) { Text(verbatim: $0.name).tag($0.rawValue) }
+                    } label: { Text(verbatim: "侧边栏样式") }
+                    .labelsHidden().fixedSize()
+                }
                 if language != AppLanguage.atLaunch {
                     SettingRow(String(localized: "Takes effect after YaaKanban restarts.")) {
                         Button("Restart Now") { AppLanguage.relaunch() }.buttonStyle(.action(.primary, size: .small))

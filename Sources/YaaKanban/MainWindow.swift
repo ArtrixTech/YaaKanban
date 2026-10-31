@@ -66,7 +66,7 @@ private struct MainSidebar: View {
                 Text(verbatim: "YaaKanban").font(.ui(.footnote, .semibold)).foregroundStyle(Ink.secondary).lineLimit(1)
             }
             .frame(height: 38).padding(.trailing, Space.xs)
-            OverviewCard(onOverview: selection == AppModel.overview) { select(AppModel.overview) }
+            head
             listHead(leadsWithActive ? String(localized: "Active") : String(localized: "History"),
                      leadsWithActive ? active.count : nil)
                 .padding(.top, Space.l)
@@ -110,6 +110,16 @@ private struct MainSidebar: View {
                 badge: settingsBadge > 0 ? settingsBadge : nil)
         }
         .padding(.horizontal, 10).padding(.bottom, Space.l)
+    }
+
+    @ViewBuilder private var head: some View {
+        let on = selection == AppModel.overview, open = { select(AppModel.overview) }
+        switch SidebarHeadStyle(rawValue: model.settings.sidebarStyle) ?? .glass {
+        case .glass: OverviewCard(onOverview: on, onSelect: open)
+        case .row: OverviewRow(onOverview: on, onSelect: open)
+        case .card: OverviewTile(onOverview: on, onSelect: open)
+        case .pill: OverviewPill(onOverview: on, onSelect: open)
+        }
     }
 
     /// Sessions not on the boards; the active set is computed once, not per session.
@@ -329,6 +339,152 @@ private struct HomeMark: View {
     }
 }
 
+/// Trial, to go once one is chosen: the sidebar's ways into Overview the user switches between in
+/// Settings › General.
+enum SidebarHeadStyle: String, CaseIterable {
+    case glass, row, card, pill
+
+    var name: String {
+        switch self {
+        case .glass: "A 玻璃胶囊（当前）"
+        case .row: "B 列表行"
+        case .card: "C 卡片"
+        case .pill: "D 细胶囊"
+        }
+    }
+}
+
+/// Today's leverage, as the sidebar heads show it.
+@MainActor private func todayLeverage(_ model: AppModel) -> Double? {
+    let _ = model.activityVersion
+    return model.report(Periods(.day, back: 0, now: Date(), calendar: model.settings.calendar).range, buckets: 1).leverage
+}
+
+/// Trial B: Overview as the list's first row, like Settings at the foot: its tile, its name, and
+/// today's figure at the trailing edge in the heat's ink.
+private struct OverviewRow: View {
+    @Environment(AppModel.self) private var model
+    var onOverview: Bool
+    var onSelect: () -> Void
+
+    var body: some View {
+        let leverage = todayLeverage(model)
+        Button(action: onSelect) {
+            HStack(spacing: Space.m) {
+                HomeMark(size: 13).foregroundStyle(.white)
+                    .frame(width: 22, height: 22)
+                    .background(Plate(shape: RoundedRectangle(cornerRadius: Radius.tile(22), style: .continuous), tint: .indigo))
+                Text("Overview").font(.ui(.body, .medium)).lineLimit(1)
+                Spacer(minLength: Space.xs)
+                LeverageFigure(leverage: leverage, size: 13)
+            }
+            .padding(.horizontal, Space.m).frame(height: 34)
+            .modifier(RowHighlight(selected: onOverview))
+        }
+        .buttonStyle(Pressable())
+        .accessibilityAddTraits(onOverview ? .isSelected : [])
+    }
+}
+
+/// Trial C: Overview as a card among the session cards, on their surface: the house and 概览 over
+/// a line saying what the figure is, today's figure at the right, a trace of the heat at its foot.
+private struct OverviewTile: View {
+    @Environment(AppModel.self) private var model
+    var onOverview: Bool
+    var onSelect: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        let leverage = todayLeverage(model)
+        let shape = RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+        HStack(spacing: Space.m) {
+            VStack(alignment: .leading, spacing: Space.xxs) {
+                HStack(spacing: Space.s) {
+                    HomeMark(size: 14)
+                    Text("Overview").font(.ui(.body, .semibold))
+                }
+                Text("Today's leverage").font(.ui(.caption)).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: Space.s)
+            LeverageFigure(leverage: leverage, size: 20)
+        }
+        .lineLimit(1)
+        .padding(.horizontal, Space.l).padding(.vertical, Space.m + Space.xxs)
+        .background {
+            ZStack {
+                shape.fill(hover ? Fill.cardHover : Fill.card)
+                LinearGradient(colors: [LeverageHeat(leverage).ink.opacity(0), LeverageHeat(leverage).ink.opacity(0.12)],
+                               startPoint: .top, endPoint: .bottom).clipShape(shape)
+            }
+            .shadow(color: .black.opacity(0.06), radius: 3, y: 1)
+        }
+        .overlay { if onOverview { shape.fill(Fill.selected) } }
+        .contentShape(shape)
+        .onTapGesture(perform: onSelect)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(onOverview ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction(.default, onSelect)
+        .onHover { hover = $0 }
+        .animation(.easeOut(duration: 0.12), value: hover)
+    }
+}
+
+/// Trial D: v16's two parts made small and plain: a slim capsule on the cards' surface with the
+/// logo and today's figure in the heat's ink, and the bare house button beside it.
+private struct OverviewPill: View {
+    @Environment(AppModel.self) private var model
+    var onOverview: Bool
+    var onSelect: () -> Void
+    @State private var hover = false
+    private static let height: CGFloat = 40
+
+    var body: some View {
+        let leverage = todayLeverage(model)
+        HStack(spacing: Space.s) {
+            HStack(spacing: Space.s) {
+                BrandGlyph(size: 13)
+                Text("Today's leverage").font(.ui(.footnote)).foregroundStyle(.secondary).lineLimit(1)
+                Spacer(minLength: Space.xs)
+                LeverageFigure(leverage: leverage, size: 15)
+            }
+            .padding(.horizontal, Space.l + Space.xxs)
+            .frame(maxWidth: .infinity).frame(height: Self.height)
+            .surface(Capsule())
+            .accessibilityElement(children: .combine)
+
+            Button(action: onSelect) {
+                HomeMark(size: 18).opacity(onOverview || hover ? 1 : 0.75)
+                    .frame(width: Self.height, height: Self.height)
+                    .background(Circle().fill(onOverview ? Fill.selected : hover ? Fill.control.opacity(0.6) : .clear))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(Pressable())
+            .onHover { hover = $0 }
+            .animation(.easeOut(duration: 0.12), value: hover)
+            .accessibilityLabel(Text("Overview"))
+            .accessibilityAddTraits(onOverview ? .isSelected : [])
+            .help(onOverview ? "" : String(localized: "Overview"))
+        }
+    }
+}
+
+/// Today's figure and its ×, the figure in the heat's ink.
+private struct LeverageFigure: View {
+    let leverage: Double?
+    var size: CGFloat
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 1) {
+            Text(verbatim: leverage.map { String(format: "%.1f", $0) } ?? "–").font(.figure(size))
+                .foregroundStyle(LeverageHeat(leverage).ink)
+                .contentTransition(.numericText())
+            if leverage != nil { Text(verbatim: "×").font(.ui(.caption, .semibold)).foregroundStyle(.secondary) }
+        }
+        .lineLimit(1).fixedSize()
+        .help(String(localized: "Today's leverage"))
+    }
+}
+
 /// Leverage on a cool-to-hot scale, by doublings: 1× and under blue, about 3× violet, 8× and over
 /// red. No figure yet: a dim gray.
 private struct LeverageHeat {
@@ -338,6 +494,13 @@ private struct LeverageHeat {
     var base: Color { color(b: 0.07) }
     /// The broad glow, a shade either way along the scale.
     func glow(_ shift: Double) -> Color { color(shift, b: level == nil ? 0.4 : 0.85) }
+    /// Text in the hue, legible on either appearance; secondary ink with no figure yet.
+    var ink: Color {
+        guard let level else { return .secondary }
+        let hue = (0.6 + 0.4 * level + 1).truncatingRemainder(dividingBy: 1)
+        return Color(light: NSColor(hue: hue, saturation: 0.75, brightness: 0.7, alpha: 1),
+                     dark: NSColor(hue: hue, saturation: 0.45, brightness: 1, alpha: 1))
+    }
     /// The pale light along the foot, a step cooler.
     var core: Color { color(-0.06, saturation: 0.5, b: level == nil ? 0.5 : 1) }
 

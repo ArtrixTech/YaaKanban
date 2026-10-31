@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(main): quiet the home button and name the app on the button row
+## feat(main): try four sidebar heads behind a temporary setting
 
 `pending` | 2026-10-31
+
+- **Changes**: `SidebarHeadStyle` (glass, row, card, pill) picked by `Preferences.sidebarStyle` (UserDefaults `sidebarStyleTrial`, default glass) from a non-localized row in Settings › General; `MainSidebar.head` switches. New `OverviewRow` (B), `OverviewTile` (C), `OverviewPill` (D), shared `LeverageFigure` and `LeverageHeat.ink` (the heat's hue, legible in both appearances). Floating panel `BoardHeader` mark gets 4 pt leading padding. Design `sidebar-v17`.
+- **Reason**: The 66 pt magenta capsule read as huge and out of key with the gray sidebar; the user asked for several versions to switch between, the setting to be removed once one is chosen.
+- **User feedback**: "展开状态的logo，左侧要和下面卡片左侧对齐，再往右收一点点。另外，侧边栏现在还是太丑……你可以做几个不同版本让我切换看看（设置里面添加一项，未来选定后删掉）"
+- **Process**: Measured the panel: mark and the figures card both started at x 20 px (10 pt), so "a little right" = 4 pt. Snapshotted each style by quitting the app, `defaults write com.artrix.yaakanban sidebarStyleTrial <style>`, relaunching (Preferences reads at launch); restored the user's value after.
+- **Result**: make install; all four render in dark, light and with Overview selected.
+- **Notes**: No spec or CHANGELOG change until a style is chosen; then delete the losers, the setting and its key.
+
+## feat(main): quiet the home button and name the app on the button row
+
+`4fb7c37` | 2026-10-31
 
 - **Changes**: Window-button row: `Text("YaaKanban")` (footnote semibold, `Ink.secondary`) after the counts. Capsule: rim overlay dropped, only FootGlow + veil + shadow, inlined (the `Pane` modifier removed). Home button: no fill; while Overview is open `Circle` filled black 0.22 (dark) / 0.08 (light), follows the sidebar's scheme instead of forced dark. Capsule `BrandGlyph` 20→16. `BoardHeader` (floating panel) `BrandMark(size: 20)` (tiled) → `BrandGlyph(size: 14)`; `RailHeader` 17→14. CHANGELOG, spec, design `sidebar-v16`.
 - **Reason**: User feedback on v15.
