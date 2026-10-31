@@ -50,4 +50,5 @@ Style specimens for the design-system redesign (branch `feature/design-system`).
 | `sidebar-v11` | a house before 概览: first `house.fill` 14 pt semibold at the Label's default gap, then `house` 14 pt medium 4 pt away (`card-session`) | 图标和文字近一点、换简洁图标; then 去掉 home 图标 (dropped, back to v10) |
 | `sidebar-v12` | card 66 pt tall (was 72), 8 pt between the YaaKanban line and 概览 (was 10) | 在运行的原来的那些不同颜色的 badge 放到红绿灯 logo 行去 |
 | `sidebar-v13` | the active sessions' state counts (`CountChip`, as in v1/v2) in the logo row, left of the logo | 在点开概览之后，概览字样不再显示，左侧显示Yaakanbanlogo，分两行，第一行图形，第二行文字，高度靠近 |
-| `sidebar-v14` | with Overview open the card's left shows the logo mark (18 pt) over the name, 4 pt apart, instead of YaaKanban over 概览 | |
+| `sidebar-v14` | with Overview open the card's left shows the logo mark (18 pt) over the name, 4 pt apart, instead of YaaKanban over 概览 | 接下来我们把侧边栏改成这样……左部分是一个比较长的圆角胶囊……右边这个圆形是一个按钮，里面的 logo 是刚才我发的这张图。点击之后可以进入概览页面……logo 我需要你帮我提取成 SVG 形态……原来在红绿灯这一行位置的图形化 logo 应该去掉 |
+| `sidebar-v15` | the card splits into a capsule (logo mark left, today's leverage right) and a round 66 pt button with the house mark (`Resources/Brand/home.svg`, traced from the supplied artwork) that opens 概览; same lit glass on both; the logo leaves the window-button row | |

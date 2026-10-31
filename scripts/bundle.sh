@@ -18,7 +18,7 @@ IDENTITY="${YAAK_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/de
 IDENTITY="${IDENTITY:--}"
 mkdir -p "$APP/Contents/Resources/AgentIcons"
 cp Resources/AgentIcons/*.svg "$APP/Contents/Resources/AgentIcons/"
-cp Resources/Brand/logo.svg "$APP/Contents/Resources/logo.svg"
+cp Resources/Brand/logo.svg Resources/Brand/home.svg "$APP/Contents/Resources/"
 # The app icon is rendered from the same mark (scripts/icon.swift).
 ICONSET="$(dirname "$APP")/AppIcon.iconset"
 rm -rf "$ICONSET"

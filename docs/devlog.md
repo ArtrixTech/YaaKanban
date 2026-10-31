@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(main): show the logo over the name on an open Overview card
+## feat(main): split the Overview card into a leverage capsule and a home button
 
 `pending` | 2026-10-31
+
+- **Changes**: `OverviewCard` is an HStack of a `Capsule` (`BrandGlyph(size: 20)` left, today's leverage figure right; not clickable) and a 66 pt `Circle` `Button` with `HomeMark` that selects Overview. Both use the new `Pane` modifier (the old FootGlow, veil and gradient rim; lit = veil 0.07 and the brighter rim, on hover or while Overview is open). New `Resources/Brand/home.svg` (220 × 160 path), copied into the bundle by `scripts/bundle.sh`, loaded as a template `NSImage` (`house.fill` fallback). `BrandGlyph` removed from the window-button row; counts stay. CHANGELOG, spec, design `sidebar-v15`.
+- **Reason**: User redesign of the sidebar head.
+- **User feedback**: "左部分是一个比较长的圆角胶囊……右边这个圆形是一个按钮……点击之后可以进入概览页面……提取成 SVG 形态……红绿灯这一行位置的图形化 logo 应该去掉" (artwork: a low house leaning on a tall one, 699 px PNG)
+- **Process**: Traced the PNG by scanning pixel runs per row: shapes span x 241–460, y 271–429; polygons small (0,102)(56,74)(56,160)(0,160), big (56,52)(138,0)(220,52)(220,160)(112,160)(112,102)(56,74) at offset (241,270). Rasterized back: 497 of 21,874 filled pixels differ, all edge antialiasing.
+- **Result**: make install; snapshots show capsule + circle filling the old card's width.
+- **Notes**: The capsule's tooltip is "Today's leverage", the button's "Overview" (existing strings, no new localizations). Selected vs. unselected on the button is subtle (veil and rim only).
+
+## feat(main): show the logo over the name on an open Overview card
+
+`9d00849` | 2026-10-31
 
 - **Changes**: `OverviewCard`'s left side, while Overview is the selection, is `BrandGlyph(size: 18)` over "YaaKanban" (footnote semibold, 4 pt apart) in place of YaaKanban over 概览. CHANGELOG, spec, design `sidebar-v14`.
 - **Reason**: On Overview the page itself says 概览; the card names the app instead.
