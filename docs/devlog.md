@@ -1,8 +1,18 @@
 # Devlog
 
-## feat(main): split the Overview card into a leverage capsule and a home button
+## feat(main): quiet the home button and name the app on the button row
 
 `pending` | 2026-10-31
+
+- **Changes**: Window-button row: `Text("YaaKanban")` (footnote semibold, `Ink.secondary`) after the counts. Capsule: rim overlay dropped, only FootGlow + veil + shadow, inlined (the `Pane` modifier removed). Home button: no fill; while Overview is open `Circle` filled black 0.22 (dark) / 0.08 (light), follows the sidebar's scheme instead of forced dark. Capsule `BrandGlyph` 20→16. `BoardHeader` (floating panel) `BrandMark(size: 20)` (tiled) → `BrandGlyph(size: 14)`; `RailHeader` 17→14. CHANGELOG, spec, design `sidebar-v16`.
+- **Reason**: User feedback on v15.
+- **User feedback**: "原来红绿灯logo位置，增加文字logo……胶囊去掉高光边缘……home按钮，不点的时候没有背景，点了之后稍微深一点即可……图形logo小一点" then "超窄模式的侧边栏的图形logo也小一点，同时展开模式侧边栏的logo换成和超窄一样的"
+- **Process**: Read "展开模式侧边栏" as the unfolded floating panel (its header held the tiled `BrandMark`; the folded rail the bare `BrandGlyph`). The menu popover header still uses `BrandMark(size: 18)`.
+- **Result**: make install; snapshots main (dark, light, overview), panel and rail checked.
+
+## feat(main): split the Overview card into a leverage capsule and a home button
+
+`3134e72` | 2026-10-31
 
 - **Changes**: `OverviewCard` is an HStack of a `Capsule` (`BrandGlyph(size: 20)` left, today's leverage figure right; not clickable) and a 66 pt `Circle` `Button` with `HomeMark` that selects Overview. Both use the new `Pane` modifier (the old FootGlow, veil and gradient rim; lit = veil 0.07 and the brighter rim, on hover or while Overview is open). New `Resources/Brand/home.svg` (220 × 160 path), copied into the bundle by `scripts/bundle.sh`, loaded as a template `NSImage` (`house.fill` fallback). `BrandGlyph` removed from the window-button row; counts stay. CHANGELOG, spec, design `sidebar-v15`.
 - **Reason**: User redesign of the sidebar head.

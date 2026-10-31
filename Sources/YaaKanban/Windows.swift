@@ -20,7 +20,7 @@ struct BoardHeader<Trailing: View>: View {
 
     private func row(named: Bool) -> some View {
         HStack(spacing: 6) {
-            BrandMark(size: 20)
+            BrandGlyph(size: 14)
             if named { Text(verbatim: "YaaKanban").font(.ui(.body, .bold)).lineLimit(1).fixedSize() }
             Spacer(minLength: 4)
             HStack(spacing: 4) {

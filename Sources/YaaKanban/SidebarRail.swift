@@ -27,7 +27,7 @@ extension EnvironmentValues {
 /// unfolds the rail, and its header has the pin.
 struct RailHeader: View {
     var body: some View {
-        BrandGlyph(size: 17).frame(maxWidth: .infinity).frame(height: BoardHeaderHeight.value)
+        BrandGlyph(size: 14).frame(maxWidth: .infinity).frame(height: BoardHeaderHeight.value)
     }
 }
 

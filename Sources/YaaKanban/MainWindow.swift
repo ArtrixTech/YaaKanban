@@ -54,8 +54,8 @@ private struct MainSidebar: View {
         // The list's first section heads it, with the search button; History follows in the list.
         let leadsWithActive = !model.board.isEmpty
         VStack(alignment: .leading, spacing: 0) {
-            // The running sessions' state counts sit at the sidebar's right edge, midway between the
-            // window's top and the card.
+            // The running sessions' state counts and the name sit at the sidebar's right edge, midway
+            // between the window's top and the card.
             HStack(spacing: Space.m) {
                 Spacer()
                 let counts = statusCounts(model.activeSessions)
@@ -63,6 +63,7 @@ private struct MainSidebar: View {
                     ForEach(counts, id: \.0.rank) { st, n in CountChip(count: n, status: st).transition(.scale.combined(with: .opacity)) }
                 }
                 .animation(.snappy, value: counts.map(\.1))
+                Text(verbatim: "YaaKanban").font(.ui(.footnote, .semibold)).foregroundStyle(Ink.secondary).lineLimit(1)
             }
             .frame(height: 38).padding(.trailing, Space.xs)
             OverviewCard(onOverview: selection == AppModel.overview) { select(AppModel.overview) }
@@ -238,14 +239,15 @@ extension MainSidebar {
     }
 }
 
-/// The sidebar's brand and its way into Overview, side by side in dark glass lit from the foot in the
-/// hue of today's leverage (blue when low, violet, red when high): a capsule with the logo and today's
-/// figure, and a round button with the house that opens 概览. The light drifts and changes shape while
-/// the window is key; the button brightens hovered and lights up while 概览 is open.
+/// The sidebar's brand and its way into Overview, side by side: a capsule of dark glass lit from the
+/// foot in the hue of today's leverage (blue when low, violet, red when high) with the logo and today's
+/// figure, its light drifting and changing shape while the window is key; and a round button with the
+/// house that opens 概览, bare until 概览 is open, then a shade darker.
 private struct OverviewCard: View {
     @Environment(AppModel.self) private var model
     @Environment(\.controlActiveState) private var active
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var scheme
     /// Overview is open beside it.
     var onOverview: Bool
     var onSelect: () -> Void
@@ -258,30 +260,41 @@ private struct OverviewCard: View {
         let heat = LeverageHeat(leverage)
         HStack(spacing: Space.s) {
             HStack(spacing: Space.m) {
-                BrandGlyph(size: 20)
+                BrandGlyph(size: 16)
                 Spacer(minLength: Space.s)
                 figure(leverage)
             }
             .padding(.leading, Space.xl).padding(.trailing, Space.xl + Space.xxs)
             .frame(maxWidth: .infinity).frame(height: Self.height)
-            .modifier(Pane(shape: Capsule(), heat: heat, lit: false, live: !(reduceMotion || active == .inactive)))
+            .background {
+                // Only the light is redrawn at 30 fps; still when the window isn't key or motion is reduced.
+                ZStack {
+                    TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion || active == .inactive)) {
+                        FootGlow(heat: heat, t: $0.date.timeIntervalSinceReferenceDate)
+                    }
+                    heat.base.opacity(0.15)
+                }
+                .clipShape(Capsule())
+            }
+            .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
+            .environment(\.colorScheme, .dark)
             .accessibilityElement(children: .combine)
             .help(String(localized: "Today's leverage"))
 
             Button(action: onSelect) {
                 HomeMark(size: 22).opacity(onOverview || hover ? 1 : 0.8)
                     .frame(width: Self.height, height: Self.height)
-                    .modifier(Pane(shape: Circle(), heat: heat, lit: onOverview || hover, live: !(reduceMotion || active == .inactive)))
+                    .background(Circle().fill(.black.opacity(onOverview ? (scheme == .dark ? 0.22 : 0.08) : 0)))
                     .contentShape(Circle())
             }
             .buttonStyle(Pressable())
             .onHover { hover = $0 }
             .animation(.easeOut(duration: 0.15), value: hover)
+            .animation(.easeOut(duration: 0.15), value: onOverview)
             .accessibilityLabel(Text("Overview"))
             .accessibilityAddTraits(onOverview ? .isSelected : [])
             .help(onOverview ? "" : String(localized: "Overview"))
         }
-        .environment(\.colorScheme, .dark)
     }
 
     private func figure(_ leverage: Double?) -> some View {
@@ -295,44 +308,6 @@ private struct OverviewCard: View {
             Text("Today's leverage").font(.ui(.caption, .medium)).foregroundStyle(Ink.secondary)
         }
         .lineLimit(1)
-    }
-}
-
-/// The dark glass both halves are made of: the foot light, dimmed until lit, under an edge faint at
-/// the top and catching the light towards the foot.
-private struct Pane<S: InsettableShape>: ViewModifier {
-    let shape: S
-    let heat: LeverageHeat
-    var lit: Bool
-    /// The light moves; still when the window isn't key or motion is reduced.
-    var live: Bool
-
-    func body(content: Content) -> some View {
-        content
-            .background {
-                // Only the light is redrawn at 30 fps; a view's opacity eases, the canvas would jump.
-                ZStack {
-                    TimelineView(.animation(minimumInterval: 1 / 30, paused: !live)) {
-                        FootGlow(heat: heat, t: $0.date.timeIntervalSinceReferenceDate)
-                    }
-                    heat.base.opacity(lit ? 0.07 : 0.15)
-                }
-                .clipShape(shape)
-            }
-            .overlay {
-                ZStack {
-                    shape.strokeBorder(rim(0.45), lineWidth: 1)
-                    shape.strokeBorder(rim(0.6), lineWidth: 1).opacity(lit ? 1 : 0)
-                }
-            }
-            .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
-    }
-
-    private func rim(_ foot: Double) -> LinearGradient {
-        LinearGradient(stops: [.init(color: .white.opacity(0.2), location: 0), .init(color: .white.opacity(0.08), location: 0.3),
-                               .init(color: heat.core.opacity(foot * 0.15), location: 0.5), .init(color: heat.core.opacity(foot * 0.55), location: 0.78),
-                               .init(color: heat.core.opacity(foot), location: 1)],
-                       startPoint: .top, endPoint: .bottom)
     }
 }
 
