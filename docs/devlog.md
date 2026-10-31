@@ -1,8 +1,17 @@
 # Devlog
 
-## fix(core): forget a previous process's background agents on resume
+## feat(main): show the logo over the name on an open Overview card
 
 `pending` | 2026-10-31
+
+- **Changes**: `OverviewCard`'s left side, while Overview is the selection, is `BrandGlyph(size: 18)` over "YaaKanban" (footnote semibold, 4 pt apart) in place of YaaKanban over 概览. CHANGELOG, spec, design `sidebar-v14`.
+- **Reason**: On Overview the page itself says 概览; the card names the app instead.
+- **User feedback**: "在点开概览之后，概览字样不再显示，左侧显示Yaakanbanlogo，分两行，第一行图形，第二行文字，高度靠近。"
+- **Result**: Snapshot `main-overview` shows mark over name; other pages unchanged.
+
+## fix(core): forget a previous process's background agents on resume
+
+`bcbf50a` | 2026-10-31
 
 - **Changes**: `SessionReducer.apply` clears `backgroundTasks` when an event's `agentPid` differs from the stored one. Test `resumedProcessForgetsTheOldOnesAgents` (fails without the fix: `backgroundTasks` stays `["a1"]`). CHANGELOG Fixed line.
 - **Reason**: Claude session cc693b52 (自制银质方案, artrix-reach) showed 可能卡住 · 10 分钟无新事件 after a finished turn. Its record held `backgroundTasks` a560d731e1c60dcd4 and a2f384fc22a8f3ce3, async Agent launches never notified (no `<task-notification>` with those ids in 98 turns). The process was `claude --resume` started 11:05:31 (pid 3826); `endTurn` saw `awaitsBackground` and kept the 11:16:45 stop running, so the 5 min silence check flagged it.

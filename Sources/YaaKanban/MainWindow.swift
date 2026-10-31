@@ -258,9 +258,17 @@ private struct OverviewCard: View {
         let heat = LeverageHeat(leverage)
         let shape = RoundedRectangle(cornerRadius: Radius.group, style: .continuous)
         HStack(spacing: Space.m) {
-            VStack(alignment: .leading, spacing: Space.m) {
-                Text(verbatim: "YaaKanban").font(.ui(.footnote, .semibold)).foregroundStyle(Ink.secondary).lineLimit(1)
-                Text("Overview").font(.system(size: 17, weight: .semibold)).foregroundStyle(.primary.opacity(0.95))
+            // With Overview open beside it, the card names the app: the mark over the name, close together.
+            if onOverview {
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    BrandGlyph(size: 18)
+                    Text(verbatim: "YaaKanban").font(.ui(.footnote, .semibold)).foregroundStyle(.primary.opacity(0.9)).lineLimit(1)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: Space.m) {
+                    Text(verbatim: "YaaKanban").font(.ui(.footnote, .semibold)).foregroundStyle(Ink.secondary).lineLimit(1)
+                    Text("Overview").font(.system(size: 17, weight: .semibold)).foregroundStyle(.primary.opacity(0.95))
+                }
             }
             Spacer(minLength: Space.s)
             if onOverview {
