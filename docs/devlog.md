@@ -1,8 +1,17 @@
 # Devlog
 
-## docs(design): archive the dropped home icon on the Overview card
+## fix(main): make the Overview card a little shorter and tighter
 
 `pending` | 2026-10-31
+
+- **Changes**: `OverviewCard` height 72 → 66 pt; YaaKanban line to 概览 spacing 10 → 8 pt (`Space.m`). Design `sidebar-v12`.
+- **Reason**: Requested.
+- **User feedback**: "block稍微矮一点点，降低yaakanban文字和概览文字的距离一点点"
+- **Result**: make test pass; installed; checked in zoomed snapshots.
+
+## docs(design): archive the dropped home icon on the Overview card
+
+`bb6638f` | 2026-10-31
 
 - **Changes**: `design/history/sidebar-v11` and its README row; no code change.
 - **Reason**: A house icon before 概览 was tried (filled, then outline and closer) and dropped.

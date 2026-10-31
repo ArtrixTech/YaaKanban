@@ -248,7 +248,7 @@ private struct OverviewCard: View {
         let heat = LeverageHeat(leverage)
         let shape = RoundedRectangle(cornerRadius: Radius.group, style: .continuous)
         HStack(spacing: Space.m) {
-            VStack(alignment: .leading, spacing: Space.m + Space.xxs) {
+            VStack(alignment: .leading, spacing: Space.m) {
                 Text(verbatim: "YaaKanban").font(.ui(.footnote, .semibold)).foregroundStyle(Ink.secondary).lineLimit(1)
                 Text("Overview").font(.system(size: 17, weight: .semibold)).foregroundStyle(.primary.opacity(0.95))
             }
@@ -260,7 +260,7 @@ private struct OverviewCard: View {
             }
         }
         .padding(.horizontal, Space.l + Space.xxs)
-        .frame(height: 72)
+        .frame(height: 66)
         .background {
             // Only the light is redrawn at 30 fps; still when the window isn't key or motion is reduced.
             ZStack {
