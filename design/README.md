@@ -45,3 +45,4 @@ Style specimens for the design-system redesign (branch `feature/design-system`).
 | `sidebar-v6` | 6 pt between the logo line and 概览 (was 3); an arrow on the right while 概览 is open; `main-session` shows the figure, `main-overview` the arrow | 卡片高光要有渐变，现在突变 |
 | `sidebar-v7` | the rim catches the light gradually (white 0.2 at the top, the hue from mid-height up to full at the foot) instead of jumping to it low on the sides; hover eases (a fading veil and rim layer) instead of switching; `card-before` is v6 | logo 和「概览」再上下分开一点 |
 | `sidebar-v8` | 10 pt between the logo line and 概览 (was 6); hover then softened (veil 15% → 7% instead of 0, hovered rim 0.6 instead of 0.8) | hover 高光太亮了 (applied) |
+| `sidebar-v9` | the logo mark leaves the card for the right end of the window buttons' line (14 pt, was 12; the row is the title bar's 28 pt, centred on the buttons), the card keeps the name over 概览 at the same height | |

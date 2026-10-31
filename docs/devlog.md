@@ -1,5 +1,15 @@
 # Devlog
 
+## feat(main): put the logo mark on the window buttons' line
+
+`pending` | 2026-10-31
+
+- **Changes**: `MainSidebar` gets a 28 pt top row with `BrandGlyph(size: 14)` (was 12) at its right edge; the card drops the glyph and keeps "YaaKanban" over 概览, its top still 38 pt (28 + 10). CHANGELOG, spec and design README (`sidebar-v9`) follow.
+- **Reason**: Requested placement.
+- **User feedback**: "帮我把概览block的yaakanban logo的图形logo移到红绿灯同一行、居右侧，比现在稍微大一点点"
+- **Process**: System Events: window top -1142, close button at -1136 with height 16, so the buttons are centred 14 pt down, the centre of the 28 pt row. Snapshots don't draw the window buttons; checked the glyph in zoomed `main`/`main-overview`.
+- **Result**: make test 202 pass; installed.
+
 ## fix(main): soften the Overview card's hover light
 
 `0aeddb2` | 2026-10-31

@@ -34,7 +34,7 @@ struct MainWindow: View {
     }
 }
 
-/// The sidebar: under the window buttons the Overview card, which carries the logo, the list's head with its
+/// The sidebar: the logo on the window buttons' line, under it the Overview card, the list's head with its
 /// search button, the boards' sessions as cards, history as rows, and Settings at the foot. Arrow
 /// keys move the selection once the list has been clicked.
 private struct MainSidebar: View {
@@ -54,8 +54,10 @@ private struct MainSidebar: View {
         // The list's first section heads it, with the search button; History follows in the list.
         let leadsWithActive = !model.board.isEmpty
         VStack(alignment: .leading, spacing: 0) {
+            // The logo sits on the window buttons' line, at the sidebar's right edge.
+            HStack { Spacer(); BrandGlyph(size: 14) }.frame(height: 28).padding(.trailing, Space.xs)
             OverviewCard(onOverview: selection == AppModel.overview) { select(AppModel.overview) }
-                .padding(.top, 38)
+                .padding(.top, 10)
             listHead(leadsWithActive ? String(localized: "Active") : String(localized: "History"),
                      leadsWithActive ? active.count : nil)
                 .padding(.top, Space.l)
@@ -248,10 +250,7 @@ private struct OverviewCard: View {
         let shape = RoundedRectangle(cornerRadius: Radius.group, style: .continuous)
         HStack(spacing: Space.m) {
             VStack(alignment: .leading, spacing: Space.m + Space.xxs) {
-                HStack(spacing: 5) {
-                    BrandGlyph(size: 12)
-                    Text(verbatim: "YaaKanban").font(.ui(.footnote, .semibold)).foregroundStyle(Ink.secondary).lineLimit(1)
-                }
+                Text(verbatim: "YaaKanban").font(.ui(.footnote, .semibold)).foregroundStyle(Ink.secondary).lineLimit(1)
                 Text("Overview").font(.system(size: 17, weight: .semibold)).foregroundStyle(.primary.opacity(0.95))
             }
             Spacer(minLength: Space.s)
