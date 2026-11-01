@@ -84,6 +84,8 @@ struct BrandMark: View {
 /// three falling columns and the green dot under the last (`logo.svg`, its 38 × 36 content box).
 struct BrandGlyph: View {
     var size: CGFloat
+    /// Columns at full ink (a sheen passing over the mark).
+    var lit = false
 
     var body: some View {
         let u = size / 38
@@ -103,7 +105,7 @@ struct BrandGlyph: View {
     }
 
     private func column(_ h: CGFloat, _ opacity: Double, _ u: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: 4 * u, style: .continuous).fill(Color.primary.opacity(opacity))
+        RoundedRectangle(cornerRadius: 4 * u, style: .continuous).fill(Color.primary.opacity(lit ? 1 : opacity))
             .frame(width: 10 * u, height: h * u)
     }
 }

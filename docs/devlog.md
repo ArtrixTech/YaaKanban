@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(main): redesign the session detail page around what the session came to
+## feat(main): enlarge the sidebar logo and sweep light across it on hover
 
 `pending` | 2026-11-01
+
+- **Changes**: `BrandLockup` (new, `MainWindow.swift`) replaces the inline name + mark on the window-button row: name `.callout` semibold (was `.footnote`), `BrandGlyph(size: 15)` (was 13). A lit copy (name in `.primary`, `BrandGlyph(lit: true)` columns at full ink, new parameter in `Windows.swift`) is masked by `Sweep`, an `Animatable` modifier whose band position is the fraction of an ever-growing phase, so each pass animates n → n+1 without a reset frame. While hovered: one 0.9 s easeInOut pass every 2.6 s (`task(id: hover)`, cancelled on exit); Reduce Motion fades the lit copy in instead. Spec, CHANGELOG, design `sidebar-v19`.
+- **Reason**: User request.
+- **User feedback**: "主页的logo稍微大一点点，hover要有流光效果。"
+- **Process**: Hover can't be captured by `yaak snapshot`; a temporary build set the phase to 0.5 (band halfway), snapshotted dark and light, then reverted and reinstalled.
+- **Result**: make build; make install; the halfway frame lights "Kanb" and the columns under the band in both appearances.
+- **Notes**: Animates only while hovered (no idle cost). Release `make install` took ~10+ min this time.
+
+## feat(main): redesign the session detail page around what the session came to
+
+`b6c90bf` | 2026-11-01
 
 - **Changes**: `DetailView.swift` rewritten, `DetailParts.swift` (new: `DetailCard`, `StatTile`, `PhaseStrip`, `ShareBar`, `TimeBar`, `MarkdownView` + `MarkdownCache`, `ReplyText`). YaaCore: `SessionInsight.swift` (new: `ToolKind` by tool name and command head, `Turn.byUser`/`reportsTask`, `TurnInsight`, `SessionState.end(ofTurn:)`, `SessionInsight`, `SessionTimeline`), `Markdown.swift` (new: block parser, fences, lists, folding), `Store.activity(session:)` (lane + reply rows of one session), `AppModel.sessionActivity`. Snapshot entry `main-detail` (1000×2000). L10n: detail keys in 9 tables (449 keys, 0 problems), 5 stale keys dropped. Spec §5 line, CHANGELOG, Architecture. Tests `SessionInsightTests` (223 total pass). Design `detail-v1`.
 - **Reason**: The page showed raw text (unrendered Markdown, raw commands, four raw token numbers); the product analyses sessions rather than chatting with agents.
