@@ -43,6 +43,8 @@
 "Switch to %@ and Copy" = "Basculer vers %@ et copier";
 "Reopen this session in its original terminal?" = "Rouvrir cette session dans son terminal d’origine ?";
 "Reopen" = "Rouvrir";
+"Open this conversation in the Codex app?" = "Ouvrir cette conversation dans l’app Codex ?";
+"Open in Codex" = "Ouvrir dans Codex";
 "Copy Resume Command" = "Copier la commande de reprise";
 "Rename Session" = "Renommer la session";
 "Only changes the name shown in YaaKanban. Leave it empty to go back to the agent’s title." = "Modifie uniquement le nom affiché dans YaaKanban. Laissez vide pour revenir au titre de l’agent.";

@@ -847,8 +847,6 @@ final class AppModel {
         guard let s = sessions[key] else { return }
         record([ActivityRow(at: Date(), session: key, kind: .focus)])
         guard Self.isGone(s) else { telemetry.count(.jump(s.terminal)); jumper.jump(to: s); return }
-        // The Codex app keeps the thread: open it there, with no question to answer.
-        if TerminalJumper.codexAppThread(s) != nil { telemetry.count(.resume); jumper.resume(s); return }
         let runners = waveRunners(for: s)
         let name = s.terminal?.termProgram.flatMap(TerminalJumper.app(forTermProgram:))?.localizedName ?? String(localized: "Terminal")
         let why: String? = s.terminal?.isWave == true && runners.isEmpty ? String(localized: "Wave’s authorization has expired")
@@ -899,6 +897,10 @@ final class AppModel {
             // Nothing can type into that terminal: go there and paste.
             alert.informativeText = String(localized: "\(why), so it can’t be reopened automatically. YaaKanban will switch to \(app) and copy the resume command: open a new terminal there and paste it to continue.")
             alert.addButton(withTitle: String(localized: "Switch to \(app) and Copy"))
+        } else if TerminalJumper.codexAppThread(s) != nil {
+            // The Codex app keeps the thread: reopening it is opening the app at that conversation.
+            alert.informativeText = String(localized: "Open this conversation in the Codex app?")
+            alert.addButton(withTitle: String(localized: "Open in Codex"))
         } else {
             alert.informativeText = String(localized: "Reopen this session in its original terminal?")
             alert.addButton(withTitle: String(localized: "Reopen"))

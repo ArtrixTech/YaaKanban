@@ -1,8 +1,17 @@
 # Devlog
 
-## fix(codex): open a quit Codex app's thread instead of a terminal dialog
+## fix(codex): ask before reopening a quit Codex app's thread
 
 `pending` | 2026-11-01
+
+- **Changes**: Dropped the no-dialog shortcut in `AppModel.jump`; `reopenAlert` gets a Codex app branch ("Open this conversation in the Codex app?", buttons Open in Codex / Copy Resume Command / Cancel). First button goes through `jumper.resume`, which opens `codex://threads/<id>`. Two new strings in all 9 tables.
+- **Reason**: Relaunching Codex on a click with no question was unwanted.
+- **User feedback**: "现在codex退出之后 点对应对话 没有提示就会重新开codex 需要有询问。"
+- **Result**: make build; make l10n (0 problems); make install.
+
+## fix(codex): open a quit Codex app's thread instead of a terminal dialog
+
+`cce5856` | 2026-11-01
 
 - **Changes**: `TerminalJumper.codexAppThread` (new): a Codex session with no `TERM_PROGRAM` and no Wave block is the app's; returns `codex://threads/<id>`. `AppModel.jump` opens it directly for a gone session (no reopen dialog); `resume`/`runsResume` use it instead of `s.terminal == nil`.
 - **Reason**: The app's hooks carry no terminal env, but the envelope stores an empty `TerminalContext` (`{}`), never nil, so the old `terminal == nil` check never matched. Once the Codex app quit (pid dead → gone), the click showed "终端不接受外部输入命令… 切到终端并复制".

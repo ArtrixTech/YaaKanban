@@ -43,6 +43,8 @@
 "Switch to %@ and Copy" = "切換到%@並拷貝";
 "Reopen this session in its original terminal?" = "要在原終端機重新開啟這個工作階段嗎？";
 "Reopen" = "重新開啟";
+"Open this conversation in the Codex app?" = "要在 Codex 桌面版開啟這個對話嗎？";
+"Open in Codex" = "在 Codex 中開啟";
 "Copy Resume Command" = "拷貝恢復指令";
 "Rename Session" = "重新命名工作階段";
 "Only changes the name shown in YaaKanban. Leave it empty to go back to the agent’s title." = "只會更改 YaaKanban 中顯示的名稱。留空則恢復為 agent 的標題。";
