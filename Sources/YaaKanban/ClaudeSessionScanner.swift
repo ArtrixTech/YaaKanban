@@ -33,13 +33,19 @@ final class ClaudeSessionScanner {
         }
     }
 
-    /// Reads the transcript of a session when it changed since the last call; nil otherwise.
-    func peek(_ s: SessionState) -> TranscriptPeek? {
+    /// The transcript of a session when it changed since the last call; nil otherwise. Reading
+    /// it (`TranscriptPeek.read`) is left to the caller, off the main thread.
+    func changedTranscript(_ s: SessionState) -> URL? {
         guard let url = transcriptURL(s),
               let mtime = url.currentModificationDate,
               transcripts[s.sessionId]?.mtime != mtime else { return nil }
         transcripts[s.sessionId] = (url, mtime)
-        return TranscriptPeek.read(url)
+        return url
+    }
+
+    /// The next `changedTranscript` call returns the transcript again even if it is unchanged.
+    func forgetTranscript(_ s: SessionState) {
+        transcripts[s.sessionId]?.mtime = .distantPast
     }
 
     /// Codex thread names (`~/.codex/session_index.jsonl`), reloaded when the file changes.

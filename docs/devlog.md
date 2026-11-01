@@ -1,8 +1,19 @@
 # Devlog
 
+## perf(app): batch session saves and run status animations on layers
+
+`pending` | 2026-11-01
+
+- **Changes**: `AppModel.update` marks sessions unsaved; `flushSaves` (2 s debounce) encodes them on `yaak.save` and writes one transaction (`Store.encode`, `Store.save(batch)`); `stop()` → `saveAllNow`; `remove` drops the pending save. `LoopLayer.swift` (new): CALayer + CABasicAnimation for the `StatusGlyph` spin and halo, the rail `StatusTrack` light, and the card `Flash`, replacing `keyframeAnimator`/`repeatForever`. `report` caches `Store.lanes(before:)` per range start, cleared when a lane row lands before a cached start. `scan` reads Claude transcripts on `yaak.peek` (`ClaudeSessionScanner.changedTranscript`) and drops a read when a hook arrived meanwhile (`forgetTranscript`, re-read next scan). Test `storeSavesEncodedBatch`.
+- **Reason**: The app sat at ~48% of a core.
+- **User feedback**: "对本软件进行性能观察和性能优化分析，目前观察到的比较大的问题是 CPU 占用率比较高" then "按照你的建议来优化，做1-2，后面3-5如果对功能没影响也可以做。"
+- **Process**: `sample` of the live app: main thread ~65% in whole-window `NSHostingView.layout` per animation frame, ~13% `Store.save` (largest session JSON 939 KB, 6.8 ms encode, ~18 saves/s). Standalone harness: 20 SwiftUI spinners 3.1–3.6% CPU, CALayer ≈0%. Adversarial review: save path and lanes cache held; fixed a spinner ring 1 pt too small (`+1` inset) and stale background peeks; dropped a SIGTERM→terminate handler it showed blocks behind a main-queue `runModal` (make install could leave the old app running).
+- **Result**: 60 s average 48.2% (7 running) → 17.9% (5 running); main thread idle 17% → 86% of samples; ingest/save/report no longer show in the main-thread profile.
+- **Notes**: Item 3 (incremental `activeSessions`/board) not done; what is left is SwiftUI re-evaluating views on each `sessions` change plus the 1 s `TimelineView` clocks. A hard kill (pkill, crash) loses up to ~2 s of session snapshots; hooks re-report state. `yaak snapshot` freezes layer animations at rest (ring at 0°, light parked below the track).
+
 ## refactor(main): drop the trial sidebar heads
 
-`pending` | 2026-10-31
+`f2ded66` | 2026-10-31
 
 - **Changes**: Removed `SidebarHeadStyle`, the Settings › General trial picker, `Preferences.sidebarStyle` (and the user's `sidebarStyleTrial` default), `OverviewCard` (glass), `OverviewRow`, `OverviewTile`, `FootGlow` and the glow parts of `LeverageHeat` (only `ink` left); `MainSidebar` always shows the logo row and `OverviewPill`; `LeverageFigure` always in the text color. Spec drops the trial clause.
 - **Reason**: The user settled on D: "收尾，可以release了。"

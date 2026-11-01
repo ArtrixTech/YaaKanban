@@ -129,24 +129,9 @@ private struct StatusTrack: View {
             shape.fill(status == .running ? status.tint.opacity(0.22)
                        : status.isLoud ? status.tint.opacity(0.55) : Color.primary.opacity(0.08))
             if status == .running {
-                GeometryReader { g in
-                    let run = min(24, g.size.height * 0.45)
-                    // Only the system tint, as everywhere else, so it follows the light or dark look
-                    // the glass picks; opaque through its middle, fading only at the ends.
-                    shape.fill(LinearGradient(stops: [.init(color: status.tint.opacity(0), location: 0),
-                                                      .init(color: status.tint, location: 0.4),
-                                                      .init(color: status.tint, location: 0.8),
-                                                      .init(color: status.tint.opacity(0), location: 1)],
-                                              startPoint: .top, endPoint: .bottom))
-                        .frame(width: g.size.width, height: run)
-                        .keyframeAnimator(initialValue: 0.0, repeating: true) { v, t in
-                            v.offset(y: -run + t * (g.size.height + run))
-                        } keyframes: { _ in
-                            CubicKeyframe(1.0, duration: 1.4)
-                            LinearKeyframe(1.0, duration: 0.3)
-                        }
-                }
-                .clipShape(shape)
+                // Only the system tint, as everywhere else, so it follows the light or dark look
+                // the glass picks.
+                LoopLayer(kind: .light(length: 24), tint: status.tint)
             }
         }
         .frame(width: 2.5)

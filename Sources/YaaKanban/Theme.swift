@@ -45,24 +45,9 @@ struct StatusGlyph: View {
 
     var body: some View {
         ZStack {
-            if status.isLoud {
-                Circle().fill(status.tint.opacity(0.25))
-                    .keyframeAnimator(initialValue: 0.0, repeating: true) { v, t in
-                        v.scaleEffect(1 + t * 0.45).opacity(1 - t)
-                    } keyframes: { _ in
-                        LinearKeyframe(1.0, duration: 1.6)
-                    }
-            }
             Circle().fill(status.tint.opacity(status.isLoud ? 0.18 : 0.10))
             if status == .running {
-                Circle().trim(from: 0, to: 0.7)
-                    .stroke(status.tint, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .padding(size * 0.22)
-                    .keyframeAnimator(initialValue: 0.0, repeating: true) { v, deg in
-                        v.rotationEffect(.degrees(deg))
-                    } keyframes: { _ in
-                        LinearKeyframe(360.0, duration: 1.1)
-                    }
+                LoopLayer(kind: .spin(lineWidth: 2, inset: size * 0.22), tint: status.tint)
             } else {
                 Image(systemName: status.symbol)
                     .font(.system(size: size * 0.48, weight: .semibold))
@@ -70,6 +55,8 @@ struct StatusGlyph: View {
             }
         }
         .frame(width: size, height: size)
+        // Behind, and free to swell past the glyph's frame.
+        .background { if status.isLoud { LoopLayer(kind: .halo, tint: status.tint) } }
         .animation(.smooth, value: status)
     }
 }
@@ -167,12 +154,7 @@ private struct SessionSurface: ViewModifier {
 private struct Flash: View {
     let tint: Color
     let radius: CGFloat
-    @State private var on = false
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        shape.fill(tint.opacity(on ? 0.34 : 0.04))
-            .onAppear { withAnimation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true)) { on = true } }
-    }
+    var body: some View { LoopLayer(kind: .flash(radius: radius), tint: tint) }
 }
 
 /// Blue wash, from nothing to clearly blue at `amount` 1.

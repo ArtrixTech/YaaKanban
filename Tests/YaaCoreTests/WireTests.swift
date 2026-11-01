@@ -107,4 +107,16 @@ private func tempPaths() -> Paths {
         #expect(purged.tools[0].summary == "ls")
         #expect(purged.tools[0].output == nil)
     }
+
+    @Test func storeSavesEncodedBatch() throws {
+        let store = try Store(path: tempPaths().database)
+        let a = SessionState(agent: .codex, sessionId: "a", at: Date(timeIntervalSince1970: 0))
+        var b = SessionState(agent: .claudeCode, sessionId: "b", at: Date(timeIntervalSince1970: 10))
+        store.save([(a, try #require(Store.encode(a))), (b, try #require(Store.encode(b)))])
+        b.customName = "renamed"
+        store.save([(b, try #require(Store.encode(b)))])
+        #expect(store.loadAll() == [b, a])
+        store.save([])
+        #expect(store.loadAll().count == 2)
+    }
 }

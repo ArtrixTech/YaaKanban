@@ -360,6 +360,7 @@ final class AppModel {
 
     func stop() {
         endAway(at: Date())
+        saveAllNow()
         store?.setMeta(Self.heartbeatKey, Date().timeIntervalSince1970)
         server?.stop()
         for (_, r) in pendingReplies { r.send(Wire.encode(WireReply(decision: nil))) }
@@ -418,7 +419,7 @@ final class AppModel {
         sessions[key] = new
         // The tick and the scan pass every session through here; rewriting the unchanged ones
         // dirtied gigabytes a day.
-        if new != old { store?.save(new) }
+        if new != old { markUnsaved(key) }
         record(Activity.rows(old: old, new: new, now: Date()))
         if old?.pendingPermission?.awaitingDecision == true && new.pendingPermission?.awaitingDecision != true {
             pendingReplies.removeValue(forKey: key)?.send(Wire.encode(WireReply(decision: nil)))
@@ -431,7 +432,57 @@ final class AppModel {
         return key
     }
 
-    // MARK: Permissions
+    // MARK: Saving
+
+    /// Sessions changed since they were last written. A busy session changes many times a second
+    /// and its snapshot can be close to a megabyte, so changes are written together, a moment later,
+    /// and encoded off the main thread.
+    @ObservationIgnored private var unsaved: Set<String> = []
+    /// Sessions handed to the encoder and not yet written, with how many batches hold each.
+    @ObservationIgnored private var encoding: [String: Int] = [:]
+    @ObservationIgnored private var saveScheduled = false
+    @ObservationIgnored private let encoder = DispatchQueue(label: "yaak.save", qos: .utility)
+    static let saveDelay: TimeInterval = 2
+
+    private func markUnsaved(_ key: String) {
+        unsaved.insert(key)
+        guard !saveScheduled else { return }
+        saveScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.saveDelay) { [weak self] in
+            MainActor.assumeIsolated { self?.flushSaves() }
+        }
+    }
+
+    private func flushSaves() {
+        saveScheduled = false
+        let batch = unsaved.compactMap { sessions[$0] }
+        unsaved = []
+        guard !batch.isEmpty else { return }
+        for s in batch { encoding[s.id, default: 0] += 1 }
+        // One serial queue and FIFO main-queue hops: batches are written in the order they were taken.
+        encoder.async { [weak self] in
+            let encoded = batch.compactMap { s in Store.encode(s).map { (s, $0) } }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    // Deleted meanwhile: the delete stands. Changed meanwhile: the newer state is
+                    // unsaved again and goes out with the next batch.
+                    self.store?.save(encoded.filter { self.sessions[$0.0.id] != nil })
+                    for s in batch {
+                        let n = (self.encoding[s.id] ?? 1) - 1
+                        self.encoding[s.id] = n > 0 ? n : nil
+                    }
+                }
+            }
+        }
+    }
+
+    /// Writes every pending change now, on this thread (at quit).
+    private func saveAllNow() {
+        let keys = unsaved.union(encoding.keys)
+        unsaved = []
+        store?.save(keys.compactMap { k in sessions[k].flatMap { s in Store.encode(s).map { (s, $0) } } })
+    }
 
     /// `requestId` is the request the user saw (panel or notification); it must match the one
     /// still pending, so a stale button or notification can never approve a newer command.
@@ -510,19 +561,38 @@ final class AppModel {
         }
         for s in sessions.values where s.parentId == nil && s.status != .ended { linkParent(s.id) }
         // Titles for every live session; for unhooked ones also the latest prompt and reply.
+        var transcripts: [(key: String, url: URL, at: Date)] = []
         for s in activeSessions {
-            var peek: TranscriptPeek?
             switch s.agent {
-            case .claudeCode: peek = scanner.peek(s)
+            case .claudeCode:
+                if let url = scanner.changedTranscript(s) { transcripts.append((s.id, url, s.lastEventAt)) }
             case .codex:
-                if let t = scanner.codexTitle(s.sessionId), t != s.peek?.title { peek = s.peek ?? TranscriptPeek(); peek?.title = t }
+                if let t = scanner.codexTitle(s.sessionId), t != s.peek?.title {
+                    var peek = s.peek ?? TranscriptPeek()
+                    peek.title = t
+                    setPeek(s.id, peek)
+                }
             default: break
             }
-            guard let peek, peek != s.peek else { continue }
-            update(s.id, alert: false) { s in
-                guard var s else { return nil }
-                s.peek = peek
-                return s
+        }
+        // Up to 512 KB of JSON lines each: read and parsed in the background.
+        if !transcripts.isEmpty {
+            peekQueue.async { [weak self] in
+                let read = transcripts.compactMap { t in TranscriptPeek.read(t.url).map { (t.key, t.at, $0) } }
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        guard let self else { return }
+                        for (key, at, peek) in read {
+                            // A hook arrived while it was read (a new prompt, a title): the peek may
+                            // be older than that, so read it again on the next scan instead.
+                            guard let s = self.sessions[key], s.lastEventAt == at else {
+                                self.sessions[key].map { self.scanner.forgetTranscript($0) }
+                                continue
+                            }
+                            self.setPeek(key, peek)
+                        }
+                    }
+                }
             }
         }
         usageTracker.refresh(activeSessions.map {
@@ -543,6 +613,17 @@ final class AppModel {
                     return s
                 }
             }
+        }
+    }
+
+    @ObservationIgnored private let peekQueue = DispatchQueue(label: "yaak.peek", qos: .utility)
+
+    private func setPeek(_ key: String, _ peek: TranscriptPeek) {
+        guard sessions[key]?.peek != peek else { return }
+        update(key, alert: false) { s in
+            guard var s else { return nil }
+            s.peek = peek
+            return s
         }
     }
 
@@ -583,6 +664,9 @@ final class AppModel {
     @ObservationIgnored private var tokensFlushedAt = Date()
     @ObservationIgnored private var reports: [ReportKey: (version: Int, at: Date, report: ActivityReport)] = [:]
     private struct ReportKey: Hashable { var range: DateInterval; var buckets: Int }
+    /// Each session's lane just before a report's start. Rows are recorded at or near the present,
+    /// so for a start already past this no longer changes; `record` drops it when one lands earlier.
+    @ObservationIgnored private var lanesBefore: [Date: [String: Lane]] = [:]
 
     /// The session's lane, as the boards show it: one past its retention has left the lanes.
     private func lane(_ s: SessionState?) -> Lane? {
@@ -600,6 +684,8 @@ final class AppModel {
         }
         guard !rows.isEmpty else { return }
         for r in rows where r.kind == .lane { recordedLanes[r.session] = Lane(rawValue: r.text) }
+        // A lane row before a cached start changes what was open there (rows are almost always "now").
+        if rows.contains(where: { r in r.kind == .lane && lanesBefore.keys.contains { r.at < $0 } }) { lanesBefore = [:] }
         // The heartbeat covers the rows just written, so lanes left open at a quit close after them.
         store.record(rows, meta: [Self.heartbeatKey: Date().timeIntervalSince1970])
         activityVersion += 1
@@ -689,8 +775,11 @@ final class AppModel {
             if range.end <= c.at ? age < 600 : (c.version == activityVersion || age < 5) && age < 30 { return c.report }
         }
         if reports.count > 24 { reports = [:] }
+        if lanesBefore.count > 24 { lanesBefore = [:] }
+        let before = lanesBefore[range.start] ?? store.lanes(before: range.start)
+        lanesBefore[range.start] = before
         let r = ActivityReport.compute(rows: store.activity(from: range.start, to: min(range.end, now)),
-                                       lanesBefore: store.lanes(before: range.start), range: range, now: now,
+                                       lanesBefore: before, range: range, now: now,
                                        awaySince: awaySince, recordedSince: recordedSince, buckets: buckets, edges: edges)
         reports[key] = (activityVersion, now, r)
         return r
@@ -891,6 +980,7 @@ final class AppModel {
     func remove(_ key: String) {
         settings.pinned.removeAll { $0 == key }
         sessions[key] = nil
+        unsaved.remove(key)
         store?.delete(id: key)
     }
 }

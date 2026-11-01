@@ -7,6 +7,9 @@ the update.
 
 ## [Unreleased]
 
+### Changed
+- Uses much less CPU while agents are running: status animations no longer redraw the windows every frame, and session history is written in batches in the background instead of on every hook event.
+
 ## [0.2.0] - 2026-10-31
 
 ### Added

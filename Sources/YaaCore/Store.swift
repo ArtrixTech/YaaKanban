@@ -58,8 +58,24 @@ public final class Store {
     }
 
     public func save(_ s: SessionState) {
-        let enc = JSONEncoder()
-        guard let data = try? enc.encode(Self.persistable(s)) else { return }
+        guard let data = Self.encode(s) else { return }
+        save(s, json: data)
+    }
+
+    /// The JSON `save` writes; safe off the main thread, so a caller can encode in the background.
+    public static func encode(_ s: SessionState) -> Data? {
+        try? JSONEncoder().encode(persistable(s))
+    }
+
+    /// Writes several sessions already encoded by `encode`, in one transaction.
+    public func save(_ batch: [(SessionState, Data)]) {
+        guard !batch.isEmpty else { return }
+        try? exec("BEGIN")
+        for (s, data) in batch { save(s, json: data) }
+        try? exec("COMMIT")
+    }
+
+    private func save(_ s: SessionState, json data: Data) {
         var stmt: OpaquePointer?
         let sql = "INSERT OR REPLACE INTO sessions (id, agent, status, last_event_at, slim, json) VALUES (?,?,?,?,0,?)"
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
