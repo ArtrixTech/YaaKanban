@@ -1,8 +1,17 @@
 # Devlog
 
-## fix(panel): keep the header row inside a narrow panel
+## style(main): slim the sidebar's Overview row
 
 `pending` | 2026-11-01
+
+- **Changes**: `OverviewPill.height` 40 → 34 pt (the house button's circle and the capsule beside it); content and the hover label's offset follow it. CHANGELOG, design `sidebar-v21`.
+- **Reason**: User request.
+- **User feedback**: "收窄一点侧边栏的home按钮这一行上下两端的留白"
+- **Result**: make build; make install; before/after snapshots in `design/history/sidebar-v21`.
+
+## fix(panel): keep the header row inside a narrow panel
+
+`3b0cf69` | 2026-11-01
 
 - **Changes**: `BoardHeader`'s `ViewThatFits` gains two rows after the unnamed one: `chips: .tight` (row spacing 6 → `Space.xs`, chip spacing 4 → `Space.xxs`, chip padding 7 → 4 pt) and `chips: .bare` (the same, chips without their capsule, 2 pt padding). `CountChip.Style` (new, `Theme.swift`; default `.regular`, so the sidebar capsule is unchanged). The fitted row sits in `.frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)`. CHANGELOG Fixed, design `panel-v1`.
 - **Reason**: Docked at 300 pt (the minimum) the header holds the fold button, three window buttons and ×; with four state chips even the unnamed row was ~20–30 pt too wide. `ViewThatFits` then lays out its last child at its ideal width and the panel centres it, so the logo was clipped on the left and × pushed out on the right.

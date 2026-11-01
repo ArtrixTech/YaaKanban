@@ -330,7 +330,7 @@ private struct OverviewPill: View {
     var onOverview: Bool
     var onSelect: () -> Void
     @State private var hover = false
-    private static let height: CGFloat = 40
+    private static let height: CGFloat = 34
 
     var body: some View {
         let leverage = todayLeverage(model)
