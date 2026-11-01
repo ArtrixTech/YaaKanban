@@ -267,9 +267,10 @@ private struct BrandLockup: View {
 
     private func logo(lit: Bool) -> some View {
         HStack(spacing: Space.s) {
-            Text(verbatim: "YaaKanban").font(.ui(.callout, .semibold))
+            // Between the footnote/13 pt lockup it had and the callout/15 pt one it was enlarged to.
+            Text(verbatim: "YaaKanban").font(.system(size: 11.5, weight: .semibold))
                 .foregroundStyle(lit ? Color.primary : Ink.secondary).lineLimit(1)
-            BrandGlyph(size: 15, lit: lit)
+            BrandGlyph(size: 14, lit: lit)
         }
     }
 

@@ -1,8 +1,19 @@
 # Devlog
 
-## style(main): restore the Overview row's height and even the logo's gaps
+## style(main): bring the sidebar logo halfway back to its earlier size
 
 `pending` | 2026-11-01
+
+- **Changes**: `BrandLockup.logo`: name `.system(size: 11.5, weight: .semibold)` (was `.ui(.callout)`, 12; before fd0396b `.footnote`, 11), `BrandGlyph(size: 14)` (was 15; before 13). Spec clause, design `sidebar-v23`.
+- **Reason**: User decision: the enlargement went too far; halfway between the two.
+- **User feedback**: "Logo 整体小一点点。之前有一次让你放大，请你改到当前的大小和之前那个比较小的状态的中间的位置"
+- **Process**: Snapshot measured at 2×: mark 12.5 pt from the window's top and from the capsule (the 38 pt row still centres it).
+- **Result**: make build; make install.
+- **Notes**: 11.5 pt has no `TextSize` token; it is a raw size for this lockup only.
+
+## style(main): restore the Overview row's height and even the logo's gaps
+
+`eaf2630` | 2026-11-01
 
 - **Changes**: `OverviewPill.height` back to 40 pt; the logo row drops its `.padding(.bottom, Space.xs)` (from 90095e0); the list head's top padding `Space.l` → `Space.m + Space.xxs` (12 → 10 pt). Design `sidebar-v22`.
 - **Reason**: The user wanted the slimmer row's spacing, not a shorter button; and the logo as far from the window's top as from the row below.
