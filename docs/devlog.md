@@ -1,8 +1,17 @@
 # Devlog
 
-## style(main): bring the sidebar logo halfway back to its earlier size
+## style(main): lower the sidebar's Overview row by 2 pt
 
 `pending` | 2026-11-01
+
+- **Changes**: `OverviewPill` in `MainSidebar` gets `.padding(.top, Space.xxs)`; the list head and list move down with it. Design `sidebar-v24`.
+- **Reason**: User request.
+- **User feedback**: "home/杠杆栏整体下移2pt"
+- **Result**: make build; make install; snapshot at 2×: capsule top 38 → 40 pt, 活跃 96 → 98 pt; logo 12.5 pt from the top, 14.5 pt from the capsule (no longer equal, by request).
+
+## style(main): bring the sidebar logo halfway back to its earlier size
+
+`4eb1a67` | 2026-11-01
 
 - **Changes**: `BrandLockup.logo`: name `.system(size: 11.5, weight: .semibold)` (was `.ui(.callout)`, 12; before fd0396b `.footnote`, 11), `BrandGlyph(size: 14)` (was 15; before 13). Spec clause, design `sidebar-v23`.
 - **Reason**: User decision: the enlargement went too far; halfway between the two.

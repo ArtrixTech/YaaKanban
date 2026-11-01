@@ -61,8 +61,10 @@ private struct MainSidebar: View {
                 BrandLockup()
             }
             .frame(height: 38).padding(.trailing, Space.xs)
-            // Above the list's head, which the Overview button's label may cover.
-            OverviewPill(onOverview: selection == AppModel.overview) { select(AppModel.overview) }.zIndex(1)
+            // Above the list's head, which the Overview button's label may cover; a little lower than
+            // midway under the logo.
+            OverviewPill(onOverview: selection == AppModel.overview) { select(AppModel.overview) }
+                .padding(.top, Space.xxs).zIndex(1)
             listHead(leadsWithActive ? String(localized: "Active") : String(localized: "History"),
                      leadsWithActive ? active.count : nil)
                 .padding(.top, Space.m + Space.xxs)
