@@ -1,8 +1,19 @@
 # Devlog
 
-## style(main): slim the sidebar's Overview row
+## style(main): restore the Overview row's height and even the logo's gaps
 
 `pending` | 2026-11-01
+
+- **Changes**: `OverviewPill.height` back to 40 pt; the logo row drops its `.padding(.bottom, Space.xs)` (from 90095e0); the list head's top padding `Space.l` → `Space.m + Space.xxs` (12 → 10 pt). Design `sidebar-v22`.
+- **Reason**: The user wanted the slimmer row's spacing, not a shorter button; and the logo as far from the window's top as from the row below.
+- **User feedback**: "按钮本身的高度请恢复到原来的高度，只是说希望上下的留白保留现在这个缩窄之后的版本。另外确保红绿灯这一行的 logo 的到顶上和到下面这一行的上下留白等距离"
+- **Process**: Measured on `yaak snapshot` main.png (2×) at x 150 pt: v21 logo mark 12 pt from the top, 16 pt to the capsule; v22 12 and 12 pt, capsule 40 pt, 活跃 at the same y as v21.
+- **Result**: make build; make install.
+- **Notes**: The 38 pt logo row centres the 15 pt mark, so equal gaps follow from the row height alone; any padding under it unbalances them.
+
+## style(main): slim the sidebar's Overview row
+
+`4c816da` | 2026-11-01
 
 - **Changes**: `OverviewPill.height` 40 → 34 pt (the house button's circle and the capsule beside it); content and the hover label's offset follow it. CHANGELOG, design `sidebar-v21`.
 - **Reason**: User request.

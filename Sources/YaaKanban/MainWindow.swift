@@ -54,18 +54,18 @@ private struct MainSidebar: View {
         // The list's first section heads it, with the search button; History follows in the list.
         let leadsWithActive = !model.board.isEmpty
         VStack(alignment: .leading, spacing: 0) {
-            // The whole logo, its mark last, at the sidebar's right edge, level with the window buttons,
-            // a little clear of the Overview row.
+            // The whole logo, its mark last, at the sidebar's right edge, level with the window buttons
+            // and as far from the window's top as from the Overview row.
             HStack(spacing: 0) {
                 Spacer()
                 BrandLockup()
             }
-            .frame(height: 38).padding(.trailing, Space.xs).padding(.bottom, Space.xs)
+            .frame(height: 38).padding(.trailing, Space.xs)
             // Above the list's head, which the Overview button's label may cover.
             OverviewPill(onOverview: selection == AppModel.overview) { select(AppModel.overview) }.zIndex(1)
             listHead(leadsWithActive ? String(localized: "Active") : String(localized: "History"),
                      leadsWithActive ? active.count : nil)
-                .padding(.top, Space.l)
+                .padding(.top, Space.m + Space.xxs)
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: Space.s) {
@@ -330,7 +330,7 @@ private struct OverviewPill: View {
     var onOverview: Bool
     var onSelect: () -> Void
     @State private var hover = false
-    private static let height: CGFloat = 34
+    private static let height: CGFloat = 40
 
     var body: some View {
         let leverage = todayLeverage(model)
