@@ -1,8 +1,18 @@
 # Devlog
 
-## style(main): lower the sidebar's Overview row by 2 pt
+## chore(release): bump the version to 0.2.1
 
 `pending` | 2026-11-01
+
+- **Changes**: `Resources/Info.plist` 0.2.0 (4) → 0.2.1 (5); CHANGELOG `[Unreleased]` entries now under `[0.2.1] - 2026-11-01`.
+- **Reason**: Release the detail page, CPU, panel header and sidebar logo work.
+- **User feedback**: "完成之后发新的版本，小版本号+1。"
+- **Process**: make test 223 pass; make l10n 0 problems. Read "小版本号+1" as the last digit, as 0.1.1 → 0.1.2 was.
+- **Notes**: Signed by team 5JF32B7C33 like 0.2.0, so 0.2.0 installs accept the update.
+
+## style(main): lower the sidebar's Overview row by 2 pt
+
+`cca29b8` | 2026-11-01
 
 - **Changes**: `OverviewPill` in `MainSidebar` gets `.padding(.top, Space.xxs)`; the list head and list move down with it. Design `sidebar-v24`.
 - **Reason**: User request.
