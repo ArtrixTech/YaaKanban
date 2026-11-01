@@ -1,8 +1,19 @@
 # Devlog
 
-## style(main): leave a little more room under the sidebar logo
+## fix(panel): keep the header row inside a narrow panel
 
 `pending` | 2026-11-01
+
+- **Changes**: `BoardHeader`'s `ViewThatFits` gains two rows after the unnamed one: `chips: .tight` (row spacing 6 → `Space.xs`, chip spacing 4 → `Space.xxs`, chip padding 7 → 4 pt) and `chips: .bare` (the same, chips without their capsule, 2 pt padding). `CountChip.Style` (new, `Theme.swift`; default `.regular`, so the sidebar capsule is unchanged). The fitted row sits in `.frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)`. CHANGELOG Fixed, design `panel-v1`.
+- **Reason**: Docked at 300 pt (the minimum) the header holds the fold button, three window buttons and ×; with four state chips even the unnamed row was ~20–30 pt too wide. `ViewThatFits` then lays out its last child at its ideal width and the panel centres it, so the logo was clipped on the left and × pushed out on the right.
+- **User feedback**: "严重bug。悬浮窗在四色badge都出现的时候会导致布局变动" (screenshot), then on a test build "仍看到是这个问题" and "左侧没有边框宽度了 右侧很大".
+- **Process**: Test build 1 (counts 12/3/15/8, one extra button) fit in the 300 pt snapshot, but the live docked panel adds the fold button: six buttons, still too wide for the tight row, and centred. Added the bare row and leading alignment; test build 2 (12/13/15/18, two extra buttons) fit with the logo at its inset. `.frame(maxWidth: .infinity, alignment: .leading)` alone does not stop the centring when the child overflows; `minWidth: 0` added. Reverted the test code and reinstalled.
+- **Result**: make build; make install.
+- **Notes**: Five buttons (docked) with four two-digit chips leave ~6 pt; past that the row now overflows on the right only.
+
+## style(main): leave a little more room under the sidebar logo
+
+`90095e0` | 2026-11-01
 
 - **Changes**: `MainSidebar` logo row gets `.padding(.bottom, Space.xs)` (4 pt) under its 38 pt frame, so the logo stays level with the window buttons and the Overview row moves down 4 pt. Design `sidebar-v20`.
 - **Reason**: User request.

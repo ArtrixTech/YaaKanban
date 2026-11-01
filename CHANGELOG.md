@@ -13,6 +13,7 @@ the update.
 - Uses much less CPU while agents are running: status animations no longer redraw the windows every frame, and session history is written in batches in the background instead of on every hook event.
 
 ### Fixed
+- With all four state counts showing, the floating panel's top row no longer spills past its edges, cutting off the logo and pushing out the close button; in a narrow panel the counts get tighter and then lose their capsules.
 - Clicking a Codex app session after the app has quit offers to open the app at that conversation, instead of asking you to paste a resume command into a terminal.
 
 ## [0.2.0] - 2026-10-31

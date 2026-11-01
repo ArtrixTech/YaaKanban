@@ -9,24 +9,31 @@ struct BoardHeader<Trailing: View>: View {
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
-        // A narrow panel drops the name rather than squeezing the buttons out of the window.
+        // A narrow panel drops the name, then tightens the chips and gaps, then drops the chips'
+        // capsules, rather than pushing the logo and the buttons out of the window: docked at 300 pt
+        // the row also holds the fold button, and four chips need a tighter row.
         ViewThatFits(in: .horizontal) {
             row(named: true)
             row(named: false)
+            row(named: false, chips: .tight)
+            row(named: false, chips: .bare)
         }
+        // Should even the last row not fit, it overflows past the buttons, never past the logo
+        // (without `minWidth: 0` the frame takes the row's width and the panel centres it).
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
         // One line, the same height as the folded header, so cards keep their place.
         .frame(height: BoardHeaderHeight.value)
     }
 
-    private func row(named: Bool) -> some View {
-        HStack(spacing: 6) {
+    private func row(named: Bool, chips: CountChip.Style = .regular) -> some View {
+        HStack(spacing: chips == .regular ? 6 : Space.xs) {
             // In from the edge, level with the cards' content rather than their corners.
             BrandGlyph(size: 14).padding(.leading, Space.xs)
             if named { Text(verbatim: "YaaKanban").font(.ui(.body, .bold)).lineLimit(1).fixedSize() }
             Spacer(minLength: 4)
-            HStack(spacing: 4) {
+            HStack(spacing: chips == .regular ? 4 : Space.xxs) {
                 let counts = self.counts
-                ForEach(counts, id: \.0.rank) { st, n in CountChip(count: n, status: st).transition(.scale.combined(with: .opacity)) }
+                ForEach(counts, id: \.0.rank) { st, n in CountChip(count: n, status: st, style: chips).transition(.scale.combined(with: .opacity)) }
             }
             .fixedSize()
             .animation(.snappy, value: counts.map(\.1))

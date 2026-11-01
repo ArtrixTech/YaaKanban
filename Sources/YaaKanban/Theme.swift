@@ -74,13 +74,16 @@ struct StatusPill: View {
 struct CountChip: View {
     let count: Int
     let status: DisplayStatus
+    /// Where a row would otherwise not fit: `tight` pads less, `bare` drops the capsule.
+    enum Style { case regular, tight, bare }
+    var style: Style = .regular
     var body: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: style == .regular ? 3 : Space.xxs) {
             Circle().fill(status.tint).frame(width: 6, height: 6)
             Text("\(count)").font(.figure(11)).contentTransition(.numericText())
         }
-        .padding(.horizontal, 7).padding(.vertical, 3)
-        .background(status.tint.soft(), in: Capsule())
+        .padding(.horizontal, style == .regular ? 7 : style == .tight ? Space.xs : Space.xxs).padding(.vertical, 3)
+        .background(style == .bare ? Color.clear : status.tint.soft(), in: Capsule())
         .help("\(count) \(status.label)")
     }
 }
