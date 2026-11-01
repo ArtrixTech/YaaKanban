@@ -43,6 +43,8 @@
 "Switch to %@ and Copy" = "Перейти в %@ и скопировать";
 "Reopen this session in its original terminal?" = "Открыть этот сеанс заново в исходном терминале?";
 "Reopen" = "Открыть заново";
+"Open this conversation in the Codex app?" = "Открыть этот разговор в приложении Codex?";
+"Open in Codex" = "Открыть в Codex";
 "Copy Resume Command" = "Скопировать команду возобновления";
 "Rename Session" = "Переименовать сеанс";
 "Only changes the name shown in YaaKanban. Leave it empty to go back to the agent’s title." = "Меняет только имя, показанное в YaaKanban. Оставьте поле пустым, чтобы вернуть заголовок агента.";
@@ -141,19 +143,14 @@
 "Tools: %lld" = "Инструментов: %lld";
 
 /* DetailView.swift */
-"Last reply" = "Последний ответ";
 "Session summary" = "Сводка сеанса";
-"Usage" = "Использование";
-"%@ tokens total" = "Всего токенов: %@";
 "Subagents" = "Субагенты";
 "No hooks" = "Без хуков";
 "Delete" = "Удалить";
-"This turn is done and waiting for your review" = "Ход завершен и ждет вашей проверки";
 "Go to it" = "Перейти";
 "Turns" = "Ходы";
 "None yet" = "Пока нет";
 "(no prompt)" = "(без промпта)";
-"%lld tools · %@" = "Инструментов: %lld · %@";
 "Tool calls" = "Вызовы инструментов";
 "Last %lld" = "Последние: %lld";
 
@@ -448,3 +445,51 @@
 "Mark reviewed when its terminal is in front (beta)" = "Отмечать как проверенную, когда её терминал на переднем плане (бета)";
 "Works in Wave, iTerm2, Terminal, WezTerm and tmux inside them. Opening the pane counts, like clicking its card." = "Работает в Wave, iTerm2, Терминале, WezTerm и tmux внутри них. Открыть панель — то же, что нажать на карточку.";
 "%@ needs Automation access to tell which tab is in front" = "%@ нужен доступ к Автоматизации, чтобы знать, какая вкладка на переднем плане";
+
+/* DetailView.swift, DetailParts.swift */
+"%@ · replied in %@ on average" = "%@ · в среднем отвечали за %@";
+"%lld commands" = "Команд: %lld";
+"%lld failed" = "Ошибок: %lld";
+"%lld failed calls" = "Неудачных вызовов: %lld";
+"%lld files edited" = "Изменено файлов: %lld";
+"%lld files only read" = "Только прочитано файлов: %lld";
+"%lld more edited" = "Ещё изменено: %lld";
+"%lld prompts · %lld answers" = "Запросов: %lld · ответов: %lld";
+"%lld tool calls" = "Вызовов инструментов: %lld";
+"%lld tools" = "Инструментов: %lld";
+"+%@ cache reads" = "+%@ чтений из кэша";
+"1 file edited" = "Изменён 1 файл";
+"1 file only read" = "Только прочитан 1 файл";
+"Agent time" = "Время агента";
+"Ask you" = "Вопрос вам";
+"Build & test" = "Сборка и тесты";
+"Cache hit %@" = "Попадания в кэш %@";
+"Commands" = "Команды";
+"Delegate" = "Делегирование";
+"Done, waiting for your review" = "Готово, ждёт вашей проверки";
+"Edit" = "Правки";
+"Explore" = "Изучение";
+"Files and failures" = "Файлы и ошибки";
+"Hatched stretches are long waits drawn shorter." = "Штриховкой показаны долгие ожидания, нарисованные короче.";
+"In progress" = "Выполняется";
+"Last %lld calls" = "Последние вызовы: %lld";
+"Latest turn" = "Последний ход";
+"No files touched" = "Файлы не изменялись";
+"No reply recorded" = "Ответ не записан";
+"No reply yet" = "Ответа пока нет";
+"Not in the transcript" = "Нет в транскрипте";
+"Nothing going on · %@" = "Ничего не происходит · %@";
+"Older tool calls of this turn are no longer kept." = "Более ранние вызовы инструментов этого хода больше не хранятся.";
+"Recorded before state tracking began: only running time is known." = "Записано до отслеживания состояний: известно только время работы.";
+"Resources" = "Ресурсы";
+"Show less" = "Свернуть";
+"Show the whole reply" = "Показать ответ целиком";
+"Tokens used" = "Потрачено токенов";
+"Tool mix" = "Состав инструментов";
+"Web" = "Веб";
+"Where the time went" = "На что ушло время";
+"Your input" = "Ваш вклад";
+"over %@" = "за %@";
+"you came back after %@" = "вы вернулись через %@";
+"A background task reported back" = "Фоновая задача прислала отчёт";
+"Sent by the agent's tools" = "Отправлено инструментами агента";

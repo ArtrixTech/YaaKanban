@@ -43,6 +43,8 @@
 "Switch to %@ and Copy" = "Zu %@ wechseln und kopieren";
 "Reopen this session in its original terminal?" = "Diese Sitzung im ursprünglichen Terminal erneut öffnen?";
 "Reopen" = "Erneut öffnen";
+"Open this conversation in the Codex app?" = "Diese Unterhaltung in der Codex-App öffnen?";
+"Open in Codex" = "In Codex öffnen";
 "Copy Resume Command" = "Fortsetzungsbefehl kopieren";
 "Rename Session" = "Sitzung umbenennen";
 "Only changes the name shown in YaaKanban. Leave it empty to go back to the agent’s title." = "Ändert nur den in YaaKanban angezeigten Namen. Leer lassen, um den Titel des Agenten wiederherzustellen.";
@@ -141,19 +143,14 @@
 "Tools: %lld" = "Tools: %lld";
 
 /* DetailView.swift */
-"Last reply" = "Letzte Antwort";
 "Session summary" = "Sitzungsübersicht";
-"Usage" = "Nutzung";
-"%@ tokens total" = "%@ Tokens insgesamt";
 "Subagents" = "Subagenten";
 "No hooks" = "Keine Hooks";
 "Delete" = "Löschen";
-"This turn is done and waiting for your review" = "Diese Runde ist fertig und wartet auf deine Prüfung";
 "Go to it" = "Anzeigen";
 "Turns" = "Runden";
 "None yet" = "Noch keine";
 "(no prompt)" = "(kein Prompt)";
-"%lld tools · %@" = "%lld Tools · %@";
 "Tool calls" = "Toolaufrufe";
 "Last %lld" = "Letzte %lld";
 
@@ -448,3 +445,51 @@
 "Mark reviewed when its terminal is in front (beta)" = "Als geprüft markieren, wenn sein Terminal vorne ist (Beta)";
 "Works in Wave, iTerm2, Terminal, WezTerm and tmux inside them. Opening the pane counts, like clicking its card." = "Funktioniert in Wave, iTerm2, Terminal, WezTerm und tmux darin. Den Bereich zu öffnen zählt wie ein Klick auf die Karte.";
 "%@ needs Automation access to tell which tab is in front" = "%@ braucht Automation-Zugriff, um den vorderen Tab zu erkennen";
+
+/* DetailView.swift, DetailParts.swift */
+"%@ · replied in %@ on average" = "%@ · Antwort im Schnitt nach %@";
+"%lld commands" = "%lld Befehle";
+"%lld failed" = "%lld fehlgeschlagen";
+"%lld failed calls" = "%lld fehlgeschlagene Aufrufe";
+"%lld files edited" = "%lld Dateien bearbeitet";
+"%lld files only read" = "%lld Dateien nur gelesen";
+"%lld more edited" = "%lld weitere bearbeitet";
+"%lld prompts · %lld answers" = "%lld Prompts · %lld Antworten";
+"%lld tool calls" = "%lld Tool-Aufrufe";
+"%lld tools" = "%lld Tools";
+"+%@ cache reads" = "+%@ Cache-Lesezugriffe";
+"1 file edited" = "1 Datei bearbeitet";
+"1 file only read" = "1 Datei nur gelesen";
+"Agent time" = "Agent-Zeit";
+"Ask you" = "Fragt dich";
+"Build & test" = "Build & Test";
+"Cache hit %@" = "Cache-Treffer %@";
+"Commands" = "Befehle";
+"Delegate" = "Delegieren";
+"Done, waiting for your review" = "Fertig, wartet auf deine Prüfung";
+"Edit" = "Bearbeiten";
+"Explore" = "Erkunden";
+"Files and failures" = "Dateien und Fehler";
+"Hatched stretches are long waits drawn shorter." = "Schraffierte Abschnitte sind lange Wartezeiten, verkürzt gezeichnet.";
+"In progress" = "Läuft";
+"Last %lld calls" = "Letzte %lld Aufrufe";
+"Latest turn" = "Letzter Durchgang";
+"No files touched" = "Keine Dateien geändert";
+"No reply recorded" = "Keine Antwort aufgezeichnet";
+"No reply yet" = "Noch keine Antwort";
+"Not in the transcript" = "Nicht im Transkript";
+"Nothing going on · %@" = "Nichts los · %@";
+"Older tool calls of this turn are no longer kept." = "Ältere Tool-Aufrufe dieses Durchgangs werden nicht mehr aufbewahrt.";
+"Recorded before state tracking began: only running time is known." = "Aufgezeichnet vor der Statuserfassung: Nur die Laufzeit ist bekannt.";
+"Resources" = "Ressourcen";
+"Show less" = "Weniger anzeigen";
+"Show the whole reply" = "Ganze Antwort anzeigen";
+"Tokens used" = "Verbrauchte Tokens";
+"Tool mix" = "Tool-Mix";
+"Web" = "Web";
+"Where the time went" = "Wohin die Zeit ging";
+"Your input" = "Deine Eingaben";
+"over %@" = "über %@";
+"you came back after %@" = "du kamst nach %@ zurück";
+"A background task reported back" = "Eine Hintergrundaufgabe hat sich gemeldet";
+"Sent by the agent's tools" = "Von den Tools des Agents gesendet";

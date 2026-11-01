@@ -58,8 +58,24 @@ public final class Store {
     }
 
     public func save(_ s: SessionState) {
-        let enc = JSONEncoder()
-        guard let data = try? enc.encode(Self.persistable(s)) else { return }
+        guard let data = Self.encode(s) else { return }
+        save(s, json: data)
+    }
+
+    /// The JSON `save` writes; safe off the main thread, so a caller can encode in the background.
+    public static func encode(_ s: SessionState) -> Data? {
+        try? JSONEncoder().encode(persistable(s))
+    }
+
+    /// Writes several sessions already encoded by `encode`, in one transaction.
+    public func save(_ batch: [(SessionState, Data)]) {
+        guard !batch.isEmpty else { return }
+        try? exec("BEGIN")
+        for (s, data) in batch { save(s, json: data) }
+        try? exec("COMMIT")
+    }
+
+    private func save(_ s: SessionState, json data: Data) {
         var stmt: OpaquePointer?
         let sql = "INSERT OR REPLACE INTO sessions (id, agent, status, last_event_at, slim, json) VALUES (?,?,?,?,0,?)"
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
@@ -143,6 +159,22 @@ public final class Store {
             sqlite3_bind_double(st, 1, start.timeIntervalSince1970)
             sqlite3_bind_double(st, 2, end.timeIntervalSince1970)
         }) { st in
+            guard let kind = ActivityRow.Kind(rawValue: String(cString: sqlite3_column_text(st, 2))) else { return }
+            out.append(ActivityRow(at: Date(timeIntervalSince1970: sqlite3_column_double(st, 0)),
+                                   session: String(cString: sqlite3_column_text(st, 1)), kind: kind,
+                                   value: sqlite3_column_double(st, 3), text: String(cString: sqlite3_column_text(st, 4))))
+        }
+        return out
+    }
+
+    /// One session's lane and reply rows, oldest first (its detail page's timeline).
+    public func activity(session: String) -> [ActivityRow] {
+        var out: [ActivityRow] = []
+        let sql = """
+            SELECT at, session, kind, value, text FROM activity
+            WHERE kind IN ('lane', 'reply') AND session = ?1 ORDER BY at, rowid
+            """
+        query(sql, bind: { st in sqlite3_bind_text(st, 1, session, -1, Self.transient) }) { st in
             guard let kind = ActivityRow.Kind(rawValue: String(cString: sqlite3_column_text(st, 2))) else { return }
             out.append(ActivityRow(at: Date(timeIntervalSince1970: sqlite3_column_double(st, 0)),
                                    session: String(cString: sqlite3_column_text(st, 1)), kind: kind,

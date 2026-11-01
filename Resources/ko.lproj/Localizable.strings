@@ -43,6 +43,8 @@
 "Switch to %@ and Copy" = "%@(으)로 전환 후 복사";
 "Reopen this session in its original terminal?" = "이 세션을 원래 터미널에서 다시 여시겠습니까?";
 "Reopen" = "다시 열기";
+"Open this conversation in the Codex app?" = "이 대화를 Codex 앱에서 여시겠습니까?";
+"Open in Codex" = "Codex에서 열기";
 "Copy Resume Command" = "재개 명령 복사";
 "Rename Session" = "세션 이름 변경";
 "Only changes the name shown in YaaKanban. Leave it empty to go back to the agent’s title." = "YaaKanban에 표시되는 이름만 변경됩니다. 비워 두면 에이전트의 제목으로 돌아갑니다.";
@@ -141,19 +143,14 @@
 "Tools: %lld" = "도구: %lld회";
 
 /* DetailView.swift */
-"Last reply" = "마지막 응답";
 "Session summary" = "세션 요약";
-"Usage" = "사용량";
-"%@ tokens total" = "총 %@ 토큰";
 "Subagents" = "하위 에이전트";
 "No hooks" = "훅 없음";
 "Delete" = "삭제";
-"This turn is done and waiting for your review" = "이번 턴이 완료되어 검토를 기다리고 있습니다";
 "Go to it" = "이동";
 "Turns" = "턴";
 "None yet" = "아직 없음";
 "(no prompt)" = "(프롬프트 없음)";
-"%lld tools · %@" = "도구 %lld개 · %@";
 "Tool calls" = "도구 호출";
 "Last %lld" = "최근 %lld개";
 
@@ -448,3 +445,51 @@
 "Mark reviewed when its terminal is in front (beta)" = "터미널이 앞에 있으면 검토 완료로 표시(베타)";
 "Works in Wave, iTerm2, Terminal, WezTerm and tmux inside them. Opening the pane counts, like clicking its card." = "Wave, iTerm2, 터미널, WezTerm 및 그 안의 tmux에서 작동합니다. 해당 패널을 열면 카드를 클릭한 것처럼 검토 완료가 됩니다.";
 "%@ needs Automation access to tell which tab is in front" = "앞에 있는 탭을 알려면 %@에 대한 자동화 접근 권한이 필요합니다";
+
+/* DetailView.swift, DetailParts.swift */
+"%@ · replied in %@ on average" = "%@ · 평균 %@ 만에 응답";
+"%lld commands" = "명령 %lld개";
+"%lld failed" = "실패 %lld개";
+"%lld failed calls" = "실패한 호출 %lld개";
+"%lld files edited" = "파일 %lld개 수정";
+"%lld files only read" = "읽기만 한 파일 %lld개";
+"%lld more edited" = "수정한 파일 %lld개 더";
+"%lld prompts · %lld answers" = "프롬프트 %lld개 · 답변 %lld개";
+"%lld tool calls" = "도구 호출 %lld회";
+"%lld tools" = "도구 %lld개";
+"+%@ cache reads" = "캐시 읽기 +%@";
+"1 file edited" = "파일 1개 수정";
+"1 file only read" = "읽기만 한 파일 1개";
+"Agent time" = "에이전트 시간";
+"Ask you" = "질문";
+"Build & test" = "빌드 및 테스트";
+"Cache hit %@" = "캐시 적중 %@";
+"Commands" = "명령";
+"Delegate" = "위임";
+"Done, waiting for your review" = "완료, 검토 대기 중";
+"Edit" = "편집";
+"Explore" = "탐색";
+"Files and failures" = "파일과 실패";
+"Hatched stretches are long waits drawn shorter." = "빗금 구간은 짧게 그린 긴 대기입니다.";
+"In progress" = "진행 중";
+"Last %lld calls" = "최근 %lld회 호출";
+"Latest turn" = "최근 턴";
+"No files touched" = "변경한 파일 없음";
+"No reply recorded" = "기록된 응답 없음";
+"No reply yet" = "아직 응답 없음";
+"Not in the transcript" = "대화 기록에 없음";
+"Nothing going on · %@" = "아무 일 없음 · %@";
+"Older tool calls of this turn are no longer kept." = "이 턴의 이전 도구 호출은 더 이상 보관되지 않습니다.";
+"Recorded before state tracking began: only running time is known." = "상태 기록 이전이라 실행 시간만 알 수 있습니다.";
+"Resources" = "리소스";
+"Show less" = "접기";
+"Show the whole reply" = "응답 전체 보기";
+"Tokens used" = "사용한 토큰";
+"Tool mix" = "도구 구성";
+"Web" = "웹";
+"Where the time went" = "시간 사용";
+"Your input" = "내 입력";
+"over %@" = "기간 %@";
+"you came back after %@" = "%@ 후 돌아옴";
+"A background task reported back" = "백그라운드 작업이 결과를 보고함";
+"Sent by the agent's tools" = "에이전트 도구가 보냄";

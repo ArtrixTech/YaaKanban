@@ -70,7 +70,7 @@ struct TerminalJumper {
     func resume(_ s: SessionState, wave: [TerminalContext] = [], waveFailed: @escaping @MainActor () -> Void = {}) -> Outcome {
         // The Codex app keeps the thread; opening it is resuming it.
         guard let t = s.terminal, t.termProgram != nil || t.isWave, let cmd = s.resumeCommand else {
-            if s.agent == .codex, s.terminal == nil, let url = Self.codexThreadURL(s.sessionId) {
+            if let url = Self.codexAppThread(s) {
                 NSWorkspace.shared.open(url)
                 return .activated("Codex")
             }
@@ -144,7 +144,8 @@ struct TerminalJumper {
     /// Whether `resume` runs the command itself; otherwise it only raises a terminal and copies it.
     /// For Wave this also needs a working token, which only the caller knows.
     static func runsResume(_ s: SessionState) -> Bool {
-        guard let t = s.terminal else { return s.agent == .codex && codexThreadURL(s.sessionId) != nil }
+        if codexAppThread(s) != nil { return true }
+        guard let t = s.terminal else { return false }
         return s.resumeCommand != nil && (t.isWave || t.termProgram == "Apple_Terminal" || t.termProgram == "iTerm.app")
     }
 
@@ -176,6 +177,14 @@ struct TerminalJumper {
     static func codexThreadURL(_ id: String) -> URL? {
         guard !id.isEmpty, id.allSatisfy({ $0.isHexDigit || $0 == "-" }) else { return nil }
         return URL(string: "codex://threads/\(id)")
+    }
+
+    /// The thread to open for a session of the Codex app. Its hooks carry no terminal (stored as
+    /// an empty context, not nil), so a Codex session with no TERM_PROGRAM ran in the app. The URL
+    /// launches the app when it has quit.
+    static func codexAppThread(_ s: SessionState) -> URL? {
+        guard s.agent == .codex, s.terminal?.termProgram == nil, s.terminal?.isWave != true else { return nil }
+        return codexThreadURL(s.sessionId)
     }
 
     /// First ancestor of the agent that is a regular app (a terminal or an editor).

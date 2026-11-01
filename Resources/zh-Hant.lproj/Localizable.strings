@@ -43,6 +43,8 @@
 "Switch to %@ and Copy" = "切換到%@並拷貝";
 "Reopen this session in its original terminal?" = "要在原終端機重新開啟這個工作階段嗎？";
 "Reopen" = "重新開啟";
+"Open this conversation in the Codex app?" = "要在 Codex 桌面版開啟這個對話嗎？";
+"Open in Codex" = "在 Codex 中開啟";
 "Copy Resume Command" = "拷貝恢復指令";
 "Rename Session" = "重新命名工作階段";
 "Only changes the name shown in YaaKanban. Leave it empty to go back to the agent’s title." = "只會更改 YaaKanban 中顯示的名稱。留空則恢復為 agent 的標題。";
@@ -141,19 +143,14 @@
 "Tools: %lld" = "%lld 次工具";
 
 /* DetailView.swift */
-"Last reply" = "最後回覆";
 "Session summary" = "工作階段摘要";
-"Usage" = "用量";
-"%@ tokens total" = "合計 %@ token";
 "Subagents" = "子 agent";
 "No hooks" = "未掛 hook";
 "Delete" = "刪除";
-"This turn is done and waiting for your review" = "這一輪已完成，等你驗收";
 "Go to it" = "前往查看";
 "Turns" = "輪次";
 "None yet" = "尚無";
 "(no prompt)" = "（無 prompt）";
-"%lld tools · %@" = "%lld 個工具 · %@";
 "Tool calls" = "工具呼叫";
 "Last %lld" = "最近 %lld 次";
 
@@ -448,3 +445,51 @@
 "Mark reviewed when its terminal is in front (beta)" = "終端機在前景即標記為已驗收（測試）";
 "Works in Wave, iTerm2, Terminal, WezTerm and tmux inside them. Opening the pane counts, like clicking its card." = "適用於 Wave、iTerm2、終端機，以及在其中執行的 WezTerm 和 tmux。打開所在面板就算驗收，與點按卡片相同。";
 "%@ needs Automation access to tell which tab is in front" = "%@ 需要「自動化」權限才能知道前景是哪個標籤頁";
+
+/* DetailView.swift, DetailParts.swift */
+"%@ · replied in %@ on average" = "%@ · 平均 %@ 回覆";
+"%lld commands" = "%lld 條命令";
+"%lld failed" = "%lld 次失敗";
+"%lld failed calls" = "%lld 次失敗的呼叫";
+"%lld files edited" = "改了 %lld 個檔案";
+"%lld files only read" = "%lld 個檔案只讀過";
+"%lld more edited" = "還有 %lld 個改過的";
+"%lld prompts · %lld answers" = "%lld 次提問 · %lld 次回答";
+"%lld tool calls" = "%lld 次工具呼叫";
+"%lld tools" = "%lld 個工具";
+"+%@ cache reads" = "另有 %@ 快取讀取";
+"1 file edited" = "改了 1 個檔案";
+"1 file only read" = "1 個檔案只讀過";
+"Agent time" = "Agent 用時";
+"Ask you" = "問你";
+"Build & test" = "建置與測試";
+"Cache hit %@" = "快取命中 %@";
+"Commands" = "命令";
+"Delegate" = "委派";
+"Done, waiting for your review" = "已完成，等你審閱";
+"Edit" = "編輯";
+"Explore" = "探索";
+"Files and failures" = "檔案與失敗";
+"Hatched stretches are long waits drawn shorter." = "斜線條紋是畫短了的長時間等待。";
+"In progress" = "進行中";
+"Last %lld calls" = "最近 %lld 次呼叫";
+"Latest turn" = "最新一輪";
+"No files touched" = "沒有動過檔案";
+"No reply recorded" = "沒有記錄到回覆";
+"No reply yet" = "還沒有回覆";
+"Not in the transcript" = "對話記錄裡沒有";
+"Nothing going on · %@" = "無事發生 · %@";
+"Older tool calls of this turn are no longer kept." = "這一輪更早的工具呼叫已不再保留。";
+"Recorded before state tracking began: only running time is known." = "記錄早於狀態追蹤：只知道執行時間。";
+"Resources" = "資源";
+"Show less" = "收起";
+"Show the whole reply" = "展開完整回覆";
+"Tokens used" = "消耗 token";
+"Tool mix" = "工具構成";
+"Web" = "網路";
+"Where the time went" = "時間花在哪裡";
+"Your input" = "你的輸入";
+"over %@" = "跨度 %@";
+"you came back after %@" = "你在 %@ 後回來";
+"A background task reported back" = "背景任務回報了結果";
+"Sent by the agent's tools" = "由 agent 的工具傳送";

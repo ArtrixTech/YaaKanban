@@ -54,19 +54,20 @@ private struct MainSidebar: View {
         // The list's first section heads it, with the search button; History follows in the list.
         let leadsWithActive = !model.board.isEmpty
         VStack(alignment: .leading, spacing: 0) {
-            // The whole logo, its mark last, at the sidebar's right edge, midway between the window's
-            // top and the Overview row.
-            HStack(spacing: Space.s) {
+            // The whole logo, its mark last, at the sidebar's right edge, level with the window buttons
+            // and as far from the window's top as from the Overview row.
+            HStack(spacing: 0) {
                 Spacer()
-                Text(verbatim: "YaaKanban").font(.ui(.footnote, .semibold)).foregroundStyle(Ink.secondary).lineLimit(1)
-                BrandGlyph(size: 13)
+                BrandLockup()
             }
             .frame(height: 38).padding(.trailing, Space.xs)
-            // Above the list's head, which the Overview button's label may cover.
-            OverviewPill(onOverview: selection == AppModel.overview) { select(AppModel.overview) }.zIndex(1)
+            // Above the list's head, which the Overview button's label may cover; a little lower than
+            // midway under the logo.
+            OverviewPill(onOverview: selection == AppModel.overview) { select(AppModel.overview) }
+                .padding(.top, Space.xxs).zIndex(1)
             listHead(leadsWithActive ? String(localized: "Active") : String(localized: "History"),
                      leadsWithActive ? active.count : nil)
-                .padding(.top, Space.l)
+                .padding(.top, Space.m + Space.xxs)
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: Space.s) {
@@ -238,6 +239,70 @@ extension MainSidebar {
 
 /// Overview's mark, a low house leaning on a tall one (`home.svg`, 220 × 160), in the text color;
 /// a symbol when running unbundled.
+/// The whole logo on the window-button row, name then mark. Hovered, a band of light sweeps across
+/// it (again every few seconds while the pointer stays); with Reduce Motion it just lights up.
+private struct BrandLockup: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hover = false
+    /// Whole sweeps so far; the fraction is where the band is.
+    @State private var sweeps: Double = 0
+
+    var body: some View {
+        logo(lit: false)
+            .overlay {
+                if reduceMotion {
+                    logo(lit: true).opacity(hover ? 1 : 0)
+                } else {
+                    logo(lit: true).modifier(Sweep(phase: sweeps))
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: hover)
+            .onHover { hover = $0 }
+            .task(id: hover) {
+                guard hover, !reduceMotion else { return }
+                while !Task.isCancelled {
+                    withAnimation(.easeInOut(duration: 0.9)) { sweeps = sweeps.rounded(.down) + 1 }
+                    try? await Task.sleep(for: .seconds(2.6))
+                }
+            }
+    }
+
+    private func logo(lit: Bool) -> some View {
+        HStack(spacing: Space.s) {
+            // Between the footnote/13 pt lockup it had and the callout/15 pt one it was enlarged to.
+            Text(verbatim: "YaaKanban").font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(lit ? Color.primary : Ink.secondary).lineLimit(1)
+            BrandGlyph(size: 14, lit: lit)
+        }
+    }
+
+    /// Shows its content only under a slanted band that crosses it once per whole `phase`.
+    private struct Sweep: ViewModifier, Animatable {
+        var phase: Double
+        var animatableData: Double {
+            get { phase }
+            set { phase = newValue }
+        }
+
+        func body(content: Content) -> some View {
+            // At rest (a whole phase) the band sits off the leading edge, after a sweep off the trailing.
+            let f = phase - phase.rounded(.down)
+            let at = f == 0 && phase > 0 ? 1 : f
+            content.mask {
+                GeometryReader { g in
+                    let band = g.size.width * 0.45
+                    LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .white, location: 0.5),
+                                           .init(color: .clear, location: 1)],
+                                   startPoint: .leading, endPoint: .trailing)
+                        .frame(width: band, height: g.size.height * 2)
+                        .rotationEffect(.degrees(20))
+                        .offset(x: -band + (g.size.width + band) * at, y: -g.size.height / 2)
+                }
+            }
+        }
+    }
+}
+
 private struct HomeMark: View {
     var size: CGFloat
     private static let image: NSImage? = Bundle.main.url(forResource: "home", withExtension: "svg").flatMap(NSImage.init(contentsOf:)).map {

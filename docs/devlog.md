@@ -1,8 +1,131 @@
 # Devlog
 
+## chore(release): bump the version to 0.2.1
+
+`pending` | 2026-11-01
+
+- **Changes**: `Resources/Info.plist` 0.2.0 (4) → 0.2.1 (5); CHANGELOG `[Unreleased]` entries now under `[0.2.1] - 2026-11-01`.
+- **Reason**: Release the detail page, CPU, panel header and sidebar logo work.
+- **User feedback**: "完成之后发新的版本，小版本号+1。"
+- **Process**: make test 223 pass; make l10n 0 problems. Read "小版本号+1" as the last digit, as 0.1.1 → 0.1.2 was.
+- **Notes**: Signed by team 5JF32B7C33 like 0.2.0, so 0.2.0 installs accept the update.
+
+## style(main): lower the sidebar's Overview row by 2 pt
+
+`cca29b8` | 2026-11-01
+
+- **Changes**: `OverviewPill` in `MainSidebar` gets `.padding(.top, Space.xxs)`; the list head and list move down with it. Design `sidebar-v24`.
+- **Reason**: User request.
+- **User feedback**: "home/杠杆栏整体下移2pt"
+- **Result**: make build; make install; snapshot at 2×: capsule top 38 → 40 pt, 活跃 96 → 98 pt; logo 12.5 pt from the top, 14.5 pt from the capsule (no longer equal, by request).
+
+## style(main): bring the sidebar logo halfway back to its earlier size
+
+`4eb1a67` | 2026-11-01
+
+- **Changes**: `BrandLockup.logo`: name `.system(size: 11.5, weight: .semibold)` (was `.ui(.callout)`, 12; before fd0396b `.footnote`, 11), `BrandGlyph(size: 14)` (was 15; before 13). Spec clause, design `sidebar-v23`.
+- **Reason**: User decision: the enlargement went too far; halfway between the two.
+- **User feedback**: "Logo 整体小一点点。之前有一次让你放大，请你改到当前的大小和之前那个比较小的状态的中间的位置"
+- **Process**: Snapshot measured at 2×: mark 12.5 pt from the window's top and from the capsule (the 38 pt row still centres it).
+- **Result**: make build; make install.
+- **Notes**: 11.5 pt has no `TextSize` token; it is a raw size for this lockup only.
+
+## style(main): restore the Overview row's height and even the logo's gaps
+
+`eaf2630` | 2026-11-01
+
+- **Changes**: `OverviewPill.height` back to 40 pt; the logo row drops its `.padding(.bottom, Space.xs)` (from 90095e0); the list head's top padding `Space.l` → `Space.m + Space.xxs` (12 → 10 pt). Design `sidebar-v22`.
+- **Reason**: The user wanted the slimmer row's spacing, not a shorter button; and the logo as far from the window's top as from the row below.
+- **User feedback**: "按钮本身的高度请恢复到原来的高度，只是说希望上下的留白保留现在这个缩窄之后的版本。另外确保红绿灯这一行的 logo 的到顶上和到下面这一行的上下留白等距离"
+- **Process**: Measured on `yaak snapshot` main.png (2×) at x 150 pt: v21 logo mark 12 pt from the top, 16 pt to the capsule; v22 12 and 12 pt, capsule 40 pt, 活跃 at the same y as v21.
+- **Result**: make build; make install.
+- **Notes**: The 38 pt logo row centres the 15 pt mark, so equal gaps follow from the row height alone; any padding under it unbalances them.
+
+## style(main): slim the sidebar's Overview row
+
+`4c816da` | 2026-11-01
+
+- **Changes**: `OverviewPill.height` 40 → 34 pt (the house button's circle and the capsule beside it); content and the hover label's offset follow it. CHANGELOG, design `sidebar-v21`.
+- **Reason**: User request.
+- **User feedback**: "收窄一点侧边栏的home按钮这一行上下两端的留白"
+- **Result**: make build; make install; before/after snapshots in `design/history/sidebar-v21`.
+
+## fix(panel): keep the header row inside a narrow panel
+
+`3b0cf69` | 2026-11-01
+
+- **Changes**: `BoardHeader`'s `ViewThatFits` gains two rows after the unnamed one: `chips: .tight` (row spacing 6 → `Space.xs`, chip spacing 4 → `Space.xxs`, chip padding 7 → 4 pt) and `chips: .bare` (the same, chips without their capsule, 2 pt padding). `CountChip.Style` (new, `Theme.swift`; default `.regular`, so the sidebar capsule is unchanged). The fitted row sits in `.frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)`. CHANGELOG Fixed, design `panel-v1`.
+- **Reason**: Docked at 300 pt (the minimum) the header holds the fold button, three window buttons and ×; with four state chips even the unnamed row was ~20–30 pt too wide. `ViewThatFits` then lays out its last child at its ideal width and the panel centres it, so the logo was clipped on the left and × pushed out on the right.
+- **User feedback**: "严重bug。悬浮窗在四色badge都出现的时候会导致布局变动" (screenshot), then on a test build "仍看到是这个问题" and "左侧没有边框宽度了 右侧很大".
+- **Process**: Test build 1 (counts 12/3/15/8, one extra button) fit in the 300 pt snapshot, but the live docked panel adds the fold button: six buttons, still too wide for the tight row, and centred. Added the bare row and leading alignment; test build 2 (12/13/15/18, two extra buttons) fit with the logo at its inset. `.frame(maxWidth: .infinity, alignment: .leading)` alone does not stop the centring when the child overflows; `minWidth: 0` added. Reverted the test code and reinstalled.
+- **Result**: make build; make install.
+- **Notes**: Five buttons (docked) with four two-digit chips leave ~6 pt; past that the row now overflows on the right only.
+
+## style(main): leave a little more room under the sidebar logo
+
+`90095e0` | 2026-11-01
+
+- **Changes**: `MainSidebar` logo row gets `.padding(.bottom, Space.xs)` (4 pt) under its 38 pt frame, so the logo stays level with the window buttons and the Overview row moves down 4 pt. Design `sidebar-v20`.
+- **Reason**: User request.
+- **User feedback**: "logo行到下一行的间距稍微大一点点"
+- **Result**: make build; make install; before/after snapshots in `design/history/sidebar-v20`.
+
+## fix(codex): ask before reopening a quit Codex app's thread
+
+`pending` | 2026-11-01
+
+- **Changes**: Dropped the no-dialog shortcut in `AppModel.jump`; `reopenAlert` gets a Codex app branch ("Open this conversation in the Codex app?", buttons Open in Codex / Copy Resume Command / Cancel). First button goes through `jumper.resume`, which opens `codex://threads/<id>`. Two new strings in all 9 tables.
+- **Reason**: Relaunching Codex on a click with no question was unwanted.
+- **User feedback**: "现在codex退出之后 点对应对话 没有提示就会重新开codex 需要有询问。"
+- **Result**: make build; make l10n (0 problems); make install.
+
+## fix(codex): open a quit Codex app's thread instead of a terminal dialog
+
+`cce5856` | 2026-11-01
+
+- **Changes**: `TerminalJumper.codexAppThread` (new): a Codex session with no `TERM_PROGRAM` and no Wave block is the app's; returns `codex://threads/<id>`. `AppModel.jump` opens it directly for a gone session (no reopen dialog); `resume`/`runsResume` use it instead of `s.terminal == nil`.
+- **Reason**: The app's hooks carry no terminal env, but the envelope stores an empty `TerminalContext` (`{}`), never nil, so the old `terminal == nil` check never matched. Once the Codex app quit (pid dead → gone), the click showed "终端不接受外部输入命令… 切到终端并复制".
+- **User feedback**: "目前codex无法打开桌面版…需要允许打开桌面版并跳转到对话"
+- **Process**: Confirmed in history.sqlite: app sessions have `terminal = {}` and a dead `agentPid`; CLI sessions carry `termProgram`.
+- **Result**: make build; make install.
+- **Notes**: The URL scheme launches Codex if it has quit. A Codex CLI in a terminal that sets no TERM_PROGRAM would now open the app instead; that thread is in the app too, so it still lands on the conversation.
+
+## feat(main): enlarge the sidebar logo and sweep light across it on hover
+
+`fd0396b` | 2026-11-01
+
+- **Changes**: `BrandLockup` (new, `MainWindow.swift`) replaces the inline name + mark on the window-button row: name `.callout` semibold (was `.footnote`), `BrandGlyph(size: 15)` (was 13). A lit copy (name in `.primary`, `BrandGlyph(lit: true)` columns at full ink, new parameter in `Windows.swift`) is masked by `Sweep`, an `Animatable` modifier whose band position is the fraction of an ever-growing phase, so each pass animates n → n+1 without a reset frame. While hovered: one 0.9 s easeInOut pass every 2.6 s (`task(id: hover)`, cancelled on exit); Reduce Motion fades the lit copy in instead. Spec, CHANGELOG, design `sidebar-v19`.
+- **Reason**: User request.
+- **User feedback**: "主页的logo稍微大一点点，hover要有流光效果。"
+- **Process**: Hover can't be captured by `yaak snapshot`; a temporary build set the phase to 0.5 (band halfway), snapshotted dark and light, then reverted and reinstalled.
+- **Result**: make build; make install; the halfway frame lights "Kanb" and the columns under the band in both appearances.
+- **Notes**: Animates only while hovered (no idle cost). Release `make install` took ~10+ min this time.
+
+## feat(main): redesign the session detail page around what the session came to
+
+`b6c90bf` | 2026-11-01
+
+- **Changes**: `DetailView.swift` rewritten, `DetailParts.swift` (new: `DetailCard`, `StatTile`, `PhaseStrip`, `ShareBar`, `TimeBar`, `MarkdownView` + `MarkdownCache`, `ReplyText`). YaaCore: `SessionInsight.swift` (new: `ToolKind` by tool name and command head, `Turn.byUser`/`reportsTask`, `TurnInsight`, `SessionState.end(ofTurn:)`, `SessionInsight`, `SessionTimeline`), `Markdown.swift` (new: block parser, fences, lists, folding), `Store.activity(session:)` (lane + reply rows of one session), `AppModel.sessionActivity`. Snapshot entry `main-detail` (1000×2000). L10n: detail keys in 9 tables (449 keys, 0 problems), 5 stale keys dropped. Spec §5 line, CHANGELOG, Architecture. Tests `SessionInsightTests` (223 total pass). Design `detail-v1`.
+- **Reason**: The page showed raw text (unrendered Markdown, raw commands, four raw token numbers); the product analyses sessions rather than chatting with agents.
+- **User feedback**: "需要优化当前主界面的每个任务内部的详情显示……提出一些适合呈现在主界面里面每一个对话的详情的信息" then "按照你的方案来做。1，选B 2，可以 3，折叠保留 4，资源要显示。最上面可以主要显示用户关心的数据，例如对话消耗的token、来回轮次、花在这个任务的时间、用户input数量等"
+- **Process**: Scope agreed with the perf session (yaakanban-6a): it owned AppModel/Store save paths and animations, this change the detail page; `Store.activity` added after its commit. Adversarial review found open turns counted to now, overlapping rebuilt spans, double-counted input, `complete` false with sub-agents, negative durations, nested/4-backtick/one-line fences, a huge single block, deep indents, uncached inline parsing, non-web links, duplicate ForEach ids, TimeBar total, PhaseStrip overflow, verify words matched as substrings, no memoization; all fixed. Renders then showed task notifications as prompts (→ `byUser`), "you came back" after a background task (→ only before a user's prompt), and a 42-call turn as 34 s because Claude stopped before its background agents finished (→ a turn ends at its Stop or its last call's end, whichever is later, capped at the next prompt).
+- **Result**: make test 223 pass; make install; snapshots in `design/history/detail-v1`.
+- **Notes**: Not fixed: `ToolSummary` paths (str_replace_editor records "command", apply_patch only its first file, 120-char cap); the body still re-evaluates on any session's change (Memo keeps the derived data); the "In progress" clock moves only on re-render; one stale frame on session switch; huge sessions draw many TimeBar pieces; "answered" is 0 for sessions recorded before reply tracking; the tool log count includes sub-agent calls, the turns figure does not.
+
+## perf(app): batch session saves and run status animations on layers
+
+`9b0dd1f` | 2026-11-01
+
+- **Changes**: `AppModel.update` marks sessions unsaved; `flushSaves` (2 s debounce) encodes them on `yaak.save` and writes one transaction (`Store.encode`, `Store.save(batch)`); `stop()` → `saveAllNow`; `remove` drops the pending save. `LoopLayer.swift` (new): CALayer + CABasicAnimation for the `StatusGlyph` spin and halo, the rail `StatusTrack` light, and the card `Flash`, replacing `keyframeAnimator`/`repeatForever`. `report` caches `Store.lanes(before:)` per range start, cleared when a lane row lands before a cached start. `scan` reads Claude transcripts on `yaak.peek` (`ClaudeSessionScanner.changedTranscript`) and drops a read when a hook arrived meanwhile (`forgetTranscript`, re-read next scan). Test `storeSavesEncodedBatch`.
+- **Reason**: The app sat at ~48% of a core.
+- **User feedback**: "对本软件进行性能观察和性能优化分析，目前观察到的比较大的问题是 CPU 占用率比较高" then "按照你的建议来优化，做1-2，后面3-5如果对功能没影响也可以做。"
+- **Process**: `sample` of the live app: main thread ~65% in whole-window `NSHostingView.layout` per animation frame, ~13% `Store.save` (largest session JSON 939 KB, 6.8 ms encode, ~18 saves/s). Standalone harness: 20 SwiftUI spinners 3.1–3.6% CPU, CALayer ≈0%. Adversarial review: save path and lanes cache held; fixed a spinner ring 1 pt too small (`+1` inset) and stale background peeks; dropped a SIGTERM→terminate handler it showed blocks behind a main-queue `runModal` (make install could leave the old app running).
+- **Result**: 60 s average 48.2% (7 running) → 17.9% (5 running); main thread idle 17% → 86% of samples; ingest/save/report no longer show in the main-thread profile.
+- **Notes**: Item 3 (incremental `activeSessions`/board) not done; what is left is SwiftUI re-evaluating views on each `sessions` change plus the 1 s `TimelineView` clocks. A hard kill (pkill, crash) loses up to ~2 s of session snapshots; hooks re-report state. `yaak snapshot` freezes layer animations at rest (ring at 0°, light parked below the track).
+
 ## refactor(main): drop the trial sidebar heads
 
-`pending` | 2026-10-31
+`f2ded66` | 2026-10-31
 
 - **Changes**: Removed `SidebarHeadStyle`, the Settings › General trial picker, `Preferences.sidebarStyle` (and the user's `sidebarStyleTrial` default), `OverviewCard` (glass), `OverviewRow`, `OverviewTile`, `FootGlow` and the glow parts of `LeverageHeat` (only `ink` left); `MainSidebar` always shows the logo row and `OverviewPill`; `LeverageFigure` always in the text color. Spec drops the trial clause.
 - **Reason**: The user settled on D: "收尾，可以release了。"

@@ -43,6 +43,8 @@
 "Switch to %@ and Copy" = "Basculer vers %@ et copier";
 "Reopen this session in its original terminal?" = "Rouvrir cette session dans son terminal d’origine ?";
 "Reopen" = "Rouvrir";
+"Open this conversation in the Codex app?" = "Ouvrir cette conversation dans l’app Codex ?";
+"Open in Codex" = "Ouvrir dans Codex";
 "Copy Resume Command" = "Copier la commande de reprise";
 "Rename Session" = "Renommer la session";
 "Only changes the name shown in YaaKanban. Leave it empty to go back to the agent’s title." = "Modifie uniquement le nom affiché dans YaaKanban. Laissez vide pour revenir au titre de l’agent.";
@@ -141,19 +143,14 @@
 "Tools: %lld" = "Outils : %lld";
 
 /* DetailView.swift */
-"Last reply" = "Dernière réponse";
 "Session summary" = "Résumé de la session";
-"Usage" = "Utilisation";
-"%@ tokens total" = "%@ tokens au total";
 "Subagents" = "Sous-agents";
 "No hooks" = "Sans hooks";
 "Delete" = "Supprimer";
-"This turn is done and waiting for your review" = "Ce tour est terminé et attend votre vérification";
 "Go to it" = "Y aller";
 "Turns" = "Tours";
 "None yet" = "Aucun pour l’instant";
 "(no prompt)" = "(sans prompt)";
-"%lld tools · %@" = "%lld outils · %@";
 "Tool calls" = "Appels d’outils";
 "Last %lld" = "%lld derniers";
 
@@ -448,3 +445,51 @@
 "Mark reviewed when its terminal is in front (beta)" = "Marquer comme revu quand son terminal est au premier plan (bêta)";
 "Works in Wave, iTerm2, Terminal, WezTerm and tmux inside them. Opening the pane counts, like clicking its card." = "Fonctionne dans Wave, iTerm2, Terminal, WezTerm et tmux à l’intérieur. Ouvrir le volet compte comme un clic sur sa carte.";
 "%@ needs Automation access to tell which tab is in front" = "%@ a besoin de l’accès Automatisation pour savoir quel onglet est au premier plan";
+
+/* DetailView.swift, DetailParts.swift */
+"%@ · replied in %@ on average" = "%@ · réponse en %@ en moyenne";
+"%lld commands" = "%lld commandes";
+"%lld failed" = "%lld échecs";
+"%lld failed calls" = "%lld appels en échec";
+"%lld files edited" = "%lld fichiers modifiés";
+"%lld files only read" = "%lld fichiers seulement lus";
+"%lld more edited" = "%lld autres modifiés";
+"%lld prompts · %lld answers" = "%lld prompts · %lld réponses";
+"%lld tool calls" = "%lld appels d’outils";
+"%lld tools" = "%lld outils";
+"+%@ cache reads" = "+%@ lectures du cache";
+"1 file edited" = "1 fichier modifié";
+"1 file only read" = "1 fichier seulement lu";
+"Agent time" = "Temps de l’agent";
+"Ask you" = "Vous demande";
+"Build & test" = "Build et tests";
+"Cache hit %@" = "Succès du cache %@";
+"Commands" = "Commandes";
+"Delegate" = "Délégation";
+"Done, waiting for your review" = "Terminé, en attente de votre relecture";
+"Edit" = "Modification";
+"Explore" = "Exploration";
+"Files and failures" = "Fichiers et échecs";
+"Hatched stretches are long waits drawn shorter." = "Les tronçons hachurés sont de longues attentes raccourcies.";
+"In progress" = "En cours";
+"Last %lld calls" = "%lld derniers appels";
+"Latest turn" = "Dernier tour";
+"No files touched" = "Aucun fichier modifié";
+"No reply recorded" = "Aucune réponse enregistrée";
+"No reply yet" = "Pas encore de réponse";
+"Not in the transcript" = "Absent de la transcription";
+"Nothing going on · %@" = "Rien ne se passe · %@";
+"Older tool calls of this turn are no longer kept." = "Les appels d’outils plus anciens de ce tour ne sont plus conservés.";
+"Recorded before state tracking began: only running time is known." = "Enregistré avant le suivi des états : seul le temps d’exécution est connu.";
+"Resources" = "Ressources";
+"Show less" = "Afficher moins";
+"Show the whole reply" = "Afficher toute la réponse";
+"Tokens used" = "Tokens consommés";
+"Tool mix" = "Répartition des outils";
+"Web" = "Web";
+"Where the time went" = "Où le temps est passé";
+"Your input" = "Vos interventions";
+"over %@" = "sur %@";
+"you came back after %@" = "vous êtes revenu après %@";
+"A background task reported back" = "Une tâche en arrière-plan a rendu compte";
+"Sent by the agent's tools" = "Envoyé par les outils de l’agent";
