@@ -1,5 +1,14 @@
 # Devlog
 
+## style(main): leave a little more room under the sidebar logo
+
+`pending` | 2026-11-01
+
+- **Changes**: `MainSidebar` logo row gets `.padding(.bottom, Space.xs)` (4 pt) under its 38 pt frame, so the logo stays level with the window buttons and the Overview row moves down 4 pt. Design `sidebar-v20`.
+- **Reason**: User request.
+- **User feedback**: "logo行到下一行的间距稍微大一点点"
+- **Result**: make build; make install; before/after snapshots in `design/history/sidebar-v20`.
+
 ## fix(codex): ask before reopening a quit Codex app's thread
 
 `pending` | 2026-11-01

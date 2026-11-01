@@ -8,7 +8,7 @@ the update.
 ## [Unreleased]
 
 ### Changed
-- The logo above the sidebar is a little larger, and a band of light sweeps across it when you point at it.
+- The logo above the sidebar is a little larger, sits a little further from the row below it, and a band of light sweeps across it when you point at it.
 - A session's page in the main window is redesigned around what the session came to: tokens used, turns, agent time and your input at the top; the latest reply drawn as formatted text (headings, lists, code, tables) with what that turn did; a bar of where the time went (running, waiting on you, to review); every turn in brief, expandable to its reply and edited files; the files touched and failed calls; token and tool mix. The raw tool log is folded at the end. Messages the agent's tools inject (background task reports) no longer read as your prompts.
 - Uses much less CPU while agents are running: status animations no longer redraw the windows every frame, and session history is written in batches in the background instead of on every hook event.
 
