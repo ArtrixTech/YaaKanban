@@ -847,6 +847,8 @@ final class AppModel {
         guard let s = sessions[key] else { return }
         record([ActivityRow(at: Date(), session: key, kind: .focus)])
         guard Self.isGone(s) else { telemetry.count(.jump(s.terminal)); jumper.jump(to: s); return }
+        // The Codex app keeps the thread: open it there, with no question to answer.
+        if TerminalJumper.codexAppThread(s) != nil { telemetry.count(.resume); jumper.resume(s); return }
         let runners = waveRunners(for: s)
         let name = s.terminal?.termProgram.flatMap(TerminalJumper.app(forTermProgram:))?.localizedName ?? String(localized: "Terminal")
         let why: String? = s.terminal?.isWave == true && runners.isEmpty ? String(localized: "Wave’s authorization has expired")

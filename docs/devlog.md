@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(main): enlarge the sidebar logo and sweep light across it on hover
+## fix(codex): open a quit Codex app's thread instead of a terminal dialog
 
 `pending` | 2026-11-01
+
+- **Changes**: `TerminalJumper.codexAppThread` (new): a Codex session with no `TERM_PROGRAM` and no Wave block is the app's; returns `codex://threads/<id>`. `AppModel.jump` opens it directly for a gone session (no reopen dialog); `resume`/`runsResume` use it instead of `s.terminal == nil`.
+- **Reason**: The app's hooks carry no terminal env, but the envelope stores an empty `TerminalContext` (`{}`), never nil, so the old `terminal == nil` check never matched. Once the Codex app quit (pid dead → gone), the click showed "终端不接受外部输入命令… 切到终端并复制".
+- **User feedback**: "目前codex无法打开桌面版…需要允许打开桌面版并跳转到对话"
+- **Process**: Confirmed in history.sqlite: app sessions have `terminal = {}` and a dead `agentPid`; CLI sessions carry `termProgram`.
+- **Result**: make build; make install.
+- **Notes**: The URL scheme launches Codex if it has quit. A Codex CLI in a terminal that sets no TERM_PROGRAM would now open the app instead; that thread is in the app too, so it still lands on the conversation.
+
+## feat(main): enlarge the sidebar logo and sweep light across it on hover
+
+`fd0396b` | 2026-11-01
 
 - **Changes**: `BrandLockup` (new, `MainWindow.swift`) replaces the inline name + mark on the window-button row: name `.callout` semibold (was `.footnote`), `BrandGlyph(size: 15)` (was 13). A lit copy (name in `.primary`, `BrandGlyph(lit: true)` columns at full ink, new parameter in `Windows.swift`) is masked by `Sweep`, an `Animatable` modifier whose band position is the fraction of an ever-growing phase, so each pass animates n → n+1 without a reset frame. While hovered: one 0.9 s easeInOut pass every 2.6 s (`task(id: hover)`, cancelled on exit); Reduce Motion fades the lit copy in instead. Spec, CHANGELOG, design `sidebar-v19`.
 - **Reason**: User request.
