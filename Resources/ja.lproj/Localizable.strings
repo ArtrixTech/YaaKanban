@@ -141,19 +141,14 @@
 "Tools: %lld" = "ツール%lld回";
 
 /* DetailView.swift */
-"Last reply" = "最後の返信";
 "Session summary" = "セッション概要";
-"Usage" = "使用量";
-"%@ tokens total" = "合計%@トークン";
 "Subagents" = "サブエージェント";
 "No hooks" = "フックなし";
 "Delete" = "削除";
-"This turn is done and waiting for your review" = "このターンは完了し、レビューを待っています";
 "Go to it" = "移動";
 "Turns" = "ターン";
 "None yet" = "まだありません";
 "(no prompt)" = "（プロンプトなし）";
-"%lld tools · %@" = "ツール%lld回 · %@";
 "Tool calls" = "ツール呼び出し";
 "Last %lld" = "直近%lld件";
 
@@ -448,3 +443,51 @@
 "Mark reviewed when its terminal is in front (beta)" = "ターミナルが前面にあればレビュー済みにする（ベータ）";
 "Works in Wave, iTerm2, Terminal, WezTerm and tmux inside them. Opening the pane counts, like clicking its card." = "Wave、iTerm2、ターミナル、WezTerm と、それらの中の tmux で使えます。そのペインを開くと、カードをクリックしたのと同じくレビュー済みになります。";
 "%@ needs Automation access to tell which tab is in front" = "前面のタブを知るには、%@ への「オートメーション」アクセスが必要です";
+
+/* DetailView.swift, DetailParts.swift */
+"%@ · replied in %@ on average" = "%@ · 平均 %@ で返答";
+"%lld commands" = "コマンド %lld 件";
+"%lld failed" = "失敗 %lld 件";
+"%lld failed calls" = "失敗した呼び出し %lld 件";
+"%lld files edited" = "%lld ファイルを編集";
+"%lld files only read" = "読んだだけのファイル %lld 件";
+"%lld more edited" = "ほかに編集 %lld 件";
+"%lld prompts · %lld answers" = "プロンプト %lld 件 · 回答 %lld 件";
+"%lld tool calls" = "ツール呼び出し %lld 回";
+"%lld tools" = "ツール %lld 件";
+"+%@ cache reads" = "キャッシュ読み取り +%@";
+"1 file edited" = "1 ファイルを編集";
+"1 file only read" = "読んだだけのファイル 1 件";
+"Agent time" = "エージェント時間";
+"Ask you" = "あなたへの質問";
+"Build & test" = "ビルドとテスト";
+"Cache hit %@" = "キャッシュヒット %@";
+"Commands" = "コマンド";
+"Delegate" = "委任";
+"Done, waiting for your review" = "完了、レビュー待ち";
+"Edit" = "編集";
+"Explore" = "調査";
+"Files and failures" = "ファイルと失敗";
+"Hatched stretches are long waits drawn shorter." = "斜線部分は短く描いた長い待ち時間です。";
+"In progress" = "進行中";
+"Last %lld calls" = "直近 %lld 回の呼び出し";
+"Latest turn" = "最新のターン";
+"No files touched" = "ファイルの変更なし";
+"No reply recorded" = "返答の記録なし";
+"No reply yet" = "まだ返答なし";
+"Not in the transcript" = "トランスクリプトにありません";
+"Nothing going on · %@" = "何も起きていない · %@";
+"Older tool calls of this turn are no longer kept." = "このターンの古いツール呼び出しはもう保存されていません。";
+"Recorded before state tracking began: only running time is known." = "状態の記録が始まる前のため、実行時間しかわかりません。";
+"Resources" = "リソース";
+"Show less" = "閉じる";
+"Show the whole reply" = "返答をすべて表示";
+"Tokens used" = "使用トークン";
+"Tool mix" = "ツールの内訳";
+"Web" = "Web";
+"Where the time went" = "時間の使われ方";
+"Your input" = "あなたの入力";
+"over %@" = "期間 %@";
+"you came back after %@" = "%@ 後に戻りました";
+"A background task reported back" = "バックグラウンドタスクの報告";
+"Sent by the agent's tools" = "エージェントのツールが送信";

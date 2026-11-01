@@ -70,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("menu", AnyView(MenuContent(panel: panel).environment(model)), NSSize(width: 230, height: 230)),
             ("main", AnyView(MainWindow().environment(model)), NSSize(width: 1000, height: 640)),
             ("main-light", AnyView(MainWindow().environment(model)), NSSize(width: 1000, height: 640)),
+            ("main-detail", AnyView(MainWindow().environment(model)), NSSize(width: 1000, height: 2000)),
             ("main-overview", AnyView(MainWindow(page: AppModel.overview).environment(model)), NSSize(width: 1000, height: 760)),
             ("settings", AnyView(MainWindow(page: AppModel.settingsPage).environment(model)), NSSize(width: 1000, height: 760)),
             ("settings-alerts", AnyView(MainWindow(page: AppModel.settingsPage, tab: .alerts).environment(model)), NSSize(width: 1000, height: 900)),

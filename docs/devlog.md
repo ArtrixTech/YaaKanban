@@ -1,8 +1,19 @@
 # Devlog
 
-## perf(app): batch session saves and run status animations on layers
+## feat(main): redesign the session detail page around what the session came to
 
 `pending` | 2026-11-01
+
+- **Changes**: `DetailView.swift` rewritten, `DetailParts.swift` (new: `DetailCard`, `StatTile`, `PhaseStrip`, `ShareBar`, `TimeBar`, `MarkdownView` + `MarkdownCache`, `ReplyText`). YaaCore: `SessionInsight.swift` (new: `ToolKind` by tool name and command head, `Turn.byUser`/`reportsTask`, `TurnInsight`, `SessionState.end(ofTurn:)`, `SessionInsight`, `SessionTimeline`), `Markdown.swift` (new: block parser, fences, lists, folding), `Store.activity(session:)` (lane + reply rows of one session), `AppModel.sessionActivity`. Snapshot entry `main-detail` (1000×2000). L10n: detail keys in 9 tables (449 keys, 0 problems), 5 stale keys dropped. Spec §5 line, CHANGELOG, Architecture. Tests `SessionInsightTests` (223 total pass). Design `detail-v1`.
+- **Reason**: The page showed raw text (unrendered Markdown, raw commands, four raw token numbers); the product analyses sessions rather than chatting with agents.
+- **User feedback**: "需要优化当前主界面的每个任务内部的详情显示……提出一些适合呈现在主界面里面每一个对话的详情的信息" then "按照你的方案来做。1，选B 2，可以 3，折叠保留 4，资源要显示。最上面可以主要显示用户关心的数据，例如对话消耗的token、来回轮次、花在这个任务的时间、用户input数量等"
+- **Process**: Scope agreed with the perf session (yaakanban-6a): it owned AppModel/Store save paths and animations, this change the detail page; `Store.activity` added after its commit. Adversarial review found open turns counted to now, overlapping rebuilt spans, double-counted input, `complete` false with sub-agents, negative durations, nested/4-backtick/one-line fences, a huge single block, deep indents, uncached inline parsing, non-web links, duplicate ForEach ids, TimeBar total, PhaseStrip overflow, verify words matched as substrings, no memoization; all fixed. Renders then showed task notifications as prompts (→ `byUser`), "you came back" after a background task (→ only before a user's prompt), and a 42-call turn as 34 s because Claude stopped before its background agents finished (→ a turn ends at its Stop or its last call's end, whichever is later, capped at the next prompt).
+- **Result**: make test 223 pass; make install; snapshots in `design/history/detail-v1`.
+- **Notes**: Not fixed: `ToolSummary` paths (str_replace_editor records "command", apply_patch only its first file, 120-char cap); the body still re-evaluates on any session's change (Memo keeps the derived data); the "In progress" clock moves only on re-render; one stale frame on session switch; huge sessions draw many TimeBar pieces; "answered" is 0 for sessions recorded before reply tracking; the tool log count includes sub-agent calls, the turns figure does not.
+
+## perf(app): batch session saves and run status animations on layers
+
+`9b0dd1f` | 2026-11-01
 
 - **Changes**: `AppModel.update` marks sessions unsaved; `flushSaves` (2 s debounce) encodes them on `yaak.save` and writes one transaction (`Store.encode`, `Store.save(batch)`); `stop()` → `saveAllNow`; `remove` drops the pending save. `LoopLayer.swift` (new): CALayer + CABasicAnimation for the `StatusGlyph` spin and halo, the rail `StatusTrack` light, and the card `Flash`, replacing `keyframeAnimator`/`repeatForever`. `report` caches `Store.lanes(before:)` per range start, cleared when a lane row lands before a cached start. `scan` reads Claude transcripts on `yaak.peek` (`ClaudeSessionScanner.changedTranscript`) and drops a read when a hook arrived meanwhile (`forgetTranscript`, re-read next scan). Test `storeSavesEncodedBatch`.
 - **Reason**: The app sat at ~48% of a core.

@@ -785,6 +785,9 @@ final class AppModel {
         return r
     }
 
+    /// One session's recorded lane and reply rows, for its detail page.
+    func sessionActivity(_ id: String) -> [ActivityRow] { store?.activity(session: id) ?? [] }
+
     // MARK: Sub-agents
 
     /// Transcripts already read for a parent link (the header is written once, at start).

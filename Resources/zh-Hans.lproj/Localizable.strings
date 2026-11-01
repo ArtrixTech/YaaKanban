@@ -141,19 +141,14 @@
 "Tools: %lld" = "%lld 次工具";
 
 /* DetailView.swift */
-"Last reply" = "最后回复";
 "Session summary" = "会话概要";
-"Usage" = "用量";
-"%@ tokens total" = "合计 %@ token";
 "Subagents" = "子 agent";
 "No hooks" = "未挂 hook";
 "Delete" = "删除";
-"This turn is done and waiting for your review" = "这一轮跑完了，等你验收";
 "Go to it" = "去查看";
 "Turns" = "轮次";
 "None yet" = "暂无";
 "(no prompt)" = "（无 prompt）";
-"%lld tools · %@" = "%lld 工具 · %@";
 "Tool calls" = "工具调用";
 "Last %lld" = "最近 %lld 次";
 
@@ -448,3 +443,51 @@
 "Mark reviewed when its terminal is in front (beta)" = "终端在前台即标记为已验收（测试）";
 "Works in Wave, iTerm2, Terminal, WezTerm and tmux inside them. Opening the pane counts, like clicking its card." = "适用于 Wave、iTerm2、终端，以及在它们中运行的 WezTerm 和 tmux。打开所在面板就算验收，与点击卡片相同。";
 "%@ needs Automation access to tell which tab is in front" = "%@ 需要“自动化”权限才能知道前台是哪个标签页";
+
+/* DetailView.swift, DetailParts.swift */
+"%@ · replied in %@ on average" = "%@ · 平均 %@ 回复";
+"%lld commands" = "%lld 条命令";
+"%lld failed" = "%lld 次失败";
+"%lld failed calls" = "%lld 次失败的调用";
+"%lld files edited" = "改了 %lld 个文件";
+"%lld files only read" = "%lld 个文件只读过";
+"%lld more edited" = "还有 %lld 个改过的";
+"%lld prompts · %lld answers" = "%lld 次提问 · %lld 次回答";
+"%lld tool calls" = "%lld 次工具调用";
+"%lld tools" = "%lld 个工具";
+"+%@ cache reads" = "另有 %@ 缓存读取";
+"1 file edited" = "改了 1 个文件";
+"1 file only read" = "1 个文件只读过";
+"Agent time" = "Agent 用时";
+"Ask you" = "问你";
+"Build & test" = "构建与测试";
+"Cache hit %@" = "缓存命中 %@";
+"Commands" = "命令";
+"Delegate" = "委派";
+"Done, waiting for your review" = "已完成，等你审阅";
+"Edit" = "编辑";
+"Explore" = "探索";
+"Files and failures" = "文件与失败";
+"Hatched stretches are long waits drawn shorter." = "斜线条纹是画短了的长时间等待。";
+"In progress" = "进行中";
+"Last %lld calls" = "最近 %lld 次调用";
+"Latest turn" = "最新一轮";
+"No files touched" = "没有动过文件";
+"No reply recorded" = "没有记录到回复";
+"No reply yet" = "还没有回复";
+"Not in the transcript" = "对话记录里没有";
+"Nothing going on · %@" = "无事发生 · %@";
+"Older tool calls of this turn are no longer kept." = "这一轮更早的工具调用已不再保留。";
+"Recorded before state tracking began: only running time is known." = "记录早于状态追踪：只知道运行时间。";
+"Resources" = "资源";
+"Show less" = "收起";
+"Show the whole reply" = "展开完整回复";
+"Tokens used" = "消耗 token";
+"Tool mix" = "工具构成";
+"Web" = "网络";
+"Where the time went" = "时间花在哪里";
+"Your input" = "你的输入";
+"over %@" = "跨度 %@";
+"you came back after %@" = "你在 %@ 后回来";
+"A background task reported back" = "后台任务汇报了结果";
+"Sent by the agent's tools" = "由 agent 的工具发送";

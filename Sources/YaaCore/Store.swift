@@ -167,6 +167,22 @@ public final class Store {
         return out
     }
 
+    /// One session's lane and reply rows, oldest first (its detail page's timeline).
+    public func activity(session: String) -> [ActivityRow] {
+        var out: [ActivityRow] = []
+        let sql = """
+            SELECT at, session, kind, value, text FROM activity
+            WHERE kind IN ('lane', 'reply') AND session = ?1 ORDER BY at, rowid
+            """
+        query(sql, bind: { st in sqlite3_bind_text(st, 1, session, -1, Self.transient) }) { st in
+            guard let kind = ActivityRow.Kind(rawValue: String(cString: sqlite3_column_text(st, 2))) else { return }
+            out.append(ActivityRow(at: Date(timeIntervalSince1970: sqlite3_column_double(st, 0)),
+                                   session: String(cString: sqlite3_column_text(st, 1)), kind: kind,
+                                   value: sqlite3_column_double(st, 3), text: String(cString: sqlite3_column_text(st, 4))))
+        }
+        return out
+    }
+
     /// Each session's last recorded lane before `date` (sessions that had left the lanes omitted).
     public func lanes(before date: Date = .distantFuture) -> [String: Lane] {
         var out: [String: Lane] = [:]
