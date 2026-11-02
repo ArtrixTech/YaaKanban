@@ -1,5 +1,14 @@
 # Devlog
 
+## feat(away): shorten the away cooldown to 1 minute
+
+`pending` | 2026-11-02
+
+- **Changes**: `AppModel.awayAfter` 120 → 60 s; settings footer, 9 localizations, spec and CHANGELOG say 1 minute.
+- **Reason**: Judge "at the computer" sooner.
+- **User feedback**: "判定在不在电脑前的冷却时间改成1min"
+- **Result**: make build passes.
+
 ## chore(release): bump the version to 0.2.1
 
 `pending` | 2026-11-01

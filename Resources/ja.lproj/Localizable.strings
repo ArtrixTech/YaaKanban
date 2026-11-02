@@ -207,7 +207,7 @@
 "Start tinting" = "色付けを開始";
 "Bluest" = "最も青く";
 "Session reminders" = "セッションのリマインダー";
-"Review flashing counts only time you're at the computer (2 minutes without keyboard or mouse, or sleep, counts as away). A reviewed session that hasn't run since turns gradually blue from “Start tinting”, is bluest halfway between that and “Keep reviewed sessions”, and fades back to gray and leaves the floating panel when the retention ends. Time counts from when the session ended or you last opened it; opening it again restarts the clock." = "レビュー待ちの点滅は、コンピュータの前にいる時間だけを数えます（キーボードやマウスの操作が2分間ない場合やスリープ中は離席とみなします）。レビュー済みで、その後実行されていないセッションは、「色付けを開始」から徐々に青くなり、その時点と「レビュー済みセッションの保持期間」の中間で最も青くなり、保持期間が終わるとグレーに戻ってフローティングパネルから消えます。時間はセッションが終了した時点、または最後に開いた時点から数え、もう一度開くとリセットされます。";
+"Review flashing counts only time you're at the computer (1 minute without keyboard or mouse, or sleep, counts as away). A reviewed session that hasn't run since turns gradually blue from “Start tinting”, is bluest halfway between that and “Keep reviewed sessions”, and fades back to gray and leaves the floating panel when the retention ends. Time counts from when the session ended or you last opened it; opening it again restarts the clock." = "レビュー待ちの点滅は、コンピュータの前にいる時間だけを数えます（キーボードやマウスの操作が1分間ない場合やスリープ中は離席とみなします）。レビュー済みで、その後実行されていないセッションは、「色付けを開始」から徐々に青くなり、その時点と「レビュー済みセッションの保持期間」の中間で最も青くなり、保持期間が終わるとグレーに戻ってフローティングパネルから消えます。時間はセッションが終了した時点、または最後に開いた時点から数え、もう一度開くとリセットされます。";
 "Floating panel" = "フローティングパネル";
 "Show / hide" = "表示 / 非表示";
 "Show leverage and today's work time on top" = "上部にレバレッジと今日の作業時間を表示";

@@ -133,7 +133,7 @@ extension SettingsView {
                     Switch(isOn: $settings.suppressWhenWaveFrontmost)
                 }
             }
-            GroupSection(title: Text("Session reminders"), footer: Text("Review flashing counts only time you're at the computer (2 minutes without keyboard or mouse, or sleep, counts as away). A reviewed session that hasn't run since turns gradually blue from \u{201C}Start tinting\u{201D}, is bluest halfway between that and \u{201C}Keep reviewed sessions\u{201D}, and fades back to gray and leaves the floating panel when the retention ends. Time counts from when the session ended or you last opened it; opening it again restarts the clock.")) {
+            GroupSection(title: Text("Session reminders"), footer: Text("Review flashing counts only time you're at the computer (1 minute without keyboard or mouse, or sleep, counts as away). A reviewed session that hasn't run since turns gradually blue from \u{201C}Start tinting\u{201D}, is bluest halfway between that and \u{201C}Keep reviewed sessions\u{201D}, and fades back to gray and leaves the floating panel when the retention ends. Time counts from when the session ended or you last opened it; opening it again restarts the clock.")) {
                 SettingRow(String(localized: "Keep reviewed sessions"), symbol: "checkmark.circle.fill", tint: .green) {
                     Segmented(items: Preferences.retentionChoices.map { (item: $0, title: Self.duration($0)) }, selection: $settings.idleVisibleMinutes)
                         .onChange(of: settings.idleVisibleMinutes) {

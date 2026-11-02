@@ -7,6 +7,10 @@ the update.
 
 ## [Unreleased]
 
+### Changed
+
+- The away check now triggers after 1 minute without keyboard or mouse input instead of 2.
+
 ## [0.2.1] - 2026-11-01
 
 ### Changed

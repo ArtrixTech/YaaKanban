@@ -207,7 +207,7 @@
 "Start tinting" = "开始变蓝";
 "Bluest" = "最蓝";
 "Session reminders" = "会话提醒";
-"Review flashing counts only time you're at the computer (2 minutes without keyboard or mouse, or sleep, counts as away). A reviewed session that hasn't run since turns gradually blue from “Start tinting”, is bluest halfway between that and “Keep reviewed sessions”, and fades back to gray and leaves the floating panel when the retention ends. Time counts from when the session ended or you last opened it; opening it again restarts the clock." = "待验收闪烁只计你在电脑前的时间（2 分钟无键鼠操作或睡眠算离开）。已验收、之后没再运行的会话：从「开始变蓝」起逐渐变蓝，在它与「已验收会话保留」的正中最蓝，到保留时长结束时褪回灰色并离开悬浮窗。时间从会话结束或你最后一次点开它算起，再点开一次就重新计时。";
+"Review flashing counts only time you're at the computer (1 minute without keyboard or mouse, or sleep, counts as away). A reviewed session that hasn't run since turns gradually blue from “Start tinting”, is bluest halfway between that and “Keep reviewed sessions”, and fades back to gray and leaves the floating panel when the retention ends. Time counts from when the session ended or you last opened it; opening it again restarts the clock." = "待验收闪烁只计你在电脑前的时间（1 分钟无键鼠操作或睡眠算离开）。已验收、之后没再运行的会话：从「开始变蓝」起逐渐变蓝，在它与「已验收会话保留」的正中最蓝，到保留时长结束时褪回灰色并离开悬浮窗。时间从会话结束或你最后一次点开它算起，再点开一次就重新计时。";
 "Floating panel" = "悬浮窗";
 "Show / hide" = "显示 / 隐藏";
 "Show leverage and today's work time on top" = "顶部显示杠杆和今日工时";
