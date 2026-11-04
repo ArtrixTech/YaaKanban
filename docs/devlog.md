@@ -1,8 +1,19 @@
 # Devlog
 
+## docs(release): pin release signing to team 5KZD8GBF7G
+
+`pending` | 2026-11-04
+
+- **Changes**: AGENTS.md repo rule on release signing (team 5KZD8GBF7G, which cert is which, how to sign); `scripts/release.sh` comment; precipitation `261104_release_signing_team_mismatch_repair.md`; corrected the 0.2.1 devlog note. Outside git: re-signed the 0.2.1 zip and DMG with team 5KZD8GBF7G and replaced them on the GitHub release.
+- **Reason**: 0.2.1 shipped signed by team 5JF32B7C33; `Updater.verify` rejects a different team, so 0.1.x/0.2.0 installs could not update.
+- **User feedback**: "用户反馈无法更新……用户版本0.1.2"; "帮我走1，替换。"; "文档要明确未来签名。另外告诉我两个签名对应什么团队"
+- **Process**: `codesign -dv` on the published zips: 0.1.2 and 0.2.0 are team 5KZD8GBF7G, 0.2.1 was 5JF32B7C33. Re-signed the 0.2.1 app (helper first, then the app), and every other file is byte-identical. Rebuilt the zip with `ditto` and the DMG with `scripts/dmg.sh`. `gh release upload --clobber` hit a 502 after deleting the DMG; the retry uploaded both. The downloaded release files `cmp`-match the local ones, and the zip's app shows team 5KZD8GBF7G.
+- **Result**: 0.1.x/0.2.0 installs can update to 0.2.1 again; the cached bad copy is re-downloaded on the next check.
+- **Notes**: Anyone who installed the 0.2.1 DMG before 2026-11-04 runs a team-5JF3 build and must install manually once. `bundle.sh` still signs with the first keychain identity unless `YAAK_SIGN_IDENTITY` is set.
+
 ## feat(away): shorten the away cooldown to 1 minute
 
-`pending` | 2026-11-02
+`25398a5` | 2026-11-02
 
 - **Changes**: `AppModel.awayAfter` 120 → 60 s; settings footer, 9 localizations, spec and CHANGELOG say 1 minute.
 - **Reason**: Judge "at the computer" sooner.
@@ -11,13 +22,13 @@
 
 ## chore(release): bump the version to 0.2.1
 
-`pending` | 2026-11-01
+`d8b89d1` | 2026-11-01
 
 - **Changes**: `Resources/Info.plist` 0.2.0 (4) → 0.2.1 (5); CHANGELOG `[Unreleased]` entries now under `[0.2.1] - 2026-11-01`.
 - **Reason**: Release the detail page, CPU, panel header and sidebar logo work.
 - **User feedback**: "完成之后发新的版本，小版本号+1。"
 - **Process**: make test 223 pass; make l10n 0 problems. Read "小版本号+1" as the last digit, as 0.1.1 → 0.1.2 was.
-- **Notes**: Signed by team 5JF32B7C33 like 0.2.0, so 0.2.0 installs accept the update.
+- **Notes**: Correction (2026-11-04): first published signed by team 5JF32B7C33, but 0.2.0 is team 5KZD8GBF7G, so the update was rejected. The release files were re-signed with 5KZD8GBF7G; see the docs(release) block above.
 
 ## style(main): lower the sidebar's Overview row by 2 pt
 
