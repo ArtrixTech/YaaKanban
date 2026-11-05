@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(jump): bring Wave to the front even when YaaKanban is inactive
+## feat(telemetry): count installs, updates, quits and abnormal exits
 
 `pending` | 2026-11-05
+
+- **Changes**: New `TelemetryEvent`s `app_install`, `app_update`, `abnormal_exit`, `quit_user|update|relaunch|system`; report schema 2 with `updated_from` (ledger `updatedFrom` per day, Aptabase prop `updated_from`); `TelemetryLaunch.classify` in YaaCore. `TelemetryReporter` classifies the launch at init (before `Updater.start` rewrites `lastRunVersion`), keeps a `telemetryRunning` defaults flag, flushes launch events on the first tick with telemetry on; `noteQuit()` in `applicationWillTerminate`. Updater and `AppLanguage.relaunch` set `TelemetryReporter.quitReason`; `applicationShouldTerminate` reads `kAEQuitReason` for logout/restart/shutdown. Docs: telemetry.md, spec §6, CHANGELOG.
+- **Reason**: No signal for installs, update uptake or why the app stops running.
+- **User feedback**: "需要补充当前软件的一些遥测，例如在新安装、版本更新、用户主动退出等事件上也需要做一些埋点"; chose all four event groups, folded into the daily report, with the from-version.
+- **Process**: `make test` 227 passed (4 new: classify, updatedFrom lifecycle, old-ledger decode, report/event props). `make install` failed: `codesign` answers `unknown exception` for any file (keychain/signing environment), so not run in the real app.
+- **Result**: Code done and unit-tested; quit and abnormal-exit paths not yet observed in a running app.
+- **Notes**: Install = no `lastRunVersion` and neither `history.sqlite` nor `telemetry.json` (older builds left data but no version). Install is counted only if telemetry is turned on in that first run. `make install`/`pkill` sends SIGTERM, which skips `applicationWillTerminate`, so dev reinstalls show up as `abnormal_exit` (debug-flagged builds only if built debug; release `make install` builds count too).
+
+## fix(jump): bring Wave to the front even when YaaKanban is inactive
+
+`836111f` | 2026-11-05
 
 - **Changes**: `NSRunningApplication.bringForward()` in `TerminalJumper.swift` (yieldActivation + activate + AX `kAXFrontmostAttribute` when trusted); Wave jump and resume use it.
 - **Reason**: Since macOS 14 `activate()` is cooperative; YaaKanban is an LSUIElement app with a `.nonactivatingPanel`, so it is rarely active and the system often ignores its request. The tab press goes through AX, so tabs switched while Wave stayed behind.

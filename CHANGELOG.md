@@ -9,6 +9,7 @@ the update.
 
 ### Changed
 
+- With anonymous statistics on, the daily report also counts installs, updates (with the version updated from), quits by cause (you, an update, a language change, logout or shutdown) and runs that ended without quitting. See `docs/telemetry.md`.
 - The away check now triggers after 1 minute without keyboard or mouse input instead of 2.
 
 ### Fixed
