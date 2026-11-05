@@ -37,12 +37,13 @@ enum AppLanguage {
     static let atLaunch = override
 
     /// Opens a fresh copy of the app once this one has quit, then quits.
-    static func relaunch() {
+    @MainActor static func relaunch() {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/sh")
         p.arguments = ["-c", "while kill -0 \"$1\" 2>/dev/null; do sleep 0.2; done; open \"$2\"",
                        "sh", "\(ProcessInfo.processInfo.processIdentifier)", Bundle.main.bundlePath]
         try? p.run()
+        TelemetryReporter.quitReason = .quitRelaunch
         NSApp.terminate(nil)
     }
 }

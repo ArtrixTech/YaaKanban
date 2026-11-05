@@ -207,7 +207,7 @@
 "Start tinting" = "파란색 표시 시작";
 "Bluest" = "가장 파란색";
 "Session reminders" = "세션 알림";
-"Review flashing counts only time you're at the computer (2 minutes without keyboard or mouse, or sleep, counts as away). A reviewed session that hasn't run since turns gradually blue from “Start tinting”, is bluest halfway between that and “Keep reviewed sessions”, and fades back to gray and leaves the floating panel when the retention ends. Time counts from when the session ended or you last opened it; opening it again restarts the clock." = "검토 대기 깜박임은 컴퓨터 앞에 있는 시간만 계산합니다(키보드나 마우스 입력이 2분간 없거나 잠자기 상태이면 자리 비움으로 간주). 검토 완료 후 다시 실행되지 않은 세션은 “파란색 표시 시작”부터 점점 파랗게 변하고, 그 시점과 “검토 완료 세션 보관”의 중간에서 가장 파랗게 되며, 보관 기간이 끝나면 다시 회색으로 돌아가 플로팅 패널에서 사라집니다. 시간은 세션이 종료되었거나 마지막으로 열어 본 시점부터 계산되며, 다시 열면 처음부터 다시 계산됩니다.";
+"Review flashing counts only time you're at the computer (1 minute without keyboard or mouse, or sleep, counts as away). A reviewed session that hasn't run since turns gradually blue from “Start tinting”, is bluest halfway between that and “Keep reviewed sessions”, and fades back to gray and leaves the floating panel when the retention ends. Time counts from when the session ended or you last opened it; opening it again restarts the clock." = "검토 대기 깜박임은 컴퓨터 앞에 있는 시간만 계산합니다(키보드나 마우스 입력이 1분간 없거나 잠자기 상태이면 자리 비움으로 간주). 검토 완료 후 다시 실행되지 않은 세션은 “파란색 표시 시작”부터 점점 파랗게 변하고, 그 시점과 “검토 완료 세션 보관”의 중간에서 가장 파랗게 되며, 보관 기간이 끝나면 다시 회색으로 돌아가 플로팅 패널에서 사라집니다. 시간은 세션이 종료되었거나 마지막으로 열어 본 시점부터 계산되며, 다시 열면 처음부터 다시 계산됩니다.";
 "Floating panel" = "플로팅 패널";
 "Show / hide" = "보기 / 가리기";
 "Show leverage and today's work time on top" = "상단에 레버리지와 오늘 작업 시간 표시";

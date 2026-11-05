@@ -222,3 +222,60 @@ private let env = TelemetryEnvironment(app: "0.1.0", build: "1", os: "15", arch:
     let key = try #require(info[Telemetry.appKeyKey] as? String)
     #expect(AptabaseEvent.ingestURL(appKey: key)?.host == "us.aptabase.com")
 }
+
+@Suite struct TelemetryLaunchTests {
+    @Test func classify() {
+        #expect(TelemetryLaunch.classify(last: nil, current: "0.2.2", hadData: false) == .install)
+        // Builds before the version record left data but no version: an existing install.
+        #expect(TelemetryLaunch.classify(last: nil, current: "0.2.2", hadData: true) == .normal)
+        #expect(TelemetryLaunch.classify(last: "0.2.1", current: "0.2.2", hadData: true) == .update(from: "0.2.1"))
+        #expect(TelemetryLaunch.classify(last: "0.2.2", current: "0.2.2", hadData: true) == .normal)
+        #expect(TelemetryLaunch.classify(last: "0.3.0", current: "0.2.2", hadData: true) == .normal)
+        #expect(TelemetryLaunch.classify(last: nil, current: nil, hadData: false) == .normal)
+        #expect(TelemetryLaunch.classify(last: "junk", current: "0.2.2", hadData: false) == .install)
+    }
+
+    /// An update is counted with the version it came from; the first one of a day wins, and both
+    /// go once the day is reported or telemetry is turned off.
+    @Test func updateKeepsFromVersion() {
+        var l = TelemetryLedger()
+        l.noteUpdate(from: "0.2.0", day: "2026-11-05")
+        #expect(l.days.isEmpty && l.updatedFrom == nil)
+        l.set(enabled: true)
+        l.noteUpdate(from: "0.2.0", day: "2026-11-05")
+        l.noteUpdate(from: "0.2.1", day: "2026-11-05")
+        l.noteUpdate(from: "0.2.1", day: "2026-11-06")
+        #expect(l.days["2026-11-05"] == ["app_update": 2])
+        #expect(l.updatedFrom == ["2026-11-05": "0.2.0", "2026-11-06": "0.2.1"])
+        l.sent(through: "2026-11-05")
+        #expect(l.updatedFrom == ["2026-11-06": "0.2.1"])
+        l.sent(through: "2026-11-06")
+        #expect(l.updatedFrom == nil)
+        l.noteUpdate(from: "0.2.1", day: "2026-11-07")
+        l.set(enabled: false)
+        #expect(l.updatedFrom == nil)
+    }
+
+    /// A ledger written by an older build (no `updatedFrom`) still decodes, keeping consent.
+    @Test func oldLedgerDecodes() throws {
+        let json = #"{"enabled":true,"asked":true,"installId":"x","days":{"2026-11-04":{"rename":1}}}"#
+        let l = try JSONDecoder().decode(TelemetryLedger.self, from: Data(json.utf8))
+        #expect(l.enabled && l.installId == "x" && l.updatedFrom == nil)
+    }
+
+    @Test func reportAndEventCarryUpdatedFrom() throws {
+        let r = Telemetry.makeReport(installId: "x", day: "2026-11-05", env: env, integrations: [:], settings: [:],
+                                     counts: ["app_update": 1, "app_install": 1, "quit_user": 2, "quit_system": 1,
+                                              "quit_update": 1, "quit_relaunch": 1, "abnormal_exit": 1],
+                                     figures: TelemetryFigures(), updatedFrom: "0.2.1")
+        #expect(r.schema == 2 && r.updatedFrom == "0.2.1" && r.counts.count == 7)
+        let obj = try #require(JSONSerialization.jsonObject(with: Telemetry.encode(r)) as? [String: Any])
+        #expect(obj["updated_from"] as? String == "0.2.1")
+        let e = AptabaseEvent(report: r)
+        #expect(e.props["updated_from"] == "0.2.1" && e.props["count.quit_user"] == "2-5" && e.props["schema"] == "2")
+        // Without an update the field is absent, and anything not a version is dropped.
+        let n = Telemetry.makeReport(installId: "x", day: "2026-11-05", env: env, integrations: [:], settings: [:],
+                                     counts: [:], figures: TelemetryFigures(), updatedFrom: "/Users/me")
+        #expect(n.updatedFrom == nil && AptabaseEvent(report: n).props["updated_from"] == nil)
+    }
+}

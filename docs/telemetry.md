@@ -11,11 +11,11 @@ them as at send time). `yaak telemetry status` shows the
 state, install id, the last reported day, how the last send ended (accepted, HTTP status or
 network error) and whether this build has an Aptabase App Key. Turning it off deletes the unsent counts.
 
-## Fields (schema 1)
+## Fields (schema 2)
 
 | Field | Content |
 | --- | --- |
-| `schema` | `1` |
+| `schema` | `2` (2 added the launch and quit counters and `updated_from`) |
 | `install_id` | random UUID made when you first turn telemetry on; 重置 makes a new one |
 | `day` | local date the report covers, `yyyy-MM-dd` |
 | `app`, `build` | YaaKanban version |
@@ -24,8 +24,13 @@ network error) and whether this build has an Aptabase App Key. Turning it off de
 | `lang` | language code only, e.g. `zh` |
 | `integrations` | per agent: `installed`, `outdated`, `needsAuthorization`, `notInstalled`, `notDetected` |
 | `settings` | on/off: `show_panel`, `recent_stats`, `flash`, `review_flash`, `stale_tint`, `wave_tab_switching`, `pi_auto_title`, `launch_at_login` (as at send time) |
-| `counts` | times that day, bucketed like `sessions` below: `panel_toggle`, `jump_wave`, `jump_iterm`, `jump_terminal`, `jump_editor`, `jump_other`, `jump_unknown`, `resume`, `approval_allow`, `approval_deny`, `approval_timeout`, `rename`, `pin`, `feedback_open`, `integration_install`, `integration_uninstall`, `integration_fail`, `spool_replay` |
+| `counts` | times that day, bucketed like `sessions` below: `panel_toggle`, `jump_wave`, `jump_iterm`, `jump_terminal`, `jump_editor`, `jump_other`, `jump_unknown`, `resume`, `approval_allow`, `approval_deny`, `approval_timeout`, `rename`, `pin`, `feedback_open`, `integration_install`, `integration_uninstall`, `integration_fail`, `spool_replay`; launches: `app_install` (first launch on this Mac), `app_update` (first launch of a newer version), `abnormal_exit` (the previous run ended without quitting: a crash, force quit or kill); quits: `quit_user` (menu, ⌘Q, Dock, Activity Monitor's Quit), `quit_update` (restarting into an update), `quit_relaunch` (relaunching for a language change), `quit_system` (logout, restart, shutdown) |
+| `updated_from` | only on a day with an update: the version updated from (the earliest that day), e.g. `0.2.1` |
 | `figures` | ranges, not values: `sessions.<agent>` and `turns.<agent>` (`1`, `2-5`, `6-20`, `21-100`, `100+`), `agent_hours` (`0`, `<1`, `1-3`, `3-8`, `8-24`, `24+`), `parallel_peak` (as sessions), `leverage` (`<0.5`, `0.5-1`, `1-2`, `2-4`, `4+`) |
+
+A launch is counted once telemetry is on in that run: an install is counted when you turn it on
+at the first launch's prompt, not if you turn it on later. Uninstalls cannot be seen; an install
+that stops reporting is all there is.
 
 Never sent: prompts, replies, tool input or output, file paths, project, session or terminal
 names, titles, tokens, credentials.
@@ -35,7 +40,7 @@ names, titles, tokens, credentials.
 Reports go to [Aptabase](https://aptabase.com) (US region, `us.aptabase.com`), one event per
 report, named `daily`. Version, build, macOS and language travel as Aptabase's system props; the
 fields above become string props: `day`, `schema`, `arch`, `integration.<agent>`,
-`setting.<name>` (`on`/`off`), `count.<event>`, `figure.<name>`. `install_id` is not sent as is:
+`setting.<name>` (`on`/`off`), `count.<event>`, `figure.<name>`, `updated_from`. `install_id` is not sent as is:
 the `install` prop is its SHA-256, so days from one install can be linked without the id itself.
 Each report is its own session, timestamped when it is sent (Aptabase refuses events over a day
 old), so a backlog day shows up under the send date; `day` says which day it covers. Debug builds

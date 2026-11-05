@@ -221,6 +221,7 @@ final class Updater {
         sh.executableURL = URL(fileURLWithPath: "/bin/sh")
         sh.arguments = ["-c", script, "sh", "\(ProcessInfo.processInfo.processIdentifier)", bundle.path, p.app.path]
         do { try sh.run() } catch { phase = .failed(error.localizedDescription); return }
+        TelemetryReporter.quitReason = .quitUpdate
         NSApp.terminate(nil)
     }
 
@@ -230,8 +231,8 @@ final class Updater {
     /// panel's message, until closed), with the way to its release notes.
     private func noteUpdated() {
         guard let current else { return }
-        let last = d.string(forKey: "lastRunVersion").flatMap(AppVersion.init)
-        d.set(current.description, forKey: "lastRunVersion")
+        let last = d.string(forKey: TelemetryReporter.lastRunVersionKey).flatMap(AppVersion.init)
+        d.set(current.description, forKey: TelemetryReporter.lastRunVersionKey)
         guard let last, last < current else { return }
         try? FileManager.default.removeItem(at: Self.cache)
         justUpdated = current

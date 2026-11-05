@@ -207,7 +207,7 @@
 "Start tinting" = "開始變藍";
 "Bluest" = "最藍";
 "Session reminders" = "工作階段提醒";
-"Review flashing counts only time you're at the computer (2 minutes without keyboard or mouse, or sleep, counts as away). A reviewed session that hasn't run since turns gradually blue from “Start tinting”, is bluest halfway between that and “Keep reviewed sessions”, and fades back to gray and leaves the floating panel when the retention ends. Time counts from when the session ended or you last opened it; opening it again restarts the clock." = "待驗收閃爍只計算你在電腦前的時間（2 分鐘沒有鍵盤或滑鼠操作，或進入睡眠，即視為離開）。已驗收且之後沒有再執行的工作階段，會從「開始變藍」起逐漸變藍，在它與「已驗收工作階段保留」的正中間最藍，保留時間結束時褪回灰色並離開浮動面板。時間從工作階段結束或你最後一次打開它時起算，再打開一次就會重新計時。";
+"Review flashing counts only time you're at the computer (1 minute without keyboard or mouse, or sleep, counts as away). A reviewed session that hasn't run since turns gradually blue from “Start tinting”, is bluest halfway between that and “Keep reviewed sessions”, and fades back to gray and leaves the floating panel when the retention ends. Time counts from when the session ended or you last opened it; opening it again restarts the clock." = "待驗收閃爍只計算你在電腦前的時間（1 分鐘沒有鍵盤或滑鼠操作，或進入睡眠，即視為離開）。已驗收且之後沒有再執行的工作階段，會從「開始變藍」起逐漸變藍，在它與「已驗收工作階段保留」的正中間最藍，保留時間結束時褪回灰色並離開浮動面板。時間從工作階段結束或你最後一次打開它時起算，再打開一次就會重新計時。";
 "Floating panel" = "浮動面板";
 "Show / hide" = "顯示 / 隱藏";
 "Show leverage and today's work time on top" = "在頂端顯示槓桿與今日工時";
