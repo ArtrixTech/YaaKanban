@@ -11,6 +11,10 @@ the update.
 
 - The away check now triggers after 1 minute without keyboard or mouse input instead of 2.
 
+### Fixed
+
+- Clicking a Wave session now brings Wave to the front reliably; before, it often switched the tab while Wave stayed behind other windows.
+
 ## [0.2.1] - 2026-11-01
 
 ### Changed

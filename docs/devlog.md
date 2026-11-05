@@ -1,8 +1,19 @@
 # Devlog
 
+## fix(jump): bring Wave to the front even when YaaKanban is inactive
+
+`pending` | 2026-11-05
+
+- **Changes**: `NSRunningApplication.bringForward()` in `TerminalJumper.swift` (yieldActivation + activate + AX `kAXFrontmostAttribute` when trusted); Wave jump and resume use it.
+- **Reason**: Since macOS 14 `activate()` is cooperative; YaaKanban is an LSUIElement app with a `.nonactivatingPanel`, so it is rarely active and the system often ignores its request. The tab press goes through AX, so tabs switched while Wave stayed behind.
+- **User feedback**: "目前经常无法点击打开wave，但能跳转tab"
+- **Process**: A CLI probe from the terminal activated Wave with all three methods (the terminal parent is active, so not representative). A background LSUIElement test app could not be launched (`open` -10825) and the user's live desktop made front-app checks noisy; stopped and fixed per API semantics. `make test` passes (223 tests).
+- **Result**: Not yet confirmed in daily use; needs the user to click Wave sessions from the panel with another app in front.
+- **Notes**: Tabby, editors and plain terminals still call `activate()` and may show the same symptom; switch them to `bringForward()` if reported.
+
 ## docs(release): pin release signing to team 5KZD8GBF7G
 
-`pending` | 2026-11-04
+`6efbb6b` | 2026-11-04
 
 - **Changes**: AGENTS.md repo rule on release signing (team 5KZD8GBF7G, which cert is which, how to sign); `scripts/release.sh` comment; precipitation `261104_release_signing_team_mismatch_repair.md`; corrected the 0.2.1 devlog note. Outside git: re-signed the 0.2.1 zip and DMG with team 5KZD8GBF7G and replaced them on the GitHub release.
 - **Reason**: 0.2.1 shipped signed by team 5JF32B7C33; `Updater.verify` rejects a different team, so 0.1.x/0.2.0 installs could not update.

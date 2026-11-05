@@ -230,6 +230,18 @@ struct TerminalJumper {
     }
 }
 
+extension NSRunningApplication {
+    /// Brings the app to the front from YaaKanban, which is usually not active itself (an accessory
+    /// app whose panel never takes focus). Since macOS 14 `activate()` only asks, and the system
+    /// may ignore a request from an inactive app; Accessibility's frontmost flag is honoured.
+    func bringForward() {
+        NSApp.yieldActivation(to: self)
+        activate()
+        guard AXIsProcessTrusted() else { return }
+        AXUIElementSetAttributeValue(AXUIElementCreateApplication(processIdentifier), kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+    }
+}
+
 /// Editor windows through Accessibility: the one titled with the project, or Cursor's Agents window
 /// (first for Cursor's own agent, which usually lives there). Without Accessibility the app is
 /// only activated.
@@ -265,7 +277,7 @@ struct WaveAdapter {
     }
 
     func jump(app: NSRunningApplication) {
-        app.activate()
+        app.bringForward()
         badge(on: true)
         // `switchTabs` is only set once Accessibility is allowed (`TerminalJumper.accessibility`).
         guard switchTabs, let tab = terminal.waveTabId, AXIsProcessTrusted() else { return }
@@ -289,7 +301,7 @@ struct WaveAdapter {
     /// When none works the user pastes the copied command instead, and `failed` says so.
     func resume(_ cmd: String, cwd: String?, app: NSRunningApplication, runners: [TerminalContext],
                 failed: @escaping @MainActor () -> Void) {
-        app.activate()
+        app.bringForward()
         let pressed = DispatchSemaphore(value: 0)
         if switchTabs, let tab = terminal.waveTabId, AXIsProcessTrusted() {
             let pid = app.processIdentifier
