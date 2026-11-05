@@ -7,6 +7,8 @@ the update.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-05
+
 ### Changed
 
 - With anonymous statistics on, the daily report also counts installs, updates (with the version updated from), quits by cause (you, an update, a language change, logout or shutdown) and runs that ended without quitting. See `docs/telemetry.md`.

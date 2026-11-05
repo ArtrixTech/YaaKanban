@@ -1,8 +1,17 @@
 # Devlog
 
-## feat(telemetry): count installs, updates, quits and abnormal exits
+## chore(release): bump the version to 0.2.2
 
 `pending` | 2026-11-05
+
+- **Changes**: `Info.plist` 0.2.2 (build 6); CHANGELOG `[Unreleased]` → `[0.2.2] - 2026-11-05`.
+- **Reason**: Release the telemetry launch/quit counters, the Wave jump fix and the 1-minute away cooldown.
+- **User feedback**: "pr到dev，devpr到main，release新版"
+- **Notes**: Release signing identity (team 5KZD8GBF7G) signs fine; the 4D5TXM7349 local-install cert answers `unknown exception`.
+
+## feat(telemetry): count installs, updates, quits and abnormal exits
+
+`4431afb` | 2026-11-05
 
 - **Changes**: New `TelemetryEvent`s `app_install`, `app_update`, `abnormal_exit`, `quit_user|update|relaunch|system`; report schema 2 with `updated_from` (ledger `updatedFrom` per day, Aptabase prop `updated_from`); `TelemetryLaunch.classify` in YaaCore. `TelemetryReporter` classifies the launch at init (before `Updater.start` rewrites `lastRunVersion`), keeps a `telemetryRunning` defaults flag, flushes launch events on the first tick with telemetry on; `noteQuit()` in `applicationWillTerminate`. Updater and `AppLanguage.relaunch` set `TelemetryReporter.quitReason`; `applicationShouldTerminate` reads `kAEQuitReason` for logout/restart/shutdown. Docs: telemetry.md, spec §6, CHANGELOG.
 - **Reason**: No signal for installs, update uptake or why the app stops running.
