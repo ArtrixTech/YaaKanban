@@ -44,6 +44,7 @@ public struct AptabaseEvent: Codable, Equatable, Sendable {
         for (k, v) in r.settings { p["setting.\(k)"] = v ? "on" : "off" }
         for (k, v) in r.counts { p["count.\(k)"] = Telemetry.bucket(v) }
         for (k, v) in r.figures { p["figure.\(k)"] = v }
+        if let v = r.updatedFrom { p["updated_from"] = v }
         props = p
     }
 

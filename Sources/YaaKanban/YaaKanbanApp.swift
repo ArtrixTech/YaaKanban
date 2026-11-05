@@ -114,7 +114,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
-    func applicationWillTerminate(_ notification: Notification) { model.stop() }
+    /// A quit sent by loginwindow for a logout, restart or shutdown carries its reason; the
+    /// event is only readable here, not by the time the app terminates.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let reason = NSAppleEventManager.shared().currentAppleEvent?
+            .attributeDescriptor(forKeyword: AEKeyword(kAEQuitReason))?.enumCodeValue
+        let system = Set([kAELogOut, kAEReallyLogOut, kAEShowRestartDialog, kAERestart,
+                          kAEShowShutdownDialog, kAEShutDown].map { OSType($0) })
+        if TelemetryReporter.quitReason == nil, let reason, system.contains(reason) {
+            TelemetryReporter.quitReason = .quitSystem
+        }
+        return .terminateNow
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        model.telemetry.noteQuit()
+        model.stop()
+    }
 }
 
 /// Menu-bar icon: the logo's three bars in outline, a dot when something is going on (tinted by

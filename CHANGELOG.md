@@ -7,6 +7,17 @@ the update.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-05
+
+### Changed
+
+- With anonymous statistics on, the daily report also counts installs, updates (with the version updated from), quits by cause (you, an update, a language change, logout or shutdown) and runs that ended without quitting. See `docs/telemetry.md`.
+- The away check now triggers after 1 minute without keyboard or mouse input instead of 2.
+
+### Fixed
+
+- Clicking a Wave session now brings Wave to the front reliably; before, it often switched the tab while Wave stayed behind other windows.
+
 ## [0.2.1] - 2026-11-01
 
 ### Changed

@@ -13,6 +13,12 @@ public enum TelemetryEvent: String, Codable, CaseIterable, Sendable {
     case integrationInstall = "integration_install", integrationUninstall = "integration_uninstall"
     case integrationFail = "integration_fail"
     case spoolReplay = "spool_replay"
+    /// Launches: the first on this Mac, the first of a newer version, and one after the previous
+    /// run ended without quitting (a crash, a force quit, a kill).
+    case appInstall = "app_install", appUpdate = "app_update", abnormalExit = "abnormal_exit"
+    /// Quits, by what asked: the user (menu, ⌘Q, Dock, Activity Monitor's Quit), an update
+    /// restarting into the new version, a language change relaunching, or a logout, restart or shutdown.
+    case quitUser = "quit_user", quitUpdate = "quit_update", quitRelaunch = "quit_relaunch", quitSystem = "quit_system"
 
     /// The jump counter for a session's terminal, by kind only (never the program name).
     public static func jump(_ t: TerminalContext?) -> TelemetryEvent {
@@ -38,7 +44,7 @@ public enum TelemetrySetting: String, CaseIterable, Sendable {
 /// One local day's report. Every field is listed in `docs/telemetry.md`; numbers about the user's
 /// work are coarse buckets, not values.
 public struct TelemetryReport: Codable, Equatable, Sendable {
-    public static let schema = 1
+    public static let schema = 2
 
     public var schema = Self.schema
     public var installId: String
@@ -58,9 +64,12 @@ public struct TelemetryReport: Codable, Equatable, Sendable {
     public var counts: [String: Int]
     /// Bucketed figures: `sessions.<agent>`, `turns.<agent>`, `agent_hours`, `parallel_peak`, `leverage`.
     public var figures: [String: String]
+    /// The version updated from that day (the earliest, if more than one update); nil without one.
+    public var updatedFrom: String?
 
     enum CodingKeys: String, CodingKey {
         case schema, installId = "install_id", day, app, build, os, arch, lang, integrations, settings, counts, figures
+        case updatedFrom = "updated_from"
     }
 }
 
@@ -118,6 +127,8 @@ public struct TelemetryLedger: Codable, Equatable, Sendable {
     public var installId: String?
     /// Day key → event → count. A day appears once the app ran on it with telemetry on.
     public var days: [String: [String: Int]] = [:]
+    /// Day key → the version updated from that day. Optional so ledgers written before it still decode.
+    public var updatedFrom: [String: String]?
     /// Days already reported (or given up on) are at most this one.
     public var lastSent: String?
     /// How the latest send ended, for `yaak telemetry status` (the send itself is never retried).
@@ -174,7 +185,7 @@ public struct TelemetryLedger: Codable, Equatable, Sendable {
     public mutating func set(enabled on: Bool) {
         enabled = on
         asked = true
-        if on { if installId == nil { installId = UUID().uuidString.lowercased() } } else { days = [:]; lastResult = nil }
+        if on { if installId == nil { installId = UUID().uuidString.lowercased() } } else { days = [:]; updatedFrom = nil; lastResult = nil }
     }
 
     public mutating func resetId() { installId = enabled ? UUID().uuidString.lowercased() : nil }
@@ -185,6 +196,15 @@ public struct TelemetryLedger: Codable, Equatable, Sendable {
         var d = days[day] ?? [:]
         if let event { d[event.rawValue, default: 0] += n }
         days[day] = d
+    }
+
+    /// Counts an update on `day` and keeps the version it came from (the first one that day).
+    public mutating func noteUpdate(from version: String, day: String) {
+        guard enabled else { return }
+        note(.appUpdate, day: day)
+        var u = updatedFrom ?? [:]
+        if u[day] == nil { u[day] = version }
+        updatedFrom = u
     }
 
     /// Finished days not yet reported, oldest first, from the last `Telemetry.maxPendingDays`
@@ -198,6 +218,22 @@ public struct TelemetryLedger: Codable, Equatable, Sendable {
     public mutating func sent(through day: String) {
         lastSent = max(lastSent ?? day, day)
         days = days.filter { $0.key > day }
+        updatedFrom = updatedFrom?.filter { $0.key > day }
+        if updatedFrom?.isEmpty == true { updatedFrom = nil }
+    }
+}
+
+/// What kind of launch this is, from the version the previous run recorded.
+public enum TelemetryLaunch: Equatable, Sendable {
+    case install, update(from: String), normal
+
+    /// `last` is the version the previous run recorded (nil if none did); `hadData` says whether
+    /// the app left anything behind before, since builds older than the version record left none.
+    /// A dev build without a version, a relaunch and a downgrade are all `normal`.
+    public static func classify(last: String?, current: String?, hadData: Bool) -> TelemetryLaunch {
+        guard let current = current.flatMap(AppVersion.init) else { return .normal }
+        guard let last = last.flatMap(AppVersion.init) else { return hadData ? .normal : .install }
+        return last < current ? .update(from: last.description) : .normal
     }
 }
 
@@ -242,7 +278,8 @@ public enum Telemetry {
 
     public static func makeReport(installId: String, day: String, env: TelemetryEnvironment,
                                   integrations: [AgentKind: String], settings: [TelemetrySetting: Bool],
-                                  counts: [String: Int], figures: TelemetryFigures) -> TelemetryReport {
+                                  counts: [String: Int], figures: TelemetryFigures,
+                                  updatedFrom: String? = nil) -> TelemetryReport {
         var f: [String: String] = [:]
         for a in AgentKind.allCases {
             if let n = figures.sessions[a], n > 0 { f["sessions.\(a.rawValue)"] = bucket(n) }
@@ -256,7 +293,8 @@ public enum Telemetry {
                                arch: env.arch, lang: env.lang,
                                integrations: Dictionary(uniqueKeysWithValues: integrations.map { ($0.key.rawValue, $0.value) }),
                                settings: Dictionary(uniqueKeysWithValues: settings.map { ($0.key.rawValue, $0.value) }),
-                               counts: counts.filter { known.contains($0.key) && $0.value > 0 }, figures: f)
+                               counts: counts.filter { known.contains($0.key) && $0.value > 0 }, figures: f,
+                               updatedFrom: updatedFrom.flatMap(AppVersion.init)?.description)
     }
 
     public static func encode(_ r: TelemetryReport, pretty: Bool = false) -> Data {

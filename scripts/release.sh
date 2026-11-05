@@ -10,6 +10,7 @@ cd "$(dirname "$0")/.."
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
 TAG="v$VERSION"
 # The app only accepts an update signed by the team that signed it (Updater.verify).
+# Every release so far is team 5KZD8GBF7G; do not override this (see AGENTS.md, Release signing).
 TEAM="${YAAK_RELEASE_TEAM:-5KZD8GBF7G}"
 ZIP="build/YaaKanban-$VERSION.zip"
 DMG="build/YaaKanban-$VERSION.dmg"

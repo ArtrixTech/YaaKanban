@@ -653,7 +653,7 @@ final class AppModel {
     private(set) var presentSince: Date? = Date()
     /// Activity before this was rebuilt from the session history: running time and turns only.
     private(set) var recordedSince: Date?
-    static let awayAfter: TimeInterval = 120
+    static let awayAfter: TimeInterval = 60
     private static let heartbeatKey = "heartbeat"
     private static let awayKey = "awaySince"
     private static let recordedKey = "recordedSince"

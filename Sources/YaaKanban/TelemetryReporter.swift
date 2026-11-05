@@ -22,6 +22,18 @@ final class TelemetryReporter {
     @ObservationIgnored var build: ((_ day: String, _ counts: [String: Int], _ installId: String) -> TelemetryReport?)?
     /// The day already marked in the ledger by this launch.
     @ObservationIgnored private var noted: String?
+    /// What this launch was, counted once telemetry is on in this process (so a first launch is
+    /// still counted when the user turns telemetry on at the prompt).
+    @ObservationIgnored private var launch: [TelemetryEvent] = []
+    @ObservationIgnored private var updatedFrom: String?
+
+    /// Defaults key of the version the last run recorded; `Updater` writes it at its start, so
+    /// this reporter (created with `AppModel`, before that) still sees the previous run's.
+    static let lastRunVersionKey = "lastRunVersion"
+    /// True while the app runs; still true at launch means the previous run never quit.
+    private static let runningKey = "telemetryRunning"
+    /// Why the app is about to quit, set by whoever asks it to; nil is the user's own quit.
+    static var quitReason: TelemetryEvent?
 
     /// Waits for a network rather than failing at once: the first tick of a new day is often just
     /// after waking, before Wi-Fi is back, and a failed send is dropped (spec §6).
@@ -44,6 +56,40 @@ final class TelemetryReporter {
         let l = TelemetryLedger.load(url)
         enabled = l.enabled
         installId = l.installId
+        noteLaunch(paths: paths, bundle: bundle)
+    }
+
+    private func noteLaunch(paths: Paths, bundle: Bundle) {
+        let d = UserDefaults.standard
+        let fm = FileManager.default
+        let hadData = fm.fileExists(atPath: paths.database.path) || fm.fileExists(atPath: paths.telemetry.path)
+        switch TelemetryLaunch.classify(last: d.string(forKey: Self.lastRunVersionKey),
+                                        current: bundle.infoDictionary?["CFBundleShortVersionString"] as? String,
+                                        hadData: hadData) {
+        case .install: launch.append(.appInstall)
+        case .update(let from): updatedFrom = from
+        case .normal: break
+        }
+        if d.bool(forKey: Self.runningKey) { launch.append(.abnormalExit) }
+        d.set(true, forKey: Self.runningKey)
+    }
+
+    /// Counts how the app is quitting and marks the run as ended cleanly. Called from
+    /// `applicationWillTerminate`; the ledger write is synchronous.
+    func noteQuit() {
+        count(Self.quitReason ?? .quitUser)
+        UserDefaults.standard.set(false, forKey: Self.runningKey)
+    }
+
+    /// The launch's events, once, as soon as telemetry is on.
+    private func flushLaunch(day: String) {
+        guard isOn, !launch.isEmpty || updatedFrom != nil else { return }
+        let events = launch, from = updatedFrom
+        launch = []; updatedFrom = nil
+        TelemetryLedger.update(url) { l in
+            for e in events { l.note(e, day: day) }
+            if let from { l.noteUpdate(from: from, day: day) }
+        }
     }
 
     /// This build has somewhere to send to, and the user's environment does not forbid it.
@@ -71,23 +117,24 @@ final class TelemetryReporter {
         var l = TelemetryLedger.load(url)
         apply(l)
         let day = Telemetry.dayKey(now)
+        flushLaunch(day: day)
         guard isOn, noted != day else { return }
         noted = day
         // One locked update, so a `yaak telemetry off` cannot slip between reading and marking sent.
-        var due: [(day: String, counts: [String: Int])] = []
+        var due: [(day: String, counts: [String: Int], from: String?)] = []
         var id: String?
         TelemetryLedger.update(url) { l in
             guard l.enabled else { return }
             l.note(day: day)
             let p = l.pending(today: day)
             guard let last = p.last else { return }
-            due = p.map { ($0, l.days[$0] ?? [:]) }
+            due = p.map { ($0, l.days[$0] ?? [:], l.updatedFrom?[$0]) }
             id = l.installId
             l.sent(through: last)
         }
         guard let id, let appKey, let ingestURL else { return }
         // At most 7 days are pending, well under Aptabase's batch limit; keep the newest regardless.
-        let events = due.compactMap { d in build?(d.day, d.counts, id).map(event) }.suffix(AptabaseEvent.maxBatch)
+        let events = due.compactMap { d in report(d.day, d.counts, id, from: d.from).map(event) }.suffix(AptabaseEvent.maxBatch)
         guard let first = events.first else { return }
         var req = URLRequest(url: ingestURL, timeoutInterval: 15)
         req.httpMethod = "POST"
@@ -104,6 +151,12 @@ final class TelemetryReporter {
         }.resume()
     }
 
+    private func report(_ day: String, _ counts: [String: Int], _ id: String, from: String?) -> TelemetryReport? {
+        guard var r = build?(day, counts, id) else { return nil }
+        r.updatedFrom = from.flatMap(AppVersion.init)?.description
+        return r
+    }
+
     /// Debug builds mark their events as debug data (Aptabase's Debug/Release switch).
     private func event(_ r: TelemetryReport) -> AptabaseEvent {
         #if DEBUG
@@ -117,7 +170,7 @@ final class TelemetryReporter {
     func preview() -> String {
         let l = TelemetryLedger.load(url)
         let day = Telemetry.dayKey(Date())
-        guard let r = build?(day, l.days[day] ?? [:], l.installId ?? "—") else { return "" }
+        guard let r = report(day, l.days[day] ?? [:], l.installId ?? "—", from: l.updatedFrom?[day]) else { return "" }
         return String(decoding: AptabaseEvent.body([event(r)], pretty: true), as: UTF8.self)
     }
 
