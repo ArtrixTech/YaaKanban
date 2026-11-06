@@ -1,8 +1,19 @@
 # Devlog
 
+## fix(stuck): end agent-launched sessions when their process exits
+
+`pending` | 2026-11-06
+
+- **Changes**: `yaak hook` sets `HookEnvelope.calledByAgent` when `CLAUDECODE=1` (except for Claude Code's own hooks, which inherit it as well). `AppModel.ingest` copies it to `SessionState.calledByAgent`. `StuckDetector` turns a running/stuck session with a dead pid into idle when `parentId != nil || calledByAgent`, where it used to require `parentId` alone. New test `agentCalledProcessExitIsNotStuck`.
+- **Reason**: 11 `artrix-finance` Cursor lanes showed 可能卡住 · 进程已退出 after finishing (drive.log `exit 0`, DONE written). `cursor-agent --print` sends no `stop` hook (only the 0.2.x `stop` entry is installed, and the CLI never fires it in -p), so the turn never ends. They were launched with `nohup drive.sh &` from Claude's Bash, so cursor-agent was reparented to launchd (PPID 1), the ancestor chain lost the claude pid, and `CallerLink` found no parent.
+- **User feedback**: "这些 Cursor 都是由其他的 agent 的，比如说 cloud code 的调用的。在这个时候，即使已经任务完成了，还会显示可能卡住，解决这个问题"
+- **Process**: history.sqlite: all 11 had `parentId = nil`, one open turn with no `endedAt`, and dead pids. Live `ps eww 81641`: PPID 1, `CLAUDECODE=1`, `--print`. The claude process itself has no `CLAUDECODE`.
+- **Result**: `make test` 229 passed. The 11 old cards keep their state: their sessions predate the flag.
+- **Notes**: Codex/other callers are not detected by env yet; they still depend on the ancestor link. A user-run top-level session whose process dies mid-turn still goes stuck (process exited).
+
 ## chore(release): bump the version to 0.2.2
 
-`pending` | 2026-11-05
+`f7caeb5` | 2026-11-05
 
 - **Changes**: `Info.plist` 0.2.2 (build 6); CHANGELOG `[Unreleased]` → `[0.2.2] - 2026-11-05`.
 - **Reason**: Release the telemetry launch/quit counters, the Wave jump fix and the 1-minute away cooldown.

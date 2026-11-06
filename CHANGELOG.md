@@ -7,6 +7,10 @@ the update.
 
 ## [Unreleased]
 
+### Fixed
+
+- A coding agent started by Claude Code (for example `cursor-agent -p` in the background) no longer shows as 可能卡住 · 进程已退出 after it finishes. Its card goes idle when its process exits. Cards stuck before this update have to be dismissed by hand.
+
 ## [0.2.2] - 2026-11-05
 
 ### Changed

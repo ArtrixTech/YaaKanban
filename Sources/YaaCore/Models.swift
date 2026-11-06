@@ -117,10 +117,13 @@ public struct HookEnvelope: Codable, Equatable, Sendable {
     /// Parents of `agentPid`, nearest first, taken while the hook ran (a one-shot agent may be gone
     /// by the time the app reads it). An agent among them called this one as a tool.
     public var ancestorPids: [Int32]?
+    /// The agent runs in a shell another agent opened (Claude Code sets `CLAUDECODE=1` for its
+    /// tools). Holds when the caller is no longer among `ancestorPids` (`nohup … &` reparents).
+    public var calledByAgent: Bool?
 
     public init(agent: AgentKind, event: String, receivedAt: Date = Date(), agentPid: Int32? = nil,
                 cwd: String? = nil, terminal: TerminalContext = TerminalContext(), payload: JSONValue = .null,
-                ancestorPids: [Int32]? = nil) {
+                ancestorPids: [Int32]? = nil, calledByAgent: Bool? = nil) {
         self.agent = agent
         self.event = event
         self.receivedAt = receivedAt
@@ -129,6 +132,7 @@ public struct HookEnvelope: Codable, Equatable, Sendable {
         self.terminal = terminal
         self.payload = payload
         self.ancestorPids = ancestorPids
+        self.calledByAgent = calledByAgent
     }
 }
 
@@ -302,6 +306,9 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var customName: String?
     /// Key of the session that spawned this one as a sub-agent (pi runs them as sessions of their own).
     public var parentId: String?
+    /// Another agent ran it as a tool, whether or not that agent's session was found (`parentId`).
+    /// Its process ending is its run ending.
+    public var calledByAgent: Bool?
     /// Background agents launched and not yet reported back; while any is out, a stopped turn
     /// is not finished. Optional so sessions stored before it decode.
     public var backgroundTasks: [String]?
