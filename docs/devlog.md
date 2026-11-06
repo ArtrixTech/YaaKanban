@@ -1,8 +1,8 @@
 # Devlog
 
-## fix(signing): pick the local signing identity by team
+## fix(signing): sign local builds with the release team
 
-`pending` | 2026-11-06
+`0593e4c` | 2026-11-06
 
 - **Changes**: `scripts/bundle.sh` no longer signs with the first keychain identity. It reads each identity's certificate `OU` (`security find-certificate -c <CN> -p | openssl x509 -subject -nameopt RFC2253`) and signs with the SHA-1 whose team is `YAAK_RELEASE_TEAM` (default 5KZD8GBF7G), failing loudly when none matches. `YAAK_SIGN_IDENTITY` still overrides.
 - **Reason**: The keychain holds two Apple Development certificates from different teams. "First identity" picked DAYOU INC (5JF32B7C33), so every local `make install` replaced the release build with an app carrying a different designated requirement, and macOS dropped the Accessibility grant. Sightings on 2026-11-04 and again today.
@@ -13,7 +13,7 @@
 
 ## fix(stuck): end agent-launched sessions when their process exits
 
-`pending` | 2026-11-06
+`710a372` | 2026-11-06
 
 - **Changes**: `yaak hook` sets `HookEnvelope.calledByAgent` when `CLAUDECODE=1` (except for Claude Code's own hooks, which inherit it as well). `AppModel.ingest` copies it to `SessionState.calledByAgent`. `StuckDetector` turns a running/stuck session with a dead pid into idle when `parentId != nil || calledByAgent`, where it used to require `parentId` alone. New test `agentCalledProcessExitIsNotStuck`.
 - **Reason**: 11 `artrix-finance` Cursor lanes showed 可能卡住 · 进程已退出 after finishing (drive.log `exit 0`, DONE written). `cursor-agent --print` sends no `stop` hook (only the 0.2.x `stop` entry is installed, and the CLI never fires it in -p), so the turn never ends. They were launched with `nohup drive.sh &` from Claude's Bash, so cursor-agent was reparented to launchd (PPID 1), the ancestor chain lost the claude pid, and `CallerLink` found no parent.
