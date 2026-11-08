@@ -7,6 +7,14 @@ the update.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-09
+
+### Fixed
+
+- A folded side rail no longer opens and shuts over and over when the pointer rests just above the open panel (seen with the panel low on the screen beside a side Dock and few cards).
+- A coding agent started by Claude Code (for example `cursor-agent -p` in the background) no longer shows as 可能卡住 · 进程已退出 after it finishes. Its card goes idle when its process exits. Cards stuck before this update have to be dismissed by hand.
+- A locally built app is signed by the same team as the released one, so installing it over a release keeps the Accessibility permission instead of losing it.
+
 ## [0.2.2] - 2026-11-05
 
 ### Changed

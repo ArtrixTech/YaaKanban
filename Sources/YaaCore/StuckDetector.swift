@@ -37,8 +37,9 @@ public enum StuckDetector {
             return out
         case .running, .stuck:
             // A sub-agent's process ending is its run ending, however it went: the agent that
-            // started it reads the result. Only top-level sessions are flagged for leaving.
-            if processGone, s.parentId != nil {
+            // started it reads the result. `cursor-agent -p` exits without a stop hook, so its turn
+            // never ends otherwise. Only sessions the user runs are flagged for leaving.
+            if processGone, s.parentId != nil || s.calledByAgent == true {
                 out.status = .idle
                 out.stuckReason = nil
                 return out

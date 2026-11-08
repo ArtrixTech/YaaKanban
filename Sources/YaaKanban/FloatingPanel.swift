@@ -390,6 +390,11 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
 
     private var peekPending: DispatchWorkItem?
     private var peekTimer: Timer?
+    /// The folded rail's hot zone when the peek began. The open panel need not cover it (the rail
+    /// can be taller than the open list, and both keep the bottom edge against the screen), so a
+    /// pointer resting where only the rail was would fold the panel, land on the rail, and open it
+    /// again, over and over. The peek holds while the pointer is in either zone.
+    private var peekStart: NSRect?
     static let peekDelay: TimeInterval = 0.03
 
     private var folded: Bool { room.dock != nil && !model.settings.sidebarExpanded }
@@ -431,6 +436,7 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         guard folded, !room.peek else { return }
         panelLog.notice("peek")
         room.peek = true
+        peekStart = hotZone
         // Polled rather than hover-tracked: the window changes size under the pointer, and a
         // default-mode timer pauses while a context menu is open.
         peekTimer?.invalidate()
@@ -442,13 +448,16 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
     private func checkPeek() {
         guard room.peek, folded else { return endPeek() }
         // Mid-slide the panel is still unfolding under the pointer; a held button is a drag.
-        guard slide == nil, !room.holdOpen, !hotZone.contains(NSEvent.mouseLocation), NSEvent.pressedMouseButtons == 0 else { return }
+        let p = NSEvent.mouseLocation
+        guard slide == nil, !room.holdOpen, !hotZone.contains(p), !(peekStart?.contains(p) ?? false),
+              NSEvent.pressedMouseButtons == 0 else { return }
         endPeek()
     }
 
     private func endPeek() {
         peekTimer?.invalidate()
         peekTimer = nil
+        peekStart = nil
         if room.peek { panelLog.notice("peek ends"); room.peek = false }
     }
 

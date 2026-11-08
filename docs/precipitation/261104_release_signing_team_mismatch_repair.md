@@ -14,7 +14,7 @@ YaaKanban 0.2.1 went out signed by the wrong Apple team, so every 0.1.x/0.2.0 in
 | `Apple Development: artrix@artrix.tech (7XZ34D8PVC)` | 5KZD8GBF7G | 楚越 龚 (personal) | releases |
 | `Apple Development: 楚越 龚 (4D5TXM7349)` | 5JF32B7C33 | DAYOU INC | local `make install` |
 
-`scripts/bundle.sh` signs with the first identity `security find-identity` lists unless `YAAK_SIGN_IDENTITY` is set. The suffix in the cert name (4D5TXM7349, 7XZ34D8PVC) is the person's ID, not the team. The 0.2.1 devlog note assumed 0.2.0 used team 5JF3; it used 5KZD.
+`scripts/bundle.sh` used to sign with the first identity `security find-identity` lists; that was the cause. Since 2026-11-06 it reads each identity's certificate `OU` and picks the one whose team is `YAAK_RELEASE_TEAM` (default 5KZD8GBF7G), signing by SHA-1 so a renewed cert cannot be confused with its predecessor; `YAAK_SIGN_IDENTITY` still overrides. The suffix in the cert name (4D5TXM7349, 7XZ34D8PVC) is the person's ID, not the team. The 0.2.1 devlog note assumed 0.2.0 used team 5JF3; it used 5KZD.
 
 **Check a published release.**
 

@@ -13,9 +13,32 @@ cp Resources/Info.plist "$APP/Contents/Info.plist"
 if [ -n "${YAAK_APTABASE_APP_KEY:-}" ]; then
   plutil -replace YaakAptabaseAppKey -string "$YAAK_APTABASE_APP_KEY" "$APP/Contents/Info.plist"
 fi
-# A stable identity keeps the Accessibility grant across rebuilds; ad-hoc signing changes every build.
-IDENTITY="${YAAK_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Apple Development|Developer ID Application/ {print $2; exit}')}"
-IDENTITY="${IDENTITY:--}"
+# Sign with the release team's certificate, so a local install and a release share one designated
+# requirement. macOS grants Accessibility to that requirement, not to the bundle id: another team's
+# cert (or ad-hoc signing, which changes every build) drops the grant on the next install.
+# Picking "the first identity" did exactly that — the keychain holds a second, unrelated team.
+TEAM="${YAAK_RELEASE_TEAM:-5KZD8GBF7G}"
+# The team is the certificate's OU; the suffix in its name (7XZ34D8PVC) is the person's ID.
+team_of() {
+  security find-certificate -c "$1" -p 2>/dev/null |
+    openssl x509 -noout -subject -nameopt RFC2253 2>/dev/null |
+    sed -n 's/.*OU=\([^,]*\).*/\1/p'
+}
+identity_for_team() {
+  security find-identity -v -p codesigning 2>/dev/null |
+    sed -n 's/^[[:space:]]*[0-9][0-9]*) \([0-9A-F]\{40\}\) "\(.*\)"$/\1|\2/p' |
+    while IFS='|' read -r sha name; do
+      [ -n "$sha" ] || continue
+      if [ "$(team_of "$name")" = "$TEAM" ]; then printf '%s\n' "$sha"; break; fi
+    done
+}
+# A SHA-1 names one certificate: a renewed cert keeps the name (CN) but changes the hash.
+IDENTITY="${YAAK_SIGN_IDENTITY:-$(identity_for_team)}"
+if [ -z "$IDENTITY" ]; then
+  echo "bundle: no codesigning identity for team $TEAM" >&2
+  echo "bundle: fix it in Xcode › Settings › Accounts, or set YAAK_SIGN_IDENTITY=<SHA-1>" >&2
+  exit 1
+fi
 mkdir -p "$APP/Contents/Resources/AgentIcons"
 cp Resources/AgentIcons/*.svg "$APP/Contents/Resources/AgentIcons/"
 cp Resources/Brand/logo.svg Resources/Brand/home.svg "$APP/Contents/Resources/"

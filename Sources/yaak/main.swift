@@ -67,7 +67,9 @@ func runHook(agent: AgentKind, event: String) -> Never {
     let envelope = HookEnvelope(agent: agent, event: event, receivedAt: at, agentPid: pid,
                                 cwd: FileManager.default.currentDirectoryPath,
                                 terminal: terminal, payload: payload,
-                                ancestorPids: pid.map { ProcessUtil.ancestors(of: $0) })
+                                ancestorPids: pid.map { ProcessUtil.ancestors(of: $0) },
+                                // Claude Code's own hooks see the variable too: it is set for every child.
+                                calledByAgent: agent != .claudeCode && env["CLAUDECODE"] == "1" ? true : nil)
 
     if wantsDecision {
         let wait = TimeInterval(Integrations.approvalTimeout + 5)
