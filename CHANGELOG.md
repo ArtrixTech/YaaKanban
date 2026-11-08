@@ -7,6 +7,8 @@ the update.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-09
+
 ### Fixed
 
 - A folded side rail no longer opens and shuts over and over when the pointer rests just above the open panel (seen with the panel low on the screen beside a side Dock and few cards).

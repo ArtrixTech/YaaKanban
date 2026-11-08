@@ -1,8 +1,17 @@
 # Devlog
 
+## chore(release): bump the version to 0.2.3
+
+`PENDING` | 2026-11-09
+
+- **Changes**: `Info.plist` 0.2.3 (build 7); CHANGELOG `[Unreleased]` → `[0.2.3] - 2026-11-09`.
+- **Reason**: Release the rail peek loop fix, the agent-launched stuck fix and the local signing fix.
+- **User feedback**: "我自己测试问题已经解决 帮我发版。"
+- **Notes**: The keychain also holds an expired `Apple Development: artrix@artrix.tech (7XZ34D8PVC)` cert (SHA-1 AA1FC361…, expired 2026-10-28); the valid one is 8802117065FFE2F2733A17C37CC6D072BB96B785, team 5KZD8GBF7G.
+
 ## fix(panel): stop the rail opening and shutting under a resting pointer
 
-`PENDING` | 2026-11-08
+`043f1d5` | 2026-11-08
 
 - **Changes**: `FloatingPanelController` keeps `peekStart`, the folded rail's hot zone when a peek begins; `checkPeek` ends the peek only when the pointer is outside both it and the open panel's hot zone; `endPeek` clears it.
 - **Reason**: The folded rail can be taller than the open panel (few cards, "没有进行中的任务"), and both keep their bottom edge pinned to the screen. A pointer resting in the band between their tops: rail under it → peek opens → open panel's top drops below it → peek ends → rail grows back under it → opens again, about twice a second.
