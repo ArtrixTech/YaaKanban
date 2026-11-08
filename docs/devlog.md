@@ -1,5 +1,16 @@
 # Devlog
 
+## fix(panel): stop the rail opening and shutting under a resting pointer
+
+`PENDING` | 2026-11-08
+
+- **Changes**: `FloatingPanelController` keeps `peekStart`, the folded rail's hot zone when a peek begins; `checkPeek` ends the peek only when the pointer is outside both it and the open panel's hot zone; `endPeek` clears it.
+- **Reason**: The folded rail can be taller than the open panel (few cards, "没有进行中的任务"), and both keep their bottom edge pinned to the screen. A pointer resting in the band between their tops: rail under it → peek opens → open panel's top drops below it → peek ends → rail grows back under it → opens again, about twice a second.
+- **User feedback**: "朋友反馈，dock在侧面的时候，app反复抽搐。研究解决方案。" plus a 3.5 s phone video.
+- **Process**: Toggling the Dock to the right (autohide on/off) with synthetic pointer moves did not reproduce it. The video showed the pointer still, the panel low on the screen beside a right-side Dock, alternating between a short open panel and a taller rail whose top reached the pointer. Not reproduced locally after the fix (this machine's panel fills the screen height either way).
+- **Result**: `make test` 228 passed; installed.
+- **Notes**: Open, still: during screen-parameter changes (Dock moved/resized) the panel is not re-snapped or re-docked (`didChangeScreenParameters` only runs `updateRoom`), so a rail can end up under a side Dock with a negative-width hot zone. Each unfold also first asks for a height over the usable area (939 > 907), which AppKit clamps before the next fit corrects it.
+
 ## fix(signing): sign local builds with the release team
 
 `0593e4c` | 2026-11-06
