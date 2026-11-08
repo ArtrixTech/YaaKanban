@@ -1,8 +1,19 @@
 # Devlog
 
-## chore(release): bump the version to 0.2.3
+## fix(board): drag cards by themselves and let every card move
 
 `PENDING` | 2026-11-09
+
+- **Changes**: `BoardList` (SessionViews.swift) drops `.draggable`/`.dropDestination` and the blue insertion bar for a `DragGesture` (high priority, 4 pt): the lifted card follows the pointer (scale 1.025, shadow, closed-hand cursor), the cards it passes slide a slot, the drop commits through `AppModel.reorder`. Travel is limited to the card's group with a rubber band past its ends. `BoardPanel.sendEvent` turns `isMovableByWindowBackground` off for a press over a `PanelDragExempt` marker (behind each card), on again elsewhere. `Board.lane` (pinned cards, else the unpinned cards of one tier), `Board.Placement`/`freshness`/`placement(between:and:now:)`; `Preferences.placed` (`placedSessions`, latest 200). Context-menu Move up/down use `reorder` too; `AppModel.step`/`move` removed.
+- **Reason**: Two causes of "拖动无效": (1) only waiting/running cards had a manual order, so a dragged 待验收/已验收 or pinned card snapped back, and most cards on the board are finished; (2) dropping a card on the next one inserted it before that card, i.e. in place, so a one-step move down did nothing.
+- **User feedback**: "当前版本的 APP 的侧边栏的上下拖动无效。而且需要你把拖动的效果做得更好一些。需要直接拖动卡片，而不是直接显示一个蓝色的条子来替代卡片". Asked about the rule, chose "全部可拖": every card, within its group; finished cards keep the dragged place until active again.
+- **Process**: Synthetic CGEvent drag on the installed folded rail (temporary os_log of frames/drag): the gesture got the events and the window stayed put (only the peek resized it); the card dragged was finished (empty lane), confirming cause (1). Later runs got no events: the screen had locked, so the full drop path was not exercised end to end. Independent review found and fixed: a cancelled gesture (card leaves the board, list replaced) left `drag` set and the cursor pushed → cleared on board change/disappear; slot used the card's middle so a tall card could not reach its lane's ends → leading edge; drop offsets and reorder used different curves → same `.snappy`; markers of cards scrolled under the header blocked moving the panel → `visibleRect`.
+- **Result**: `make test` 230 passed (2 new: lanes, placement); installed.
+- **Notes**: A finished card's placement is honoured while `quietSince <= at`; a click (reviewedAt) or event after the drag returns it to plain freshness. No auto-scroll while dragging past the list's visible edge. A drag starting on selectable text in an expanded card moves the card. Any change to the card's group mid-drag cancels the drop. The main window's sidebar has no drag.
+
+## chore(release): bump the version to 0.2.3
+
+`b930a35` | 2026-11-09
 
 - **Changes**: `Info.plist` 0.2.3 (build 7); CHANGELOG `[Unreleased]` → `[0.2.3] - 2026-11-09`.
 - **Reason**: Release the rail peek loop fix, the agent-launched stuck fix and the local signing fix.
