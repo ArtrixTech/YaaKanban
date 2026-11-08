@@ -300,6 +300,21 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(StuckDetector.evaluate(s, now: t0, config: cfg, isAlive: { _ in false })?.status == .idle)
     }
 
+    @Test func agentCalledProcessExitIsNotStuck() {
+        // Launched with `nohup … &` from Claude's Bash: no parent found, but CLAUDECODE was set.
+        var s = running(pid: 7)
+        s.calledByAgent = true
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(1), config: cfg, isAlive: { _ in false })?.status == .idle)
+        s.status = .stuck
+        s.stuckReason = "Process exited"
+        #expect(StuckDetector.evaluate(s, now: t0, config: cfg, isAlive: { _ in false })?.stuckReason == nil)
+        // The user's own session still reads as stuck when its process dies mid-turn.
+        s.calledByAgent = nil
+        s.status = .running
+        s.stuckReason = nil
+        #expect(StuckDetector.evaluate(s, now: t0, config: cfg, isAlive: { _ in false })?.status == .stuck)
+    }
+
     @Test func unhookedSessionsSkipSilence() {
         var s = running()
         s.hooked = false

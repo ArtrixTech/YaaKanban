@@ -2,20 +2,44 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleIdentifier</key><string>com.artrix.yaakanban</string>
-	<key>CFBundleDevelopmentRegion</key><string>en</string>
-	<key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hans</string><string>zh-Hant</string><string>ja</string><string>ko</string><string>es</string><string>fr</string><string>de</string><string>pt-BR</string><string>ru</string></array>
-	<key>CFBundleName</key><string>YaaKanban</string>
-	<key>CFBundleDisplayName</key><string>YaaKanban</string>
-	<key>CFBundleExecutable</key><string>YaaKanban</string>
-	<key>CFBundleIconFile</key><string>AppIcon</string>
-	<key>CFBundlePackageType</key><string>APPL</string>
-	<key>CFBundleShortVersionString</key><string>0.2.2</string>
-	<key>CFBundleVersion</key><string>6</string>
-	<key>LSMinimumSystemVersion</key><string>14.0</string>
-	<key>LSUIElement</key><true/>
-	<!-- Aptabase App Key for opt-in telemetry (not a secret; it ships in every bundle). Empty disables it; bundle.sh replaces it with YAAK_APTABASE_APP_KEY when set. -->
-	<key>YaakAptabaseAppKey</key><string>A-US-6250643896</string>
-	<key>NSAppleEventsUsageDescription</key><string>YaaKanban reads which iTerm2 or Terminal tab is in front, to mark the agent there as reviewed, and switches Wave tabs when you jump to an agent (experimental).</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>YaaKanban</string>
+	<key>CFBundleExecutable</key>
+	<string>YaaKanban</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.artrix.yaakanban</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>zh-Hans</string>
+		<string>zh-Hant</string>
+		<string>ja</string>
+		<string>ko</string>
+		<string>es</string>
+		<string>fr</string>
+		<string>de</string>
+		<string>pt-BR</string>
+		<string>ru</string>
+	</array>
+	<key>CFBundleName</key>
+	<string>YaaKanban</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.2.3</string>
+	<key>CFBundleVersion</key>
+	<string>7</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>YaaKanban reads which iTerm2 or Terminal tab is in front, to mark the agent there as reviewed, and switches Wave tabs when you jump to an agent (experimental).</string>
+	<key>YaakAptabaseAppKey</key>
+	<string>A-US-6250643896</string>
 </dict>
 </plist>

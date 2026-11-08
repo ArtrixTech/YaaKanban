@@ -403,6 +403,7 @@ final class AppModel {
                 if s.parentId == nil, old?.turns.isEmpty ?? true, let pids = env.ancestorPids {
                     s.parentId = CallerLink.caller(of: s, ancestors: pids, among: sessions.values)
                 }
+                if env.calledByAgent == true { s.calledByAgent = true }
                 return s
             }
         }

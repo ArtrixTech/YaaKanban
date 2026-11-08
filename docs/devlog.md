@@ -1,8 +1,50 @@
 # Devlog
 
+## chore(release): bump the version to 0.2.3
+
+`PENDING` | 2026-11-09
+
+- **Changes**: `Info.plist` 0.2.3 (build 7); CHANGELOG `[Unreleased]` → `[0.2.3] - 2026-11-09`.
+- **Reason**: Release the rail peek loop fix, the agent-launched stuck fix and the local signing fix.
+- **User feedback**: "我自己测试问题已经解决 帮我发版。"
+- **Notes**: The keychain also holds an expired `Apple Development: artrix@artrix.tech (7XZ34D8PVC)` cert (SHA-1 AA1FC361…, expired 2026-10-28); the valid one is 8802117065FFE2F2733A17C37CC6D072BB96B785, team 5KZD8GBF7G.
+
+## fix(panel): stop the rail opening and shutting under a resting pointer
+
+`043f1d5` | 2026-11-08
+
+- **Changes**: `FloatingPanelController` keeps `peekStart`, the folded rail's hot zone when a peek begins; `checkPeek` ends the peek only when the pointer is outside both it and the open panel's hot zone; `endPeek` clears it.
+- **Reason**: The folded rail can be taller than the open panel (few cards, "没有进行中的任务"), and both keep their bottom edge pinned to the screen. A pointer resting in the band between their tops: rail under it → peek opens → open panel's top drops below it → peek ends → rail grows back under it → opens again, about twice a second.
+- **User feedback**: "朋友反馈，dock在侧面的时候，app反复抽搐。研究解决方案。" plus a 3.5 s phone video.
+- **Process**: Toggling the Dock to the right (autohide on/off) with synthetic pointer moves did not reproduce it. The video showed the pointer still, the panel low on the screen beside a right-side Dock, alternating between a short open panel and a taller rail whose top reached the pointer. Not reproduced locally after the fix (this machine's panel fills the screen height either way).
+- **Result**: `make test` 228 passed; installed.
+- **Notes**: Open, still: during screen-parameter changes (Dock moved/resized) the panel is not re-snapped or re-docked (`didChangeScreenParameters` only runs `updateRoom`), so a rail can end up under a side Dock with a negative-width hot zone. Each unfold also first asks for a height over the usable area (939 > 907), which AppKit clamps before the next fit corrects it.
+
+## fix(signing): sign local builds with the release team
+
+`0593e4c` | 2026-11-06
+
+- **Changes**: `scripts/bundle.sh` no longer signs with the first keychain identity. It reads each identity's certificate `OU` (`security find-certificate -c <CN> -p | openssl x509 -subject -nameopt RFC2253`) and signs with the SHA-1 whose team is `YAAK_RELEASE_TEAM` (default 5KZD8GBF7G), failing loudly when none matches. `YAAK_SIGN_IDENTITY` still overrides.
+- **Reason**: The keychain holds two Apple Development certificates from different teams. "First identity" picked DAYOU INC (5JF32B7C33), so every local `make install` replaced the release build with an app carrying a different designated requirement, and macOS dropped the Accessibility grant. Sightings on 2026-11-04 and again today.
+- **User feedback**: "之前就出现过一样的问题。因为你现在安装的似乎是开发版本的，然后这个证书和之前我安装的 Release 版本的不一样。有没有办法解决这个问题？这会导致现在的辅助功能用不了"
+- **Process**: `codesign -d -r-` on the installed app showed `certificate leaf[subject.CN]` as a hex blob for 4D5TXM7349, while the v0.2.2 release uses `certificate leaf[subject.CN] = "Apple Development: … (7XZ34D8PVC)"` — different DR, so TCC does not match the old grant. Signing by that CN also raises `unknown exception`; signing by SHA-1 works.
+- **Result**: `make install` signs with 8DBAAC4F… (team 5KZD8GBF7G); the installed app's DR is now byte-identical to v0.2.2's and `codesign --verify --deep --strict` passes.
+- **Notes**: A SHA-1 names one certificate; on renewal the cert keeps its CN but changes its hash, and the team lookup then returns the new one automatically. The TCC grant itself could not be inspected (no per-user TCC.db, the system one needs sudo); if Accessibility is still off, `tccutil reset Accessibility com.artrix.yaakanban` and grant again.
+
+## fix(stuck): end agent-launched sessions when their process exits
+
+`710a372` | 2026-11-06
+
+- **Changes**: `yaak hook` sets `HookEnvelope.calledByAgent` when `CLAUDECODE=1` (except for Claude Code's own hooks, which inherit it as well). `AppModel.ingest` copies it to `SessionState.calledByAgent`. `StuckDetector` turns a running/stuck session with a dead pid into idle when `parentId != nil || calledByAgent`, where it used to require `parentId` alone. New test `agentCalledProcessExitIsNotStuck`.
+- **Reason**: 11 `artrix-finance` Cursor lanes showed 可能卡住 · 进程已退出 after finishing (drive.log `exit 0`, DONE written). `cursor-agent --print` sends no `stop` hook (only the 0.2.x `stop` entry is installed, and the CLI never fires it in -p), so the turn never ends. They were launched with `nohup drive.sh &` from Claude's Bash, so cursor-agent was reparented to launchd (PPID 1), the ancestor chain lost the claude pid, and `CallerLink` found no parent.
+- **User feedback**: "这些 Cursor 都是由其他的 agent 的，比如说 cloud code 的调用的。在这个时候，即使已经任务完成了，还会显示可能卡住，解决这个问题"
+- **Process**: history.sqlite: all 11 had `parentId = nil`, one open turn with no `endedAt`, and dead pids. Live `ps eww 81641`: PPID 1, `CLAUDECODE=1`, `--print`. The claude process itself has no `CLAUDECODE`.
+- **Result**: `make test` 228 passed in 43 suites. The 11 old cards keep their state: their sessions predate the flag.
+- **Notes**: Codex/other callers are not detected by env yet; they still depend on the ancestor link. A user-run top-level session whose process dies mid-turn still goes stuck (process exited).
+
 ## chore(release): bump the version to 0.2.2
 
-`pending` | 2026-11-05
+`f7caeb5` | 2026-11-05
 
 - **Changes**: `Info.plist` 0.2.2 (build 6); CHANGELOG `[Unreleased]` → `[0.2.2] - 2026-11-05`.
 - **Reason**: Release the telemetry launch/quit counters, the Wave jump fix and the 1-minute away cooldown.
