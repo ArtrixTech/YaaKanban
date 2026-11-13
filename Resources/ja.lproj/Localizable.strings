@@ -353,7 +353,8 @@
 "The last 7 days in half hours, brighter where more agents ran at once. Each row ends with that day's agent hours; Busiest marks the 3 hours with the most agent time." = "直近 7 日間を 30 分ごとに表示し、同時に実行したエージェントが多いほど明るくなります。各行の末尾はその日のエージェント稼働時間、「ピーク」はエージェント時間が最も多い 3 時間です。";
 "While you were here, the share of agent time spent running rather than blocked on you (asking or stuck). A finished turn waiting for review counts as neither." = "在席中のエージェント時間のうち、あなたを待って止まらず（質問や停止）、実行していた割合。完了してレビューを待つターンはどちらにも数えません。";
 "The most agents running at the same time." = "同時に実行したエージェントの最大数。";
-"Tools the agents called in the turns that finished in the period." = "期間内に完了したターンでエージェントが呼び出したツールの数。";
+"Finished turns you cut short: stopped mid-run, or sent a new prompt into while they ran. %lld of %lld in this period." = "完了したターンのうち、あなたが途中で止めた割合：実行中に停止したか、新しい指示を送ったもの。この期間は %lld / %lld ターン。";
+"Pushback" = "割り込み率";
 "Tokens the agents reported using." = "エージェントが報告したトークン使用量。";
 "Finished turns you opened or followed up on." = "あなたが開いたか、続けて指示した完了ターン。";
 "Times you stepped in: prompts you sent and questions you answered." = "あなたが介入した回数：送ったプロンプトと答えた質問。";

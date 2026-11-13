@@ -192,6 +192,11 @@ public struct AgentEvent: Equatable, Sendable {
         case inputAnswered
         case permission(PermissionRequest)
         case turnEnd(lastMessage: String?)
+        /// The user stopped the running turn (Esc, a stop button); it ends like `turnEnd`.
+        case interrupted(lastMessage: String?)
+        /// A transcript shows the user stopped the turn that was running at `at`. Marks that
+        /// turn; ends nothing.
+        case interruptSeen(at: Date)
         case sessionEnd
         case subagentStart(id: String, type: String?)
         case subagentStop(id: String)
@@ -257,6 +262,8 @@ public struct Turn: Codable, Equatable, Identifiable, Sendable {
     public var endedAt: Date?
     public var toolCount: Int
     public var lastMessage: String?
+    /// The user cut the turn short while it ran: stopped it, or sent a prompt into it.
+    public var interrupted: Bool?
 }
 
 public struct Subagent: Codable, Equatable, Sendable {

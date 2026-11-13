@@ -353,7 +353,8 @@
 "The last 7 days in half hours, brighter where more agents ran at once. Each row ends with that day's agent hours; Busiest marks the 3 hours with the most agent time." = "Последние 7 дней по получасам: чем больше агентов работало одновременно, тем ярче. В конце каждой строки — агенто-часы за день; «Пик» отмечает 3 часа с наибольшим временем агентов.";
 "While you were here, the share of agent time spent running rather than blocked on you (asking or stuck). A finished turn waiting for review counts as neither." = "Пока вы были на месте: доля времени агентов, когда они работали, а не ждали вас (вопрос или зависание). Завершённый ход, ждущий проверки, не входит ни туда, ни туда.";
 "The most agents running at the same time." = "Наибольшее число агентов, работавших одновременно.";
-"Tools the agents called in the turns that finished in the period." = "Вызовы инструментов агентами в ходах, завершённых за период.";
+"Finished turns you cut short: stopped mid-run, or sent a new prompt into while they ran. %lld of %lld in this period." = "Доля завершённых ходов, которые вы прервали: остановили на ходу или отправили новый промпт, пока они шли. %lld из %lld за период.";
+"Pushback" = "Перебивания";
 "Tokens the agents reported using." = "Токены, которые агенты сообщили как израсходованные.";
 "Finished turns you opened or followed up on." = "Завершённые ходы, которые вы открыли или продолжили.";
 "Times you stepped in: prompts you sent and questions you answered." = "Сколько раз вы вмешивались: отправленные запросы и ответы на вопросы.";

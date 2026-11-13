@@ -74,12 +74,19 @@ public struct OpenCodeIntegration: PluginFileIntegration {
         export const YaaKanban = async ({ directory }: any) => {
           const cwd = directory
           const asking = new Set<string>()
+          const aborted = new Set<string>()
           return {
             event: async ({ event }: any) => {
               const pr = event.properties ?? {}
               switch (event.type) {
                 case "session.created": send("session_start", { session_id: pr.info?.id, cwd }); break
-                case "session.idle": send("turn_end", { session_id: pr.sessionID, cwd }); break
+                // A stop by the user is reported as this error just before the idle.
+                case "session.error":
+                  if (pr.error?.name === "MessageAbortedError" && pr.sessionID) aborted.add(pr.sessionID)
+                  break
+                case "session.idle":
+                  send("turn_end", { session_id: pr.sessionID, cwd, interrupted: aborted.delete(pr.sessionID) })
+                  break
                 case "session.deleted": send("session_end", { session_id: pr.info?.id, cwd }); break
                 case "permission.updated":
                   if (!asking.has(pr.id)) send("needs_input", { session_id: pr.sessionID, cwd, message: pr.title })
@@ -89,6 +96,7 @@ public struct OpenCodeIntegration: PluginFileIntegration {
             },
             "chat.message": async (input: any, output: any) => {
               const text = (output.parts ?? []).filter((p: any) => p.type === "text").map((p: any) => p.text).join("\\n")
+              aborted.delete(input.sessionID)
               send("prompt", { session_id: input.sessionID, cwd, prompt: text })
             },
             "tool.execute.before": async (input: any, output: any) => {
@@ -219,7 +227,10 @@ public struct PiIntegration: PluginFileIntegration {
             send("needs_input", { ...base(ctx), message: e.title ?? `Waiting for ${e.kind}` }))
           pi.on("ui_prompt_end", async (_e: any, ctx: any) => send("input_answered", base(ctx)))
           pi.on("agent_end", async (e: any) => { last = lastText(e.messages) })
-          pi.on("agent_settled", async (_e: any, ctx: any) => { send("turn_end", { ...base(ctx), message: last }); last = undefined })
+          pi.on("agent_settled", async (e: any, ctx: any) => {
+            send("turn_end", { ...base(ctx), message: last, interrupted: e?.aborted === true })
+            last = undefined
+          })
           pi.on("session_shutdown", async (_e: any, ctx: any) => send("session_end", base(ctx)))
         }
 
@@ -307,7 +318,9 @@ public struct OmpIntegration: PluginFileIntegration {
           on("tool_approval_resolved", (_e, ctx) => send("input_answered", base(ctx)))
           on("agent_end", (e, ctx) => {
             if (e.willContinue) return
-            send("turn_end", { ...base(ctx), message: lastText(e.messages) })
+            const end = e.messages?.[(e.messages?.length ?? 0) - 1]
+            send("turn_end", { ...base(ctx), message: lastText(e.messages),
+                               interrupted: end?.role === "assistant" && end?.stopReason === "aborted" })
           })
           on("session_shutdown", (_e, ctx) => send("session_end", base(ctx)))
         }

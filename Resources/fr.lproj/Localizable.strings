@@ -353,7 +353,8 @@
 "The last 7 days in half hours, brighter where more agents ran at once. Each row ends with that day's agent hours; Busiest marks the 3 hours with the most agent time." = "Les 7 derniers jours par demi-heure, plus vifs là où plus d’agents tournaient en même temps. Chaque ligne finit par les heures d’agent du jour ; « Pic » marque les 3 heures les plus chargées.";
 "While you were here, the share of agent time spent running rather than blocked on you (asking or stuck). A finished turn waiting for review counts as neither." = "Pendant votre présence, la part du temps des agents passée à tourner plutôt que bloqués à vous attendre (question ou blocage). Un tour terminé qui attend une vérification ne compte ni dans l’un ni dans l’autre.";
 "The most agents running at the same time." = "Le plus grand nombre d’agents tournant en même temps.";
-"Tools the agents called in the turns that finished in the period." = "Outils appelés par les agents dans les tours terminés sur la période.";
+"Finished turns you cut short: stopped mid-run, or sent a new prompt into while they ran. %lld of %lld in this period." = "Tours terminés que vous avez coupés : arrêtés en cours ou relancés par un nouveau prompt pendant qu’ils tournaient. %lld sur %lld sur la période.";
+"Pushback" = "Interruptions";
 "Tokens the agents reported using." = "Jetons que les agents ont déclaré utiliser.";
 "Finished turns you opened or followed up on." = "Tours terminés que vous avez ouverts ou relancés.";
 "Times you stepped in: prompts you sent and questions you answered." = "Vos interventions : prompts envoyés et questions répondues.";

@@ -7,7 +7,13 @@ the update.
 
 ## [Unreleased]
 
+### Added
+
+- 概览's top row shows 杠精指数 (Pushback) in place of the tool call count: the share of finished turns you cut short, by stopping the agent mid-run or sending it a new prompt while it ran. Read from Claude Code and Codex transcripts, from the stop signals of Cursor, Kimi, Cline and Hermes, and from the OpenCode, pi and omp plugins (update them in Settings to count there); other agents count a prompt sent into a running turn. A turn you stop yourself no longer sends a "done" notification.
+
 ### Fixed
+
+- A prompt sent before the agent's last turn finished (Esc then typing at once, or a message queued mid-run) now ends that turn, so it counts in the overview's turns and prompts instead of being left open.
 
 - Dragging cards up and down in the floating panel and side rail works: the card itself follows the pointer and the others make room, instead of a blue line. Every card can be moved within its group (pinned, or its status); 待验收 and 已验收 cards now keep the place you drag them to until they are active again.
 

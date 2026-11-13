@@ -353,7 +353,8 @@
 "The last 7 days in half hours, brighter where more agents ran at once. Each row ends with that day's agent hours; Busiest marks the 3 hours with the most agent time." = "最近 7 天，每格半小时，同时运行的 Agent 越多越亮。每行末尾是当天的 Agent 总工时；「最忙」是 Agent 时间最多的 3 小时。";
 "While you were here, the share of agent time spent running rather than blocked on you (asking or stuck). A finished turn waiting for review counts as neither." = "你在场时，Agent 时间里真正在运行、而不是卡在等你（提问或卡住）的占比。跑完等你验收的不算在内。";
 "The most agents running at the same time." = "同一时间运行的 Agent 最多有几个。";
-"Tools the agents called in the turns that finished in the period." = "这段时间内完成的轮次里，Agent 调用工具的次数。";
+"Finished turns you cut short: stopped mid-run, or sent a new prompt into while they ran. %lld of %lld in this period." = "完成的轮次里被你打断的占比：中途叫停，或在它还在跑时发了新指令。这段时间共 %lld / %lld 轮。";
+"Pushback" = "杠精指数";
 "Tokens the agents reported using." = "Agent 报告的 Token 用量。";
 "Finished turns you opened or followed up on." = "你打开或跟进过的已完成轮次。";
 "Times you stepped in: prompts you sent and questions you answered." = "你介入的次数：发出的提示和回答的问题。";

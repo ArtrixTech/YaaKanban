@@ -107,6 +107,44 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
     }
 }
 
+@Suite struct InterruptRows {
+    private func turn(_ id: Int, end: TimeInterval?, cut: Bool? = nil) -> Turn {
+        var t = Turn(id: id, prompt: "p", startedAt: at(Double(id)), endedAt: end.map(at), toolCount: 2)
+        t.interrupted = cut
+        return t
+    }
+
+    @Test func countedOnceWhenEndedAndMarked() {
+        var a = session(.running)
+        a.turns = [turn(1, end: nil, cut: true)]
+        var b = a
+        b.turns = [turn(1, end: 5, cut: true), turn(2, end: nil)]
+        #expect(Activity.rows(old: a, new: b, now: at(5)).filter { $0.kind == .interrupt }.map(\.at) == [at(5)])
+        // Marked later by the transcript: one row, at the turn's end.
+        var c = session(.idle)
+        c.turns = [turn(1, end: 5)]
+        var d = c
+        d.turns[0].interrupted = true
+        #expect(Activity.rows(old: c, new: d, now: at(30)).filter { $0.kind == .interrupt }.map(\.at) == [at(5)])
+        #expect(Activity.rows(old: d, new: d, now: at(31)).isEmpty)
+    }
+
+    @Test func rateOverFinishedTurns() {
+        let rows = [ActivityRow(at: at(10), session: "s", kind: .turn, value: 1),
+                    ActivityRow(at: at(20), session: "s", kind: .turn, value: 1),
+                    ActivityRow(at: at(20), session: "s", kind: .interrupt),
+                    ActivityRow(at: at(30), session: "s", kind: .turn, value: 1),
+                    ActivityRow(at: at(40), session: "s", kind: .turn, value: 1)]
+        let r = ActivityReport.compute(rows: rows, lanesBefore: [:], range: DateInterval(start: t0, duration: 100), now: at(100))
+        #expect(r.interrupts == 1 && r.interruptRate == 0.25)
+        // Turns before interrupts were recorded are left out of the rate.
+        let later = ActivityReport.compute(rows: rows, lanesBefore: [:], range: DateInterval(start: t0, duration: 100),
+                                           now: at(100), interruptsSince: at(15))
+        #expect(later.turns == 4 && later.interruptTurns == 3 && later.interruptRate == 1.0 / 3)
+        #expect(ActivityReport.compute(rows: [], lanesBefore: [:], range: DateInterval(start: t0, duration: 100), now: at(100)).interruptRate == nil)
+    }
+}
+
 @Suite struct Report {
     @Test func parallelismBottleneckUtilization() {
         // a runs 0–100; b runs 50–150 then waits 150–250; nothing after.

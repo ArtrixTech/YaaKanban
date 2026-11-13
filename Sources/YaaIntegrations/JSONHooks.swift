@@ -98,7 +98,7 @@ public struct ClaudeIntegration: Integration {
 
     static let events: [(name: String, timeout: Int)] = [
         "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "Notification",
-        "Stop", "SubagentStart", "SubagentStop", "SessionEnd",
+        "Stop", "StopFailure", "SubagentStart", "SubagentStop", "SessionEnd",
     ].map { ($0, 5) } + [("PermissionRequest", Integrations.approvalTimeout + 10)]
 
     func file(_ home: URL) -> URL { home.appendingPathComponent(".claude/settings.json") }

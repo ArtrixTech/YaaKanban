@@ -610,6 +610,7 @@ final class AppModel {
             guard let self else { return }
             for (key, r) in results {
                 endReportedTools(key, r.finishedTools)
+                markInterrupts(key, r.interrupts)
                 update(key, alert: false) { s in
                     guard var s else { return nil }
                     s.usage = r.usage
@@ -652,6 +653,15 @@ final class AppModel {
         }
     }
 
+    /// Marks the turns the transcript shows the user stopped (no hook reports Claude's Esc).
+    private func markInterrupts(_ key: String, _ times: [Date]) {
+        for at in times {
+            guard let s = sessions[key], let t = s.turns.last(where: { $0.startedAt <= at }), t.interrupted != true else { continue }
+            let e = AgentEvent(agent: s.agent, sessionId: s.sessionId, at: at, kind: .interruptSeen(at: at))
+            update(key, alert: false) { SessionReducer.apply(e, to: $0) }
+        }
+    }
+
     // MARK: Activity
 
     /// Bumped on each recorded row, so the efficiency views redraw.
@@ -666,6 +676,9 @@ final class AppModel {
     private static let heartbeatKey = "heartbeat"
     private static let awayKey = "awaySince"
     private static let recordedKey = "recordedSince"
+    private static let interruptsKey = "interruptsSince"
+    /// Turns cut short are recorded from here (the first launch of a version that records them).
+    private(set) var interruptsSince: Date?
     /// Each session's lane as last recorded, so a tick can catch lanes the record missed.
     @ObservationIgnored private var recordedLanes: [String: Lane] = [:]
     /// Token use waiting to be written: one row per session per minute instead of one per scan.
@@ -723,6 +736,12 @@ final class AppModel {
             store.record(ActivityBackfill.rows(Array(sessions.values), before: since),
                          meta: [Self.recordedKey: since.timeIntervalSince1970])
             recordedSince = since
+        }
+        if let since = store.meta(Self.interruptsKey) {
+            interruptsSince = Date(timeIntervalSince1970: since)
+        } else {
+            store.setMeta(Self.interruptsKey, now.timeIntervalSince1970)
+            interruptsSince = now
         }
         // Away when the app stopped (or was killed), else from the last sign of life.
         let hb = store.meta(Self.heartbeatKey).map(Date.init(timeIntervalSince1970:))
@@ -789,7 +808,8 @@ final class AppModel {
         lanesBefore[range.start] = before
         let r = ActivityReport.compute(rows: store.activity(from: range.start, to: min(range.end, now)),
                                        lanesBefore: before, range: range, now: now,
-                                       awaySince: awaySince, recordedSince: recordedSince, buckets: buckets, edges: edges)
+                                       awaySince: awaySince, recordedSince: recordedSince,
+                                       interruptsSince: interruptsSince, buckets: buckets, edges: edges)
         reports[key] = (activityVersion, now, r)
         return r
     }

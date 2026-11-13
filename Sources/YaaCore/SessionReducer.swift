@@ -3,6 +3,8 @@ import Foundation
 /// Pure state machine: folds agent events into session state.
 public enum SessionReducer {
     public static let outputLimit = 2048
+    /// How long after a turn cut short by a prompt its transcript marker may still be written.
+    static let interruptSlack: TimeInterval = 5
 
     public static func apply(_ e: AgentEvent, to existing: SessionState?) -> SessionState {
         var s = reduce(e, existing)
@@ -52,6 +54,16 @@ public enum SessionReducer {
             s.peek = peek == TranscriptPeek() ? nil : peek
             return s
         }
+        // Read from the transcript after the fact, often once the turn has ended: metadata too.
+        if case .interruptSeen(let at) = e.kind {
+            guard let i = s.turns.lastIndex(where: { $0.startedAt <= at }) else { return s }
+            // Esc then typing at once: the prompt already ended and marked the turn before, and the
+            // marker, written as the abort settles, can land just after the new turn began.
+            if i > 0, s.turns[i - 1].interrupted == true, let end = s.turns[i - 1].endedAt,
+               at.timeIntervalSince(end) < interruptSlack { return s }
+            s.turns[i].interrupted = true
+            return s
+        }
         // The session file says so on every scan; only the first time counts, so a session that
         // comes back here later is not ended again.
         if case .parked(let job) = e.kind {
@@ -87,6 +99,14 @@ public enum SessionReducer {
             if s.status == .ended { s.status = .idle }
 
         case .promptSubmitted(let prompt):
+            // A prompt while the last turn is still open: the user cut in, stopping it and typing
+            // again or steering it mid-run. It ends there, or it would stay open for good. A
+            // background agent's report is not the user's and belongs to the turn it lands in.
+            // An answer to the agent's own question is not cutting in.
+            if !prompt.hasPrefix("<task-notification>"), let i = s.turns.indices.last, s.turns[i].endedAt == nil {
+                s.turns[i].endedAt = e.at
+                if s.status != .needsInput { s.turns[i].interrupted = true }
+            }
             s.turns.append(Turn(id: s.turns.count + 1, prompt: prompt, startedAt: e.at, toolCount: 0))
             s.status = .running
             s.unreadSince = nil
@@ -147,6 +167,15 @@ public enum SessionReducer {
             if s.agent == .kimi, s.tools.contains(where: { $0.isRunning && $0.name == "Agent" }) { break }
             endTurn(&s, at: e.at, lastMessage: last)
 
+        case .interrupted(let last):
+            if s.agent == .kimi, s.tools.contains(where: { $0.isRunning && $0.name == "Agent" }) { break }
+            // Arriving after the next prompt (hooks out of order): that prompt already ended the
+            // stopped turn; the one now running is not it.
+            if let t = s.turns.last, t.startedAt > e.at { break }
+            // Only a turn still running was stopped; a later one would be a session ending idle.
+            if let i = s.turns.indices.last, s.turns[i].endedAt == nil { s.turns[i].interrupted = true }
+            endTurn(&s, at: e.at, lastMessage: last)
+
         case .sessionEnd:
             endRunningTools(&s, at: e.at)
             s.subagents.removeAll()
@@ -177,7 +206,7 @@ public enum SessionReducer {
             s.backgroundTasks?.removeAll { $0 == id }
             if s.backgroundTasks?.isEmpty == true { s.backgroundTasks = nil }
 
-        case .statusSnapshot, .titleChanged, .parked:
+        case .statusSnapshot, .titleChanged, .parked, .interruptSeen:
             break
         }
         return s
@@ -248,6 +277,8 @@ public enum Alerts {
         case .needsInput where before != .needsInput || old?.needsInputMessage != new.needsInputMessage:
             return .needsInput(new.needsInputMessage ?? String(localized: "Needs your input"))
         case .idle where before == .running || before == .stuck:
+            // The user stopped it themselves; there is nothing to tell them.
+            if new.currentTurn?.interrupted == true { return nil }
             return .done(new.currentTurn?.lastMessage)
         case .stuck where before != .stuck:
             return .stuck(new.stuckReason ?? String(localized: "No progress"))

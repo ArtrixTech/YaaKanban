@@ -10,6 +10,8 @@ public struct ActivityRow: Equatable, Sendable {
         case reply
         /// A turn finished with `value` tool calls.
         case turn
+        /// The user cut a turn short (stopped it, or prompted into it); `at` is when it ended.
+        case interrupt
         /// `value` tokens were used (cache reads left out: they re-count the context on every request).
         case tokens
         /// The user jumped to a session.
@@ -83,6 +85,12 @@ public enum Activity {
         for t in new.turns where t.endedAt != nil && !ended.contains(t.id) {
             out.append(ActivityRow(at: t.endedAt!, session: id, kind: .turn, value: Double(t.toolCount)))
         }
+        // Counted with its turn, once it has ended and is known to be cut short: the transcript
+        // can tell either before the end or after it.
+        let cut = Set(old.turns.filter { $0.interrupted == true && $0.endedAt != nil }.map(\.id))
+        for t in new.turns where t.interrupted == true && !cut.contains(t.id) {
+            if let end = t.endedAt { out.append(ActivityRow(at: end, session: id, kind: .interrupt)) }
+        }
         return out
     }
 
@@ -128,6 +136,7 @@ public enum ActivityBackfill {
                 out.append(ActivityRow(at: end, session: s.id, kind: .lane))
                 if t.endedAt != nil, t.endedAt! < cutoff {
                     out.append(ActivityRow(at: t.endedAt!, session: s.id, kind: .turn, value: Double(t.toolCount)))
+                    if t.interrupted == true { out.append(ActivityRow(at: t.endedAt!, session: s.id, kind: .interrupt)) }
                 }
             }
         }
