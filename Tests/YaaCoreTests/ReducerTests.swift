@@ -667,6 +667,43 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(Board.ordered([w, f, r], manualOrder: [], pinned: ["claude-code:r", "claude-code:f"]).map(\.sessionId) == ["r", "f", "w"])
     }
 
+    @Test func lanesAreThePinsOrOneStatus() {
+        var w = s("w", "/W", 1); w.status = .needsInput
+        var f = s("f", "/F", 2); f.status = .idle
+        var g = s("g", "/G", 3); g.status = .idle
+        let r = s("r", "/R", 4), p = s("p", "/P", 5)
+        let board = Board.ordered([w, f, g, r, p], manualOrder: [], pinned: ["claude-code:p"])
+        // The two finished ones, freshest first.
+        #expect(Board.lane(of: "claude-code:f", board: board, pinned: ["claude-code:p"]) == ["claude-code:g", "claude-code:f"])
+        #expect(Board.lane(of: "claude-code:r", board: board, pinned: ["claude-code:p"]) == ["claude-code:r"])
+        #expect(Board.lane(of: "claude-code:p", board: board, pinned: ["claude-code:p"]) == ["claude-code:p"])
+        #expect(Board.lane(of: "claude-code:gone", board: board, pinned: []) == [])
+    }
+
+    @Test func draggedFinishedSessionKeepsItsPlaceUntilActive() {
+        func done(_ id: String, event: TimeInterval) -> SessionState {
+            var x = s(id, "/" + id, 0)
+            x.status = .idle
+            x.lastEventAt = t0.addingTimeInterval(event)
+            return x
+        }
+        let a = done("a", event: 30), b = done("b", event: 20), c = done("c", event: 10)
+        #expect(ids([a, b, c]) == ["a", "b", "c"])
+        // c dragged between a and b.
+        let now = t0.addingTimeInterval(100)
+        let placed = ["claude-code:c": Board.placement(between: a.quietSince, and: b.quietSince, now: now)]
+        func order(_ l: [SessionState]) -> [String] { Board.ordered(l, manualOrder: [], placed: placed).map(\.sessionId) }
+        #expect(order([a, b, c]) == ["a", "c", "b"])
+        // Dragged to either end.
+        #expect(Board.placement(between: nil, and: a.quietSince, now: now).key > a.quietSince)
+        #expect(Board.placement(between: c.quietSince, and: nil, now: now).key < c.quietSince)
+        // A newcomer is fresher than every placed card; activity after the drag frees c again.
+        let n = done("n", event: 90)
+        #expect(order([a, b, c, n]) == ["n", "a", "c", "b"])
+        var active = c; active.lastEventAt = t0.addingTimeInterval(110)
+        #expect(order([a, b, active, n]) == ["c", "n", "a", "b"])
+    }
+
     @Test func customNameWinsTitle() {
         var x = s("x", "/X", 0)
         x.peek = TranscriptPeek(); x.peek?.title = "agent title"

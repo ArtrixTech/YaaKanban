@@ -316,30 +316,27 @@ struct CodeBlock: View {
     }
 }
 
-/// Pin, rename, and up / down for a card. Finished cards sort by freshness, so they only pin.
+/// Pin, rename, and up / down for a card, within its group on the board.
 struct MoveMenu: View {
     @Environment(AppModel.self) private var model
     let session: SessionState
     var body: some View {
         let id = session.id, pinned = model.isPinned(id)
+        let lane = model.lane(of: id), at = lane.firstIndex(of: id) ?? 0
         Button(pinned ? "Unpin" : "Pin to top") { withAnimation(.snappy) { model.togglePin(id) } }
-        if !pinned, Board.keepsManualOrder(session.display) {
-            Button("Move up") { withAnimation(.snappy) { model.step([id], by: -1) } }
-            Button("Move down") { withAnimation(.snappy) { model.step([id], by: 1) } }
+        if at > 0 {
+            Button("Move up") { withAnimation(.snappy) { model.reorder(id, to: at - 1, in: lane) } }
+        }
+        if at + 1 < lane.count {
+            Button("Move down") { withAnimation(.snappy) { model.reorder(id, to: at + 1, in: lane) } }
         }
         Button("Rename…") { model.rename(id) }
     }
 }
 
-/// Session ids being dragged, as one line of text.
-enum DragIds {
-    static func encode(_ ids: [String]) -> String { "yaak:" + ids.joined(separator: "\n") }
-    static func decode(_ s: String) -> [String]? {
-        s.hasPrefix("yaak:") ? s.dropFirst(5).split(separator: "\n").map(String.init) : nil
-    }
-}
-
-/// The board: one list of full-width cards, most urgent first.
+/// The board: one list of full-width cards, most urgent first. A card is dragged by itself: it
+/// follows the pointer, lifted, and the cards it passes make room. It moves within its group (the
+/// pinned cards, or those of its status) and resists past the group's ends.
 struct BoardList: View {
     @Environment(AppModel.self) private var model
     @Environment(\.railExtra) private var railExtra
@@ -348,17 +345,31 @@ struct BoardList: View {
     /// Each card's height in the full panel, which it keeps when the panel folds. Kept here, across
     /// folding, so a folded card has its height from the first frame.
     @State private var heights: [String: CGFloat] = [:]
-    @State private var dropTarget: String?
+    /// Each card's laid-out frame in the list, where a drag measures what it passes.
+    @State private var frames: [String: CGRect] = [:]
+    @State private var drag: CardDrag?
+    @State private var cursorPushed = false
+
+    private static let gap: CGFloat = 8
+    private static let space = "board"
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Self.gap) {
             ForEach(model.board) { card($0) }
         }
+        .coordinateSpace(.named(Self.space))
         .animation(.snappy, value: model.board.map(\.id))
+        // The lifted card left the board, or the list was replaced, mid-drag: the gesture is
+        // cancelled without ending, so let go here.
+        .onChange(of: model.board.map(\.id)) { _, ids in
+            if let d = drag, !ids.contains(d.id) { endDrag() }
+        }
+        .onDisappear { endDrag() }
     }
 
     private func card(_ s: SessionState) -> some View {
-        Group {
+        let lifted = drag?.id == s.id
+        return Group {
             if let extra = railExtra {
                 NarrowSessionCard(session: s, expanded: expanded == s.id, extra: extra,
                                   height: heights[s.id]) { h in if heights[s.id] != h { heights[s.id] = h } }
@@ -369,29 +380,104 @@ struct BoardList: View {
                     }
             }
         }
-            .draggable(DragIds.encode([s.id])) {
-                Text(s.title).font(.system(size: 12, weight: .semibold)).padding(8)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+            // A press here drags the card, not the panel.
+            .background(PanelDragExempt())
+            .scaleEffect(lifted ? 1.025 : 1)
+            .shadow(color: .black.opacity(lifted ? 0.28 : 0), radius: lifted ? 14 : 0, y: lifted ? 6 : 0)
+            .offset(y: offset(s.id))
+            // The lifted card follows the pointer at once; the rest glide aside. On the drop,
+            // offsets settle with the same curve as the reorder, so nothing swings back first.
+            .animation(lifted ? nil : drag == nil ? .snappy : .snappy(duration: 0.22), value: offset(s.id))
+            .animation(.snappy(duration: 0.18), value: lifted)
+            .zIndex(lifted ? 1 : 0)
+            // The laid-out frame, without the offset above.
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.space)) } action: { f in
+                if frames[s.id] != f { frames[s.id] = f }
             }
-            .dropDestination(for: String.self) { items, _ in drop(items, before: s.id) }
-                isTargeted: { dropTarget = $0 ? s.id : (dropTarget == s.id ? nil : dropTarget) }
-            .overlay(alignment: .top) { dropLine(s.id) }
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 4, coordinateSpace: .named(Self.space))
+                    .onChanged { dragged(s, by: $0.translation.height) }
+                    .onEnded { _ in dropped() }
+            )
             .transition(.asymmetric(insertion: .scale(scale: 0.96).combined(with: .opacity), removal: .opacity))
     }
 
-    private func drop(_ items: [String], before target: String?) -> Bool {
-        guard let ids = items.first.flatMap(DragIds.decode), !ids.isEmpty else { return false }
-        withAnimation(.snappy) { model.move(ids, before: target) }
-        return true
+    /// Where a card is drawn: the lifted one under the pointer, the ones it passed a slot over.
+    private func offset(_ id: String) -> CGFloat {
+        guard let d = drag else { return 0 }
+        if id == d.id { return d.dy }
+        guard let i = d.lane.firstIndex(of: id), let from = d.lane.firstIndex(of: d.id) else { return 0 }
+        let room = (frames[d.id]?.height ?? 0) + Self.gap
+        if from < i && i <= d.slot { return -room }
+        if d.slot <= i && i < from { return room }
+        return 0
     }
 
-    /// Insertion marker above the hovered drop target.
-    @ViewBuilder private func dropLine(_ id: String) -> some View {
-        if dropTarget == id {
-            Capsule().fill(Color.accentColor).frame(height: 3).offset(y: -5).padding(.horizontal, 6)
-                .transition(.opacity)
+    private func dragged(_ s: SessionState, by dy: CGFloat) {
+        // A drag of another card that never ended (cancelled) gives way.
+        if let d = drag, d.id != s.id { endDrag() }
+        if drag == nil {
+            guard let f = frames[s.id] else { return }
+            let lane = model.lane(of: s.id)
+            // Free between the lane's ends, resisting past them.
+            let lo = lane.first.flatMap { frames[$0] }.map { $0.minY - f.minY } ?? 0
+            let hi = lane.last.flatMap { frames[$0] }.map { $0.maxY - f.maxY } ?? 0
+            drag = CardDrag(id: s.id, lane: lane, lo: lo, hi: hi, slot: lane.firstIndex(of: s.id) ?? 0)
+            NSCursor.closedHand.push()
+            cursorPushed = true
+        }
+        guard var d = drag, d.id == s.id, let f = frames[s.id] else { return }
+        d.dy = Self.rubberBand(dy, lo: d.lo, hi: d.hi)
+        d.slot = slot(of: d, frame: f)
+        drag = d
+    }
+
+    private func dropped() {
+        guard let d = drag else { return }
+        withAnimation(.snappy) {
+            // The board may have changed under the drag (a status moved on): then it stays put.
+            if model.lane(of: d.id) == d.lane { model.reorder(d.id, to: d.slot, in: d.lane) }
+            endDrag()
         }
     }
+
+    private func endDrag() {
+        drag = nil
+        if cursorPushed { NSCursor.pop(); cursorPushed = false }
+    }
+
+    /// The lane index the lifted card would land at: past every card whose middle its leading
+    /// edge has crossed, so a tall card reaches the ends of its lane too.
+    private func slot(of d: CardDrag, frame f: CGRect) -> Int {
+        guard let from = d.lane.firstIndex(of: d.id) else { return 0 }
+        if d.dy > 0 {
+            let bottom = f.maxY + d.dy
+            return d.lane.indices.last { $0 > from && frames[d.lane[$0]].map { bottom > $0.midY } == true } ?? from
+        }
+        let top = f.minY + d.dy
+        return d.lane.indices.first { $0 < from && frames[d.lane[$0]].map { top < $0.midY } == true } ?? from
+    }
+
+    /// Follows `dy` between `lo` and `hi`, and past them gives at most a few points, ever more slowly.
+    static func rubberBand(_ dy: CGFloat, lo: CGFloat, hi: CGFloat) -> CGFloat {
+        func give(_ x: CGFloat) -> CGFloat { 18 * (1 - 1 / (x / 50 + 1)) }
+        if dy < lo { return lo - give(lo - dy) }
+        if dy > hi { return hi + give(dy - hi) }
+        return dy
+    }
+}
+
+/// A card lifted off the board.
+private struct CardDrag {
+    let id: String
+    /// Cards it can trade places with, itself included.
+    let lane: [String]
+    /// How far it may travel up (negative) and down before resisting.
+    let lo: CGFloat
+    let hi: CGFloat
+    /// The lane index it would land at.
+    var slot: Int
+    var dy: CGFloat = 0
 }
 
 /// Chevron that rotates open; separate from the card tap, which jumps to the agent.

@@ -7,6 +7,10 @@ the update.
 
 ## [Unreleased]
 
+### Fixed
+
+- Dragging cards up and down in the floating panel and side rail works: the card itself follows the pointer and the others make room, instead of a blue line. Every card can be moved within its group (pinned, or its status); 待验收 and 已验收 cards now keep the place you drag them to until they are active again.
+
 ## [0.2.3] - 2026-11-09
 
 ### Fixed
