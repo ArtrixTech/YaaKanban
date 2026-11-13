@@ -139,7 +139,9 @@ final class AppModel {
     var allSessions: [SessionState] { sorted(sessions.values.filter { !$0.isUnstarted }) }
 
     /// Active sessions as the boards show them: most urgent first, then the user's order or start order.
-    var board: [SessionState] { Board.ordered(activeSessions, manualOrder: settings.manualOrder, pinned: settings.pinned) }
+    var board: [SessionState] {
+        Board.ordered(activeSessions, manualOrder: settings.manualOrder, pinned: settings.pinned, placed: settings.placed)
+    }
 
     func isPinned(_ key: String) -> Bool { settings.pinned.contains(key) }
 
@@ -148,19 +150,25 @@ final class AppModel {
         if isPinned(key) { settings.pinned.removeAll { $0 == key } } else { settings.pinned.insert(key, at: 0); telemetry.count(.pin) }
     }
 
-    /// Moves sessions before `target`, or to the end.
-    func move(_ ids: [String], before target: String?) {
-        settings.manualOrder = Board.move(ids, before: target, board: board.map(\.id), manualOrder: settings.manualOrder)
-    }
+    /// The sessions `id` can trade places with on the board, itself included (see `Board.lane`).
+    func lane(of id: String) -> [String] { Board.lane(of: id, board: board, pinned: settings.pinned) }
 
-    /// Context-menu moves: -1 up, +1 down, nil to the top.
-    func step(_ ids: [String], by delta: Int?) {
-        let flat = board.map(\.id)
-        guard let first = ids.first, let i = flat.firstIndex(of: first) else { return }
-        let j = delta.map { i + $0 } ?? 0
-        guard j != i, flat.indices.contains(j) else { return }
-        // Moving down: land before the card after the one we pass.
-        move(ids, before: j < i ? flat[j] : (flat.indices.contains(j + 1) ? flat[j + 1] : nil))
+    /// Puts `id` at index `slot` of `lane` (as `lane(of:)` gave it): the pinned order, the
+    /// manual order, or for a finished session a freshness between its new neighbours'.
+    func reorder(_ id: String, to slot: Int, in lane: [String]) {
+        guard let from = lane.firstIndex(of: id), slot != from, let s = sessions[id] else { return }
+        var rest = lane.filter { $0 != id }
+        guard rest.indices.contains(slot) || slot == rest.count else { return }
+        if isPinned(id) {
+            rest.insert(id, at: slot)
+            settings.pinned = rest + settings.pinned.filter { !lane.contains($0) }
+        } else if Board.keepsManualOrder(s.display) {
+            settings.manualOrder = Board.move([id], before: slot < rest.count ? rest[slot] : nil,
+                                              board: board.map(\.id), manualOrder: settings.manualOrder)
+        } else {
+            let fresh = { (i: Int) in rest.indices.contains(i) ? self.sessions[rest[i]].map { Board.freshness($0, placed: self.settings.placed) } : nil }
+            settings.placed[id] = Board.placement(between: fresh(slot - 1), and: fresh(slot), now: Date())
+        }
     }
 
     /// Sessions the user has not ended; counts and badges ignore the rest.

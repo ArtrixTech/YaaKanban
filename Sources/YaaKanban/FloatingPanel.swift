@@ -8,6 +8,32 @@ private let panelLog = Logger(subsystem: "com.artrix.yaakanban", category: "pane
 private final class BoardPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    /// The panel moves by its background, except where a press drags something of its own (a
+    /// card): decided at each press, before AppKit starts moving the window.
+    override func sendEvent(_ e: NSEvent) {
+        if e.type == .leftMouseDown {
+            let exempt = contentView.map { Self.exempt(e.locationInWindow, in: $0) } ?? false
+            if isMovableByWindowBackground == exempt { isMovableByWindowBackground = !exempt }
+        }
+        super.sendEvent(e)
+    }
+
+    private static func exempt(_ p: NSPoint, in view: NSView) -> Bool {
+        // Only the part on screen: a card scrolled under the header leaves the header movable.
+        if view is PanelDragExempt.Marker { return view.convert(view.visibleRect, to: nil).contains(p) }
+        return view.subviews.contains { exempt(p, in: $0) }
+    }
+}
+
+/// Marks the area behind it as one where a press does not move the floating panel. It takes no
+/// clicks itself; the panel looks for it at each press.
+struct PanelDragExempt: NSViewRepresentable {
+    final class Marker: NSView {
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    }
+    func makeNSView(context: Context) -> Marker { Marker() }
+    func updateNSView(_ v: Marker, context: Context) {}
 }
 
 /// The panel's surface: system glass that reports the pointer entering and leaving whether or not

@@ -38,6 +38,14 @@ final class Preferences {
     var manualOrder: [String] { didSet { d.set(Array(manualOrder.prefix(500)), forKey: "manualOrder") } }
     /// Pinned session ids, newest pin first; they sit above every status on the boards.
     var pinned: [String] { didSet { d.set(Array(pinned.prefix(100)), forKey: "pinnedSessions") } }
+    /// Finished sessions the user dragged to a place (see `Board.Placement`); the latest 200.
+    var placed: [String: Board.Placement] {
+        didSet {
+            let kept = placed.sorted { $0.value.at > $1.value.at }.prefix(200)
+            d.set(Dictionary(uniqueKeysWithValues: kept.map { ($0.key, [$0.value.key.timeIntervalSince1970, $0.value.at.timeIntervalSince1970]) }),
+                  forKey: "placedSessions")
+        }
+    }
     var suppressWhenWaveFrontmost: Bool { didSet { d.set(suppressWhenWaveFrontmost, forKey: "suppressWhenWaveFrontmost") } }
     var waveTabSwitching: Bool { didSet { d.set(waveTabSwitching, forKey: "waveTabJump") } }
     /// The user answered "Not Now" to the note before the Accessibility prompt; a click on a card
@@ -91,6 +99,9 @@ final class Preferences {
         showRecentStats = d.bool(forKey: "showRecentStats")
         manualOrder = d.stringArray(forKey: "manualOrder") ?? []
         pinned = d.stringArray(forKey: "pinnedSessions") ?? []
+        placed = ((d.dictionary(forKey: "placedSessions") as? [String: [Double]]) ?? [:]).compactMapValues { v in
+            v.count == 2 ? Board.Placement(key: Date(timeIntervalSince1970: v[0]), at: Date(timeIntervalSince1970: v[1])) : nil
+        }
         suppressWhenWaveFrontmost = d.bool(forKey: "suppressWhenWaveFrontmost")
         waveTabSwitching = d.bool(forKey: "waveTabJump")
         accessibilityDeclined = d.bool(forKey: "accessibilityDeclined")
