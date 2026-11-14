@@ -7,6 +7,8 @@ the update.
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-11-14
+
 ### Added
 
 - 概览's top row shows 杠精指数 (Pushback) in place of the tool call count: the share of finished turns you cut short, by stopping the agent mid-run or sending it a new prompt while it ran. Read from Claude Code and Codex transcripts, from the stop signals of Cursor, Kimi, Cline and Hermes, and from the OpenCode, pi and omp plugins (update them in Settings to count there); other agents count a prompt sent into a running turn. A turn you stop yourself no longer sends a "done" notification.

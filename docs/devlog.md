@@ -1,8 +1,17 @@
 # Devlog
 
-## fix(stuck): let a held turn wait on background work while alive
+## chore(release): bump the version to 0.2.4
 
 `PENDING` | 2026-11-14
+
+- **Changes**: `CHANGELOG.md` Unreleased → `[0.2.4] - 2026-11-14`; `Info.plist` 0.2.4 (build 8).
+- **Reason**: Ship the pushback index, the interrupted-turn fixes, the card drag rework and the background-wait stuck fix.
+- **User feedback**: "解决之后发版本、上线。"
+- **Result**: Released via PR develop → main and `make release` signed by team 5KZD8GBF7G.
+
+## fix(stuck): let a held turn wait on background work while alive
+
+`ac1def5` | 2026-11-14
 
 - **Changes**: `StuckDetector.heldByLiveAgent` (turn ended, `backgroundTasks` non-empty, `agentPid` known) skips the silence check; tool-duration and process-exit checks unchanged. Tests `heldTurnIsNotFinishedByTheStuckCheck`, `silenceAppliesWithAStartedBackgroundAgent` updated: silence still fires for a held turn with no known pid.
 - **Reason**: LY-Analysis session `c327fd7e` ended its turn with a background Bash (`until ssh … pgrep run_v9.sh; do sleep 600; done`) waiting on an ~8 h training run; the silence rule flagged it 可能卡住 · 329 分钟无新事件.
