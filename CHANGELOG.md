@@ -15,6 +15,8 @@ the update.
 
 - A prompt sent before the agent's last turn finished (Esc then typing at once, or a message queued mid-run) now ends that turn, so it counts in the overview's turns and prompts instead of being left open.
 
+- A session waiting on a background job after its turn (for example a shell polling a training run for hours) no longer turns 可能卡住 · N 分钟无新事件 after 5 minutes; it stays running while the agent's process is alive, and finishes if the process exits.
+
 - Dragging cards up and down in the floating panel and side rail works: the card itself follows the pointer and the others make room, instead of a blue line. Every card can be moved within its group (pinned, or its status); 待验收 and 已验收 cards now keep the place you drag them to until they are active again.
 
 ## [0.2.3] - 2026-11-09

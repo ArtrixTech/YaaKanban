@@ -1112,8 +1112,19 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1), claude("Stop", at: 2)])
         let cfg = StuckConfig()
         #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(10), config: cfg, isAlive: { _ in true }) == nil)
-        // A lost notification still surfaces, as silence.
-        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: cfg, isAlive: { _ in true })?.status == .stuck)
+        // A lost notification still surfaces, as silence, when no process can be asked.
+        var unknown = s
+        unknown.agentPid = nil
+        #expect(StuckDetector.evaluate(unknown, now: t0.addingTimeInterval(400), config: cfg, isAlive: { _ in true })?.status == .stuck)
+        // With the agent's process alive, a long wait (a training run) is not a stall.
+        var live = s
+        live.agentPid = 7
+        #expect(StuckDetector.evaluate(live, now: t0.addingTimeInterval(20000), config: cfg, isAlive: { _ in true }) == nil)
+        live.status = .stuck
+        live.stuckReason = "No new events for 329 min"
+        #expect(StuckDetector.evaluate(live, now: t0.addingTimeInterval(20000), config: cfg, isAlive: { _ in true })?.status == .running)
+        // Its process gone, nothing is left to wait for.
+        #expect(StuckDetector.evaluate(live, now: t0.addingTimeInterval(20000), config: cfg, isAlive: { _ in false })?.status == .idle)
         // Forgetting it (setting turned off) lets the check finish the session.
         var forgot = s
         forgot.backgroundTasks = nil
@@ -1165,9 +1176,13 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
     }
 
     @Test func silenceAppliesWithAStartedBackgroundAgent() {
-        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1),
+        var s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1),
                       claude("SubagentStart", ["agent_id": .string("a1")], at: 1), claude("Stop", at: 2)])
+        s.agentPid = nil
         #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: StuckConfig(), isAlive: { _ in true })?.status == .stuck)
+        // The agent's process still there to be told: the wait is not a stall.
+        s.agentPid = 7
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: StuckConfig(), isAlive: { _ in true }) == nil)
     }
 
     @Test func stopKeepsABackgroundAgentsPermission() {

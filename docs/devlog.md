@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(overview): add pushback index of turns the user cut short
+## fix(stuck): let a held turn wait on background work while alive
 
 `PENDING` | 2026-11-14
+
+- **Changes**: `StuckDetector.heldByLiveAgent` (turn ended, `backgroundTasks` non-empty, `agentPid` known) skips the silence check; tool-duration and process-exit checks unchanged. Tests `heldTurnIsNotFinishedByTheStuckCheck`, `silenceAppliesWithAStartedBackgroundAgent` updated: silence still fires for a held turn with no known pid.
+- **Reason**: LY-Analysis session `c327fd7e` ended its turn with a background Bash (`until ssh … pgrep run_v9.sh; do sleep 600; done`) waiting on an ~8 h training run; the silence rule flagged it 可能卡住 · 329 分钟无新事件.
+- **User feedback**: "实际上是在等训练（有shell）。解决。" then "解决之后发版本、上线。"
+- **Process**: Read the stored session JSON (status running, `backgroundTasks: [blh6vif86]`, last turn ended 334 min before the next prompt). Earlier design kept silence for held turns "in case a notification never comes"; with a live pid a lost notification is rare and process exit already ends the session.
+- **Result**: `make test` 244 passed.
+- **Notes**: A held session whose notification is truly lost now stays 运行中 until the process exits or the user prompts. Sessions without a pid keep the old silence fallback.
+
+## feat(overview): add pushback index of turns the user cut short
+
+`d1382ae` | 2026-11-14
 
 - **Changes**: `Turn.interrupted`; `AgentEvent.Kind.interrupted(lastMessage:)` (hook: marks + ends the turn) and `.interruptSeen(at:)` (transcript: marks only, metadata before the stale guard, 5 s slack so an Esc-then-retype marker does not mark the new turn); `ActivityRow.Kind.interrupt` once per ended+marked turn; `ActivityReport.interrupts/interruptTurns/interruptRate`, base bounded by `interruptsSince` (meta set on first launch of this version) and `rebuiltUntil`. Overview top-row chip "Tool calls" → "Pushback"/杠精指数 (% only, count in tooltip). Sources: Claude transcript marker `[Request interrupted by user…]` (exact content, no tool_result/sidechain/shutdown), Codex rollout `turn_aborted`/`interrupted`, Cursor `stop.status=aborted`, Kimi `Interrupt`, Cline `TaskCancel`, Hermes `on_session_end.extra.interrupted`, pi `agent_settled.aborted`, omp last message `stopReason=aborted`, OpenCode `session.error MessageAbortedError` → `turn_end interrupted`. Generic: a prompt into an open turn ends it and marks it, except `<task-notification>` and answers while needsInput. Claude `StopFailure` hook installed → turnEnd. Done alert suppressed for interrupted turns.
 - **Reason**: User wants to see how often they cut agents short; tool-call total was low-value.
