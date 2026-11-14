@@ -32,6 +32,10 @@ public struct TranscriptTally: Sendable {
     /// tool ends the hooks never reported, such as an interrupt.
     public private(set) var finishedTools: [(id: String, failed: Bool)] = []
     static let finishedLimit = 100
+    /// When the user stopped a turn, as the transcript records it (Claude's "[Request interrupted
+    /// by user…]" line, not the one an exiting process stamps; Codex's `turn_aborted` for an
+    /// interrupt), newest last.
+    public private(set) var interrupts: [Date] = []
     /// Claude repeats one message's usage on each of its content-block lines.
     private var lastMessageId: String?
     /// The read is in the middle of an oversized line; drop bytes up to its newline.
@@ -83,6 +87,13 @@ public struct TranscriptTally: Sendable {
     }
 
     private mutating func claudeLine(_ line: Data.SubSequence) {
+        // The marker is a message of its own; a tool result, prompt or summary quoting it is not.
+        if line.has("[Request interrupted by user"), line.has("\"type\":\"user\""), !line.has("\"tool_result\""),
+           let j = JSONValue.parse(Data(line)), j["isSidechain"]?.bool != true, j["interruptedByShutdown"]?.bool != true,
+           let text = TranscriptPeek.text(of: j["message"]?["content"]), Self.claudeMarkers.contains(text) {
+            noteInterrupt(j["timestamp"]?.string)
+            return
+        }
         let isAssistant = line.has("\"type\":\"assistant\"")
         if !isAssistant, line.has("\"tool_result\"") { noteResults(line) }
         // User lines are mostly (large) tool results; only parse ones that may be a typed prompt.
@@ -115,7 +126,8 @@ public struct TranscriptTally: Sendable {
         let message = line.has("\"type\":\"message\"")
         let call = line.has("\"type\":\"function_call\"") || line.has("\"type\":\"custom_tool_call\"")
         let started = line.has("\"task_started\"")
-        guard tokens || message || call || started, let j = JSONValue.parse(Data(line)), let p = j["payload"] else { return }
+        let aborted = line.has("\"turn_aborted\"")
+        guard tokens || message || call || started || aborted, let j = JSONValue.parse(Data(line)), let p = j["payload"] else { return }
         switch p["type"]?.string {
         case "token_count":
             // Totals are cumulative; the last record wins.
@@ -129,6 +141,9 @@ public struct TranscriptTally: Sendable {
             usage.contextWindow = info["model_context_window"]?.number.map { Int($0) } ?? usage.contextWindow
         case "task_started":
             lastReply = nil
+        // Other reasons (a turn replaced, a review ended, a budget hit) are not the user's doing.
+        case "turn_aborted" where p["reason"]?.string == "interrupted":
+            noteInterrupt(j["timestamp"]?.string)
         case "message" where p["role"]?.string == "assistant":
             let parts = p["content"]?.array?.compactMap { $0["text"]?.string } ?? []
             if let t = TranscriptPeek.clip(parts.joined(separator: "\n")) { lastReply = t }
@@ -143,6 +158,22 @@ public struct TranscriptTally: Sendable {
         let failed = line.has("\"is_error\":true")
         for id in line.stringValues(of: "tool_use_id") { finishedTools.append((id, failed)) }
         if finishedTools.count > Self.finishedLimit { finishedTools.removeFirst(finishedTools.count - Self.finishedLimit) }
+    }
+
+    static let claudeMarkers: Set<String> = ["[Request interrupted by user]", "[Request interrupted by user for tool use]"]
+
+    private mutating func noteInterrupt(_ timestamp: String?) {
+        guard let at = timestamp.flatMap(Self.date) else { return }
+        interrupts.append(at)
+        if interrupts.count > Self.finishedLimit { interrupts.removeFirst(interrupts.count - Self.finishedLimit) }
+    }
+
+    static func date(_ s: String) -> Date? {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = f.date(from: s) { return d }
+        f.formatOptions = [.withInternetDateTime]
+        return f.date(from: s)
     }
 
     private mutating func countTool(_ name: String?) {

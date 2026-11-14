@@ -168,6 +168,27 @@ private func json(_ url: URL) throws -> [String: Any] {
         }
     }
 
+    /// The plugins are TypeScript in a Swift string: a slip in the escaping only shows when the
+    /// agent loads them. Transpiled with bun when it is installed.
+    @Test func pluginSourcesParse() throws {
+        let bun = ["/opt/homebrew/bin/bun", "/usr/local/bin/bun"].first { FileManager.default.isExecutableFile(atPath: $0) }
+        guard let bun else { return }
+        let dir = try tempHome()
+        for (name, src) in [("opencode", OpenCodeIntegration().source(yaak: yaak)), ("pi", PiIntegration().source(yaak: yaak)),
+                            ("omp", OmpIntegration().source(yaak: yaak))] {
+            let f = dir.appendingPathComponent("\(name).ts")
+            try src.write(to: f, atomically: true, encoding: .utf8)
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: bun)
+            p.arguments = ["build", "--no-bundle", f.path]
+            p.standardOutput = FileHandle.nullDevice
+            p.standardError = FileHandle.nullDevice
+            try p.run()
+            p.waitUntilExit()
+            #expect(p.terminationStatus == 0, "\(name) plugin does not parse")
+        }
+    }
+
     @Test func refusesForeignPluginFileAndBadJSON() throws {
         let home = try tempHome()
         let p = home.appendingPathComponent(".pi/agent/extensions/yaakanban.ts")

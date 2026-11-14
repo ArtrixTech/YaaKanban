@@ -60,7 +60,7 @@ public enum StuckDetector {
                 reason = String(localized: "Process exited")
             } else if let t = waited.first(where: { !isBackground($0) && now.timeIntervalSince($0.startedAt) > config.toolDuration }) {
                 reason = String(localized: "\(t.name) has been running for \(minutes(now.timeIntervalSince(t.startedAt))) min")
-            } else if s.hooked, waited.isEmpty, s.subagents.isEmpty || s.awaitsBackground,
+            } else if s.hooked, waited.isEmpty, s.subagents.isEmpty || s.awaitsBackground, !heldByLiveAgent(s),
                       now.timeIntervalSince(s.lastEventAt) > config.silence {
                 // Silence is only meaningful when hooks report every step. Waiting on background
                 // agents it still applies, in case a stop or notification never comes.
@@ -79,6 +79,13 @@ public enum StuckDetector {
             out.stuckReason = nil
             return out
         }
+    }
+
+    /// The turn ended to wait for background work (a training run can take hours) and the
+    /// agent's process is still there to be told when it finishes: quiet is the wait, not a stall.
+    /// Without a known process a lost notification still surfaces, as silence.
+    static func heldByLiveAgent(_ s: SessionState) -> Bool {
+        s.awaitsBackground && s.agentPid != nil && s.turns.last.map { $0.endedAt != nil } == true
     }
 
     static func isBackground(_ t: ToolCall) -> Bool {

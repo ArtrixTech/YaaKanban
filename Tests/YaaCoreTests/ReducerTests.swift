@@ -811,6 +811,30 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(t.lastReply == nil)
     }
 
+    @Test func interruptMarkers() {
+        var c = TranscriptTally(format: .claude)
+        c.consume(Data([
+            #"{"type":"user","timestamp":"2026-11-13T08:00:01.500Z","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user]"}]}}"#,
+            #"{"type":"user","timestamp":"2026-11-13T08:00:05Z","message":{"role":"user","content":"[Request interrupted by user for tool use]"}}"#,
+            #"{"type":"user","timestamp":"2026-11-13T08:00:09Z","interruptedByShutdown":true,"message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user for tool use]"}]}}"#,
+            #"{"type":"user","isSidechain":true,"timestamp":"2026-11-13T08:00:10Z","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user]"}]}}"#,
+        ].joined(separator: "\n").utf8))
+        #expect(c.interrupts.map(\.timeIntervalSince1970) == [1_794_556_801.5, 1_794_556_805])
+        var x = TranscriptTally(format: .codex)
+        x.consume(Data([
+            #"{"timestamp":"2026-11-13T08:00:01.000Z","type":"event_msg","payload":{"type":"turn_aborted","turn_id":"t1","reason":"interrupted"}}"#,
+            #"{"timestamp":"2026-11-13T08:00:02.000Z","type":"event_msg","payload":{"type":"turn_aborted","turn_id":"t2","reason":"replaced"}}"#,
+        ].joined(separator: "\n").utf8))
+        #expect(x.interrupts.map(\.timeIntervalSince1970) == [1_794_556_801])
+        // Quoted in a tool result or a prompt, it is not one.
+        var q = TranscriptTally(format: .claude)
+        q.consume(Data([
+            #"{"type":"user","timestamp":"2026-11-13T08:00:01Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"u1","content":"if line.has(\"[Request interrupted by user\")"}]}}"#,
+            #"{"type":"user","timestamp":"2026-11-13T08:00:02Z","message":{"role":"user","content":"why do I see [Request interrupted by user] here?"}}"#,
+        ].joined(separator: "\n").utf8))
+        #expect(q.interrupts.isEmpty && q.finishedTools.map(\.id) == ["u1"])
+    }
+
     @Test func newPromptDropsStaleReply() {
         var s = SessionState(agent: .claudeCode, sessionId: "r", at: t0)
         s.peek = TranscriptPeek(lastReply: "旧回复", title: "T")
@@ -1088,8 +1112,19 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1), claude("Stop", at: 2)])
         let cfg = StuckConfig()
         #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(10), config: cfg, isAlive: { _ in true }) == nil)
-        // A lost notification still surfaces, as silence.
-        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: cfg, isAlive: { _ in true })?.status == .stuck)
+        // A lost notification still surfaces, as silence, when no process can be asked.
+        var unknown = s
+        unknown.agentPid = nil
+        #expect(StuckDetector.evaluate(unknown, now: t0.addingTimeInterval(400), config: cfg, isAlive: { _ in true })?.status == .stuck)
+        // With the agent's process alive, a long wait (a training run) is not a stall.
+        var live = s
+        live.agentPid = 7
+        #expect(StuckDetector.evaluate(live, now: t0.addingTimeInterval(20000), config: cfg, isAlive: { _ in true }) == nil)
+        live.status = .stuck
+        live.stuckReason = "No new events for 329 min"
+        #expect(StuckDetector.evaluate(live, now: t0.addingTimeInterval(20000), config: cfg, isAlive: { _ in true })?.status == .running)
+        // Its process gone, nothing is left to wait for.
+        #expect(StuckDetector.evaluate(live, now: t0.addingTimeInterval(20000), config: cfg, isAlive: { _ in false })?.status == .idle)
         // Forgetting it (setting turned off) lets the check finish the session.
         var forgot = s
         forgot.backgroundTasks = nil
@@ -1141,9 +1176,13 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
     }
 
     @Test func silenceAppliesWithAStartedBackgroundAgent() {
-        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1),
+        var s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1),
                       claude("SubagentStart", ["agent_id": .string("a1")], at: 1), claude("Stop", at: 2)])
+        s.agentPid = nil
         #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: StuckConfig(), isAlive: { _ in true })?.status == .stuck)
+        // The agent's process still there to be told: the wait is not a stall.
+        s.agentPid = 7
+        #expect(StuckDetector.evaluate(s, now: t0.addingTimeInterval(400), config: StuckConfig(), isAlive: { _ in true }) == nil)
     }
 
     @Test func stopKeepsABackgroundAgentsPermission() {
@@ -1369,7 +1408,7 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
             kimi("Interrupt", at: 2),
         ])
         #expect(failed.latestTool?.isError == true && failed.latestTool?.output == "denied")
-        #expect(failed.status == .idle)
+        #expect(failed.status == .idle && failed.turns.last?.interrupted == true)
     }
 
     @Test func kimiPromptPartsAndSubagent() {
@@ -1433,7 +1472,7 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         ], into: done)
         #expect(asked.status == .needsInput)
         let cancelled = fold([cli("TaskCancel", at: 9), cli("SessionShutdown", at: 10)], into: asked)
-        #expect(cancelled.status == .idle)
+        #expect(cancelled.status == .idle && cancelled.turns.last?.interrupted == true)
 
         // VS Code: no tool id and no root session; start and end pair by input.
         func vs(_ event: String, _ f: [String: JSONValue] = [:], at: TimeInterval = 0) -> HookEnvelope {
@@ -1631,5 +1670,90 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         if case .object(var o) = json { o["ancestorPids"] = nil; json = .object(o) }
         let back = Wire.decode(HookEnvelope.self, try JSONEncoder().encode(json))
         #expect(back?.ancestorPids == nil && back?.agent == .codex)
+    }
+}
+
+@Suite struct Interrupts {
+    private let prompt = { (text: String, at: TimeInterval) in claude("UserPromptSubmit", ["prompt": .string(text)], at: at) }
+
+    @Test func cursorAndHermesSayItWasTheUser() {
+        func kind(_ agent: AgentKind, _ event: String, _ p: [String: JSONValue]) -> AgentEvent.Kind? {
+            Normalizer.normalize(HookEnvelope(agent: agent, event: event, receivedAt: t0, payload: .object(p))).last?.kind
+        }
+        let cur: [String: JSONValue] = ["conversation_id": .string("c"), "hook_event_name": .string("stop")]
+        #expect(kind(.cursor, "stop", cur.merging(["status": .string("aborted")]) { $1 }) == .interrupted(lastMessage: nil))
+        #expect(kind(.cursor, "stop", cur.merging(["status": .string("completed")]) { $1 }) == .turnEnd(lastMessage: nil))
+        let her: [String: JSONValue] = ["session_id": .string("h"), "hook_event_name": .string("on_session_end")]
+        #expect(kind(.hermes, "on_session_end", her.merging(["extra": .object(["interrupted": .bool(true)])]) { $1 })
+                == .interrupted(lastMessage: nil))
+        #expect(kind(.hermes, "on_session_end", her.merging(["extra": .object(["completed": .bool(true)])]) { $1 })
+                == .turnEnd(lastMessage: nil))
+    }
+
+    @Test func promptIntoARunningTurnCutsItShort() {
+        let s = fold([prompt("a", 1), prompt("no, do b", 5)])
+        #expect(s.turns.count == 2)
+        #expect(s.turns[0].endedAt == t0.addingTimeInterval(5))
+        #expect(s.turns[0].interrupted == true)
+        #expect(s.turns[1].interrupted == nil && s.status == .running)
+    }
+
+    @Test func answeringItsQuestionIsNot() {
+        var s = fold([prompt("a", 1)])
+        s.status = .needsInput
+        s = fold([prompt("the answer", 3)], into: s)
+        #expect(s.turns[0].endedAt == t0.addingTimeInterval(3) && s.turns[0].interrupted == nil)
+    }
+
+    @Test func stopFailureIsNotTheUser() {
+        let s = fold([prompt("a", 1), claude("StopFailure", ["error": .string("overloaded")], at: 2), prompt("again", 9)])
+        #expect(s.turns[0].endedAt == t0.addingTimeInterval(2) && s.turns[0].interrupted == nil)
+    }
+
+    @Test func markerJustAfterARetypeIsTheSameEsc() {
+        // Esc at 4, typed again at 5 (ending turn 1); the marker is written at 5.2.
+        var s = fold([prompt("a", 1), prompt("b", 5)])
+        s = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(6),
+                                            kind: .interruptSeen(at: t0.addingTimeInterval(5.2))), to: s)
+        #expect(s.turns.map(\.interrupted) == [true, nil])
+    }
+
+    @Test func lateInterruptHookLeavesTheNextTurn() {
+        var s = fold([prompt("a", 1), prompt("b", 5)])
+        s = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(4),
+                                            kind: .interrupted(lastMessage: nil)), to: s)
+        #expect(s.turns[1].interrupted == nil && s.status == .running)
+    }
+
+    @Test func promptAfterAFinishedTurnIsNot() {
+        let s = fold([prompt("a", 1), claude("Stop", at: 3), prompt("b", 5)])
+        #expect(s.turns[0].interrupted == nil && s.turns[0].endedAt == t0.addingTimeInterval(3))
+    }
+
+    @Test func backgroundReportIsNotTheUser() {
+        var s = fold([prompt("a", 1)])
+        s.backgroundTasks = ["t1"]
+        s = fold([prompt("<task-notification><task-id>t1</task-id></task-notification>", 4)], into: s)
+        #expect(s.turns[0].interrupted == nil && s.turns[0].endedAt == nil)
+    }
+
+    @Test func hookInterruptEndsAndMarksQuietly() {
+        let running = fold([prompt("a", 1)])
+        let e = AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(4), kind: .interrupted(lastMessage: nil))
+        let s = SessionReducer.apply(e, to: running)
+        #expect(s.status == .idle && s.turns[0].interrupted == true)
+        #expect(Alerts.between(running, s) == nil)
+        // An interrupt after the turn already ended marks nothing.
+        let done = fold([prompt("a", 1), claude("Stop", at: 2)])
+        #expect(SessionReducer.apply(e, to: done).turns[0].interrupted == nil)
+    }
+
+    @Test func transcriptMarksTheTurnRunningThen() {
+        // Esc ended turn 1 (the session file went idle), then turn 2 ran and finished.
+        var s = fold([prompt("a", 1), claude("Stop", at: 3), prompt("b", 10), claude("Stop", at: 12)])
+        s = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(20),
+                                            kind: .interruptSeen(at: t0.addingTimeInterval(2.5))), to: s)
+        #expect(s.turns.map(\.interrupted) == [true, nil])
+        #expect(s.status == .idle && s.lastEventAt == t0.addingTimeInterval(12))
     }
 }

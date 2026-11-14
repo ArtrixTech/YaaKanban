@@ -353,7 +353,8 @@
 "The last 7 days in half hours, brighter where more agents ran at once. Each row ends with that day's agent hours; Busiest marks the 3 hours with the most agent time." = "최근 7일을 30분 단위로 보여 주며, 동시에 실행한 에이전트가 많을수록 밝습니다. 각 행 끝은 그날의 에이전트 작업 시간이고, '가장 바쁜 때'는 에이전트 시간이 가장 많은 3시간입니다.";
 "While you were here, the share of agent time spent running rather than blocked on you (asking or stuck). A finished turn waiting for review counts as neither." = "자리에 있는 동안 에이전트 시간 중 나를 기다리며 막히지 않고(질문 또는 멈춤) 실행한 비율입니다. 끝나고 검토를 기다리는 턴은 어느 쪽에도 세지 않습니다.";
 "The most agents running at the same time." = "동시에 실행된 에이전트의 최대 수입니다.";
-"Tools the agents called in the turns that finished in the period." = "기간 안에 끝난 턴에서 에이전트가 호출한 도구 수입니다.";
+"Finished turns you cut short: stopped mid-run, or sent a new prompt into while they ran. %lld of %lld in this period." = "끝난 턴 중 중간에 끊은 비율: 실행 중에 멈췄거나 새 프롬프트를 보낸 턴입니다. 이 기간 %lld / %lld턴.";
+"Pushback" = "끼어들기 비율";
 "Tokens the agents reported using." = "에이전트가 보고한 토큰 사용량입니다.";
 "Finished turns you opened or followed up on." = "내가 열어 보거나 이어서 지시한 완료된 턴입니다.";
 "Times you stepped in: prompts you sent and questions you answered." = "내가 개입한 횟수: 보낸 프롬프트와 답한 질문입니다.";

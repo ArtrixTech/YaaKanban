@@ -60,6 +60,10 @@ public struct ActivityReport: Sendable {
     /// Median reply per project, slowest first.
     public var replyByProject: [(project: String, median: TimeInterval, count: Int)] = []
     public var turns = 0
+    /// Turns the user cut short: stopped them, or prompted into them while they ran.
+    public var interrupts = 0
+    /// Turns finished since interrupts were first recorded: the rate's base.
+    public var interruptTurns = 0
     public var toolCalls = 0
     public var tokens = 0
     /// Jumps to a session.
@@ -78,6 +82,8 @@ public struct ActivityReport: Sendable {
     /// Agent hours per hour the user was on: all the agents' work, away included, over the user's
     /// present time. What ran while the user was away cost them nothing, so it only adds.
     public var leverage: Double? { activeTime >= 60 ? agentTime / activeTime : nil }
+    /// The share of finished turns the user cut short.
+    public var interruptRate: Double? { interruptTurns > 0 ? min(1, Double(interrupts) / Double(interruptTurns)) : nil }
     /// Agent time bought by each prompt or answer.
     public var agentTimePerIntervention: TimeInterval? { interventions > 0 ? agentTime / Double(interventions) : nil }
 
@@ -111,9 +117,10 @@ public struct ActivityReport: Sendable {
     ///   - lanesBefore: each session's lane when the range starts.
     ///   - awaySince: the user has been away since then, still.
     ///   - recordedSince: rows before this were rebuilt (`ActivityBackfill`).
+    ///   - interruptsSince: interrupts are recorded from here; earlier turns are no part of the rate.
     ///   - buckets: equal chart slices, unless `edges` gives them (e.g. calendar days).
     public static func compute(rows: [ActivityRow], lanesBefore: [String: Lane], range: DateInterval,
-                               now: Date, awaySince: Date? = nil, recordedSince: Date? = nil,
+                               now: Date, awaySince: Date? = nil, recordedSince: Date? = nil, interruptsSince: Date? = nil,
                                buckets: Int = 48, edges: [Date]? = nil) -> ActivityReport {
         var r = ActivityReport(range: range)
         r.bucketEdges = edges.flatMap { $0.count > 1 ? $0 : nil }
@@ -167,7 +174,13 @@ public struct ActivityReport: Sendable {
         for row in rows where row.at >= range.start && row.at < end {
             switch row.kind {
             // A turn is one prompt; one finished in the range was sent in it or just before.
-            case .turn: r.turns += 1; r.interventions += 1; r.toolCalls += Int(row.value); r.turnsBySession[row.session, default: 0] += 1
+            case .turn:
+                r.turns += 1; r.interventions += 1; r.toolCalls += Int(row.value); r.turnsBySession[row.session, default: 0] += 1
+                if row.at >= interruptsSince ?? .distantPast, row.at >= r.rebuiltUntil ?? .distantPast { r.interruptTurns += 1 }
+            // Same base as the turns: a transcript read at launch can mark turns from before.
+            case .interrupt where row.at >= interruptsSince ?? .distantPast && row.at >= r.rebuiltUntil ?? .distantPast:
+                r.interrupts += 1
+            case .interrupt: break
             case .tokens: r.tokens += Int(row.value)
             case .focus: r.switches += 1
             case .lane, .reply, .away: break

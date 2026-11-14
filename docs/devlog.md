@@ -1,8 +1,39 @@
 # Devlog
 
+## chore(release): bump the version to 0.2.4
+
+`PENDING` | 2026-11-14
+
+- **Changes**: `CHANGELOG.md` Unreleased → `[0.2.4] - 2026-11-14`; `Info.plist` 0.2.4 (build 8).
+- **Reason**: Ship the pushback index, the interrupted-turn fixes, the card drag rework and the background-wait stuck fix.
+- **User feedback**: "解决之后发版本、上线。"
+- **Result**: Released via PR develop → main and `make release` signed by team 5KZD8GBF7G.
+
+## fix(stuck): let a held turn wait on background work while alive
+
+`ac1def5` | 2026-11-14
+
+- **Changes**: `StuckDetector.heldByLiveAgent` (turn ended, `backgroundTasks` non-empty, `agentPid` known) skips the silence check; tool-duration and process-exit checks unchanged. Tests `heldTurnIsNotFinishedByTheStuckCheck`, `silenceAppliesWithAStartedBackgroundAgent` updated: silence still fires for a held turn with no known pid.
+- **Reason**: LY-Analysis session `c327fd7e` ended its turn with a background Bash (`until ssh … pgrep run_v9.sh; do sleep 600; done`) waiting on an ~8 h training run; the silence rule flagged it 可能卡住 · 329 分钟无新事件.
+- **User feedback**: "实际上是在等训练（有shell）。解决。" then "解决之后发版本、上线。"
+- **Process**: Read the stored session JSON (status running, `backgroundTasks: [blh6vif86]`, last turn ended 334 min before the next prompt). Earlier design kept silence for held turns "in case a notification never comes"; with a live pid a lost notification is rare and process exit already ends the session.
+- **Result**: `make test` 244 passed.
+- **Notes**: A held session whose notification is truly lost now stays 运行中 until the process exits or the user prompts. Sessions without a pid keep the old silence fallback.
+
+## feat(overview): add pushback index of turns the user cut short
+
+`d1382ae` | 2026-11-14
+
+- **Changes**: `Turn.interrupted`; `AgentEvent.Kind.interrupted(lastMessage:)` (hook: marks + ends the turn) and `.interruptSeen(at:)` (transcript: marks only, metadata before the stale guard, 5 s slack so an Esc-then-retype marker does not mark the new turn); `ActivityRow.Kind.interrupt` once per ended+marked turn; `ActivityReport.interrupts/interruptTurns/interruptRate`, base bounded by `interruptsSince` (meta set on first launch of this version) and `rebuiltUntil`. Overview top-row chip "Tool calls" → "Pushback"/杠精指数 (% only, count in tooltip). Sources: Claude transcript marker `[Request interrupted by user…]` (exact content, no tool_result/sidechain/shutdown), Codex rollout `turn_aborted`/`interrupted`, Cursor `stop.status=aborted`, Kimi `Interrupt`, Cline `TaskCancel`, Hermes `on_session_end.extra.interrupted`, pi `agent_settled.aborted`, omp last message `stopReason=aborted`, OpenCode `session.error MessageAbortedError` → `turn_end interrupted`. Generic: a prompt into an open turn ends it and marks it, except `<task-notification>` and answers while needsInput. Claude `StopFailure` hook installed → turnEnd. Done alert suppressed for interrupted turns.
+- **Reason**: User wants to see how often they cut agents short; tool-call total was low-value.
+- **User feedback**: "加入一个新的指标，杠精指数……可以替换掉当前在主界面显示的工具调用次数的总计数"; chose: hard stops + mid-run prompts count, permission denials do not; Codex via transcript; all agents incl. plugins; % only.
+- **Process**: Research agent verified each agent's signal. Adversarial review found 8 issues, all fixed with tests: substring marker matched quotes/tool results; API errors read as interrupts (StopFailure); answers to questions counted; marker double-marking next turn; Kimi sub-agent Interrupt; out-of-order interrupt hook; pre-upgrade turns diluting the rate; OpenCode aborted set leak. `pluginSourcesParse` test transpiles the 3 plugin sources with bun.
+- **Result**: `make test` 244 passed; `make l10n` clean.
+- **Notes**: Claude install shows outdated until hooks are updated (StopFailure); pi/omp/OpenCode plugins need updating from Settings. Gemini/Copilot/Droid/Qwen/Kiro/Windsurf only get the generic prompt rule. Newer OpenCode (`session.execution.interrupted`) not handled. Claude queued-message UserPromptSubmit timing is medium confidence.
+
 ## fix(board): drag cards by themselves and let every card move
 
-`PENDING` | 2026-11-09
+`5df155d` | 2026-11-09
 
 - **Changes**: `BoardList` (SessionViews.swift) drops `.draggable`/`.dropDestination` and the blue insertion bar for a `DragGesture` (high priority, 4 pt): the lifted card follows the pointer (scale 1.025, shadow, closed-hand cursor), the cards it passes slide a slot, the drop commits through `AppModel.reorder`. Travel is limited to the card's group with a rubber band past its ends. `BoardPanel.sendEvent` turns `isMovableByWindowBackground` off for a press over a `PanelDragExempt` marker (behind each card), on again elsewhere. `Board.lane` (pinned cards, else the unpinned cards of one tier), `Board.Placement`/`freshness`/`placement(between:and:now:)`; `Preferences.placed` (`placedSessions`, latest 200). Context-menu Move up/down use `reorder` too; `AppModel.step`/`move` removed.
 - **Reason**: Two causes of "拖动无效": (1) only waiting/running cards had a manual order, so a dragged 待验收/已验收 or pinned card snapped back, and most cards on the board are finished; (2) dropping a card on the next one inserted it before that card, i.e. in place, so a one-step move down did nothing.

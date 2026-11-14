@@ -86,7 +86,8 @@ public enum Normalizer {
             default:
                 return [] // auth_success and other informational types
             }
-        case "Stop":
+        // An API error ends the turn too; it is not the user's doing.
+        case "Stop", "StopFailure":
             return [ev(.turnEnd(lastMessage: p["last_assistant_message"]?.string))]
         case "SubagentStart":
             return [ev(.subagentStart(id: subagent ?? toolId, type: p["agent_type"]?.string))]
@@ -214,7 +215,12 @@ public enum Normalizer {
             o["agent_type"] = o["agent_name"]
             o["hook_event_name"] = .string(event)
         // An interrupted or failed turn fires these instead of Stop.
-        case "Interrupt", "StopFailure": o["hook_event_name"] = .string("Stop")
+        case "Interrupt":
+            guard let sid = o["session_id"]?.string else { return [] }
+            return [AgentEvent(agent: .kimi, sessionId: sid, at: env.receivedAt, kind: .interrupted(lastMessage: nil),
+                               cwd: o["cwd"]?.string ?? env.cwd, transcriptPath: nil,
+                               agentPid: env.agentPid, terminal: env.terminal)]
+        case "StopFailure": o["hook_event_name"] = .string("Stop")
         default: o["hook_event_name"] = .string(event)
         }
         // The prompt is a list of content parts; keep the text ones.
@@ -254,7 +260,7 @@ public enum Normalizer {
             return [ev(.toolEnd(id: toolId, name: tool, output: out, isError: false))]
         case "postToolUseFailure":
             return [ev(.toolEnd(id: toolId, name: tool, output: p["error_message"]?.string, isError: true))]
-        case "stop": return [ev(.turnEnd(lastMessage: nil))]
+        case "stop": return [ev(p["status"]?.string == "aborted" ? .interrupted(lastMessage: nil) : .turnEnd(lastMessage: nil))]
         case "sessionEnd": return [ev(.sessionEnd)]
         default: return []
         }
@@ -290,8 +296,10 @@ public enum Normalizer {
             let output = status == "ok" ? x["result"].map(\.text) : (x["error_message"]?.string ?? x["result"].map(\.text))
             return [ev(.toolEnd(id: toolId, name: tool, output: output, isError: status != "ok"))]
         case "post_llm_call": return [ev(.turnEnd(lastMessage: x["assistant_response"]?.string))]
-        // Ends every turn, interrupted ones included; post_llm_call may already have carried the reply.
-        case "on_session_end": return [ev(.turnEnd(lastMessage: nil))]
+        // Ends every turn, interrupted ones included (they skip post_llm_call); post_llm_call may
+        // already have carried the reply.
+        case "on_session_end":
+            return [ev(x["interrupted"]?.bool == true ? .interrupted(lastMessage: nil) : .turnEnd(lastMessage: nil))]
         case "on_session_finalize": return [ev(.sessionEnd)]
         default: return []
         }
@@ -340,7 +348,8 @@ public enum Normalizer {
         case "TaskComplete":
             let last = p["turn"]?["outputText"]?.string ?? p["taskComplete"]?["taskMetadata"]?["result"]?.string
             return [ev(.turnEnd(lastMessage: last))]
-        case "TaskCancel", "TaskError": return [ev(.turnEnd(lastMessage: nil))]
+        case "TaskCancel": return [ev(.interrupted(lastMessage: nil))]
+        case "TaskError": return [ev(.turnEnd(lastMessage: nil))]
         default: return []
         }
     }
@@ -408,7 +417,9 @@ public enum Normalizer {
                                                      detail: ToolSummary.detail(tool: tool, input: input))))]
         case "needs_input": return [ev(.needsInput(p["message"]?.string ?? "Needs your input"))]
         case "input_answered": return [ev(.inputAnswered)]
-        case "turn_end": return [ev(.turnEnd(lastMessage: p["message"]?.string))]
+        case "turn_end":
+            let last = p["message"]?.string
+            return [ev(p["interrupted"]?.bool == true ? .interrupted(lastMessage: last) : .turnEnd(lastMessage: last))]
         case "session_end": return [ev(.sessionEnd)]
         case "title": return [ev(.titleChanged(p["title"]?.string))]
         default: return []
