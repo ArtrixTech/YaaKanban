@@ -1,8 +1,17 @@
 # Devlog
 
-## feat(overview): rework leverage for held work and away time
+## chore(release): bump the version to 0.2.5
 
 `PENDING` | 2026-11-18
+
+- **Changes**: `CHANGELOG.md` Unreleased → `[0.2.5] - 2026-11-18`; `Info.plist` 0.2.5 (build 9).
+- **Reason**: Ship the leverage rework and Mark as to review.
+- **User feedback**: "m=0.5h，开始实现，完成后发版。"
+- **Result**: Released via PR develop → main and `make release` signed by team 5KZD8GBF7G.
+
+## feat(overview): rework leverage for held work and away time
+
+`c5b3228` | 2026-11-18
 
 - **Changes**: `Activity.held`/`heldSince`, held lane rows (`value` = hold start, epoch s; legacy 1 = the row), `ActivityRow.heldSince`/`.held`, `Activity.laneRow`; one-time `HeldBackfill` migration (meta `heldSince`); `Store.held(before:)`, `awayEnd(across:)`; `ActivityReport` present/away work and buckets, `heldHalfLife` 15 min, `awayPrior` 30 min, `leverage(present:away:active:)`, departure-attributed `creditWork`, present-only rolling leverage; `SessionTimeline` merges same-lane rows; panel window 4 h → 1 h with an hourly-mean baseline; LeverageDays bars per slice; new strings in 9 locales; spec, changelog, precipitation doc `261118_leverage_metric_design.md`; `HeldWork` test suite.
 - **Reason**: A background training run inflated leverage, low-presence days exploded, and the sidebar figure fell as the user started working.
