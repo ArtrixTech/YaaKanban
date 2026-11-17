@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(review): let a reviewed card be marked to review again
+## feat(overview): rework leverage for held work and away time
 
 `PENDING` | 2026-11-18
+
+- **Changes**: `Activity.held`/`heldSince`, held lane rows (`value` = hold start, epoch s; legacy 1 = the row), `ActivityRow.heldSince`/`.held`, `Activity.laneRow`; one-time `HeldBackfill` migration (meta `heldSince`); `Store.held(before:)`, `awayEnd(across:)`; `ActivityReport` present/away work and buckets, `heldHalfLife` 15 min, `awayPrior` 30 min, `leverage(present:away:active:)`, departure-attributed `creditWork`, present-only rolling leverage; `SessionTimeline` merges same-lane rows; panel window 4 h → 1 h with an hourly-mean baseline; LeverageDays bars per slice; new strings in 9 locales; spec, changelog, precipitation doc `261118_leverage_metric_design.md`; `HeldWork` test suite.
+- **Reason**: A background training run inflated leverage, low-presence days exploded, and the sidebar figure fell as the user started working.
+- **User feedback**: 后台训练不应把杠杆推高；天与天、人与人可比（无标准工作日）；直接温和递减，不要全额宽限期；鼓励好的委托；不要 2h 下限；5 个并行训练应高于 1 个；浮窗改为最近 1h；"m=0.5h，开始实现，完成后发版。"
+- **Process**: Anchor scenarios and replay of real history scored candidate models (shipped: day median 3.55, max 8.6; live figure falling while working 12.9 %). Adversarial review found 4 bugs, all fixed: the backfill discounted sessions with no turns (removed, or unhooked), discounted background agents' work after a Stop (turn ends now via `end(ofTurn:)`), a relaunch restarted a hold's decay at full weight (rows now carry the hold start), and the migration ran past a stale heartbeat (now cut there). `make test` 251 pass, `make l10n` clean.
+- **Result**: Leverage = Ep/P + Ea/(P + m), held work weighted τ/(τ+h); sidebar shows today; panel shows the last hour.
+- **Notes**: Historical background agents whose calls were trimmed from `tools` still read as held. `previousSoFar` includes absences that run past its cut, so the change against it leans slightly up. Telemetry's `leverage` changed meaning with no version marker beyond the app version.
+
+## feat(review): let a reviewed card be marked to review again
+
+`50d1574` | 2026-11-18
 
 - **Changes**: `SessionState.markedUnreadAt`, `markUnread(at:)`, `heldUnread` (`Models.swift`); `AppModel.markUnread`; auto review (`checkFocus`) skips `heldUnread` sessions; "Mark as to review" in the panel card, rail card and main-window session menus for `.done`; 9 translations; spec, changelog; test `reviewedTurnCanBeMarkedToReviewAgain`.
 - **Reason**: Users want to put a turn they glanced at back to 待验收 to come back to it.

@@ -33,10 +33,16 @@ public struct ActivityReport: Sendable {
     public var parallelBuckets: [Double] = []
     /// Average sessions waiting on the user per slice, while the user was here.
     public var waitingBuckets: [Double] = []
-    /// Per slice, the user's present time with something on, and agent time in it (away included):
-    /// leverage's parts.
+    /// Per slice, the user's present time with something on, and agent time in it (away included).
     public var activeBuckets: [Double] = []
     public var agentBuckets: [Double] = []
+    /// Leverage's agent side: agent time with time held for background work counted down
+    /// (`heldWeight`), while the user was here; and while away, credited to the absence's start
+    /// (the time the user left), running on past the range's end if the absence does. Per slice too.
+    public var presentWork: TimeInterval = 0
+    public var awayWork: TimeInterval = 0
+    public var presentWorkBuckets: [Double] = []
+    public var awayWorkBuckets: [Double] = []
     /// Running ÷ (running + blocked on the user), in session-time, while the user was here. A
     /// finished turn waiting for review is idle, not blocked, and is left out.
     public var utilization: Double?
@@ -79,22 +85,36 @@ public struct ActivityReport: Sendable {
 
     public var activeHours: Double { activeTime / 3600 }
     public func perActiveHour(_ n: Int) -> Double? { activeTime >= 60 ? Double(n) / activeHours : nil }
-    /// Agent hours per hour the user was on: all the agents' work, away included, over the user's
-    /// present time. What ran while the user was away cost them nothing, so it only adds.
-    public var leverage: Double? { activeTime >= 60 ? agentTime / activeTime : nil }
+    /// Held for background work, time counts in full at first and less the longer the wait has
+    /// run: τ ÷ (τ + time held), half after τ. A 10-hour wait counts as about 0.9 hours.
+    public static let heldHalfLife: TimeInterval = 15 * 60
+    /// The away part of leverage is over present time plus this, so a few minutes here can't
+    /// multiply hours away; on a full day it hardly matters.
+    public static let awayPrior: TimeInterval = 30 * 60
+
+    /// Hours of agent work per hour the user was on: work while here over present time, plus
+    /// work while away over present time and `awayPrior`. Nil under a minute on.
+    public static func leverage(present: TimeInterval, away: TimeInterval, active: TimeInterval) -> Double? {
+        active >= 60 ? present / active + away / (active + awayPrior) : nil
+    }
+    public var leverage: Double? { Self.leverage(present: presentWork, away: awayWork, active: activeTime) }
+    /// One slice's leverage (a day's, when slices are days).
+    public func leverage(at i: Int) -> Double? {
+        Self.leverage(present: presentWorkBuckets[i], away: awayWorkBuckets[i], active: activeBuckets[i])
+    }
     /// The share of finished turns the user cut short.
     public var interruptRate: Double? { interruptTurns > 0 ? min(1, Double(interrupts) / Double(interruptTurns)) : nil }
     /// Agent time bought by each prompt or answer.
     public var agentTimePerIntervention: TimeInterval? { interventions > 0 ? agentTime / Double(interventions) : nil }
 
-    /// Leverage over each run of `window` slices ending at a slice, nil where too little was on:
-    /// a trend whose last point is the leverage of the last `window` slices.
+    /// Leverage while the user was here over each run of `window` slices ending at a slice (work
+    /// while here over present time), nil where too little was on: a trend whose last point is
+    /// that of the last `window` slices.
     public func rollingLeverage(window: Int) -> [Double?] {
         let w = max(window, 1)
         return activeBuckets.indices.dropFirst(w - 1).map { i in
             let r = (i - w + 1)...i
-            let active = activeBuckets[r].reduce(0, +)
-            return active >= 60 ? agentBuckets[r].reduce(0, +) / active : nil
+            return Self.leverage(present: presentWorkBuckets[r].reduce(0, +), away: 0, active: activeBuckets[r].reduce(0, +))
         }
     }
 
@@ -113,14 +133,16 @@ public struct ActivityReport: Sendable {
     }
 
     /// - Parameters:
-    ///   - rows: rows in `range`, plus away rows that reach into it.
+    ///   - rows: rows in `range`, plus away rows that reach into it; for an absence that began in
+    ///     the range and reaches past its end, also the rows until it ended.
     ///   - lanesBefore: each session's lane when the range starts.
+    ///   - heldBefore: sessions held for background work when the range starts, and since when.
     ///   - awaySince: the user has been away since then, still.
     ///   - recordedSince: rows before this were rebuilt (`ActivityBackfill`).
     ///   - interruptsSince: interrupts are recorded from here; earlier turns are no part of the rate.
     ///   - buckets: equal chart slices, unless `edges` gives them (e.g. calendar days).
-    public static func compute(rows: [ActivityRow], lanesBefore: [String: Lane], range: DateInterval,
-                               now: Date, awaySince: Date? = nil, recordedSince: Date? = nil, interruptsSince: Date? = nil,
+    public static func compute(rows: [ActivityRow], lanesBefore: [String: Lane], heldBefore: [String: Date] = [:],
+                               range: DateInterval, now: Date, awaySince: Date? = nil, recordedSince: Date? = nil, interruptsSince: Date? = nil,
                                buckets: Int = 48, edges: [Date]? = nil) -> ActivityReport {
         var r = ActivityReport(range: range)
         r.bucketEdges = edges.flatMap { $0.count > 1 ? $0 : nil }
@@ -149,6 +171,8 @@ public struct ActivityReport: Sendable {
             order.append(id); seen.insert(id)
         }
         for row in rows where row.kind == .lane && row.at >= range.start && row.at < end {
+            // Held or back at work: the same stretch running.
+            if open[row.session]?.0 == .running, row.text == Lane.running.rawValue { continue }
             if let (lane, from) = open[row.session] {
                 // A review the user ended, seen whole and recorded live; and an ask answered.
                 if lane == .review, from > range.start, from >= measured { closedReviews.append(DateInterval(start: from, end: row.at)) }
@@ -170,6 +194,7 @@ public struct ActivityReport: Sendable {
         }
 
         r.sweep(segments: segs.values.flatMap { $0 }, from: range.start, to: end, measuredFrom: r.rebuiltUntil ?? range.start)
+        r.creditWork(rows: rows, lanesBefore: lanesBefore, heldBefore: heldBefore, awaySince: awaySince, to: end, now: now)
 
         for row in rows where row.at >= range.start && row.at < end {
             switch row.kind {
@@ -288,6 +313,86 @@ public struct ActivityReport: Sendable {
         agentBuckets = runSums
         utilization = runTime + blockTime > 0 ? runTime / (runTime + blockTime) : nil
         utilizationAway = runAway + blockedAway > 0 ? runAway / (runAway + blockedAway) : nil
+    }
+
+    /// A session's running stretch, held for background work from `heldSince` if it is.
+    private struct Work { var start: Date; var end: Date; var heldSince: Date? }
+
+    /// Running stretches from `start` until `end`, split where a session became held or went back to work.
+    private static func work(rows: [ActivityRow], lanesBefore: [String: Lane], heldBefore: [String: Date],
+                             from start: Date, to end: Date) -> [Work] {
+        var out: [Work] = []
+        var open: [String: (from: Date, held: Date?)] = [:]
+        for (id, lane) in lanesBefore where lane == .running { open[id] = (start, heldBefore[id]) }
+        for row in rows where row.kind == .lane && row.at >= start && row.at < end {
+            let prev = open.removeValue(forKey: row.session)
+            if let prev, row.at > prev.from { out.append(Work(start: prev.from, end: row.at, heldSince: prev.held)) }
+            guard row.text == Lane.running.rawValue else { continue }
+            // Marked held again while held: the wait goes on from when it first began.
+            open[row.session] = (row.at, row.heldSince.map { min($0, prev?.held ?? $0) })
+        }
+        for (_, o) in open where end > o.from { out.append(Work(start: o.from, end: end, heldSince: o.held)) }
+        return out.sorted { $0.start < $1.start }
+    }
+
+    /// `w`'s work within a..<b: time, or time held counted down from when the wait began.
+    private static func amount(_ w: Work, _ a: Date, _ b: Date) -> TimeInterval {
+        let s = max(a, w.start), e = min(b, w.end)
+        guard e > s else { return 0 }
+        guard let h = w.heldSince else { return e.timeIntervalSince(s) }
+        let tau = heldHalfLife
+        return tau * log((tau + e.timeIntervalSince(h)) / (tau + s.timeIntervalSince(h)))
+    }
+
+    /// Adds up leverage's agent side: work while the user was here into its slice, and work
+    /// while away into the slice the absence began in, if it began in the range.
+    private mutating func creditWork(rows: [ActivityRow], lanesBefore: [String: Lane], heldBefore: [String: Date],
+                                     awaySince: Date?, to end: Date, now: Date) {
+        let n = max(bucketEdges.count - 1, 0)
+        presentWorkBuckets = [Double](repeating: 0, count: n)
+        awayWorkBuckets = presentWorkBuckets
+        let start = range.start
+        func slice(_ t: Date) -> Int? {
+            guard n > 0, t >= bucketEdges[0] else { return nil }
+            return min(n - 1, max(0, (bucketEdges.firstIndex { $0 > t } ?? bucketEdges.count) - 1))
+        }
+        // (span, slice, away)
+        var targets: [(DateInterval, Int, Bool)] = []
+        var t = start
+        for a in away + [DateInterval(start: end, end: end)] {
+            var p = t
+            while p < a.start, let k = slice(p) {
+                let e = k + 1 < n ? min(a.start, bucketEdges[k + 1]) : a.start
+                if e > p { targets.append((DateInterval(start: p, end: e), k, false)) }
+                if e <= p { break }
+                p = e
+            }
+            t = max(t, a.end)
+        }
+        let departures = Self.mergedAway(rows: rows, awaySince: awaySince, from: .distantPast, to: now)
+            .filter { $0.start >= start && $0.start < end }
+        var tail = end
+        for d in departures {
+            let e = d.end
+            if e > d.start, let k = slice(d.start) { targets.append((DateInterval(start: d.start, end: e), k, true)) }
+            tail = max(tail, e)
+        }
+        targets.sort { $0.0.start < $1.0.start }
+        let spans = Self.work(rows: rows, lanesBefore: lanesBefore, heldBefore: heldBefore, from: start, to: tail)
+        for w in spans {
+            // The first target that ends after the stretch starts.
+            var lo = 0, hi = targets.count
+            while lo < hi { let m = (lo + hi) / 2; if targets[m].0.end <= w.start { lo = m + 1 } else { hi = m } }
+            var i = lo
+            while i < targets.count, targets[i].0.start < w.end {
+                let (span, k, isAway) = targets[i]
+                let x = Self.amount(w, span.start, span.end)
+                if isAway { awayWorkBuckets[k] += x } else { presentWorkBuckets[k] += x }
+                i += 1
+            }
+        }
+        presentWork = presentWorkBuckets.reduce(0, +)
+        awayWork = awayWorkBuckets.reduce(0, +)
     }
 
     static func mergedAway(rows: [ActivityRow], awaySince: Date?, from start: Date, to end: Date) -> [DateInterval] {

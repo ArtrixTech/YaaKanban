@@ -677,6 +677,8 @@ final class AppModel {
     private static let awayKey = "awaySince"
     private static let recordedKey = "recordedSince"
     private static let interruptsKey = "interruptsSince"
+    /// Time held for background work is recorded from here; lanes before were marked once from turns.
+    private static let heldKey = "heldSince"
     /// Turns cut short are recorded from here (the first launch of a version that records them).
     private(set) var interruptsSince: Date?
     /// Each session's lane as last recorded, so a tick can catch lanes the record missed.
@@ -688,7 +690,7 @@ final class AppModel {
     private struct ReportKey: Hashable { var range: DateInterval; var buckets: Int }
     /// Each session's lane just before a report's start. Rows are recorded at or near the present,
     /// so for a start already past this no longer changes; `record` drops it when one lands earlier.
-    @ObservationIgnored private var lanesBefore: [Date: [String: Lane]] = [:]
+    @ObservationIgnored private var lanesBefore: [Date: (lanes: [String: Lane], held: [String: Date])] = [:]
 
     /// The session's lane, as the boards show it: one past its retention has left the lanes.
     private func lane(_ s: SessionState?) -> Lane? {
@@ -737,6 +739,15 @@ final class AppModel {
                          meta: [Self.recordedKey: since.timeIntervalSince1970])
             recordedSince = since
         }
+        if store.meta(Self.heldKey) == nil {
+            // Lanes still open end where the app stopped, if they are closed there below.
+            let hb = store.meta(Self.heartbeatKey).map(Date.init(timeIntervalSince1970:))
+            let until = hb.flatMap { now.timeIntervalSince($0) > 30 || store.meta(Self.awayKey) != nil ? $0 : nil } ?? now
+            let lanes = store.activity(from: recordedSince ?? now, to: until).filter { $0.kind == .lane }
+            store.record(HeldBackfill.rows(Array(sessions.values), lanes: lanes, until: until),
+                         meta: [Self.heldKey: now.timeIntervalSince1970])
+            lanesBefore = [:]
+        }
         if let since = store.meta(Self.interruptsKey) {
             interruptsSince = Date(timeIntervalSince1970: since)
         } else {
@@ -761,7 +772,9 @@ final class AppModel {
         var rows: [ActivityRow] = []
         for id in Set(recordedLanes.keys).union(sessions.keys) {
             let l = lane(sessions[id])
-            if l != recordedLanes[id] { rows.append(ActivityRow(at: now, session: id, kind: .lane, text: l?.rawValue ?? "")) }
+            guard l != recordedLanes[id] else { continue }
+            rows.append(sessions[id].map { Activity.laneRow($0, l, now: now, working: false) }
+                        ?? ActivityRow(at: now, session: id, kind: .lane, text: l?.rawValue ?? ""))
         }
         record(rows)
     }
@@ -804,10 +817,14 @@ final class AppModel {
         }
         if reports.count > 24 { reports = [:] }
         if lanesBefore.count > 24 { lanesBefore = [:] }
-        let before = lanesBefore[range.start] ?? store.lanes(before: range.start)
+        let before = lanesBefore[range.start] ?? (store.lanes(before: range.start), store.held(before: range.start))
         lanesBefore[range.start] = before
-        let r = ActivityReport.compute(rows: store.activity(from: range.start, to: min(range.end, now)),
-                                       lanesBefore: before, range: range, now: now,
+        // Work while away counts toward when the user left, so an absence from the range runs on past it.
+        var to = min(range.end, now)
+        if let a = awaySince, a < range.end { to = now }
+        else if let e = store.awayEnd(across: range.end) { to = min(max(to, e), now) }
+        let r = ActivityReport.compute(rows: store.activity(from: range.start, to: to),
+                                       lanesBefore: before.lanes, heldBefore: before.held, range: range, now: now,
                                        awaySince: awaySince, recordedSince: recordedSince,
                                        interruptsSince: interruptsSince, buckets: buckets, edges: edges)
         reports[key] = (activityVersion, now, r)

@@ -321,7 +321,7 @@
 "1 project" = "1プロジェクト";
 "7-day rhythm" = "7日間のリズム";
 "Agent hours over 7 days" = "7日間のエージェント稼働時間";
-"Agents %@ ÷ you %@" = "エージェント%@ ÷ あなた%@";
+"Agents %@ here, %@ away; you %@" = "エージェント 在席中%@・離席中%@、あなた%@";
 "Busiest %@" = "ピーク%@";
 "By %@" = "主に%@";
 "In %@" = "主に%@";
@@ -347,7 +347,7 @@
 "Nothing reviewed" = "レビューなし";
 "90%% within %@" = "90%% が %@ 以内";
 "How long agents waited for you, away time taken out. Replying: from an agent asking a question or permission, or finishing a turn, to your answer or next prompt. Reviewing: from a turn finishing to you opening it or following up. Each figure is the average; on the arcs the lit band holds the middle half and each dot is one." = "エージェントがあなたを待った時間（離席中は除く）。返信：エージェントが質問や許可を求めるかターンを終えてから、あなたが答えるか次の指示を送るまで。レビュー：ターンが終わってから、あなたが開くか続けて指示するまで。数値は平均値。弧の明るい部分が中央の半分で、点が1回ずつ。";
-"Hours of agent work per hour you were here. Agent time counts all running, away included; yours counts only while you were at the Mac and an agent was running or waiting on you. Each bar is one day's leverage, the pale one behind it the same day of the period before; above 1×, agents did more than you spent." = "在席していた 1 時間あたり、エージェントが何時間働いたか。エージェントの時間は離席中も含むすべての実行、あなたの時間は Mac の前にいて、エージェントが実行中かあなたを待っていた時間だけです。各棒は 1 日のレバレッジ、後ろの薄い棒は前の期間の同じ日。1× を超えれば、エージェントはあなたが費やした以上に働いています。";
+"Hours of agent work per hour you were here. An agent working in a turn (background agents included) counts in full; once its turn ends with only background jobs left, such as a training run, it counts for less the longer they run (half after 15 minutes). Work while you were away goes to the day you left, set against your time plus half an hour, so a short visit can't multiply it. Yours counts only while you were at the Mac and an agent was running or waiting on you. Each bar is one day's leverage, the pale one behind it the same day of the period before; above 1×, agents did more than you spent." = "在席していた 1 時間あたり、エージェントが何時間働いたか。ターン中のエージェントの作業（バックグラウンドのエージェントを含む）はそのまま数え、ターンが終わって学習などのバックグラウンドジョブだけが残ると、長く続くほど少なく数えます（15 分で半分）。離席中の作業は離席した日に入り、あなたの時間に 30 分を足した時間で割るので、短い在席で何倍にもなりません。あなたの時間は Mac の前にいて、エージェントが実行中かあなたを待っていた時間だけです。各棒は 1 日のレバレッジ、後ろの薄い棒は前の期間の同じ日。1× を超えれば、エージェントはあなたが費やした以上に働いています。";
 "How many agents ran at the same time, on average while any ran, and at the peak. The dotted line is the period before; the gray strip under it is when you were at the Mac. In a month, each point is that day's agent hours." = "同時に実行していたエージェントの数。いずれかが実行中だった間の平均と最大。点線は前の期間、下の灰色の帯はあなたが Mac の前にいた時間です。月表示では各点がその日のエージェント稼働時間です。";
 "Each agent's share of the running time, with its turns. The line is when it ran across the period." = "実行時間に占める各エージェントの割合とターン数。線は期間中いつ実行していたかを表します。";
 "Agent running time by project; a circle's area is its time. Under each name, how long its sessions waited on you." = "プロジェクト別のエージェント実行時間。円の面積が時間です。名前の下は、そのセッションがあなたを待った時間です。";
@@ -371,8 +371,8 @@
 "No supported agents found. Install one, then reopen Settings." = "対応しているエージェントが見つかりません。インストールしてから設定を開き直してください。";
 
 /* Ended list */
-"Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's average 4-hour leverage, taken at each whole hour." = "レバレッジの推移：各点はその時点までの4時間のレバレッジで、直近%@分を表示。破線は今日の各正時における4時間レバレッジの平均です。";
-"Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's average 4-hour leverage, taken at each whole hour." = "直近4時間の、離席中も含むエージェント稼働時間 ÷ 在席時間。矢印は今日の各正時における4時間レバレッジの平均との比較です。";
+"Leverage trend: each point is the leverage over the hour up to then, across the last %@; the dashed line is today's average 1-hour leverage, taken at each whole hour." = "レバレッジの推移：各点はその時点までの1時間のレバレッジで、直近%@分を表示。破線は今日の各正時における1時間レバレッジの平均です。";
+"Over the last hour, agent work while you were here per hour you were here. The arrow compares it with today's average 1-hour leverage, taken at each whole hour." = "直近1時間の、在席中のエージェントの作業 ÷ 在席時間。矢印は今日の各正時における1時間レバレッジの平均との比較です。";
 "Close search" = "検索を閉じる";
 "No matches" = "一致なし";
 "Search the last %lld days" = "過去 %lld 日間を検索";

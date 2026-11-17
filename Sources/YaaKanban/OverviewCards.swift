@@ -113,7 +113,7 @@ private func series(_ values: [Double], _ edges: [Date], end: Double, now: Date?
 
 // MARK: - Accents
 
-/// Leverage, the headline: hours of agent work per hour of yours. Its chart is each day's leverage
+/// Leverage, the headline: hours of agent work per hour of yours (`ActivityReport.leverage`). Its chart is each day's leverage
 /// across the week (the month in the month view), the same days of the one before pale behind.
 struct LeverageCard: View {
     @Environment(AppModel.self) private var model
@@ -123,10 +123,10 @@ struct LeverageCard: View {
         let r = data.report, ramp = Ramp.work, days = LeverageDays(data, model, calendar: model.settings.calendar)
         Widget {
             WidgetHead(title: String(localized: "Leverage"), ramp: ramp,
-                       info: String(localized: "Hours of agent work per hour you were here. Agent time counts all running, away included; yours counts only while you were at the Mac and an agent was running or waiting on you. Each bar is one day's leverage, the pale one behind it the same day of the period before; above 1×, agents did more than you spent."), context: data.scope)
+                       info: String(localized: "Hours of agent work per hour you were here. An agent working in a turn (background agents included) counts in full; once its turn ends with only background jobs left, such as a training run, it counts for less the longer they run (half after 15 minutes). Work while you were away goes to the day you left, set against your time plus half an hour, so a short visit can't multiply it. Yours counts only while you were at the Mac and an agent was running or waiting on you. Each bar is one day's leverage, the pale one behind it the same day of the period before; above 1×, agents did more than you spent."), context: data.scope)
             FigureLine(figure: figure(r.leverage.map { String(format: "%.1f×", $0) } ?? "–", ramp, FigureSize.accent),
                        change: data.comparesWaits ? change(r.leverage, data.previous?.leverage, vs: data.vs) { String(format: "%.1f×", $0) } : nil,
-                       note: String(localized: "Agents \(duration(r.agentTime)) ÷ you \(duration(r.activeTime))"))
+                       note: String(localized: "Agents \(duration(r.presentWork)) here, \(duration(r.awayWork)) away; you \(duration(r.activeTime))"))
             LeverageBars(days: days, now: data.now, ramp: ramp)
                 .frame(minHeight: 84, maxHeight: .infinity)
                 .padding(.top, Space.s)
@@ -163,10 +163,7 @@ private struct LeverageDays {
         func daily(_ range: DateInterval) -> (starts: [Date], values: [Double?]) {
             let edges = Periods.edges(.month, range, cal)
             let r = model.report(range, edges: edges)
-            let values = r.activeBuckets.indices.map { i -> Double? in
-                guard edges[i] < data.now, r.activeBuckets[i] >= 60 else { return nil }
-                return r.agentBuckets[i] / r.activeBuckets[i]
-            }
+            let values = r.activeBuckets.indices.map { i in edges[i] < data.now ? r.leverage(at: i) : nil }
             return (Array(edges.dropLast()), values)
         }
         (starts, values) = daily(span)
