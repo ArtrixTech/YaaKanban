@@ -117,6 +117,7 @@
 "Hide details" = "Ocultar detalles";
 "Show details" = "Mostrar detalles";
 "Mark as reviewed" = "Marcar como revisada";
+"Mark as to review" = "Marcar como pendiente de revisar";
 "Copy cwd / session" = "Copiar cwd / sesión";
 "Copy resume command" = "Copiar comando de reanudación";
 "End (remove from floating panel)" = "Finalizar (quitar del panel flotante)";

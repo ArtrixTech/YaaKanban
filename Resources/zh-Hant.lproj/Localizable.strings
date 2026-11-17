@@ -117,6 +117,7 @@
 "Hide details" = "隱藏詳細資訊";
 "Show details" = "顯示詳細資訊";
 "Mark as reviewed" = "標示為已驗收";
+"Mark as to review" = "標示為待驗收";
 "Copy cwd / session" = "拷貝 cwd / session";
 "Copy resume command" = "拷貝恢復指令";
 "End (remove from floating panel)" = "結束（移出浮動面板）";

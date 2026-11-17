@@ -7,6 +7,10 @@ the update.
 
 ## [Unreleased]
 
+### Added
+
+- A reviewed card's context menu has Mark as to review (标记为待验收), putting it back to 待验收 to come back to later. Auto review leaves it alone until you click it or its next turn finishes.
+
 ## [0.2.4] - 2026-11-14
 
 ### Added

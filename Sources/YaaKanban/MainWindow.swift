@@ -515,6 +515,7 @@ private struct SessionMenu: View {
     var body: some View {
         let s = session
         if s.display == .review { Button("Mark as reviewed") { model.markRead(s.id) } }
+        if s.display == .done { Button("Mark as to review") { model.markUnread(s.id) } }
         if s.dismissedAt != nil { Button("Restore to floating panel") { model.undismiss(s.id) } }
         Button("Rename…") { model.rename(s.id) }
         Button("Delete from history", role: .destructive) { model.remove(s.id) }

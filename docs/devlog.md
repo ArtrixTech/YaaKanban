@@ -1,8 +1,19 @@
 # Devlog
 
+## feat(review): let a reviewed card be marked to review again
+
+`PENDING` | 2026-11-18
+
+- **Changes**: `SessionState.markedUnreadAt`, `markUnread(at:)`, `heldUnread` (`Models.swift`); `AppModel.markUnread`; auto review (`checkFocus`) skips `heldUnread` sessions; "Mark as to review" in the panel card, rail card and main-window session menus for `.done`; 9 translations; spec, changelog; test `reviewedTurnCanBeMarkedToReviewAgain`.
+- **Reason**: Users want to put a turn they glanced at back to 待验收 to come back to it.
+- **User feedback**: 新增标为未读（待验收）功能。
+- **Process**: `make test` (245 pass), `make l10n` clean.
+- **Result**: 已验收 card → context menu → 待验收; flash clock restarts at the mark.
+- **Notes**: Without the `heldUnread` guard, auto review would clear it on the next focus tick when the panel is non-activating and the pane stays in front. The guard is `markedUnreadAt == unreadSince`, so a click (nil) or a new finished turn (new date) ends it, and it survives relaunch. Pickup-time stats count the wait from the mark like any other 待验收.
+
 ## chore(release): bump the version to 0.2.4
 
-`PENDING` | 2026-11-14
+`9062daf` | 2026-11-14
 
 - **Changes**: `CHANGELOG.md` Unreleased → `[0.2.4] - 2026-11-14`; `Info.plist` 0.2.4 (build 8).
 - **Reason**: Ship the pushback index, the interrupted-turn fixes, the card drag rework and the background-wait stuck fix.

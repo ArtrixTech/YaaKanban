@@ -117,6 +117,7 @@
 "Hide details" = "收起详情";
 "Show details" = "展开详情";
 "Mark as reviewed" = "标记已验收";
+"Mark as to review" = "标记为待验收";
 "Copy cwd / session" = "复制 cwd / session";
 "Copy resume command" = "复制恢复命令";
 "End (remove from floating panel)" = "结束（移出悬浮窗）";

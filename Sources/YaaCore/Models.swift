@@ -300,6 +300,8 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var unreadSince: Date?
     /// When the user last opened the session. Looking again restarts the blue "left alone" clock.
     public var reviewedAt: Date?
+    /// When the user last put a reviewed turn back to review by hand (`markUnread`).
+    public var markedUnreadAt: Date?
     /// What the transcript says, for sessions whose turns we did not see through hooks.
     public var peek: TranscriptPeek?
     /// Token and tool totals from the transcript, when it can be read.
@@ -383,6 +385,17 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
 
     /// The agent's latest reply, from hooks or the transcript.
     public var lastReply: String? { currentTurn?.lastMessage ?? peek?.lastReply }
+
+    /// Puts a reviewed, finished turn back to review, as if it had just finished.
+    public mutating func markUnread(at now: Date) {
+        guard display == .done else { return }
+        unreadSince = now
+        markedUnreadAt = now
+    }
+
+    /// Still to review because the user marked it so: auto review leaves it alone until a click,
+    /// or the next finished turn, clears it.
+    public var heldUnread: Bool { markedUnreadAt != nil && markedUnreadAt == unreadSince }
 
     /// Since when nothing has happened: the last event, or the user looking later.
     public var quietSince: Date { max(lastEventAt, reviewedAt ?? lastEventAt) }

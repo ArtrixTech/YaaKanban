@@ -117,6 +117,7 @@
 "Hide details" = "세부사항 가리기";
 "Show details" = "세부사항 보기";
 "Mark as reviewed" = "검토 완료로 표시";
+"Mark as to review" = "검토 대기로 표시";
 "Copy cwd / session" = "cwd / session 복사";
 "Copy resume command" = "재개 명령 복사";
 "End (remove from floating panel)" = "종료(플로팅 패널에서 제거)";

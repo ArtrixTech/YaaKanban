@@ -284,7 +284,7 @@ final class AppModel {
               awaySince == nil, !Self.screenLocked,
               CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!) < Self.awayAfter
         else { return }
-        let waiting = sessions.values.filter { s in s.display == .review && s.terminal.map { Self.focusable($0, of: s) } == true }
+        let waiting = sessions.values.filter { s in s.display == .review && !s.heldUnread && s.terminal.map { Self.focusable($0, of: s) } == true }
         guard !waiting.isEmpty else { return }
         probingFocus = true
         FocusWatcher.probe(front: front, wanted: waiting.compactMap(\.terminal)) { [weak self] focus in
@@ -861,6 +861,16 @@ final class AppModel {
             guard var s else { return nil }
             s.unreadSince = nil
             s.reviewedAt = Date()
+            return s
+        }
+    }
+
+    /// The user wants to come back to a reviewed turn: it is to review again, its flash clock
+    /// restarting now.
+    func markUnread(_ key: String) {
+        update(key, alert: false) { s in
+            guard var s, s.display == .done else { return nil }
+            s.markUnread(at: Date())
             return s
         }
     }
