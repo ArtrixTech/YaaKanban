@@ -7,6 +7,16 @@ the update.
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-11-18
+
+### Changed
+
+- 杠杆 (Leverage) is reworked so days and people compare. An agent left waiting on a background job, such as a training run, counts for less the longer it waits (half after 15 minutes) instead of in full; work done while you're away goes to the day you left and is set against your time plus half an hour, so a short visit no longer multiplies it, while long runs you delegate still count in full. The floating panel's leverage covers the last hour you were here, against today's usual hour. Past days are recomputed.
+
+### Added
+
+- A reviewed card's context menu has Mark as to review (标记为待验收), putting it back to 待验收 to come back to later. Auto review leaves it alone until you click it or its next turn finishes.
+
 ## [0.2.4] - 2026-11-14
 
 ### Added

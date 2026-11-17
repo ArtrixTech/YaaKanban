@@ -117,6 +117,7 @@
 "Hide details" = "세부사항 가리기";
 "Show details" = "세부사항 보기";
 "Mark as reviewed" = "검토 완료로 표시";
+"Mark as to review" = "검토 대기로 표시";
 "Copy cwd / session" = "cwd / session 복사";
 "Copy resume command" = "재개 명령 복사";
 "End (remove from floating panel)" = "종료(플로팅 패널에서 제거)";
@@ -320,7 +321,7 @@
 "1 project" = "프로젝트 1개";
 "7-day rhythm" = "7일 리듬";
 "Agent hours over 7 days" = "7일간 에이전트 작업 시간";
-"Agents %@ ÷ you %@" = "에이전트 %@ ÷ 나 %@";
+"Agents %@ here, %@ away; you %@" = "에이전트 자리에 있을 때 %@, 비웠을 때 %@ / 나 %@";
 "Busiest %@" = "가장 바쁜 때 %@";
 "By %@" = "주로 %@";
 "In %@" = "주로 %@";
@@ -346,7 +347,7 @@
 "Nothing reviewed" = "검토 없음";
 "90%% within %@" = "90%%가 %@ 이내";
 "How long agents waited for you, away time taken out. Replying: from an agent asking a question or permission, or finishing a turn, to your answer or next prompt. Reviewing: from a turn finishing to you opening it or following up. Each figure is the average; on the arcs the lit band holds the middle half and each dot is one." = "에이전트가 당신을 기다린 시간(자리 비운 시간 제외). 응답: 에이전트가 질문하거나 권한을 요청하거나 턴을 마친 뒤, 답하거나 다음 지시를 보낼 때까지. 검토: 턴이 끝난 뒤 열어 보거나 이어서 지시할 때까지. 수치는 평균값이며, 호의 밝은 구간은 가운데 절반, 점 하나가 한 번입니다.";
-"Hours of agent work per hour you were here. Agent time counts all running, away included; yours counts only while you were at the Mac and an agent was running or waiting on you. Each bar is one day's leverage, the pale one behind it the same day of the period before; above 1×, agents did more than you spent." = "자리에 있던 1시간마다 에이전트가 몇 시간 일했는지입니다. 에이전트 시간은 자리 비운 동안을 포함한 모든 실행이고, 내 시간은 Mac 앞에 있으면서 에이전트가 실행 중이거나 나를 기다린 시간만 셉니다. 막대 하나가 하루의 레버리지, 뒤의 옅은 막대는 이전 기간의 같은 날이며, 1×를 넘으면 에이전트가 내가 쓴 시간보다 더 일한 것입니다.";
+"Hours of agent work per hour you were here. An agent working in a turn (background agents included) counts in full; once its turn ends with only background jobs left, such as a training run, it counts for less the longer they run (half after 15 minutes). Work while you were away goes to the day you left, set against your time plus half an hour, so a short visit can't multiply it. Yours counts only while you were at the Mac and an agent was running or waiting on you. Each bar is one day's leverage, the pale one behind it the same day of the period before; above 1×, agents did more than you spent." = "자리에 있던 1시간마다 에이전트가 몇 시간 일했는지입니다. 턴 안에서 일하는 에이전트(백그라운드 에이전트 포함)는 그대로 세고, 턴이 끝나 학습 같은 백그라운드 작업만 남으면 오래 돌수록 적게 셉니다(15분 뒤 절반). 자리를 비운 동안의 작업은 자리를 뜬 날로 들어가고 내 시간에 30분을 더한 값으로 나누므로, 잠깐 들른 것으로 몇 배가 되지 않습니다. 내 시간은 Mac 앞에 있으면서 에이전트가 실행 중이거나 나를 기다린 시간만 셉니다. 막대 하나가 하루의 레버리지, 뒤의 옅은 막대는 이전 기간의 같은 날이며, 1×를 넘으면 에이전트가 내가 쓴 시간보다 더 일한 것입니다.";
 "How many agents ran at the same time, on average while any ran, and at the peak. The dotted line is the period before; the gray strip under it is when you were at the Mac. In a month, each point is that day's agent hours." = "동시에 실행된 에이전트 수로, 하나라도 실행 중일 때의 평균과 최대입니다. 점선은 이전 기간, 아래 회색 띠는 내가 Mac 앞에 있던 시간입니다. 월 보기에서는 각 점이 그날의 에이전트 작업 시간입니다.";
 "Each agent's share of the running time, with its turns. The line is when it ran across the period." = "실행 시간 중 각 에이전트의 비율과 턴 수입니다. 선은 기간 동안 언제 실행했는지를 보여 줍니다.";
 "Agent running time by project; a circle's area is its time. Under each name, how long its sessions waited on you." = "프로젝트별 에이전트 실행 시간으로, 원의 면적이 시간입니다. 이름 아래는 그 세션들이 나를 기다린 시간입니다.";
@@ -370,8 +371,8 @@
 "No supported agents found. Install one, then reopen Settings." = "지원되는 에이전트를 찾지 못했습니다. 하나를 설치한 뒤 설정을 다시 여세요.";
 
 /* Ended list */
-"Leverage trend: each point is the leverage over the 4 hours up to then, across the last %@; the dashed line is today's average 4-hour leverage, taken at each whole hour." = "레버리지 추이: 최근 %@ 동안 각 지점은 그 시점까지 4시간의 레버리지입니다. 점선은 오늘 매 정시 기준 4시간 레버리지의 평균입니다.";
-"Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's average 4-hour leverage, taken at each whole hour." = "최근 4시간, 자리를 비운 시간 포함 에이전트 작업 시간 ÷ 머문 시간. 화살표는 오늘 매 정시 기준 4시간 레버리지의 평균과 비교합니다.";
+"Leverage trend: each point is the leverage over the hour up to then, across the last %@; the dashed line is today's average 1-hour leverage, taken at each whole hour." = "레버리지 추이: 최근 %@ 동안 각 지점은 그 시점까지 1시간의 레버리지입니다. 점선은 오늘 매 정시 기준 1시간 레버리지의 평균입니다.";
+"Over the last hour, agent work while you were here per hour you were here. The arrow compares it with today's average 1-hour leverage, taken at each whole hour." = "최근 1시간, 자리에 있는 동안의 에이전트 작업 ÷ 머문 시간. 화살표는 오늘 매 정시 기준 1시간 레버리지의 평균과 비교합니다.";
 "Close search" = "검색 닫기";
 "No matches" = "일치 항목 없음";
 "Search the last %lld days" = "최근 %lld일 검색";

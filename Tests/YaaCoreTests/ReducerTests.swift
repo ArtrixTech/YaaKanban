@@ -994,6 +994,25 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(!at(30))
     }
 
+    @Test func reviewedTurnCanBeMarkedToReviewAgain() {
+        var s = fold([claude("UserPromptSubmit", ["prompt": .string("go")]), claude("Stop", at: 1)])
+        let end = s.lastEventAt
+        // Still to review: nothing to mark.
+        s.markUnread(at: end.addingTimeInterval(5))
+        #expect(s.markedUnreadAt == nil)
+        s.unreadSince = nil
+        #expect(s.display == .done)
+        let mark = end.addingTimeInterval(60)
+        s.markUnread(at: mark)
+        #expect(s.display == .review && s.heldUnread)
+        // Its flash clock starts at the mark, not at the turn's end.
+        #expect(!Attention.reviewFlashes(s, presentSince: .distantPast, now: mark.addingTimeInterval(9 * 60)))
+        #expect(Attention.reviewFlashes(s, presentSince: .distantPast, now: mark.addingTimeInterval(11 * 60)))
+        // The next finished turn is an ordinary one to review again.
+        s = fold([claude("UserPromptSubmit", ["prompt": .string("more")], at: 100), claude("Stop", at: 101)], into: s)
+        #expect(s.display == .review && !s.heldUnread)
+    }
+
     @Test func waitingSinceClearsWhenItMovesOn() {
         let s = fold([claude("UserPromptSubmit", ["prompt": .string("next")], at: 50)], into: waiting())
         #expect(s.status == .running)

@@ -200,6 +200,33 @@ public final class Store {
         return out
     }
 
+    /// Sessions whose last lane row before `date` holds them for background work, and since when.
+    public func held(before date: Date) -> [String: Date] {
+        var out: [String: Date] = [:]
+        let sql = """
+            SELECT session, at, value, text FROM activity a WHERE kind = 'lane' AND rowid = (
+              SELECT rowid FROM activity b WHERE b.kind = 'lane' AND b.session = a.session AND b.at < ?1
+              ORDER BY b.at DESC, b.rowid DESC LIMIT 1)
+            """
+        query(sql, bind: { sqlite3_bind_double($0, 1, min(date.timeIntervalSince1970, 1e12)) }) { st in
+            let id = String(cString: sqlite3_column_text(st, 0))
+            let row = ActivityRow(at: Date(timeIntervalSince1970: sqlite3_column_double(st, 1)), session: id, kind: .lane,
+                                  value: sqlite3_column_double(st, 2), text: String(cString: sqlite3_column_text(st, 3)))
+            if let since = row.heldSince { out[id] = since }
+        }
+        return out
+    }
+
+    /// Where a recorded absence that began before `date` and reaches past it ends.
+    public func awayEnd(across date: Date) -> Date? {
+        var t: Date?
+        query("SELECT max(at + value) FROM activity WHERE kind = 'away' AND at < ?1 AND at + value > ?1",
+              bind: { sqlite3_bind_double($0, 1, date.timeIntervalSince1970) }) {
+            if sqlite3_column_type($0, 0) != SQLITE_NULL { t = Date(timeIntervalSince1970: sqlite3_column_double($0, 0)) }
+        }
+        return t
+    }
+
     /// When the oldest recorded row was written.
     public func firstActivity() -> Date? {
         var t: Date?

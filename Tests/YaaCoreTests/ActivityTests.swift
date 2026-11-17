@@ -177,8 +177,9 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         let r = ActivityReport.compute(rows: rows, lanesBefore: [:], range: DateInterval(start: t0, duration: 400), now: at(500))
         #expect(r.agentTime == 360)
         #expect(r.agentTimeAway == 150)
-        // Present 150 s; all 360 s of agent time count, the away part costing the user nothing.
-        #expect(abs(r.leverage! - 360.0 / 150) < 1e-9)
+        // Present 150 s with 210 s of work; the 150 s away is set against present time and 30 min.
+        #expect(r.presentWork == 210 && r.awayWork == 150)
+        #expect(abs(r.leverage! - (210.0 / 150 + 150.0 / (150 + 1800))) < 1e-9)
         #expect(r.utilizationAway == 1 && r.blockedAway == 0)
         #expect(r.longestRun?.session == "claude-code:a")
         #expect(r.longestRun?.duration == 300)
@@ -195,15 +196,16 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         #expect(r.agentBuckets == [160, 100, 100, 0])
         let trend = r.rollingLeverage(window: 2)
         #expect(trend.count == 3)
-        #expect(abs(trend[0]! - 2.6) < 1e-9)
+        // Only the work while present counts on the panel.
+        #expect(abs(trend[0]! - 1.6) < 1e-9)
         // 50 s present is under a minute: no figure.
         #expect(trend[1] == nil && trend[2] == nil)
-        // The whole range as one window is the report's own leverage.
-        #expect(abs(r.rollingLeverage(window: 4)[0]! - r.leverage!) < 1e-9)
+        // The whole range as one window is the report's leverage while present.
+        #expect(abs(r.rollingLeverage(window: 4)[0]! - r.presentWork / r.activeTime) < 1e-9)
     }
 
     @Test func rollingLeverageOverHourEdgesMatchesEachWindowsReport() {
-        // The panel's baseline: hourly slices, read 4 at a time, give each 4-hour window's leverage.
+        // Hourly slices, read 4 at a time, give each 4-hour window's leverage while present.
         let rows = [lane("a", 0, .running), lane("a", 9000, nil), lane("b", 3600, .running), lane("b", 20000, .needsInput),
                     lane("b", 22000, nil), ActivityRow(at: at(5000), session: "", kind: .away, value: 4000)]
         let edges = (0...6).map { at(Double($0) * 3600) }
@@ -217,7 +219,7 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
             for row in rows where row.kind == .lane && row.at < edges[k] { before[row.session] = Lane(rawValue: row.text) }
             let w = ActivityReport.compute(rows: rows, lanesBefore: before.compactMapValues { $0 }, range: DateInterval(start: edges[k], end: edges[k + 4]),
                                            now: at(30000), buckets: 1)
-            #expect(abs(v! - w.leverage!) < 1e-9)
+            #expect(abs(v! - w.presentWork / w.activeTime) < 1e-9)
         }
     }
 
@@ -424,5 +426,136 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         #expect(r.parallelBuckets.count == 2)
         #expect(r.parallelBuckets[0] == 1)
         #expect(abs(r.parallelBuckets[1] - 1.0 / 3) < 1e-9)
+    }
+}
+
+private func held(_ id: String, _ s: TimeInterval, since: TimeInterval? = nil) -> ActivityRow {
+    .held("claude-code:\(id)", at: at(s), since: at(since ?? s))
+}
+
+@Suite struct HeldWork {
+    private let tau = ActivityReport.heldHalfLife
+
+    @Test func heldWorkCountsForLessTheLongerItWaits() {
+        // a works 0–100, then waits on a background job until 100 + τ.
+        let rows = [lane("a", 0, .running), held("a", 100), lane("a", 100 + tau, nil)]
+        let r = ActivityReport.compute(rows: rows, lanesBefore: [:], range: DateInterval(start: t0, duration: 2 * tau),
+                                       now: at(4 * tau))
+        #expect(abs(r.presentWork - (100 + tau * log(2))) < 1e-6)
+        // Raw agent time, the lane and the longest run are unchanged by the hold.
+        #expect(r.agentTime == 100 + tau)
+        #expect(r.lanes.first?.segments.count == 1)
+        #expect(r.longestRun?.duration == 100 + tau)
+        #expect(r.activeTime == 100 + tau)
+    }
+
+    @Test func aHoldCarriedInOrMarkedAgainKeepsItsStart() {
+        // Held since τ before the range: the range's τ counts from weight 1/2 down.
+        let carried = ActivityReport.compute(rows: [], lanesBefore: ["claude-code:a": .running], heldBefore: ["claude-code:a": at(-tau)],
+                                             range: DateInterval(start: t0, duration: tau), now: at(tau))
+        #expect(abs(carried.presentWork - tau * log(1.5)) < 1e-6)
+        // Marked held again while held: the wait still runs from its first mark.
+        let rows = [held("a", 0), held("a", tau), lane("a", 2 * tau, nil)]
+        let again = ActivityReport.compute(rows: rows, lanesBefore: [:], range: DateInterval(start: t0, duration: 3 * tau),
+                                           now: at(3 * tau))
+        #expect(abs(again.presentWork - tau * log(3)) < 1e-6)
+        // Reopened after a relaunch, held since before the app stopped: it counts down from then.
+        let reopened = ActivityReport.compute(rows: [held("a", tau, since: 0), lane("a", 2 * tau, nil)], lanesBefore: [:],
+                                              range: DateInterval(start: t0, duration: 3 * tau), now: at(3 * tau))
+        #expect(abs(reopened.presentWork - tau * log(1.5)) < 1e-6)
+        // Legacy marks (`value` 1) start at the row.
+        #expect(ActivityRow(at: at(5), session: "x", kind: .lane, value: 1, text: "running").heldSince == at(5))
+    }
+
+    @Test func workWhileAwayGoesToTheSliceTheUserLeftIn() {
+        // a runs 0–3000; the user is away 500–2500, leaving in the first of two 1000 s slices.
+        let rows = [lane("a", 0, .running), lane("a", 3000, nil), ActivityRow(at: at(500), session: "", kind: .away, value: 2000)]
+        let first = ActivityReport.compute(rows: rows, lanesBefore: [:], range: DateInterval(start: t0, duration: 1000), now: at(3000))
+        #expect(first.presentWork == 500)
+        // The whole absence, past the range's end.
+        #expect(first.awayWork == 2000)
+        #expect(abs(first.leverage! - (1 + 2000.0 / (500 + 1800))) < 1e-9)
+        // The range after it: the absence began before, so only its own present time counts.
+        let later = ActivityReport.compute(rows: rows, lanesBefore: ["claude-code:a": .running],
+                                           range: DateInterval(start: at(1000), duration: 2000), now: at(3000))
+        #expect(later.presentWork == 500 && later.awayWork == 0)
+        #expect(later.leverage == 1)
+        // Days: the absence counts in the slice it began in.
+        let days = ActivityReport.compute(rows: rows, lanesBefore: [:], range: DateInterval(start: t0, duration: 3000),
+                                          now: at(3000), edges: [t0, at(1000), at(2000), at(3000)])
+        #expect(days.awayWorkBuckets == [2000, 0, 0])
+        #expect(days.presentWorkBuckets == [500, 0, 500])
+        #expect(days.leverage(at: 1) == nil)
+    }
+
+    @Test func rowsMarkHoldsAsTheyStartAndEnd() {
+        var working = session(.running)
+        working.turns = [Turn(id: 1, prompt: "p", startedAt: at(0), endedAt: nil, toolCount: 1)]
+        var waiting = working
+        waiting.turns[0].endedAt = at(50)
+        waiting.backgroundTasks = ["train"]
+        let start = Activity.rows(old: working, new: waiting, now: at(50)).filter { $0.kind == .lane }
+        #expect(start.map(\.text) == ["running"] && start.map(\.heldSince) == [at(50)])
+        // Seen held only now (a relaunch): the wait began where the turn ended.
+        let seen = Activity.laneRow(waiting, .running, now: at(500), working: false)
+        #expect(seen.at == at(500) && seen.heldSince == at(50))
+        #expect(Activity.rows(old: waiting, new: waiting, now: at(60)).filter { $0.kind == .lane }.isEmpty)
+        var back = waiting
+        back.turns.append(Turn(id: 2, prompt: "q", startedAt: at(70), endedAt: nil, toolCount: 0))
+        let end = Activity.rows(old: waiting, new: back, now: at(70)).filter { $0.kind == .lane }
+        #expect(end.map(\.text) == ["running"] && end.map(\.value) == [0])
+        // A background agent still at work is not a hold.
+        var delegating = waiting
+        delegating.subagents = [Subagent(id: "x", type: "general", startedAt: at(40))]
+        #expect(!Activity.held(delegating))
+    }
+
+    @Test func timelineKeepsOneSpanAcrossAHold() {
+        let s = session(.idle, at: 200)
+        let rows = [lane("s1", 0, .running), held("s1", 100), lane("s1", 200, nil)]
+        let t = SessionTimeline(rows: rows, session: s, now: at(300), inLane: false)
+        #expect(t.spans == [SessionTimeline.Span(lane: .running, start: at(0), end: at(200))])
+    }
+
+    @Test func backfillMarksRunningOutsideTurns() {
+        func turn(_ a: TimeInterval, _ b: TimeInterval?) -> Turn {
+            Turn(id: Int(a), prompt: "p", startedAt: at(a), endedAt: b.map(at), toolCount: 1)
+        }
+        // a: turns 0–100 and 400–500, running 0–900. A 30 s gap is left.
+        var a = session(.idle, "a", at: 900)
+        a.turns = [turn(0, 100), turn(130, 160), turn(400, 500)]
+        // b: running since 0 and held now; c: running since 0 and back in a turn the record hasn't seen.
+        var b = session(.running, "b", at: 100)
+        b.turns = [turn(0, 100)]
+        b.backgroundTasks = ["train"]
+        var c = session(.running, "c", at: 100)
+        c.turns = [turn(0, 100)]
+        // d: a background agent's calls run on after its turn's Stop at 100, until 400.
+        var d = session(.idle, "d", at: 400)
+        d.turns = [turn(0, 100)]
+        var call = ToolCall(id: "1", name: "Bash", summary: "", input: "{}", output: nil, isError: false, startedAt: at(90))
+        call.endedAt = at(400)
+        call.subagentId = "x"
+        d.tools = [call]
+        // e: reopened at 1000 after a relaunch, held since its turn ended at 100. Removed sessions keep their lanes.
+        var e = session(.running, "e", at: 100)
+        e.turns = [turn(0, 100)]
+        e.backgroundTasks = ["train"]
+        let lanes = [lane("a", 0, .running), lane("a", 900, nil), lane("b", 0, .running), lane("c", 0, .running),
+                     lane("d", 0, .running), lane("d", 900, nil), lane("e", 0, .running), lane("e", 200, nil),
+                     lane("e", 1000, .running), lane("gone", 0, .running), lane("gone", 900, nil)]
+        let rows = HeldBackfill.rows([a, b, c, d, e], lanes: lanes, until: at(2000))
+        func of(_ id: String) -> [[Double]] {
+            rows.filter { $0.session == "claude-code:\(id)" }.map { r in
+                [r.at.timeIntervalSince(t0), r.heldSince.map { $0.timeIntervalSince(t0) } ?? -1]
+            }
+        }
+        #expect(of("a") == [[160, 160], [400, -1], [500, 500]])
+        #expect(of("b") == [[100, 100]])
+        #expect(of("c").map { $0.map { ($0 * 1000).rounded() / 1000 } } == [[100, 100], [1999.999, -1]])
+        #expect(of("d") == [[400, 400]])
+        #expect(of("e").map { $0.map { ($0 * 1000).rounded() / 1000 } } == [[100, 100], [1000.001, 100]])
+        #expect(of("gone").isEmpty)
+        #expect(rows.allSatisfy { $0.text == Lane.running.rawValue })
     }
 }

@@ -70,6 +70,7 @@ struct NarrowSessionCard: View {
         .contextMenu {
             Button(AppModel.isGone(session) ? "Resume in original terminal" : "Jump to terminal") { model.jump(session.id) }
             if st == .review { Button("Mark as reviewed") { model.markRead(session.id) } }
+            if st == .done { Button("Mark as to review") { model.markUnread(session.id) } }
             Button("Copy cwd / session") { model.jumper.copyContext(session) }
             Button("Copy resume command") { model.jumper.copyResume(session) }
             Divider()

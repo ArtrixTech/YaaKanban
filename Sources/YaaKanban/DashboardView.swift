@@ -475,7 +475,7 @@ struct TodayFigures: View {
 
 /// The floating panel's figures: leverage over the last `window` as the hero with its trend
 /// behind, and today's agent hours. The arrow and the dashed line read against today's usual
-/// 4 hours (`typicalLeverage`), not the day so far, so like is compared with like.
+/// hour (`typicalLeverage`), not the day so far, so like is compared with like.
 /// The folded rail keeps only the leverage. Windows move by whole minutes so the report cache holds
 /// between redraws.
 struct RecentFigures: View {
@@ -484,9 +484,9 @@ struct RecentFigures: View {
 
     /// Fixed, so the panel's cards sit at the same height folded or not.
     static let height: CGFloat = 52
-    /// Long enough that agents left running while the user is away still count against the time
-    /// that set them going.
-    static let window: TimeInterval = 4 * 3600
+    /// Only the time the user was here, and the work done meanwhile: short, so it follows what they
+    /// are doing now (work while away counts in the day's leverage, not here).
+    static let window: TimeInterval = 3600
     /// Trend points, each the leverage of the `window` up to it, a `trendStep`th of that apart:
     /// together they span the last `window` too.
     static let trendStep = 24, trendPoints = trendStep + 1
@@ -503,7 +503,7 @@ struct RecentFigures: View {
             let today = model.report(DateInterval(start: Calendar.current.startOfDay(for: ctx.date), end: end), buckets: 1)
             let baseline = typicalLeverage(at: ctx.date)
             let arrow = Self.direction(leverage, against: baseline)
-            let help = String(localized: "Over the last 4 hours, agent hours (away included) per hour you were here. The arrow compares it with today's average 4-hour leverage, taken at each whole hour.")
+            let help = String(localized: "Over the last hour, agent work while you were here per hour you were here. The arrow compares it with today's average 1-hour leverage, taken at each whole hour.")
             Group {
                 if folded {
                     // 20 pt wide: the number alone, and an arrow for its trend instead of the chart.
@@ -540,7 +540,7 @@ struct RecentFigures: View {
                             TimeAxis(ticks: ticks)
                         }
                         .padding(.top, 6).padding(.bottom, 3)
-                        .help("Leverage trend: each point is the leverage over the 4 hours up to then, across the last \(SettingsView.duration(Self.window / 60)); the dashed line is today's average 4-hour leverage, taken at each whole hour.")
+                        .help("Leverage trend: each point is the leverage over the hour up to then, across the last \(SettingsView.duration(Self.window / 60)); the dashed line is today's average 1-hour leverage, taken at each whole hour.")
                         VStack(alignment: .trailing, spacing: 2) {
                             caption(String(localized: "Agent hours today"))
                             Text(duration(today.agentTime)).font(.figure(15))
@@ -627,7 +627,7 @@ struct RecentFigures: View {
 }
 
 /// The leverage trend: a smooth line from 0 up, filled down to the bottom edge, with a dashed line
-/// at `baseline` (today's usual 4-hour leverage) and the latest point marked. Gaps (too little time on to count) are bridged; leading ones
+/// at `baseline` (today's usual 1-hour leverage) and the latest point marked. Gaps (too little time on to count) are bridged; leading ones
 /// are left empty.
 struct Sparkline: View {
     let values: [Double?]

@@ -236,7 +236,10 @@ public struct SessionTimeline: Sendable {
     /// `inLane`: the session is still on the boards, so its last lane runs to now (as the app
     /// records it, from what it displays); by default as YaaCore sees it.
     public init(rows: [ActivityRow], session s: SessionState, now: Date, inLane: Bool? = nil) {
-        let lanes = rows.filter { $0.kind == .lane }.sorted { $0.at < $1.at }
+        // A row in the lane already open (held for background work, or back at work) changes nothing here.
+        let lanes = rows.filter { $0.kind == .lane }.sorted { $0.at < $1.at }.reduce(into: [ActivityRow]()) { out, r in
+            if out.last?.text != r.text { out.append(r) }
+        }
         if lanes.isEmpty {
             spans = s.turns.indices.compactMap { i in
                 let t = s.turns[i], end = s.end(ofTurn: i) ?? now
