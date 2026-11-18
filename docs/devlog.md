@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(panel): clear stuck logo hover in the floating panel
+## fix(panel,claude): match leverage arrow to live slope and clear terminal-answered prompts
 
 `PENDING` | 2026-11-18
+
+- **Changes**: `RecentFigures` (`DashboardView.swift`) changed `trendLookback` from `4` (10 min) to `1` (the terminal 2.5 min segment of the already 1-hour-smoothed rolling curve) with deadband `max(0.05, before * 0.02)`, and updated the tooltip across 9 `Localizable.strings`. Added `SessionState.inputRequestedAt` (`Models.swift`); `SessionReducer` now transitions hooked `.needsInput` sessions to `.running` (clearing `pendingPermission`) on a newer `.statusSnapshot(.running)` and ends the turn on a newer `.statusSnapshot(.idle)`, plus falls back to the sole running call of `(req.tool, e.subagentId)` when a `PreToolUse` hook rewrites `tool_input` before `PermissionRequest`. `AppModel` polls `scanner.scan()` at 1 Hz (and on app activation) while any Claude session is `.needsInput`, and `endReportedTools` skips the 10 s delay for transcript-failed `pendingPermission` calls. Added 3 tests in `ReducerTests.swift`.
+- **Reason**: (1) Comparing `trend[-1]` against `trend[-5]` on a 1-hour moving average created ~6 min of phase lag after a trough, showing `↘` (`3.8×` vs `4.16×` 10 min ago) while the visible sparkline climbed continuously from `3.16×`. (2) Approving/denying/Esc-cancelling a prompt in Claude Code's TUI does not abort `yaak hook PermissionRequest` and fires no hook until `PostToolUse` (or ever, on TUI denial/Esc), while Claude Code immediately updates `~/.claude/sessions/<pid>.json` (`status: "busy"` or `"idle"`) — which `SessionReducer` previously ignored when `s.hooked == true`.
+- **User feedback**: "明明在上涨 为啥显示下箭头？另外，claudecode里面，我自己已经approve没有经过yaak，但yaak仍然显示等待approve。"
+- **Process**: Replayed `history.sqlite` around `16:04` (reproducing both `3.8×` `↘` on `RecentFigures` and `claude-code:e6a86061` / `565c795a` stuck in `needsInput` after terminal approval) and verified Claude Code `2.1.327`'s `$P.openAsk` + `Gat` (`PermissionRequest`) + `dgt` (`sessions/<pid>.json`) lifecycle. Ran `make build`, `make test`, `make l10n`, and `make install`.
+- **Result**: Leverage arrow matches the visible terminal slope of the sparkline; terminal-answered Claude prompts clear `needsInput`, release the blocked hook process, and withdraw notifications within ≤1 s.
+- **Notes**: `inputRequestedAt` prevents sibling sub-agent tool events (which bump `lastEventAt` while the main agent's dialog is open or right after terminal approval) from masking the approval timestamp in `sessions/<pid>.json`.
+
+## fix(panel): clear stuck logo hover in the floating panel
+
+`65085aa` | 2026-11-18
 
 - **Changes**: Removed eager `.assumeInside`/`set(true)` on `PanelHover.Tracker.updateTrackingAreas` and added an 80 ms `.common`-mode verification timer while `inside == true` checking live `NSEvent.mouseLocation`, `NSWindow.windowNumber(at:)`, and `visibleRect` (`FloatingPanel.swift`). Extracted `HeaderBrand` (`Windows.swift`) with per-row `@State hover` and a static non-hit-testing hint overlay instead of a dynamically mounted second `.panelHover` tracker.
 - **Reason**: Two paths left the logo hover permanently wedged when YaaKanban was inactive: (1) dynamically mounting `mainWindowHint` with `.assumeInside` under a moving cursor (or unfolding a right-docked rail for one frame before `fit()` shifted `host` left) set `inside = true` without WindowServer arming `mouseExited`; (2) any missed `mouseExited` across drags, focus switches, or `ViewThatFits` row transitions had no self-healing check.

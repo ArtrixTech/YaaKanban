@@ -10,11 +10,12 @@ the update.
 ### Changed
 
 - Clicking the floating panel's leverage bar opens 概览 (Overview) directly, and clicking the top-left YaaKanban logo opens the main window (with a faint 主界面 hint on hover), replacing the separate Main window button. The header button that collapsed the floating panel's list is removed.
-- The leverage arrow in the floating panel and the folded sidebar now shows the trend right now: rising, falling or level against 10 minutes ago, instead of the comparison with today's usual hour.
+- The leverage arrow in the floating panel and the folded sidebar now tracks the slope of the 1-hour leverage curve right now, instead of comparing with today's usual hour or lagging behind recent rebounds.
 
 ### Fixed
 
 - Clicking a notification only jumps to the agent's terminal; it no longer also opens the main window.
+- Approving, denying, or cancelling a Claude Code permission prompt directly in the terminal now clears YaaKanban's waiting-for-approval state within a second instead of keeping the card stuck until the tool finishes (or forever when denied).
 
 ## [0.2.5] - 2026-11-18
 

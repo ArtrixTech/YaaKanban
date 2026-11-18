@@ -260,14 +260,32 @@ final class AppModel {
             Task { @MainActor in self?.awaySince = self?.awaySince ?? Date() }
         }
         // Auto review: on switching apps at once, then every second while a terminal is in front.
+        // Also poll Claude PID files at 1 Hz while a Claude session waits on input, so approving or
+        // dismissing a prompt in the terminal clears the card within a second.
         ws.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.checkFocus() }
+            Task { @MainActor in
+                self?.scanWaitingClaude()
+                self?.checkFocus()
+            }
         }
         let focus = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.checkFocus() }
+            Task { @MainActor in
+                self?.scanWaitingClaude()
+                self?.checkFocus()
+            }
         }
         RunLoop.main.add(focus, forMode: .common)
         timers.append(focus)
+    }
+
+    private func scanWaitingClaude() {
+        guard sessions.values.contains(where: { $0.agent == .claudeCode && $0.status == .needsInput && $0.dismissedAt == nil })
+        else { return }
+        for ev in scanner.scan() {
+            let k = SessionState.key(ev.agent, ev.sessionId)
+            guard sessions[k]?.status == .needsInput else { continue }
+            update(k, alert: sessions[k].map { !$0.hooked } ?? false) { SessionReducer.apply(ev, to: $0) }
+        }
     }
 
     // MARK: Auto review
@@ -638,14 +656,16 @@ final class AppModel {
     }
 
     /// Ends tool calls the transcript shows a result for but no hook reported (a failed call
-    /// without the PostToolUseFailure hook, an interrupt). Recent calls are left to the hooks,
-    /// which carry the output and arrive within moments.
+    /// without the PostToolUseFailure hook, a denied permission prompt, an interrupt). Recent
+    /// non-permission calls are left to the hooks, which carry the output and arrive within moments.
     private func endReportedTools(_ key: String, _ finished: [(id: String, failed: Bool)]) {
         guard let s = sessions[key], !finished.isEmpty else { return }
         let failed = Dictionary(finished.map { ($0.id, $0.failed) }) { $1 }
         let now = Date()
-        for t in s.runningTools where now.timeIntervalSince(t.startedAt) > 10 {
+        for t in s.runningTools {
             guard let f = failed[t.id] else { continue }
+            let deniedPermission = f && t.id == s.pendingPermission?.id
+            guard deniedPermission || now.timeIntervalSince(t.startedAt) > 10 else { continue }
             // Stamped at the last known event, so it does not count as new activity.
             let e = AgentEvent(agent: s.agent, sessionId: s.sessionId, at: s.lastEventAt,
                                kind: .toolEnd(id: t.id, name: t.name, output: nil, isError: f))

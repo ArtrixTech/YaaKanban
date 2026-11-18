@@ -492,8 +492,9 @@ struct RecentFigures: View {
     /// Trend points, each the leverage of the `window` up to it, a `trendStep`th of that apart:
     /// together they span the last `window` too.
     static let trendStep = 24, trendPoints = trendStep + 1
-    /// How many trend points back the arrow looks: 4 of 2.5 minutes, the last 10 minutes.
-    static let trendLookback = 4
+    /// How many trend points back the arrow looks: 1 step (2.5 minutes), the latest segment of the
+    /// already 1-hour-smoothed curve, so the arrow matches the slope entering the current dot.
+    static let trendLookback = 1
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { ctx in
@@ -507,7 +508,7 @@ struct RecentFigures: View {
             let today = model.report(DateInterval(start: Calendar.current.startOfDay(for: ctx.date), end: end), buckets: 1)
             let baseline = typicalLeverage(at: ctx.date)
             let arrow = Self.direction(trend, lookback: Self.trendLookback)
-            let help = String(localized: "Over the last hour, agent work while you were here per hour you were here. The arrow shows whether it is rising, falling or level right now, against 10 minutes ago.")
+            let help = String(localized: "Over the last hour, agent work while you were here per hour you were here. The arrow shows whether the 1-hour leverage is rising, falling or level right now.")
             Button {
                 AppWindows.open(.overview)
             } label: {
@@ -612,12 +613,12 @@ struct RecentFigures: View {
     }
 
     /// Up or down when the latest point is above or below the one `lookback` points before it by
-    /// more than 0.1× (the figure's precision) and a twentieth of it, else level. Nil while either is missing.
+    /// at least 0.05× and 2% of it, else level. Nil while either is missing.
     static func direction(_ trend: [Double?], lookback: Int) -> (String, Color)? {
         guard trend.count > lookback, let now = trend.last ?? nil,
               let before = trend[trend.count - 1 - lookback] else { return nil }
         let delta = now - before
-        if abs(delta) < max(0.1, before * 0.05) { return ("arrow.right", .secondary) }
+        if abs(delta) < max(0.05, before * 0.02) { return ("arrow.right", .secondary) }
         return delta > 0 ? ("arrow.up.right", Sparkline.lime) : ("arrow.down.right", .orange)
     }
 

@@ -87,7 +87,7 @@ struct NarrowSessionCard: View {
             StatusGlyph(status: st, size: 16)
             AgentLogo(agent: session.agent, size: 10).opacity(st == .done || st == .ended ? 0.5 : 0.85)
             StatusTrack(status: st).frame(maxHeight: .infinity)
-            TimelineView(.periodic(from: .now, by: 1)) { ctx in
+            TimelineView(.everySecond) { ctx in
                 Text(Self.shortClock(session, now: ctx.date))
                     .font(.system(size: 8, weight: .medium).monospacedDigit())
                     .foregroundStyle(st == .running ? AnyShapeStyle(st.tint) : AnyShapeStyle(.secondary))

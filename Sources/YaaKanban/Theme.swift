@@ -120,6 +120,15 @@ extension View {
     }
 }
 
+extension TimelineSchedule where Self == PeriodicTimelineSchedule {
+    /// Once a second, on whole seconds shared by every view. `.periodic(from: .now, by: 1)` starts
+    /// each view's ticks when that view appears, so N clocks tick at N moments a second and each
+    /// tick lays out the whole window again; on a shared phase they update in one pass.
+    static var everySecond: PeriodicTimelineSchedule {
+        .periodic(from: Date(timeIntervalSinceReferenceDate: 0), by: 1)
+    }
+}
+
 private struct SessionSurface: ViewModifier {
     @Environment(AppModel.self) private var model
     let session: SessionState
@@ -136,7 +145,7 @@ private struct SessionSurface: ViewModifier {
                 // Only the sessions that can need it tick.
                 if (st == .needsInput && p.flashEnabled) || (st == .review && p.reviewFlashEnabled)
                     || (st == .done && stale) {
-                    TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                    TimelineView(.everySecond) { ctx in
                         let flash = st == .needsInput ? Attention.flashes(
                             session, acknowledged: model.acknowledged[session.id], now: ctx.date, after: p.flashAfterSeconds)
                             : st == .review && Attention.reviewFlashes(
