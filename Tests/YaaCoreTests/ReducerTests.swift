@@ -1308,10 +1308,28 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(s.status == .running)
     }
 
-    @Test func notificationNamesEveryTask() {
-        let p = "<task-notification>\n<task-id>a1</task-id>\n</task-notification>\n<task-notification>\n<task-id>b2</task-id>\n</task-notification>"
+    @Test func notificationNamesEveryFinishedTask() {
+        let p = "<task-notification>\n<task-id>a1</task-id>\n<status>completed</status>\n</task-notification>\n<task-notification>\n<task-id>b2</task-id>\n<status>failed</status>\n</task-notification>"
         #expect(Normalizer.notifiedTasks(p) == ["a1", "b2"])
         #expect(Normalizer.notifiedTasks("see <task-id>a1</task-id>").isEmpty)
+        // A Monitor's event: the watch is still running.
+        #expect(Normalizer.notifiedTasks("<task-notification>\n<task-id>m1</task-id>\n<summary>Monitor event: \"x\"</summary>\n<event>epoch 3</event>\n</task-notification>").isEmpty)
+    }
+
+    @Test func stopWaitsForAMonitorUntilItsStreamEnds() {
+        let watch = claude("PostToolUse", ["tool_name": .string("Monitor"), "tool_use_id": .string("t-m1"),
+                                           "tool_input": .object(["command": .string("tail -f log"), "description": .string("training")]),
+                                           "tool_response": .object(["persistent": .bool(false), "taskId": .string("m1"),
+                                                                     "timeoutMs": .number(1_800_000)])], at: 1)
+        let event = claude("UserPromptSubmit", ["prompt": .string("<task-notification>\n<task-id>m1</task-id>\n<summary>Monitor event: \"training\"</summary>\n<event>epoch 3</event>\n</task-notification>")], at: 40)
+        let waiting = fold([claude("UserPromptSubmit", ["prompt": .string("train it")]), watch,
+                            claude("Stop", at: 2), event, claude("Stop", at: 45)])
+        #expect(waiting.backgroundTasks == ["m1"])
+        #expect(waiting.status == .running)
+
+        let done = fold([notify("m1", at: 90), claude("Stop", at: 95)], into: waiting)
+        #expect(done.backgroundTasks == nil)
+        #expect(done.status == .idle)
     }
 
     private func shell(_ id: String, at: TimeInterval, _ extra: [String: JSONValue] = [:], agent: String? = nil) -> HookEnvelope {

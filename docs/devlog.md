@@ -1,8 +1,19 @@
 # Devlog
 
+## fix(claude): keep a session running while a Monitor watches
+
+`PENDING` | 2026-11-19
+
+- **Changes**: `Normalizer.backgroundLaunch` counts `Monitor` (`tool_response.taskId`) as a background task; `notifiedTasks` ends only tasks whose `<task-notification>` carries a `<status>`. Tests: `stopWaitsForAMonitorUntilItsStreamEnds`, `notificationNamesEveryFinishedTask`.
+- **Reason**: Sessions with a live Monitor showed 已验收/idle. Monitor's PostToolUse response is `{persistent, taskId, timeoutMs}`, not `backgroundTaskId`, so it was never waited for; and each Monitor event (a `<task-notification>` with `<task-id>` but no `<status>`) would have ended the wait anyway.
+- **User feedback**: "这个对话实际上有monitor在等待外部，但没有计算。"
+- **Process**: Read the history DB (read-only): 72 Monitor responses, all keys `persistent/taskId/timeoutMs`; 435 notifications `Monitor event` without status; every finishing notice (Agent, Background command, Monitor stream ended/failed, killed, MCP task) has `<status>`.
+- **Result**: `make test` 255 passed.
+- **Notes**: Sessions already idle are not revived; the next Monitor they launch is tracked. A persistent Monitor holds the session running until it stops or the agent process exits (stuck detection's live-agent check still applies). Background MCP tasks (moved after 120 s) are still not tracked; their response is text only.
+
 ## chore(release): bump the version to 0.2.6
 
-`PENDING` | 2026-11-18
+`e9a78bb` | 2026-11-18
 
 - **Changes**: `CHANGELOG.md` Unreleased → `[0.2.6] - 2026-11-18`; `Info.plist` 0.2.6 (build 10).
 - **Reason**: Ship the panel navigation changes, leverage arrow slope, CPU reductions and the permission-prompt/notification fixes.

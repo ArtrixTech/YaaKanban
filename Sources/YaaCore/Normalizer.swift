@@ -109,6 +109,8 @@ public enum Normalizer {
         switch tool.lowercased() {
         case "agent", "task": return resp?["isAsync"]?.bool == true ? resp?["agentId"]?.string : nil
         case "sendmessage": return resp?["success"]?.bool == true ? resp?["resumedAgentId"]?.string : nil
+        // A watch whose script runs in the background, reporting each line it prints.
+        case "monitor": return resp?["taskId"]?.string
         default:
             // A shell run in (or moved to) the background. One that is killed with the final
             // response never notifies, so it is not waited for.
@@ -124,11 +126,15 @@ public enum Normalizer {
     }
 
     /// Claude Code tells the main agent a background task stopped by sending it a prompt that
-    /// starts with `<task-notification>`; returns the task ids it names.
+    /// starts with `<task-notification>`; returns the ids of the tasks it reports finished. Only
+    /// a finished task's notice has a `<status>`: a Monitor's event (a line its script printed)
+    /// has none, and the watch keeps running.
     static func notifiedTasks(_ prompt: String) -> [String] {
         guard prompt.hasPrefix("<task-notification>") else { return [] }
-        return prompt.components(separatedBy: "<task-id>").dropFirst().compactMap { part in
-            part.range(of: "</task-id>").map { String(part[..<$0.lowerBound]).trimmingCharacters(in: .whitespaces) }
+        return prompt.components(separatedBy: "<task-notification>").dropFirst().compactMap { notice in
+            guard notice.contains("<status>"), let open = notice.range(of: "<task-id>"),
+                  let close = notice.range(of: "</task-id>", range: open.upperBound..<notice.endIndex) else { return nil }
+            return String(notice[open.upperBound..<close.lowerBound]).trimmingCharacters(in: .whitespaces)
         }
     }
 

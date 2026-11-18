@@ -7,6 +7,10 @@ the update.
 
 ## [Unreleased]
 
+### Fixed
+
+- A Claude Code session waiting on a Monitor (a background watch) stays running until the watch ends, instead of showing as done after each event it reports.
+
 ## [0.2.6] - 2026-11-18
 
 ### Changed
