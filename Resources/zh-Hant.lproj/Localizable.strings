@@ -372,7 +372,7 @@
 
 /* Ended list */
 "Leverage trend: each point is the leverage over the hour up to then, across the last %@; the dashed line is today's average 1-hour leverage, taken at each whole hour." = "槓桿走勢：每點是截至當時 1 小時內的槓桿，涵蓋最近 %@；虛線為今日各整點的 1 小時槓桿平均值";
-"Over the last hour, agent work while you were here per hour you were here. The arrow compares it with today's average 1-hour leverage, taken at each whole hour." = "最近 1 小時，你在場時 Agent 的工作 ÷ 你在場的時間。箭頭與今日各整點的 1 小時槓桿平均值比較";
+"Over the last hour, agent work while you were here per hour you were here. The arrow shows whether it is rising, falling or level right now, against 10 minutes ago." = "最近 1 小時，你在場時 Agent 的工作 ÷ 你在場的時間。箭頭表示此刻的趨勢：與 10 分鐘前相比是上升、下降還是持平";
 "Close search" = "關閉搜尋";
 "No matches" = "沒有符合的任務";
 "Search the last %lld days" = "搜尋近 %lld 天";

@@ -1,8 +1,18 @@
 # Devlog
 
-## chore(release): bump the version to 0.2.5
+## fix(panel): show the leverage trend and keep notifications off main
 
 `PENDING` | 2026-11-18
+
+- **Changes**: `RecentFigures.direction` compares the latest 1-hour leverage point with the one 4 points (10 min) back; level when |Δ| < max(0.1, 5%). Help string + 9 translations updated. `applicationShouldHandleReopen` reads the reopen Apple Event's sender PID (`keySenderPIDAttr`) and ignores reopens sent by usernoted/NotificationCenter; the 0.3 s/1.5 s timing guard stays as fallback. Logs `reopen from <path>` (category `reopen`).
+- **Reason**: The arrow compared with today's usual hour, not the momentary direction. The timing guard missed when the notification response arrived >0.3 s after the reopen, so the main window opened on a notification click.
+- **User feedback**: "当前的侧边栏的杠杆箭头改为趋势。是指当前这一刻是在增加还是减少还是持平"; "打开发来的通知之后……还会打开主界面窗口……不要打开主界面窗口，只做跳转"
+- **Result**: `make test` 251 passed; installed. Notification-sender match not yet observed live.
+- **Notes**: If a click still opens the window, check `log show --predicate 'subsystem == "com.artrix.yaakanban" AND category == "reopen"' --last 10m` for the actual sender and add it to `notificationSenders`.
+
+## chore(release): bump the version to 0.2.5
+
+`99ac8da` | 2026-11-18
 
 - **Changes**: `CHANGELOG.md` Unreleased → `[0.2.5] - 2026-11-18`; `Info.plist` 0.2.5 (build 9).
 - **Reason**: Ship the leverage rework and Mark as to review.

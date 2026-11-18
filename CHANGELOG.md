@@ -7,6 +7,14 @@ the update.
 
 ## [Unreleased]
 
+### Changed
+
+- The leverage arrow in the floating panel and the folded sidebar now shows the trend right now: rising, falling or level against 10 minutes ago, instead of the comparison with today's usual hour.
+
+### Fixed
+
+- Clicking a notification only jumps to the agent's terminal; it no longer also opens the main window.
+
 ## [0.2.5] - 2026-11-18
 
 ### Changed

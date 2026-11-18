@@ -474,8 +474,9 @@ struct TodayFigures: View {
 }
 
 /// The floating panel's figures: leverage over the last `window` as the hero with its trend
-/// behind, and today's agent hours. The arrow and the dashed line read against today's usual
-/// hour (`typicalLeverage`), not the day so far, so like is compared with like.
+/// behind, and today's agent hours. The arrow is the trend at this moment: whether the leverage is
+/// rising, falling or level over the last `trendLookback` points. The dashed line reads against today's
+/// usual hour (`typicalLeverage`), not the day so far, so like is compared with like.
 /// The folded rail keeps only the leverage. Windows move by whole minutes so the report cache holds
 /// between redraws.
 struct RecentFigures: View {
@@ -490,6 +491,8 @@ struct RecentFigures: View {
     /// Trend points, each the leverage of the `window` up to it, a `trendStep`th of that apart:
     /// together they span the last `window` too.
     static let trendStep = 24, trendPoints = trendStep + 1
+    /// How many trend points back the arrow looks: 4 of 2.5 minutes, the last 10 minutes.
+    static let trendLookback = 4
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { ctx in
@@ -502,8 +505,8 @@ struct RecentFigures: View {
             let leverage = trend.last ?? nil
             let today = model.report(DateInterval(start: Calendar.current.startOfDay(for: ctx.date), end: end), buckets: 1)
             let baseline = typicalLeverage(at: ctx.date)
-            let arrow = Self.direction(leverage, against: baseline)
-            let help = String(localized: "Over the last hour, agent work while you were here per hour you were here. The arrow compares it with today's average 1-hour leverage, taken at each whole hour.")
+            let arrow = Self.direction(trend, lookback: Self.trendLookback)
+            let help = String(localized: "Over the last hour, agent work while you were here per hour you were here. The arrow shows whether it is rising, falling or level right now, against 10 minutes ago.")
             Group {
                 if folded {
                     // 20 pt wide: the number alone, and an arrow for its trend instead of the chart.
@@ -597,12 +600,14 @@ struct RecentFigures: View {
         return each.isEmpty ? nil : each.reduce(0, +) / Double(each.count)
     }
 
-    /// Up or down when the leverage is a tenth or more above or below today's usual, else level.
-    static func direction(_ now: Double?, against base: Double?) -> (String, Color)? {
-        guard let now, let base else { return nil }
-        if now > base * 1.1 { return ("arrow.up.right", Sparkline.lime) }
-        if now < base * 0.9 { return ("arrow.down.right", .orange) }
-        return ("arrow.right", .secondary)
+    /// Up or down when the latest point is above or below the one `lookback` points before it by
+    /// more than 0.1× (the figure's precision) and a twentieth of it, else level. Nil while either is missing.
+    static func direction(_ trend: [Double?], lookback: Int) -> (String, Color)? {
+        guard trend.count > lookback, let now = trend.last ?? nil,
+              let before = trend[trend.count - 1 - lookback] else { return nil }
+        let delta = now - before
+        if abs(delta) < max(0.1, before * 0.05) { return ("arrow.right", .secondary) }
+        return delta > 0 ? ("arrow.up.right", Sparkline.lime) : ("arrow.down.right", .orange)
     }
 
     private func value(_ v: Double?, size: CGFloat) -> some View {
