@@ -1,8 +1,19 @@
 # Devlog
 
-## perf(panel): measure folded rail cards only after they change
+## perf(store): cover absence lookups with an index
 
 `PENDING` | 2026-11-18
+
+- **Changes**: `Store` schema adds `activity_kind_at ON activity(kind, at, value)`.
+- **Reason**: After the model fixes, the largest main-thread cost was `RecentFigures` → `AppModel.report` → `Store.awayEnd`, blocked in `pread`. The query used `activity_lane (kind=?)` and fetched each of the ~930 `away` rows from the table to read `value`, mostly random page misses.
+- **User feedback**: Same as `96be3df`.
+- **Process**: Checked `EXPLAIN QUERY PLAN` on a `.backup` copy of the history DB (31k activity rows). The new plan is `SEARCH activity USING COVERING INDEX activity_kind_at (kind=? AND at<?)`.
+- **Result**: `awayEnd` is answered from the index alone.
+- **Notes**: Created by `IF NOT EXISTS` at open, so existing databases get it on the next launch.
+
+## perf(panel): measure folded rail cards only after they change
+
+`e48be31` | 2026-11-18
 
 - **Changes**: `NarrowSessionCard` (`SidebarRail.swift`) keeps its hidden full-width `SessionCard` copy only for 500 ms after a `Measure` key change (session, its sub-agents, expanded, width), via `.task(id:)` and `measuring` state. Before, the copy was always present.
 - **Reason**: Every folded card laid out a hidden full card on every rail redraw, including the card's 1 Hz clock. It was the largest single cost (about 557 samples) in the folded-panel profile.
