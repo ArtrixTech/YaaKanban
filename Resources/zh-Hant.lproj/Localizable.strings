@@ -173,8 +173,6 @@
 "No active tasks" = "沒有進行中的任務";
 "Fold into sidebar" = "收進側邊欄";
 "Settings" = "設定";
-"Expand" = "展開";
-"Collapse" = "收合";
 "Hide (⌥⌘K)" = "隱藏（⌥⌘K）";
 "Drag to resize height" = "拖移以調整高度";
 "Drag to resize width" = "拖移以調整寬度";

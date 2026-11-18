@@ -9,6 +9,7 @@ the update.
 
 ### Changed
 
+- Clicking the floating panel's leverage bar opens 概览 (Overview) directly, and clicking the top-left YaaKanban logo opens the main window (with a faint 主界面 hint on hover), replacing the separate Main window button. The header button that collapsed the floating panel's list is removed.
 - The leverage arrow in the floating panel and the folded sidebar now shows the trend right now: rising, falling or level against 10 minutes ago, instead of the comparison with today's usual hour.
 
 ### Fixed

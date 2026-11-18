@@ -173,8 +173,6 @@
 "No active tasks" = "進行中のタスクはありません";
 "Fold into sidebar" = "サイドバーに格納";
 "Settings" = "設定";
-"Expand" = "展開";
-"Collapse" = "折りたたむ";
 "Hide (⌥⌘K)" = "隠す（⌥⌘K）";
 "Drag to resize height" = "ドラッグして高さを変更";
 "Drag to resize width" = "ドラッグして幅を変更";

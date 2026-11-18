@@ -482,6 +482,7 @@ struct TodayFigures: View {
 struct RecentFigures: View {
     @Environment(AppModel.self) private var model
     var folded = false
+    @State private var hover = false
 
     /// Fixed, so the panel's cards sit at the same height folded or not.
     static let height: CGFloat = 52
@@ -507,57 +508,67 @@ struct RecentFigures: View {
             let baseline = typicalLeverage(at: ctx.date)
             let arrow = Self.direction(trend, lookback: Self.trendLookback)
             let help = String(localized: "Over the last hour, agent work while you were here per hour you were here. The arrow shows whether it is rising, falling or level right now, against 10 minutes ago.")
-            Group {
-                if folded {
-                    // 20 pt wide: the number alone, and an arrow for its trend instead of the chart.
-                    VStack(spacing: 2) {
-                        Text("Leverage").font(.system(size: 8, weight: .medium)).foregroundStyle(.secondary)
-                        Text(leverage.map { String(format: $0 < 10 ? "%.1f" : "%.0f", $0) } ?? "–")
-                            .font(.figure(12, .bold))
-                            .lineLimit(1).minimumScaleFactor(0.5)
-                        if let (symbol, tint) = arrow {
-                            Image(systemName: symbol).font(.system(size: 8, weight: .bold)).foregroundStyle(tint)
-                        }
-                    }
-                    .padding(.horizontal, 1)
-                    .help(help)
-                } else {
-                    HStack(alignment: .center, spacing: 0) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            // The same arrow as the folded rail's, beside the caption so the figure keeps its room.
-                            HStack(spacing: 3) {
-                                caption(String(localized: "Leverage"))
-                                if let (symbol, tint) = arrow {
-                                    Image(systemName: symbol).font(.system(size: 9, weight: .bold)).foregroundStyle(tint)
-                                }
+            Button {
+                AppWindows.open(.overview)
+            } label: {
+                Group {
+                    if folded {
+                        // 20 pt wide: the number alone, and an arrow for its trend instead of the chart.
+                        VStack(spacing: 2) {
+                            Text("Leverage").font(.system(size: 8, weight: .medium)).foregroundStyle(.secondary)
+                            Text(leverage.map { String(format: $0 < 10 ? "%.1f" : "%.0f", $0) } ?? "–")
+                                .font(.figure(12, .bold))
+                                .lineLimit(1).minimumScaleFactor(0.5)
+                            if let (symbol, tint) = arrow {
+                                Image(systemName: symbol).font(.system(size: 8, weight: .bold)).foregroundStyle(tint)
                             }
-                            value(leverage, size: 24)
                         }
-                        .frame(width: 70, alignment: .leading)
+                        .padding(.horizontal, 1)
                         .help(help)
-                        let ticks = Self.ticks(end: end, span: span, slices: slices)
-                        VStack(spacing: 1) {
-                            Sparkline(values: trend, baseline: baseline, ticks: ticks.map(\.at))
-                                .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.3)],
-                                                     startPoint: .leading, endPoint: .trailing))
-                            TimeAxis(ticks: ticks)
+                    } else {
+                        HStack(alignment: .center, spacing: 0) {
+                            VStack(alignment: .leading, spacing: 0) {
+                                // The same arrow as the folded rail's, beside the caption so the figure keeps its room.
+                                HStack(spacing: 3) {
+                                    caption(String(localized: "Leverage"))
+                                    if let (symbol, tint) = arrow {
+                                        Image(systemName: symbol).font(.system(size: 9, weight: .bold)).foregroundStyle(tint)
+                                    }
+                                }
+                                value(leverage, size: 24)
+                            }
+                            .frame(width: 70, alignment: .leading)
+                            .help(help)
+                            let ticks = Self.ticks(end: end, span: span, slices: slices)
+                            VStack(spacing: 1) {
+                                Sparkline(values: trend, baseline: baseline, ticks: ticks.map(\.at))
+                                    .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.3)],
+                                                         startPoint: .leading, endPoint: .trailing))
+                                TimeAxis(ticks: ticks)
+                            }
+                            .padding(.top, 6).padding(.bottom, 3)
+                            .help("Leverage trend: each point is the leverage over the hour up to then, across the last \(SettingsView.duration(Self.window / 60)); the dashed line is today's average 1-hour leverage, taken at each whole hour.")
+                            VStack(alignment: .trailing, spacing: 2) {
+                                caption(String(localized: "Agent hours today"))
+                                Text(duration(today.agentTime)).font(.figure(15))
+                            }
+                            .frame(width: 64, alignment: .trailing)
+                            .help("All agents' running time today, added up")
+                            .padding(.leading, 8)
                         }
-                        .padding(.top, 6).padding(.bottom, 3)
-                        .help("Leverage trend: each point is the leverage over the hour up to then, across the last \(SettingsView.duration(Self.window / 60)); the dashed line is today's average 1-hour leverage, taken at each whole hour.")
-                        VStack(alignment: .trailing, spacing: 2) {
-                            caption(String(localized: "Agent hours today"))
-                            Text(duration(today.agentTime)).font(.figure(15))
-                        }
-                        .frame(width: 64, alignment: .trailing)
-                        .help("All agents' running time today, added up")
-                        .padding(.leading, 8)
+                        .padding(.leading, 12).padding(.trailing, 12)
                     }
-                    .padding(.leading, 12).padding(.trailing, 12)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(height: Self.height)
+                .background(RecentFigures.plate(radius: folded ? 6 : 9, hover: hover))
+                .contentShape(RoundedRectangle(cornerRadius: folded ? 6 : 9, style: .continuous))
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .frame(height: Self.height)
-            .background(RecentFigures.plate(radius: folded ? 6 : 9))
+            .buttonStyle(Pressable())
+            .background(PanelDragExempt())
+            .panelHover { hover = $0 }
+            .animation(.easeOut(duration: 0.12), value: hover)
+            .accessibilityLabel(Text("Overview"))
         }
     }
 
@@ -625,9 +636,9 @@ struct RecentFigures: View {
         Text(s).font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
     }
 
-    static func plate(radius: CGFloat) -> some View {
+    static func plate(radius: CGFloat, hover: Bool = false) -> some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        return shape.fill(Fill.control)
+        return shape.fill(hover ? Fill.controlHover : Fill.control)
     }
 }
 

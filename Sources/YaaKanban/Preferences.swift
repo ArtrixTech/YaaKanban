@@ -20,7 +20,6 @@ final class Preferences {
     var staleTintEnabled: Bool { didSet { d.set(staleTintEnabled, forKey: "staleTintEnabled") } }
     var staleAfterMinutes: Double { didSet { d.set(staleAfterMinutes, forKey: "staleAfterMinutes") } }
     var showPanel: Bool { didSet { d.set(showPanel, forKey: "showPanel") } }
-    var panelCollapsed: Bool { didSet { d.set(panelCollapsed, forKey: "panelCollapsed") } }
     /// Snapped to a side, the panel folds into a rail unless the user unfolded it.
     var sidebarExpanded: Bool { didSet { d.set(sidebarExpanded, forKey: "sidebarExpanded") } }
     /// Experimental: a Claude Code turn that stops with background agents still out stays running.
@@ -90,7 +89,6 @@ final class Preferences {
         staleTintEnabled = d.bool(forKey: "staleTintEnabled")
         staleAfterMinutes = d.double(forKey: "staleAfterMinutes")
         showPanel = d.bool(forKey: "showPanel")
-        panelCollapsed = d.bool(forKey: "panelCollapsed")
         sidebarExpanded = d.bool(forKey: "sidebarExpanded")
         claudeBackgroundAgents = d.bool(forKey: "claudeBackgroundAgents")
         autoReviewOnFocus = d.bool(forKey: "autoReviewOnFocus")

@@ -36,6 +36,70 @@ struct PanelDragExempt: NSViewRepresentable {
     func updateNSView(_ v: Marker, context: Context) {}
 }
 
+/// Hover tracking that fires even while YaaKanban is inactive (SwiftUI's `onHover` inside
+/// `NSHostingView` stays silent on an inactive `.nonactivatingPanel`).
+private struct PanelHover: NSViewRepresentable {
+    var onChange: (Bool) -> Void
+
+    func makeNSView(context: Context) -> Tracker { let v = Tracker(); v.onChange = onChange; return v }
+    func updateNSView(_ v: Tracker, context: Context) { v.onChange = onChange }
+
+    final class Tracker: NSView {
+        var onChange: (Bool) -> Void = { _ in }
+        private var inside = false
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            guard trackingAreas.isEmpty, window != nil else { return }
+            let now = pointerInside
+            var opts: NSTrackingArea.Options = [.mouseEnteredAndExited, .activeAlways, .inVisibleRect]
+            if now { opts.insert(.assumeInside) }
+            addTrackingArea(NSTrackingArea(rect: .zero, options: opts, owner: self, userInfo: nil))
+            if now { set(true, deferUpdate: true) }
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if window == nil {
+                trackingAreas.forEach(removeTrackingArea)
+                set(false, deferUpdate: true)
+            }
+        }
+
+        override func mouseEntered(with event: NSEvent) { set(true, deferUpdate: false) }
+        override func mouseExited(with event: NSEvent) { set(false, deferUpdate: false) }
+
+        private var pointerInside: Bool {
+            guard let w = window, w.isVisible else { return false }
+            return visibleRect.contains(convert(w.mouseLocationOutsideOfEventStream, from: nil))
+        }
+
+        private func set(_ value: Bool, deferUpdate: Bool) {
+            guard inside != value else { return }
+            inside = value
+            if deferUpdate {
+                RunLoop.main.perform(inModes: [.common]) { [weak self] in
+                    MainActor.assumeIsolated {
+                        guard let self else { return }
+                        self.onChange(self.inside)
+                    }
+                }
+            } else {
+                onChange(value)
+            }
+        }
+    }
+}
+
+extension View {
+    /// Tracks hover in the floating panel whether or not YaaKanban is the active app.
+    func panelHover(perform action: @escaping (Bool) -> Void) -> some View {
+        background(PanelHover(onChange: action))
+    }
+}
+
 /// The panel's surface: system glass that reports the pointer entering and leaving whether or not
 /// the app is active (SwiftUI's hover only tracks while it is). Content goes in `content`.
 private final class HoverView: NSView {

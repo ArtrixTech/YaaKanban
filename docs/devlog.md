@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(panel): show the leverage trend and keep notifications off main
+## feat(panel): open overview from leverage bar and main window from logo
 
 `PENDING` | 2026-11-18
+
+- **Changes**: `RecentFigures` (`DashboardView.swift`) is now a `Button` (`Pressable`, `PanelDragExempt`, `.panelHover`) whose plate brightens on hover (`Fill.controlHover`) and opens `AppWindows.open(.overview)`. `BoardHeader` (`Windows.swift`) makes the top-left `BrandGlyph` + `YaaKanban` lockup a `Button` opening `.main` and reveals a faint `Main window ›` hint in the spacer's overlay on hover (without affecting `ViewThatFits`). Removed the `macwindow` and `chevron.up`/`chevron.down` collapse buttons from `FloatingPanelView`, `Preferences.panelCollapsed`, and the `Expand`/`Collapse` strings across all 9 locales. Added `PanelHover` (`NSTrackingArea` `.activeAlways`) in `FloatingPanel.swift` so hover works when YaaKanban is inactive. Updated `docs/spec.md` and `CHANGELOG.md`.
+- **Reason**: Streamline floating-panel chrome by turning the leverage bar and brand mark into direct navigation targets and dropping redundant header buttons.
+- **User feedback**: 侧边栏杠杆 bar hover 效果并点击直接打开概览页面；顶栏左上角 logo hover 显示小箭头与淡淡的主界面文字标识，点击打开主界面，去掉原打开主界面按钮；去掉侧边栏顶栏向上箭头折叠整个侧边栏按钮。
+- **Process**: Verified with `swift -e` that SwiftUI's `onHover` stays false in an inactive `.nonactivatingPanel`, whereas `NSTrackingArea` with `.activeAlways` (`PanelHover`) tracks reliably; `make build`, `make test` (251 passed), `make l10n` (0 problems), `make install`, and visual snapshot check.
+- **Result**: Built, tested, localized, and installed.
+- **Notes**: `mainWindowHint` sits in an `.overlay` on the flexible spacer (`minWidth: 4, maxWidth: .infinity`) with 0-gap hit area from the logo, so hovering never perturbs `ViewThatFits` or shifts count chips.
+
+## fix(panel): show the leverage trend and keep notifications off main
+
+`91f507a` | 2026-11-18
 
 - **Changes**: `RecentFigures.direction` compares the latest 1-hour leverage point with the one 4 points (10 min) back; level when |Δ| < max(0.1, 5%). Help string + 9 translations updated. `applicationShouldHandleReopen` reads the reopen Apple Event's sender PID (`keySenderPIDAttr`) and ignores reopens sent by usernoted/NotificationCenter; the 0.3 s/1.5 s timing guard stays as fallback. Logs `reopen from <path>` (category `reopen`).
 - **Reason**: The arrow compared with today's usual hour, not the momentary direction. The timing guard missed when the notification response arrived >0.3 s after the reopen, so the main window opened on a notification click.

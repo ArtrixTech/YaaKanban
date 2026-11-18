@@ -173,8 +173,6 @@
 "No active tasks" = "활성 작업 없음";
 "Fold into sidebar" = "사이드바로 접기";
 "Settings" = "설정";
-"Expand" = "펼치기";
-"Collapse" = "접기";
 "Hide (⌥⌘K)" = "가리기(⌥⌘K)";
 "Drag to resize height" = "드래그하여 높이 조절";
 "Drag to resize width" = "드래그하여 너비 조절";
