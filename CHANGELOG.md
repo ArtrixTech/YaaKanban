@@ -7,6 +7,8 @@ the update.
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-11-18
+
 ### Changed
 
 - Clicking the floating panel's leverage bar opens 概览 (Overview) directly, and clicking the top-left YaaKanban logo opens the main window (with a faint 主界面 hint on hover), replacing the separate Main window button. The header button that collapsed the floating panel's list is removed.

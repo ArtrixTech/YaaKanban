@@ -1,8 +1,17 @@
 # Devlog
 
-## perf(store): cover absence lookups with an index
+## chore(release): bump the version to 0.2.6
 
 `PENDING` | 2026-11-18
+
+- **Changes**: `CHANGELOG.md` Unreleased → `[0.2.6] - 2026-11-18`; `Info.plist` 0.2.6 (build 10).
+- **Reason**: Ship the panel navigation changes, leverage arrow slope, CPU reductions and the permission-prompt/notification fixes.
+- **User feedback**: "帮我发版"
+- **Result**: Released via PR develop → main and `make release` signed by team 5KZD8GBF7G.
+
+## perf(store): cover absence lookups with an index
+
+`f82f2a8` | 2026-11-18
 
 - **Changes**: `Store` schema adds `activity_kind_at ON activity(kind, at, value)`.
 - **Reason**: After the model fixes, the largest main-thread cost was `RecentFigures` → `AppModel.report` → `Store.awayEnd`, blocked in `pread`. The query used `activity_lane (kind=?)` and fetched each of the ~930 `away` rows from the table to read `value`, mostly random page misses.
