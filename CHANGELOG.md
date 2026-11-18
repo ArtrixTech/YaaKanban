@@ -11,6 +11,7 @@ the update.
 
 - Clicking the floating panel's leverage bar opens 概览 (Overview) directly, and clicking the top-left YaaKanban logo opens the main window (with a faint 主界面 hint on hover), replacing the separate Main window button. The header button that collapsed the floating panel's list is removed.
 - The leverage arrow in the floating panel and the folded sidebar now tracks the slope of the 1-hour leverage curve right now, instead of comparing with today's usual hour or lagging behind recent rebounds.
+- YaaKanban uses much less CPU while sessions run or sit on the panel, most of all with a long session history: the panel and main window no longer redraw when nothing changed, and its clocks tick together.
 
 ### Fixed
 

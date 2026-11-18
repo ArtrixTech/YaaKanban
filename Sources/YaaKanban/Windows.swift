@@ -371,7 +371,9 @@ struct PickRow: View {
             }
             Spacer(minLength: Space.xs)
             if onBoard { StatusGlyph(status: model.display(s), size: 14) }
-            Text(relative(s.lastEventAt)).font(.ui(.caption).monospacedDigit()).foregroundStyle(.tertiary)
+            TimelineView(.everySecond) { _ in
+                Text(relative(s.lastEventAt)).font(.ui(.caption).monospacedDigit()).foregroundStyle(.tertiary)
+            }
         }
         .padding(.horizontal, Space.m).padding(.vertical, 5)
         .background(RoundedRectangle(cornerRadius: Radius.small, style: .continuous).fill(hover ? Fill.selected : .clear))

@@ -7,7 +7,7 @@ import YaaIntegrations
 /// Owns all session state on the main actor. Socket requests, scanners and timers feed it.
 @MainActor @Observable
 final class AppModel {
-    private(set) var sessions: [String: SessionState] = [:]
+    private(set) var sessions: [String: SessionState] = [:] { didSet { sessionsVersion &+= 1 } }
     let settings = Preferences()
     let paths = Paths()
 
@@ -19,7 +19,8 @@ final class AppModel {
         let requestId: String?
         let send: (Data?) -> Void
     }
-    @ObservationIgnored private var pendingReplies: [String: PendingReply] = [:]
+    /// Observed: `canDecide` shows the approve buttons from it.
+    private var pendingReplies: [String: PendingReply] = [:]
     @ObservationIgnored private var timers: [Timer] = []
     @ObservationIgnored private let usageTracker = UsageTracker()
     @ObservationIgnored let notifier = Notifier()
@@ -61,14 +62,77 @@ final class AppModel {
     /// shows its parent as waiting too, since the whole call is held up; one still running keeps a
     /// parent whose turn ended running, since its result is not in yet. A sub-agent whose parent is
     /// not on the board (it never reported, or has left) gets no card unless it waits on the user.
-    var activeSessions: [SessionState] {
-        let now = Date()
-        let live = sessions.values.filter { isLive($0, now: now) }
+    var activeSessions: [SessionState] { derived.active }
+
+    /// Sessions with a sub-agent still running: a finished turn of theirs is not ready to review.
+    private var workingParents: Set<String> { derived.working }
+
+    /// Live sub-agent sessions of `key`, oldest first.
+    func subagents(of key: String) -> [SessionState] { derived.children[key] ?? [] }
+
+    /// What the boards derive from `sessions`. Views read it hundreds of times a redraw and the
+    /// history holds hundreds of sessions, so it is worked out once per change, not per read.
+    private struct Derived {
+        var version: Int
+        var pinned: [String]
+        var linger: TimeInterval
+        /// When time alone next moves a session on or off the boards.
+        var expires: Date
+        var index: LiveIndex
+        var live: Set<String>
+        var working: Set<String>
+        var active: [SessionState]
+        var children: [String: [SessionState]]
+        /// A Claude Code session waits on the user (the 1 Hz PID-file poll runs only then).
+        var claudeWaiting: Bool
+    }
+
+    /// What `isLive` looks up, gathered in one pass instead of searched for each session.
+    private struct LiveIndex {
+        var pinned: Set<String> = []
+        var linger: TimeInterval = 0
+        /// Top-level sessions by agent process.
+        var byPid: [Int32: [(id: String, startedAt: Date)]] = [:]
+    }
+
+    /// Bumped on every change to `sessions`, which a struct this size cannot cheaply compare.
+    @ObservationIgnored private var sessionsVersion = 0
+    @ObservationIgnored private var derivedCache: Derived?
+    /// Bumped by the tick when time alone has moved a session on or off the boards: nothing in
+    /// `sessions` changed then, yet the views that read the boards must update.
+    private var boardClock = 0
+    /// The earliest `expires` of any derivation since the last bump. A read after it works out
+    /// the boards anew but tells no view, so the tick bumps `boardClock` once it has passed.
+    @ObservationIgnored private var boardsExpire = Date.distantFuture
+
+    private var derived: Derived {
+        // Read for observation: a view reading the boards updates when either changes.
+        _ = boardClock
+        _ = sessions
+        let now = Date(), pinned = settings.pinned, linger = settings.idleVisibleSeconds
+        if let d = derivedCache, d.version == sessionsVersion, d.pinned == pinned, d.linger == linger,
+           now < d.expires { return d }
+        let d = makeDerived(now: now, pinned: pinned, linger: linger)
+        derivedCache = d
+        boardsExpire = min(boardsExpire, d.expires)
+        return d
+    }
+
+    private func makeDerived(now: Date, pinned: [String], linger: TimeInterval) -> Derived {
+        var index = LiveIndex(pinned: Set(pinned), linger: linger)
+        for s in sessions.values where s.parentId == nil {
+            if let pid = s.agentPid { index.byPid[pid, default: []].append((s.id, s.startedAt)) }
+        }
+        var expires = Date.distantFuture
+        let live = sessions.values.filter { isLive($0, now: now, index: index, expires: &expires) }
         let shown = Set(live.map(\.id))
+        let working = Set(sessions.values.filter { $0.status == .running && $0.dismissedAt == nil }.compactMap(\.parentId))
+        var children: [String: [SessionState]] = [:]
+        for s in live { if let p = s.parentId { children[p, default: []].append(s) } }
+        for k in children.keys { children[k]?.sort { $0.startedAt < $1.startedAt } }
         var waiting: [String: SessionState] = [:]
         for c in live where c.status == .needsInput { if let p = c.parentId { waiting[p] = c } }
-        let working = workingParents
-        return sorted(live.compactMap { s in
+        let active = sorted(live.compactMap { s in
             if let p = s.parentId, shown.contains(p) || s.status != .needsInput { return nil }
             if let c = waiting[s.id], s.status != .needsInput {
                 var shownAs = s
@@ -82,31 +146,29 @@ final class AppModel {
             shownAs.status = .running
             return shownAs
         })
+        let claudeWaiting = sessions.values.contains { $0.agent == .claudeCode && $0.status == .needsInput && $0.dismissedAt == nil }
+        return Derived(version: sessionsVersion, pinned: pinned, linger: linger, expires: expires, index: index,
+                       live: shown, working: working, active: active, children: children, claudeWaiting: claudeWaiting)
     }
 
-    /// Sessions with a sub-agent still running: a finished turn of theirs is not ready to review.
-    private var workingParents: Set<String> {
-        Set(sessions.values.filter { $0.status == .running && $0.dismissedAt == nil }.compactMap(\.parentId))
-    }
-
-    /// Live sub-agent sessions of `key`, oldest first.
-    func subagents(of key: String) -> [SessionState] {
-        let now = Date()
-        return sessions.values.filter { $0.parentId == key && isLive($0, now: now) }
-            .sorted { $0.startedAt < $1.startedAt }
-    }
-
-    private func isLive(_ s: SessionState, now: Date) -> Bool {
+    /// Whether `s` is on the boards at `now`. `expires` is lowered to when a time limit that
+    /// decided it runs out, after which the answer may differ.
+    private func isLive(_ s: SessionState, now: Date, index: LiveIndex, expires: inout Date) -> Bool {
         // A session joins the boards with its first message, so an unused one never lingers.
         if s.dismissedAt != nil || s.isUnstarted { return false }
         // A pin keeps it until the user unpins or ends it.
-        if s.parentId == nil, isPinned(s.id) { return true }
+        if s.parentId == nil, index.pinned.contains(s.id) { return true }
+        func until(_ limit: Date) -> Bool {
+            guard now < limit else { return false }
+            expires = min(expires, limit)
+            return true
+        }
         switch s.status {
         // However it ended (an exit, or a terminal crash that looks just like one), the conversation
         // lingers like a reviewed card so it can be resumed, unless the same process went on with a
         // new session (`/clear`, `/new`).
         case .ended:
-            if s.parentId != nil || now.timeIntervalSince(s.quietSince) >= settings.idleVisibleSeconds { return false }
+            if s.parentId != nil || !until(s.quietSince.addingTimeInterval(index.linger)) { return false }
             // Moved into a background job: the job's own session shows the conversation.
             if let job = s.parkedIn, sessions.values.contains(where: {
                 $0.agent == s.agent && $0.id != s.id && $0.sessionId.hasPrefix(job)
@@ -115,14 +177,12 @@ final class AppModel {
             // session started after this one's last event (or its restore) replaced it.
             guard let pid = s.agentPid else { return true }
             let since = max(s.lastEventAt, s.restoredAt ?? s.lastEventAt)
-            return !sessions.values.contains {
-                $0.agentPid == pid && $0.id != s.id && $0.parentId == nil && $0.startedAt >= since
-            }
+            return !(index.byPid[pid] ?? []).contains { $0.id != s.id && $0.startedAt >= since }
         // Unreviewed results stay until looked at; reviewed ones fade out after a while.
         // A sub-agent's result is its parent's business, so it only lingers briefly.
         case .idle:
-            if s.parentId != nil { return now.timeIntervalSince(s.lastEventAt) < Self.subagentLinger }
-            return s.unreadSince != nil || now.timeIntervalSince(s.quietSince) < settings.idleVisibleSeconds
+            if s.parentId != nil { return until(s.lastEventAt.addingTimeInterval(Self.subagentLinger)) }
+            return s.unreadSince != nil || until(s.quietSince.addingTimeInterval(index.linger))
         default: return true
         }
     }
@@ -132,15 +192,28 @@ final class AppModel {
     /// A session's status as the user sees it: one that has left the boards (retention over, or
     /// ended on the panel) is ended, whatever the agent did.
     func display(_ s: SessionState) -> DisplayStatus {
-        if s.parentId == nil && !isLive(s, now: Date()) { return .ended }
-        return s.status == .idle && workingParents.contains(s.id) ? .running : s.display
+        let d = derived
+        if s.parentId == nil {
+            // Not one of `sessions` (a removed one still on screen): judged on its own.
+            var unused = Date.distantFuture
+            let live = sessions[s.id] != nil ? d.live.contains(s.id) : isLive(s, now: Date(), index: d.index, expires: &unused)
+            if !live { return .ended }
+        }
+        return s.status == .idle && d.working.contains(s.id) ? .running : s.display
     }
 
     var allSessions: [SessionState] { sorted(sessions.values.filter { !$0.isUnstarted }) }
 
+    @ObservationIgnored private var boardCache: (active: [SessionState], manual: [String], pinned: [String],
+                                                 placed: [String: Board.Placement], board: [SessionState])?
+
     /// Active sessions as the boards show them: most urgent first, then the user's order or start order.
     var board: [SessionState] {
-        Board.ordered(activeSessions, manualOrder: settings.manualOrder, pinned: settings.pinned, placed: settings.placed)
+        let active = activeSessions, manual = settings.manualOrder, pinned = settings.pinned, placed = settings.placed
+        if let c = boardCache, c.active == active, c.manual == manual, c.pinned == pinned, c.placed == placed { return c.board }
+        let b = Board.ordered(active, manualOrder: manual, pinned: pinned, placed: placed)
+        boardCache = (active, manual, pinned, placed, b)
+        return b
     }
 
     func isPinned(_ key: String) -> Bool { settings.pinned.contains(key) }
@@ -279,8 +352,8 @@ final class AppModel {
     }
 
     private func scanWaitingClaude() {
-        guard sessions.values.contains(where: { $0.agent == .claudeCode && $0.status == .needsInput && $0.dismissedAt == nil })
-        else { return }
+        // Every second: looked up, not searched for among hundreds of sessions.
+        guard derived.claudeWaiting else { return }
         for ev in scanner.scan() {
             let k = SessionState.key(ev.agent, ev.sessionId)
             guard sessions[k]?.status == .needsInput else { continue }
@@ -443,10 +516,11 @@ final class AppModel {
         guard var new = f(old) else { return key }
         // A sub-agent's finished turn is reviewed through its parent.
         if new.parentId != nil { new.unreadSince = nil }
+        // The tick and the scan pass every session through here, most unchanged. Rewriting those
+        // dirtied gigabytes a day, and every write redraws every view that reads `sessions`.
+        guard new != old else { return key }
         sessions[key] = new
-        // The tick and the scan pass every session through here; rewriting the unchanged ones
-        // dirtied gigabytes a day.
-        if new != old { markUnsaved(key) }
+        markUnsaved(key)
         record(Activity.rows(old: old, new: new, now: Date()))
         if old?.pendingPermission?.awaitingDecision == true && new.pendingPermission?.awaitingDecision != true {
             pendingReplies.removeValue(forKey: key)?.send(Wire.encode(WireReply(decision: nil)))
@@ -577,6 +651,11 @@ final class AppModel {
             }
         }
         syncLanes()
+        // Retention running out changes the boards without changing a session.
+        if now >= boardsExpire {
+            boardClock &+= 1
+            boardsExpire = derived.expires
+        }
     }
 
     private func scan() {
