@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(claude): keep a session running while a Monitor watches
+## perf(panel): reuse known card heights when the rail folds
 
 `PENDING` | 2026-11-19
+
+- **Changes**: `NarrowSessionCard` keeps `measured` (the `Measure` key its height was taken for); on appear with a height already known from `BoardList.heights` it records the key and skips the hidden full-card measurement until the key changes.
+- **Reason**: Sidebar hover unfold/fold lags badly under high CPU. Folding creates every `NarrowSessionCard` anew; each laid out a hidden full `SessionCard` for 500 ms just to re-learn the height the full card had a frame earlier.
+- **User feedback**: "cpu占用高的时候观察到，侧边栏hover的展开/收起延迟非常大，不跟手。"
+- **Process**: Unified log store was corrupt (disk had filled), so added temporary file traces in `FloatingPanelController` (entered/peek/onSize/slideStart/step/slideDone) and drove the pointer with a CGEvent script, load avg ~15 on 10 cores. Unfold: peek→first onSize 210–700 ms, slide 140 ms + restart (onSize fires twice: 1455.6 then 1394 high). Fold: peekEnds→onSize 80–460 ms, onSize→slideStart up to 300 ms. `sample` during hovers: main thread's largest app frame was this measurement, 281 ms inside a 749 ms `NSHostingView.layout` pass (`SidebarRail.swift:81` geometry action). Traces removed before commit.
+- **Result**: `make test` 255 passed; installed. After-fix timing NOT measured: the screen locked mid-run and synthetic hovers stopped reaching the panel.
+- **Notes**: Unfold cost (building every full `SessionCard`) is not addressed here. Remaining levers: start the slide from the known target width instead of waiting for SwiftUI's size report; avoid the double onSize that restarts the slide. Bench script: synthetic `mouseMoved` via `CGEvent.post(tap: .cghidEventTap)`; needs an unlocked screen.
+
+## fix(claude): keep a session running while a Monitor watches
+
+`10a28c7` | 2026-11-19
 
 - **Changes**: `Normalizer.backgroundLaunch` counts `Monitor` (`tool_response.taskId`) as a background task; `notifiedTasks` ends only tasks whose `<task-notification>` carries a `<status>`. Tests: `stopWaitsForAMonitorUntilItsStreamEnds`, `notificationNamesEveryFinishedTask`.
 - **Reason**: Sessions with a live Monitor showed 已验收/idle. Monitor's PostToolUse response is `{persistent, taskId, timeoutMs}`, not `backgroundTaskId`, so it was never waited for; and each Monitor event (a `<task-notification>` with `<task-id>` but no `<status>`) would have ended the wait anyway.
