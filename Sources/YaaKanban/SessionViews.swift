@@ -103,7 +103,7 @@ struct SessionCard: View {
                         Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(Color(red: 1, green: 0.75, blue: 0)).help("Pinned")
                     }
                     Spacer(minLength: 4)
-                    TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                    TimelineView(.everySecond) { ctx in
                         Text(session.clock(now: ctx.date))
                             .font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.secondary)
                     }
@@ -264,7 +264,7 @@ struct SubagentRow: View {
                     .lineLimit(1).truncationMode(.tail)
             }
             Spacer(minLength: 4)
-            TimelineView(.periodic(from: .now, by: 1)) { ctx in
+            TimelineView(.everySecond) { ctx in
                 Text(relative(since, now: ctx.date))
                     .font(.system(size: 10).monospacedDigit()).foregroundStyle(.tertiary)
             }

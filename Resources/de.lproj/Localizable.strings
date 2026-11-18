@@ -173,8 +173,6 @@
 "No active tasks" = "Keine aktiven Aufgaben";
 "Fold into sidebar" = "In Seitenleiste einklappen";
 "Settings" = "Einstellungen";
-"Expand" = "Ausklappen";
-"Collapse" = "Einklappen";
 "Hide (⌥⌘K)" = "Ausblenden (⌥⌘K)";
 "Drag to resize height" = "Ziehen, um die Höhe zu ändern";
 "Drag to resize width" = "Ziehen, um die Breite zu ändern";
@@ -372,7 +370,7 @@
 
 /* Ended list */
 "Leverage trend: each point is the leverage over the hour up to then, across the last %@; the dashed line is today's average 1-hour leverage, taken at each whole hour." = "Hebel-Verlauf: Jeder Punkt ist der Hebel der jeweils vorangegangenen Stunde, über die letzten %@. Die gestrichelte Linie ist der heutige Durchschnitt des 1-Stunden-Hebels, zu jeder vollen Stunde gemessen.";
-"Over the last hour, agent work while you were here per hour you were here. The arrow compares it with today's average 1-hour leverage, taken at each whole hour." = "In der letzten Stunde: Agentenarbeit während deiner Anwesenheit pro Stunde deiner Anwesenheit. Der Pfeil vergleicht mit dem heutigen Durchschnitt des 1-Stunden-Hebels, zu jeder vollen Stunde gemessen.";
+"Over the last hour, agent work while you were here per hour you were here. The arrow shows whether the 1-hour leverage is rising, falling or level right now." = "In der letzten Stunde: Agentenarbeit während deiner Anwesenheit pro Stunde deiner Anwesenheit. Der Pfeil zeigt den aktuellen Trend des 1-Stunden-Hebels: steigend, fallend oder gleichbleibend.";
 "Close search" = "Suche schließen";
 "No matches" = "Keine Treffer";
 "Search the last %lld days" = "Letzte %lld Tage durchsuchen";

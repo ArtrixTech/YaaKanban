@@ -30,11 +30,22 @@ public enum SessionReducer {
         if s.projectDir == nil { s.projectDir = e.cwd }
         if case .statusSnapshot(let status) = e.kind {
             // Session files only drive sessions without hooks; for hooked ones they must not
-            // count as activity, or silence-based stuck detection would never fire. The exception:
-            // going idle after our last hook event means the turn was interrupted (no Stop hook).
+            // count as activity, or silence-based stuck detection would never fire. Exceptions:
+            // - Answering or approving a prompt in the terminal updates the session file at once,
+            //   while no hook fires until the approved tool finishes (or ever, if denied).
+            // - Going idle after our last hook event means the turn was interrupted (no Stop hook).
             if s.hooked {
-                if status == .idle, s.status == .running || s.status == .stuck,
-                   e.at > s.lastEventAt.addingTimeInterval(1) {
+                if s.status == .needsInput {
+                    let askedAt = s.inputRequestedAt ?? s.needsInputSince ?? s.lastEventAt
+                    if status == .running, e.at > askedAt {
+                        s.status = .running
+                        s.lastEventAt = max(s.lastEventAt, e.at)
+                        clearAttention(&s)
+                    } else if status == .idle, e.at > askedAt.addingTimeInterval(1) {
+                        endTurn(&s, at: e.at, lastMessage: nil)
+                    }
+                } else if status == .idle, s.status == .running || s.status == .stuck,
+                          e.at > s.lastEventAt.addingTimeInterval(1) {
                     endTurn(&s, at: e.at, lastMessage: nil)
                 }
                 return s
@@ -143,8 +154,10 @@ public enum SessionReducer {
         case .needsInput(let message):
             s.status = .needsInput
             s.needsInputMessage = message
+            s.inputRequestedAt = e.at
 
         case .attentionNotice(let message):
+            if s.status != .needsInput { s.inputRequestedAt = e.at }
             if s.status != .needsInput || s.needsInputMessage == nil { s.needsInputMessage = message }
             s.status = .needsInput
 
@@ -153,14 +166,21 @@ public enum SessionReducer {
             clearAttention(&s)
 
         case .permission(var req):
-            // Claude's PermissionRequest has no tool_use_id; adopt the id of the running call with the same input.
-            if let t = s.tools.last(where: { $0.isRunning && $0.name == req.tool
-                                             && Normalizer.syntheticToolId($0.name, $0.input) == req.id }) {
+            // Claude's PermissionRequest has no tool_use_id; adopt the id of the running call with
+            // the same input, or the sole running call of that tool (when a PreToolUse hook rewrote tool_input).
+            if let t = s.tools.last(where: { $0.isRunning && $0.name == req.tool && $0.subagentId == e.subagentId
+                                             && Normalizer.syntheticToolId($0.name, $0.input) == req.id })
+                ?? s.tools.last(where: { $0.isRunning && $0.name == req.tool
+                                         && Normalizer.syntheticToolId($0.name, $0.input) == req.id }) {
                 req.id = t.id
+            } else {
+                let candidates = s.tools.filter { $0.isRunning && $0.name == req.tool && $0.subagentId == e.subagentId }
+                if candidates.count == 1 { req.id = candidates[0].id }
             }
             s.status = .needsInput
             s.pendingPermission = req
             s.needsInputMessage = "\(req.tool): \(req.summary)"
+            s.inputRequestedAt = e.at
 
         case .turnEnd(let last):
             // Kimi sub-agents fire Stop under the parent's session id while its Agent call runs.
@@ -217,7 +237,7 @@ public enum SessionReducer {
     private static func resume(_ s: inout SessionState) {
         if s.status == .stuck || s.status == .idle || s.status == .ended { s.status = .running }
         if s.status == .needsInput && s.pendingPermission == nil && !lastToolIsAsk(s) { s.status = .running }
-        if s.status == .running { s.needsInputMessage = nil; s.stuckReason = nil }
+        if s.status == .running { clearAttention(&s) }
     }
 
     private static func lastToolIsAsk(_ s: SessionState) -> Bool {
@@ -251,6 +271,7 @@ public enum SessionReducer {
     private static func clearAttention(_ s: inout SessionState) {
         s.needsInputMessage = nil
         s.pendingPermission = nil
+        s.inputRequestedAt = nil
         s.stuckReason = nil
     }
 

@@ -30,6 +30,9 @@ public final class Store {
             );
             CREATE INDEX IF NOT EXISTS activity_at ON activity(at);
             CREATE INDEX IF NOT EXISTS activity_lane ON activity(kind, session, at);
+            -- Covers `awayEnd`, which the panel asks on most redraws: without it every absence row
+            -- is a random read of the table, many of them misses.
+            CREATE INDEX IF NOT EXISTS activity_kind_at ON activity(kind, at, value);
             CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value REAL NOT NULL);
             """)
     }

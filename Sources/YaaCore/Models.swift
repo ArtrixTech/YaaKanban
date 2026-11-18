@@ -287,6 +287,9 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var needsInputMessage: String?
     /// When it last started waiting on the user (`.needsInput`), for the reminder flash.
     public var needsInputSince: Date?
+    /// When the latest prompt or permission request arrived, so a newer session-file transition
+    /// (`busy`/`idle`) can clear `.needsInput` even if sibling sub-agent tools ran meanwhile.
+    public var inputRequestedAt: Date?
     public var pendingPermission: PermissionRequest?
     public var startedAt: Date
     public var lastEventAt: Date

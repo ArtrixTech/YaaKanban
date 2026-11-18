@@ -1,6 +1,9 @@
 import AppKit
+import os
 import SwiftUI
 import YaaCore
+
+private let reopenLog = Logger(subsystem: "com.artrix.yaakanban", category: "reopen")
 
 @main
 struct YaaKanbanApp: App {
@@ -101,9 +104,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// The Dock icon (shown while the main window or the setup guide is open) brings the guide
     /// back, else the main window. Clicking a notification sends a reopen too: its jump to the
-    /// session must not end under the main window, so a reopen right after one does nothing.
+    /// session must not end under the main window, so a reopen sent by the notification system,
+    /// or right after a notification's action, does nothing.
     /// False, or SwiftUI opens the main window itself.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        let from = Self.reopenSender()
+        reopenLog.info("reopen from \(from ?? "?", privacy: .public)")
+        if let from, Self.notificationSenders.contains(where: from.contains) { return false }
         // The click's response can arrive just after the reopen.
         Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [model] _ in
             MainActor.assumeIsolated {
@@ -112,6 +119,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         return false
+    }
+
+    /// Processes that send the reopen when a notification is clicked.
+    private static let notificationSenders = ["usernoted", "NotificationCenter", "UserNotifications"]
+
+    /// The executable path of the process that sent the reopen event being handled.
+    private static func reopenSender() -> String? {
+        guard let pid = NSAppleEventManager.shared().currentAppleEvent?
+            .attributeDescriptor(forKeyword: AEKeyword(keySenderPIDAttr))?.int32Value, pid > 0 else { return nil }
+        if let path = NSRunningApplication(processIdentifier: pid)?.executableURL?.path { return path }
+        var buf = [CChar](repeating: 0, count: 4096)
+        return proc_pidpath(pid, &buf, UInt32(buf.count)) > 0 ? String(cString: buf) : nil
     }
 
     /// A quit sent by loginwindow for a logout, restart or shutdown carries its reason; the

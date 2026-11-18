@@ -474,13 +474,15 @@ struct TodayFigures: View {
 }
 
 /// The floating panel's figures: leverage over the last `window` as the hero with its trend
-/// behind, and today's agent hours. The arrow and the dashed line read against today's usual
-/// hour (`typicalLeverage`), not the day so far, so like is compared with like.
+/// behind, and today's agent hours. The arrow is the trend at this moment: whether the leverage is
+/// rising, falling or level over the last `trendLookback` points. The dashed line reads against today's
+/// usual hour (`typicalLeverage`), not the day so far, so like is compared with like.
 /// The folded rail keeps only the leverage. Windows move by whole minutes so the report cache holds
 /// between redraws.
 struct RecentFigures: View {
     @Environment(AppModel.self) private var model
     var folded = false
+    @State private var hover = false
 
     /// Fixed, so the panel's cards sit at the same height folded or not.
     static let height: CGFloat = 52
@@ -490,6 +492,9 @@ struct RecentFigures: View {
     /// Trend points, each the leverage of the `window` up to it, a `trendStep`th of that apart:
     /// together they span the last `window` too.
     static let trendStep = 24, trendPoints = trendStep + 1
+    /// How many trend points back the arrow looks: 1 step (2.5 minutes), the latest segment of the
+    /// already 1-hour-smoothed curve, so the arrow matches the slope entering the current dot.
+    static let trendLookback = 1
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { ctx in
@@ -502,59 +507,69 @@ struct RecentFigures: View {
             let leverage = trend.last ?? nil
             let today = model.report(DateInterval(start: Calendar.current.startOfDay(for: ctx.date), end: end), buckets: 1)
             let baseline = typicalLeverage(at: ctx.date)
-            let arrow = Self.direction(leverage, against: baseline)
-            let help = String(localized: "Over the last hour, agent work while you were here per hour you were here. The arrow compares it with today's average 1-hour leverage, taken at each whole hour.")
-            Group {
-                if folded {
-                    // 20 pt wide: the number alone, and an arrow for its trend instead of the chart.
-                    VStack(spacing: 2) {
-                        Text("Leverage").font(.system(size: 8, weight: .medium)).foregroundStyle(.secondary)
-                        Text(leverage.map { String(format: $0 < 10 ? "%.1f" : "%.0f", $0) } ?? "–")
-                            .font(.figure(12, .bold))
-                            .lineLimit(1).minimumScaleFactor(0.5)
-                        if let (symbol, tint) = arrow {
-                            Image(systemName: symbol).font(.system(size: 8, weight: .bold)).foregroundStyle(tint)
-                        }
-                    }
-                    .padding(.horizontal, 1)
-                    .help(help)
-                } else {
-                    HStack(alignment: .center, spacing: 0) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            // The same arrow as the folded rail's, beside the caption so the figure keeps its room.
-                            HStack(spacing: 3) {
-                                caption(String(localized: "Leverage"))
-                                if let (symbol, tint) = arrow {
-                                    Image(systemName: symbol).font(.system(size: 9, weight: .bold)).foregroundStyle(tint)
-                                }
+            let arrow = Self.direction(trend, lookback: Self.trendLookback)
+            let help = String(localized: "Over the last hour, agent work while you were here per hour you were here. The arrow shows whether the 1-hour leverage is rising, falling or level right now.")
+            Button {
+                AppWindows.open(.overview)
+            } label: {
+                Group {
+                    if folded {
+                        // 20 pt wide: the number alone, and an arrow for its trend instead of the chart.
+                        VStack(spacing: 2) {
+                            Text("Leverage").font(.system(size: 8, weight: .medium)).foregroundStyle(.secondary)
+                            Text(leverage.map { String(format: $0 < 10 ? "%.1f" : "%.0f", $0) } ?? "–")
+                                .font(.figure(12, .bold))
+                                .lineLimit(1).minimumScaleFactor(0.5)
+                            if let (symbol, tint) = arrow {
+                                Image(systemName: symbol).font(.system(size: 8, weight: .bold)).foregroundStyle(tint)
                             }
-                            value(leverage, size: 24)
                         }
-                        .frame(width: 70, alignment: .leading)
+                        .padding(.horizontal, 1)
                         .help(help)
-                        let ticks = Self.ticks(end: end, span: span, slices: slices)
-                        VStack(spacing: 1) {
-                            Sparkline(values: trend, baseline: baseline, ticks: ticks.map(\.at))
-                                .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.3)],
-                                                     startPoint: .leading, endPoint: .trailing))
-                            TimeAxis(ticks: ticks)
+                    } else {
+                        HStack(alignment: .center, spacing: 0) {
+                            VStack(alignment: .leading, spacing: 0) {
+                                // The same arrow as the folded rail's, beside the caption so the figure keeps its room.
+                                HStack(spacing: 3) {
+                                    caption(String(localized: "Leverage"))
+                                    if let (symbol, tint) = arrow {
+                                        Image(systemName: symbol).font(.system(size: 9, weight: .bold)).foregroundStyle(tint)
+                                    }
+                                }
+                                value(leverage, size: 24)
+                            }
+                            .frame(width: 70, alignment: .leading)
+                            .help(help)
+                            let ticks = Self.ticks(end: end, span: span, slices: slices)
+                            VStack(spacing: 1) {
+                                Sparkline(values: trend, baseline: baseline, ticks: ticks.map(\.at))
+                                    .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.3)],
+                                                         startPoint: .leading, endPoint: .trailing))
+                                TimeAxis(ticks: ticks)
+                            }
+                            .padding(.top, 6).padding(.bottom, 3)
+                            .help("Leverage trend: each point is the leverage over the hour up to then, across the last \(SettingsView.duration(Self.window / 60)); the dashed line is today's average 1-hour leverage, taken at each whole hour.")
+                            VStack(alignment: .trailing, spacing: 2) {
+                                caption(String(localized: "Agent hours today"))
+                                Text(duration(today.agentTime)).font(.figure(15))
+                            }
+                            .frame(width: 64, alignment: .trailing)
+                            .help("All agents' running time today, added up")
+                            .padding(.leading, 8)
                         }
-                        .padding(.top, 6).padding(.bottom, 3)
-                        .help("Leverage trend: each point is the leverage over the hour up to then, across the last \(SettingsView.duration(Self.window / 60)); the dashed line is today's average 1-hour leverage, taken at each whole hour.")
-                        VStack(alignment: .trailing, spacing: 2) {
-                            caption(String(localized: "Agent hours today"))
-                            Text(duration(today.agentTime)).font(.figure(15))
-                        }
-                        .frame(width: 64, alignment: .trailing)
-                        .help("All agents' running time today, added up")
-                        .padding(.leading, 8)
+                        .padding(.leading, 12).padding(.trailing, 12)
                     }
-                    .padding(.leading, 12).padding(.trailing, 12)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(height: Self.height)
+                .background(RecentFigures.plate(radius: folded ? 6 : 9, hover: hover))
+                .contentShape(RoundedRectangle(cornerRadius: folded ? 6 : 9, style: .continuous))
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .frame(height: Self.height)
-            .background(RecentFigures.plate(radius: folded ? 6 : 9))
+            .buttonStyle(Pressable())
+            .background(PanelDragExempt())
+            .panelHover { hover = $0 }
+            .animation(.easeOut(duration: 0.12), value: hover)
+            .accessibilityLabel(Text("Overview"))
         }
     }
 
@@ -597,12 +612,14 @@ struct RecentFigures: View {
         return each.isEmpty ? nil : each.reduce(0, +) / Double(each.count)
     }
 
-    /// Up or down when the leverage is a tenth or more above or below today's usual, else level.
-    static func direction(_ now: Double?, against base: Double?) -> (String, Color)? {
-        guard let now, let base else { return nil }
-        if now > base * 1.1 { return ("arrow.up.right", Sparkline.lime) }
-        if now < base * 0.9 { return ("arrow.down.right", .orange) }
-        return ("arrow.right", .secondary)
+    /// Up or down when the latest point is above or below the one `lookback` points before it by
+    /// at least 0.05× and 2% of it, else level. Nil while either is missing.
+    static func direction(_ trend: [Double?], lookback: Int) -> (String, Color)? {
+        guard trend.count > lookback, let now = trend.last ?? nil,
+              let before = trend[trend.count - 1 - lookback] else { return nil }
+        let delta = now - before
+        if abs(delta) < max(0.05, before * 0.02) { return ("arrow.right", .secondary) }
+        return delta > 0 ? ("arrow.up.right", Sparkline.lime) : ("arrow.down.right", .orange)
     }
 
     private func value(_ v: Double?, size: CGFloat) -> some View {
@@ -620,9 +637,9 @@ struct RecentFigures: View {
         Text(s).font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
     }
 
-    static func plate(radius: CGFloat) -> some View {
+    static func plate(radius: CGFloat, hover: Bool = false) -> some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        return shape.fill(Fill.control)
+        return shape.fill(hover ? Fill.controlHover : Fill.control)
     }
 }
 

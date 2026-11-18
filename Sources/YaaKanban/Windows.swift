@@ -3,17 +3,18 @@ import SwiftUI
 import YaaCore
 import YaaIntegrations
 
-/// Header shared by the panel and the menu: mark, title, and counts of what wants the user.
+/// Header of the floating panel: mark and title (opening the main window on click, with a faint
+/// hint on hover), counts of what wants the user, and trailing controls.
 struct BoardHeader<Trailing: View>: View {
     @Environment(AppModel.self) private var model
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
-        // A narrow panel drops the name, then tightens the chips and gaps, then drops the chips'
-        // capsules, rather than pushing the logo and the buttons out of the window: docked at 300 pt
-        // the row also holds the fold button, and four chips need a tighter row.
+        // A narrow panel tightens the chips and gaps, then drops the name, then drops the chips'
+        // capsules, rather than pushing the logo and the buttons out of the window.
         ViewThatFits(in: .horizontal) {
             row(named: true)
+            row(named: true, chips: .tight)
             row(named: false)
             row(named: false, chips: .tight)
             row(named: false, chips: .bare)
@@ -27,10 +28,7 @@ struct BoardHeader<Trailing: View>: View {
 
     private func row(named: Bool, chips: CountChip.Style = .regular) -> some View {
         HStack(spacing: chips == .regular ? 6 : Space.xs) {
-            // In from the edge, level with the cards' content rather than their corners.
-            BrandGlyph(size: 14).padding(.leading, Space.xs)
-            if named { Text(verbatim: "YaaKanban").font(.ui(.body, .bold)).lineLimit(1).fixedSize() }
-            Spacer(minLength: 4)
+            HeaderBrand(named: named, tight: chips != .regular)
             HStack(spacing: chips == .regular ? 4 : Space.xxs) {
                 let counts = self.counts
                 ForEach(counts, id: \.0.rank) { st, n in CountChip(count: n, status: st, style: chips).transition(.scale.combined(with: .opacity)) }
@@ -42,6 +40,56 @@ struct BoardHeader<Trailing: View>: View {
     }
 
     private var counts: [(DisplayStatus, Int)] { statusCounts(model.activeSessions) }
+}
+
+private struct HeaderBrand: View {
+    let named: Bool
+    let tight: Bool
+    @State private var hover = false
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Button { AppWindows.open(.main) } label: {
+                HStack(spacing: tight ? Space.xs : 6) {
+                    // In from the edge, level with the cards' content rather than their corners.
+                    BrandGlyph(size: 14, lit: hover).padding(.leading, Space.xs)
+                    if named { Text(verbatim: "YaaKanban").font(.ui(.body, .bold)).lineLimit(1).fixedSize() }
+                }
+                .frame(height: BoardHeaderHeight.value)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(Pressable())
+            .background(PanelDragExempt())
+            .panelHover { hover = $0 }
+            .accessibilityLabel(Text("Open main window"))
+
+            // Sits in the spacer's room as an overlay so hovering never alters `ViewThatFits`.
+            Color.clear.frame(minWidth: 4, idealWidth: 4, maxWidth: .infinity)
+                .frame(height: BoardHeaderHeight.value)
+                .overlay(alignment: .leading) {
+                    ViewThatFits(in: .horizontal) {
+                        hintLabel(named: true)
+                        hintLabel(named: false)
+                        Color.clear.frame(width: 0, height: 0)
+                    }
+                    .opacity(hover ? 1 : 0)
+                    .offset(x: hover ? 0 : -2)
+                }
+                .allowsHitTesting(false)
+        }
+        .animation(.easeOut(duration: 0.14), value: hover)
+    }
+
+    private func hintLabel(named: Bool) -> some View {
+        HStack(spacing: 2) {
+            if named {
+                Text("Main window").font(.ui(.footnote, .medium)).lineLimit(1).fixedSize()
+            }
+            Image(systemName: "chevron.right").font(.system(size: 8.5, weight: .bold))
+        }
+        .foregroundStyle(.secondary.opacity(0.72))
+        .padding(.leading, 5)
+    }
 }
 
 /// Sessions per state that has any, most urgent first: the count chips.
@@ -323,7 +371,9 @@ struct PickRow: View {
             }
             Spacer(minLength: Space.xs)
             if onBoard { StatusGlyph(status: model.display(s), size: 14) }
-            Text(relative(s.lastEventAt)).font(.ui(.caption).monospacedDigit()).foregroundStyle(.tertiary)
+            TimelineView(.everySecond) { _ in
+                Text(relative(s.lastEventAt)).font(.ui(.caption).monospacedDigit()).foregroundStyle(.tertiary)
+            }
         }
         .padding(.horizontal, Space.m).padding(.vertical, 5)
         .background(RoundedRectangle(cornerRadius: Radius.small, style: .continuous).fill(hover ? Fill.selected : .clear))
@@ -455,48 +505,39 @@ struct FloatingPanelView: View {
     private var header: some View {
         @Bindable var settings = model.settings
         return BoardHeader {
-                if let edge = room?.dock {
-                    if room?.peek == true && !settings.sidebarExpanded {
-                        IconButton(symbol: "pin", help: String(localized: "Pin open")) {
-                            settings.sidebarExpanded = true
-                            room?.peek = false
-                        }
-                    } else {
-                        IconButton(symbol: edge == .right ? "chevron.right.2" : "chevron.left.2", help: String(localized: "Fold into sidebar")) {
-                            settings.sidebarExpanded = false
-                        }
+            if let edge = room?.dock {
+                if room?.peek == true && !settings.sidebarExpanded {
+                    IconButton(symbol: "pin", help: String(localized: "Pin open")) {
+                        settings.sidebarExpanded = true
+                        room?.peek = false
+                    }
+                } else {
+                    IconButton(symbol: edge == .right ? "chevron.right.2" : "chevron.left.2", help: String(localized: "Fold into sidebar")) {
+                        settings.sidebarExpanded = false
                     }
                 }
-                IconButton(symbol: "macwindow", help: String(localized: "Main window")) { AppWindows.open(.main) }
-                IconButton(symbol: "gearshape", help: String(localized: "Settings")) { AppWindows.open(.settings) }
-                IconButton(symbol: settings.panelCollapsed ? "chevron.down" : "chevron.up",
-                           help: settings.panelCollapsed ? String(localized: "Expand") : String(localized: "Collapse")) {
-                    room?.holdTop()
-                    withAnimation(.snappy) { settings.panelCollapsed.toggle() }
-                }
-                IconButton(symbol: "xmark", help: String(localized: "Hide (⌥⌘K)"), action: onHide)
             }
+            IconButton(symbol: "gearshape", help: String(localized: "Settings")) { AppWindows.open(.settings) }
+            IconButton(symbol: "xmark", help: String(localized: "Hide (⌥⌘K)"), action: onHide)
+        }
     }
 
     @ViewBuilder private var list: some View {
-        @Bindable var settings = model.settings
-            if searchShown {
-                scrolling {
-                    SearchResults(query: query) { closeSearch() }
-                }
-                .id("search")
-            } else if !settings.panelCollapsed {
-                if model.activeSessions.isEmpty {
-                    EmptyBoard().transition(.opacity)
-                } else {
-                    scrolling {
-                        BoardList(expanded: expanded) { s in
-                            withAnimation(.spring(duration: 0.3, bounce: 0.15)) { expanded = expanded == s.id ? nil : s.id }
-                        }
-                    }
-                    .transition(.opacity)
+        if searchShown {
+            scrolling {
+                SearchResults(query: query) { closeSearch() }
+            }
+            .id("search")
+        } else if model.activeSessions.isEmpty {
+            EmptyBoard().transition(.opacity)
+        } else {
+            scrolling {
+                BoardList(expanded: expanded) { s in
+                    withAnimation(.spring(duration: 0.3, bounce: 0.15)) { expanded = expanded == s.id ? nil : s.id }
                 }
             }
+            .transition(.opacity)
+        }
     }
 
     /// The list area: as tall as `shownList`, scrolling, each edge fading out instead of being cut
@@ -588,7 +629,7 @@ struct FloatingPanelView: View {
     /// to a shorter list.
     private func grow(to h: CGFloat) { listHeight = h }
 
-    private var listShown: Bool { searchShown || (!model.settings.panelCollapsed && !model.activeSessions.isEmpty) }
+    private var listShown: Bool { searchShown || !model.activeSessions.isEmpty }
 
     private var shownList: CGFloat {
         let fits = room.map { max(Self.minList, $0.height - chrome) } ?? .infinity
@@ -641,8 +682,8 @@ final class PanelRoom {
     var holdOpen = false
     /// Makes the panel the key window, so the search field takes typing without a click.
     @ObservationIgnored var makeKey: () -> Void = {}
-    /// Until when a height change keeps the top edge still: the user is resizing or folding the
-    /// list by hand. Otherwise the panel grows and shrinks about its middle.
+    /// Until when a height change keeps the top edge still: the user is resizing the list or
+    /// toggling search. Otherwise the panel grows and shrinks about its middle.
     @ObservationIgnored var topHeldUntil: CFTimeInterval = 0
 
     func holdTop() { topHeldUntil = CACurrentMediaTime() + 0.6 }
@@ -709,7 +750,7 @@ private struct GripTracker: NSViewRepresentable {
 /// Opens the SwiftUI windows from AppKit code (the floating panel is outside any scene, so it has
 /// no `openWindow`). `WindowOpener`, living in the menu-bar label, does the opening.
 enum AppWindows {
-    enum Kind: String { case main, settings, setup }
+    enum Kind: String { case main, overview, settings, setup }
     static let request = Notification.Name("YaaOpenWindow")
     static func open(_ k: Kind) { NotificationCenter.default.post(name: request, object: k.rawValue) }
 }
@@ -740,6 +781,7 @@ struct WindowOpener: ViewModifier {
             NSApp.activate()
             switch AppWindows.Kind(rawValue: n.object as? String ?? "") {
             case .main: openWindow(id: "main")
+            case .overview: model.selection = AppModel.overview; openWindow(id: "main")
             // Settings is a page of the main window.
             case .settings: model.selection = AppModel.settingsPage; openWindow(id: "main")
             case .setup: openWindow(id: SetupGuide.id)

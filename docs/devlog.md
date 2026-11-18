@@ -1,8 +1,93 @@
 # Devlog
 
-## chore(release): bump the version to 0.2.5
+## chore(release): bump the version to 0.2.6
 
 `PENDING` | 2026-11-18
+
+- **Changes**: `CHANGELOG.md` Unreleased → `[0.2.6] - 2026-11-18`; `Info.plist` 0.2.6 (build 10).
+- **Reason**: Ship the panel navigation changes, leverage arrow slope, CPU reductions and the permission-prompt/notification fixes.
+- **User feedback**: "帮我发版"
+- **Result**: Released via PR develop → main and `make release` signed by team 5KZD8GBF7G.
+
+## perf(store): cover absence lookups with an index
+
+`f82f2a8` | 2026-11-18
+
+- **Changes**: `Store` schema adds `activity_kind_at ON activity(kind, at, value)`.
+- **Reason**: After the model fixes, the largest main-thread cost was `RecentFigures` → `AppModel.report` → `Store.awayEnd`, blocked in `pread`. The query used `activity_lane (kind=?)` and fetched each of the ~930 `away` rows from the table to read `value`, mostly random page misses.
+- **User feedback**: Same as `96be3df`.
+- **Process**: Checked `EXPLAIN QUERY PLAN` on a `.backup` copy of the history DB (31k activity rows). The new plan is `SEARCH activity USING COVERING INDEX activity_kind_at (kind=? AND at<?)`.
+- **Result**: `awayEnd` is answered from the index alone.
+- **Notes**: Created by `IF NOT EXISTS` at open, so existing databases get it on the next launch.
+
+## perf(panel): measure folded rail cards only after they change
+
+`e48be31` | 2026-11-18
+
+- **Changes**: `NarrowSessionCard` (`SidebarRail.swift`) keeps its hidden full-width `SessionCard` copy only for 500 ms after a `Measure` key change (session, its sub-agents, expanded, width), via `.task(id:)` and `measuring` state. Before, the copy was always present.
+- **Reason**: Every folded card laid out a hidden full card on every rail redraw, including the card's 1 Hz clock. It was the largest single cost (about 557 samples) in the folded-panel profile.
+- **User feedback**: Same as `96be3df`.
+- **Process**: Part of the interleaved A/B in `96be3df`. The independent review checked first appearance (width 0, then set) and that removing the copy does not report height 0.
+- **Result**: Idle folded cards no longer lay out a hidden copy.
+- **Notes**: A session sending events faster than every 500 ms keeps its copy alive. Height inputs outside the key (`canDecide`, font or size category) wait for the next key change. If the panel is not laid out during the 500 ms window, the old height stays until the next change.
+
+## perf(model): derive the boards once per change and skip no-op writes
+
+`96be3df` | 2026-11-18
+
+- **Changes**: `AppModel`: `activeSessions`, `workingParents`, `subagents(of:)`, `display(_:)` now read a memoized `Derived` (live set, working parents, active list, children by parent, `claudeWaiting`), rebuilt when `sessionsVersion` (bumped in `sessions.didSet`), pins or retention change, or once `expires` (earliest retention/linger limit that kept a session live) passes. `isLive` uses a per-pass `LiveIndex` (pinned set, top-level sessions by pid) instead of scanning all sessions. `board` cached on (active, manualOrder, pinned, placed). `update()` returns early when `new == old`. `tick()` bumps observed `boardClock` once `boardsExpire` passes, so retention still removes cards. `pendingReplies` is now observed (`canDecide`). `DetailView` re-renders every 10 s (`clock` task); `PickRow`'s relative time sits in a `TimelineView(.everySecond)`. `scanWaitingClaude` checks `derived.claudeWaiting`.
+- **Reason**: High CPU (32.5 % of a core after 3 h with the main window open). `sample` showed the main thread redrawing about every 1.7 s even when idle, because the 10 s tick, the 5 s scan and the 1 Hz Claude poll rewrote every session and `@Observable` invalidates every reader on any write. Each redraw called `activeSessions`/`isLive` hundreds of times, and `isLive` scans all ~570 sessions for each recently ended one (about n²), copying large `SessionState` structs.
+- **User feedback**: "目前yaakanbancpu占用似乎很高。分析并排查"; then "按照建议来修复".
+- **Process**: Baseline from `sample` and per-process CPU-time deltas. Total CPU is too noisy under this machine's load (1-min load 4–40, agent activity varies), so the deciding measure was main-thread busy samples (30 s `sample`, excluding `mach_msg2_trap`), interleaved over 3 rounds of HEAD (`a592576`) vs this series. Base: 17.6 %, 8.9 %, 5.4 % busy (CPU 25.6 / 11.0 / 5.4 %). Fix: 3.3 %, 3.6 %, 4.0 % (CPU 3.2 / 6.7 / 4.1 %). An independent read-only review confirmed `isLive`/`board` equivalence and the early return, and flagged views computing from `Date()` that relied on the 10 s rewrite (`DetailView`, `PickRow`), fixed here.
+- **Result**: Fewer redraws, and each is cheaper. With the next two commits, the fixed build is lower than base in every round.
+- **Notes**: The 1 Hz clock alignment (`TimelineSchedule.everySecond` in `Theme.swift`, which cut panel layout passes from about 60/s to about 1–6/s) landed inside `a592576` without a devlog entry. `display(_:)` judges liveness by the stored session (fallback `isLive` for ids not in `sessions`). Time-only board changes reach views up to one tick (10 s) late, as before. Any view that computes from `Date()` without a `TimelineView` no longer refreshes on its own.
+
+## fix(panel,claude): match leverage arrow to live slope and clear terminal-answered prompts
+
+`a592576` | 2026-11-18
+
+- **Changes**: `RecentFigures` (`DashboardView.swift`) changed `trendLookback` from `4` (10 min) to `1` (the terminal 2.5 min segment of the already 1-hour-smoothed rolling curve) with deadband `max(0.05, before * 0.02)`, and updated the tooltip across 9 `Localizable.strings`. Added `SessionState.inputRequestedAt` (`Models.swift`); `SessionReducer` now transitions hooked `.needsInput` sessions to `.running` (clearing `pendingPermission`) on a newer `.statusSnapshot(.running)` and ends the turn on a newer `.statusSnapshot(.idle)`, plus falls back to the sole running call of `(req.tool, e.subagentId)` when a `PreToolUse` hook rewrites `tool_input` before `PermissionRequest`. `AppModel` polls `scanner.scan()` at 1 Hz (and on app activation) while any Claude session is `.needsInput`, and `endReportedTools` skips the 10 s delay for transcript-failed `pendingPermission` calls. Added 3 tests in `ReducerTests.swift`.
+- **Reason**: (1) Comparing `trend[-1]` against `trend[-5]` on a 1-hour moving average created ~6 min of phase lag after a trough, showing `↘` (`3.8×` vs `4.16×` 10 min ago) while the visible sparkline climbed continuously from `3.16×`. (2) Approving/denying/Esc-cancelling a prompt in Claude Code's TUI does not abort `yaak hook PermissionRequest` and fires no hook until `PostToolUse` (or ever, on TUI denial/Esc), while Claude Code immediately updates `~/.claude/sessions/<pid>.json` (`status: "busy"` or `"idle"`) — which `SessionReducer` previously ignored when `s.hooked == true`.
+- **User feedback**: "明明在上涨 为啥显示下箭头？另外，claudecode里面，我自己已经approve没有经过yaak，但yaak仍然显示等待approve。"
+- **Process**: Replayed `history.sqlite` around `16:04` (reproducing both `3.8×` `↘` on `RecentFigures` and `claude-code:e6a86061` / `565c795a` stuck in `needsInput` after terminal approval) and verified Claude Code `2.1.327`'s `$P.openAsk` + `Gat` (`PermissionRequest`) + `dgt` (`sessions/<pid>.json`) lifecycle. Ran `make build`, `make test`, `make l10n`, and `make install`.
+- **Result**: Leverage arrow matches the visible terminal slope of the sparkline; terminal-answered Claude prompts clear `needsInput`, release the blocked hook process, and withdraw notifications within ≤1 s.
+- **Notes**: `inputRequestedAt` prevents sibling sub-agent tool events (which bump `lastEventAt` while the main agent's dialog is open or right after terminal approval) from masking the approval timestamp in `sessions/<pid>.json`.
+
+## fix(panel): clear stuck logo hover in the floating panel
+
+`65085aa` | 2026-11-18
+
+- **Changes**: Removed eager `.assumeInside`/`set(true)` on `PanelHover.Tracker.updateTrackingAreas` and added an 80 ms `.common`-mode verification timer while `inside == true` checking live `NSEvent.mouseLocation`, `NSWindow.windowNumber(at:)`, and `visibleRect` (`FloatingPanel.swift`). Extracted `HeaderBrand` (`Windows.swift`) with per-row `@State hover` and a static non-hit-testing hint overlay instead of a dynamically mounted second `.panelHover` tracker.
+- **Reason**: Two paths left the logo hover permanently wedged when YaaKanban was inactive: (1) dynamically mounting `mainWindowHint` with `.assumeInside` under a moving cursor (or unfolding a right-docked rail for one frame before `fit()` shifted `host` left) set `inside = true` without WindowServer arming `mouseExited`; (2) any missed `mouseExited` across drags, focus switches, or `ViewThatFits` row transitions had no self-healing check.
+- **User feedback**: "现在在侧边栏的 logo 的 Hover 这个位置，经常我已经 focus 在其他的地方了，但是现在这个位置的 Hover仍然不会掉"
+- **Process**: Verified `NSWindow.windowNumber(at:belowWindowWithWindowNumber:0)` returns the borderless `NSPanel`'s `windowNumber` with `NSGlassEffectView` on macOS 26 via `swift -e`; ran `make build`, `make test`, `make l10n`, and `make install`.
+- **Result**: Hover activates reliably when inactive and always clears within ≤80 ms once the pointer leaves or another window covers the point.
+- **Notes**: Watch timer runs only while `inside == true` and invalidates immediately on exit or deallocation (`[weak self]`), keeping idle overhead at zero.
+
+## feat(panel): open overview from leverage bar and main window from logo
+
+`2714e81` | 2026-11-18
+
+- **Changes**: `RecentFigures` (`DashboardView.swift`) is now a `Button` (`Pressable`, `PanelDragExempt`, `.panelHover`) whose plate brightens on hover (`Fill.controlHover`) and opens `AppWindows.open(.overview)`. `BoardHeader` (`Windows.swift`) makes the top-left `BrandGlyph` + `YaaKanban` lockup a `Button` opening `.main` and reveals a faint `Main window ›` hint in the spacer's overlay on hover (without affecting `ViewThatFits`). Removed the `macwindow` and `chevron.up`/`chevron.down` collapse buttons from `FloatingPanelView`, `Preferences.panelCollapsed`, and the `Expand`/`Collapse` strings across all 9 locales. Added `PanelHover` (`NSTrackingArea` `.activeAlways`) in `FloatingPanel.swift` so hover works when YaaKanban is inactive. Updated `docs/spec.md` and `CHANGELOG.md`.
+- **Reason**: Streamline floating-panel chrome by turning the leverage bar and brand mark into direct navigation targets and dropping redundant header buttons.
+- **User feedback**: 侧边栏杠杆 bar hover 效果并点击直接打开概览页面；顶栏左上角 logo hover 显示小箭头与淡淡的主界面文字标识，点击打开主界面，去掉原打开主界面按钮；去掉侧边栏顶栏向上箭头折叠整个侧边栏按钮。
+- **Process**: Verified with `swift -e` that SwiftUI's `onHover` stays false in an inactive `.nonactivatingPanel`, whereas `NSTrackingArea` with `.activeAlways` (`PanelHover`) tracks reliably; `make build`, `make test` (251 passed), `make l10n` (0 problems), `make install`, and visual snapshot check.
+- **Result**: Built, tested, localized, and installed.
+- **Notes**: `mainWindowHint` sits in an `.overlay` on the flexible spacer (`minWidth: 4, maxWidth: .infinity`) with 0-gap hit area from the logo, so hovering never perturbs `ViewThatFits` or shifts count chips.
+
+## fix(panel): show the leverage trend and keep notifications off main
+
+`91f507a` | 2026-11-18
+
+- **Changes**: `RecentFigures.direction` compares the latest 1-hour leverage point with the one 4 points (10 min) back; level when |Δ| < max(0.1, 5%). Help string + 9 translations updated. `applicationShouldHandleReopen` reads the reopen Apple Event's sender PID (`keySenderPIDAttr`) and ignores reopens sent by usernoted/NotificationCenter; the 0.3 s/1.5 s timing guard stays as fallback. Logs `reopen from <path>` (category `reopen`).
+- **Reason**: The arrow compared with today's usual hour, not the momentary direction. The timing guard missed when the notification response arrived >0.3 s after the reopen, so the main window opened on a notification click.
+- **User feedback**: "当前的侧边栏的杠杆箭头改为趋势。是指当前这一刻是在增加还是减少还是持平"; "打开发来的通知之后……还会打开主界面窗口……不要打开主界面窗口，只做跳转"
+- **Result**: `make test` 251 passed; installed. Notification-sender match not yet observed live.
+- **Notes**: If a click still opens the window, check `log show --predicate 'subsystem == "com.artrix.yaakanban" AND category == "reopen"' --last 10m` for the actual sender and add it to `notificationSenders`.
+
+## chore(release): bump the version to 0.2.5
+
+`99ac8da` | 2026-11-18
 
 - **Changes**: `CHANGELOG.md` Unreleased → `[0.2.5] - 2026-11-18`; `Info.plist` 0.2.5 (build 9).
 - **Reason**: Ship the leverage rework and Mark as to review.

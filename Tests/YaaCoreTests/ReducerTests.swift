@@ -366,6 +366,65 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(idle.runningTools.isEmpty)
     }
 
+    /// Approving or answering a prompt in Claude's TUI fires no hook until the tool finishes (or
+    /// ever, if denied), while the session file flips to `"busy"` right away.
+    @Test func busySnapshotClearsTerminalApprovedHookedPrompt() {
+        let asked = fold([
+            claude("UserPromptSubmit", ["prompt": .string("x")]),
+            claude("PreToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("u1"),
+                                  "tool_input": .object(["command": .string("sleep 60")])], at: 1),
+            claude("PermissionRequest", ["tool_name": .string("Bash"),
+                                         "tool_input": .object(["command": .string("sleep 60")]),
+                                         Normalizer.awaitingKey: .bool(true)], at: 2),
+        ])
+        #expect(asked.status == .needsInput && asked.pendingPermission != nil)
+
+        // A busy snapshot from before PermissionRequest (before the TUI dialog opened) must not clear it.
+        let preDialog = SessionReducer.apply(
+            AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(1.5), kind: .statusSnapshot(.running)),
+            to: asked
+        )
+        #expect(preDialog.status == .needsInput && preDialog.pendingPermission != nil)
+
+        // Even if a sibling sub-agent ran a tool after the user approved in the terminal (bumping lastEventAt),
+        // the busy snapshot written at approval time is still newer than inputRequestedAt and clears it.
+        let withSubagent = fold([
+            claude("SubagentStart", ["agent_id": .string("a1"), "agent_type": .string("Explore")], at: 3),
+            claude("PreToolUse", ["agent_id": .string("a1"), "tool_name": .string("Read"), "tool_use_id": .string("r1"),
+                                  "tool_input": .object(["file_path": .string("/tmp/a")])], at: 5),
+        ], into: asked)
+        #expect(withSubagent.status == .needsInput)
+
+        let approved = SessionReducer.apply(
+            AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(4), kind: .statusSnapshot(.running)),
+            to: withSubagent
+        )
+        #expect(approved.status == .running)
+        #expect(approved.pendingPermission == nil)
+        #expect(approved.needsInputMessage == nil)
+        #expect(approved.inputRequestedAt == nil)
+    }
+
+    /// Pressing Esc on a Claude permission prompt fires no Stop hook; the session file going idle
+    /// ends the turn and clears the pending permission.
+    @Test func idleSnapshotClearsCancelledHookedPermission() {
+        let asked = fold([
+            claude("UserPromptSubmit", ["prompt": .string("x")]),
+            claude("PreToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("u1"),
+                                  "tool_input": .object(["command": .string("rm -rf build")])], at: 1),
+            claude("PermissionRequest", ["tool_name": .string("Bash"),
+                                         "tool_input": .object(["command": .string("rm -rf build")]),
+                                         Normalizer.awaitingKey: .bool(true)], at: 2),
+        ])
+        let cancelled = SessionReducer.apply(
+            AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(4), kind: .statusSnapshot(.idle)),
+            to: asked
+        )
+        #expect(cancelled.status == .idle)
+        #expect(cancelled.pendingPermission == nil)
+        #expect(cancelled.runningTools.isEmpty)
+    }
+
     /// `/bg` moves the conversation into a job session; the original gets no Stop and must not
     /// read as stuck, and the file repeating it later must not end the session again.
     @Test func parkedSessionEndsOnce() {
@@ -419,6 +478,28 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(s.status == .needsInput)
 
         let done = fold([claude("PostToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("u2"), "tool_response": .object([:])], at: 5)], into: s)
+        #expect(done.pendingPermission == nil)
+        #expect(done.status == .running)
+    }
+
+    /// A PreToolUse hook (such as rtk) can rewrite `tool_input` before PermissionRequest runs;
+    /// PermissionRequest has no `tool_use_id`, so it adopts the sole running call of that tool/subagent.
+    @Test func rewrittenToolInputStillAdoptsRunningToolId() {
+        let s = fold([
+            claude("UserPromptSubmit", ["prompt": .string("x")]),
+            claude("SubagentStart", ["agent_id": .string("a1"), "agent_type": .string("Explore")], at: 1),
+            claude("PreToolUse", ["agent_id": .string("a1"), "tool_name": .string("Bash"), "tool_use_id": .string("sub1"),
+                                  "tool_input": .object(["command": .string("sleep 30")])], at: 1),
+            claude("PreToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("main1"),
+                                  "tool_input": .object(["command": .string("git log")])], at: 2),
+            claude("PermissionRequest", ["tool_name": .string("Bash"),
+                                         "tool_input": .object(["command": .string("rtk git log")]),
+                                         Normalizer.awaitingKey: .bool(true)], at: 3),
+        ])
+        #expect(s.pendingPermission?.id == "main1")
+
+        let done = fold([claude("PostToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("main1"),
+                                                "tool_response": .object([:])], at: 4)], into: s)
         #expect(done.pendingPermission == nil)
         #expect(done.status == .running)
     }

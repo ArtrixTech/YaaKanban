@@ -17,8 +17,11 @@ struct SessionDetail: View {
     @State private var allTurns = false
     @State private var showLog = false
     @State private var showReads = false
+    /// Advanced every 10 s, so running times and lane spans move on while nothing else changes.
+    @State private var clock = 0
 
     var body: some View {
+        let _ = clock
         let st = model.display(session)
         let now = Date()
         let insight = memo.insight(session)
@@ -55,6 +58,12 @@ struct SessionDetail: View {
             rows = model.sessionActivity(session.id)
         }
         .onChange(of: session.id) { openTurn = nil; openTool = nil; allTurns = false; showLog = false; showReads = false }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(10))
+                clock &+= 1
+            }
+        }
     }
 
     /// The last insight and what it was computed from; a class so filling it doesn't redraw.
