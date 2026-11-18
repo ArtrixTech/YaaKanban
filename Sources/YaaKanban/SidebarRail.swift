@@ -46,13 +46,32 @@ struct NarrowSessionCard: View {
     var onHeight: (CGFloat) -> Void
     @State private var width: CGFloat = 0
     @State private var hover = false
+    /// While the hidden copy is laid out. Only for a moment after what sets its height changes:
+    /// kept, every card's full copy would be laid out again on every redraw of the rail.
+    @State private var measuring = false
+
+    /// What the full card's height follows.
+    private struct Measure: Equatable {
+        var session: SessionState
+        var children: [SessionState]
+        var expanded: Bool
+        var width: CGFloat
+    }
 
     var body: some View {
         let st = session.display
         card(st)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .task(id: Measure(session: session, children: model.subagents(of: session.id), expanded: expanded,
+                          width: width + extra)) {
+            guard width > 0 else { return }
+            measuring = true
+            // Long enough for the copy to settle (its text and sub-agent rows lay out in passes).
+            try? await Task.sleep(for: .milliseconds(500))
+            if !Task.isCancelled { measuring = false }
+        }
         .background(alignment: .topLeading) {
-            if width > 0 {
+            if width > 0, measuring {
                 SessionCard(session: session, expanded: expanded)
                     .environment(\.railExtra, nil)
                     .frame(width: width + extra)

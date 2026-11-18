@@ -1,8 +1,19 @@
 # Devlog
 
-## perf(model): derive the boards once per change and skip no-op writes
+## perf(panel): measure folded rail cards only after they change
 
 `PENDING` | 2026-11-18
+
+- **Changes**: `NarrowSessionCard` (`SidebarRail.swift`) keeps its hidden full-width `SessionCard` copy only for 500 ms after a `Measure` key change (session, its sub-agents, expanded, width), via `.task(id:)` and `measuring` state. Before, the copy was always present.
+- **Reason**: Every folded card laid out a hidden full card on every rail redraw, including the card's 1 Hz clock. It was the largest single cost (about 557 samples) in the folded-panel profile.
+- **User feedback**: Same as `96be3df`.
+- **Process**: Part of the interleaved A/B in `96be3df`. The independent review checked first appearance (width 0, then set) and that removing the copy does not report height 0.
+- **Result**: Idle folded cards no longer lay out a hidden copy.
+- **Notes**: A session sending events faster than every 500 ms keeps its copy alive. Height inputs outside the key (`canDecide`, font or size category) wait for the next key change. If the panel is not laid out during the 500 ms window, the old height stays until the next change.
+
+## perf(model): derive the boards once per change and skip no-op writes
+
+`96be3df` | 2026-11-18
 
 - **Changes**: `AppModel`: `activeSessions`, `workingParents`, `subagents(of:)`, `display(_:)` now read a memoized `Derived` (live set, working parents, active list, children by parent, `claudeWaiting`), rebuilt when `sessionsVersion` (bumped in `sessions.didSet`), pins or retention change, or once `expires` (earliest retention/linger limit that kept a session live) passes. `isLive` uses a per-pass `LiveIndex` (pinned set, top-level sessions by pid) instead of scanning all sessions. `board` cached on (active, manualOrder, pinned, placed). `update()` returns early when `new == old`. `tick()` bumps observed `boardClock` once `boardsExpire` passes, so retention still removes cards. `pendingReplies` is now observed (`canDecide`). `DetailView` re-renders every 10 s (`clock` task); `PickRow`'s relative time sits in a `TimelineView(.everySecond)`. `scanWaitingClaude` checks `derived.claudeWaiting`.
 - **Reason**: High CPU (32.5 % of a core after 3 h with the main window open). `sample` showed the main thread redrawing about every 1.7 s even when idle, because the 10 s tick, the 5 s scan and the 1 Hz Claude poll rewrote every session and `@Observable` invalidates every reader on any write. Each redraw called `activeSessions`/`isLive` hundreds of times, and `isLive` scans all ~570 sessions for each recently ended one (about n²), copying large `SessionState` structs.
