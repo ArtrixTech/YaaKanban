@@ -37,7 +37,8 @@ struct PanelDragExempt: NSViewRepresentable {
 }
 
 /// Hover tracking that fires even while YaaKanban is inactive (SwiftUI's `onHover` inside
-/// `NSHostingView` stays silent on an inactive `.nonactivatingPanel`).
+/// `NSHostingView` stays silent on an inactive `.nonactivatingPanel`), with a light check while
+/// hovered so a missed `mouseExited` (across slides, drags, menus or focus changes) never sticks.
 private struct PanelHover: NSViewRepresentable {
     var onChange: (Bool) -> Void
 
@@ -47,17 +48,16 @@ private struct PanelHover: NSViewRepresentable {
     final class Tracker: NSView {
         var onChange: (Bool) -> Void = { _ in }
         private var inside = false
+        private var watch: Timer?
 
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
         override func updateTrackingAreas() {
             super.updateTrackingAreas()
             guard trackingAreas.isEmpty, window != nil else { return }
-            let now = pointerInside
-            var opts: NSTrackingArea.Options = [.mouseEnteredAndExited, .activeAlways, .inVisibleRect]
-            if now { opts.insert(.assumeInside) }
-            addTrackingArea(NSTrackingArea(rect: .zero, options: opts, owner: self, userInfo: nil))
-            if now { set(true, deferUpdate: true) }
+            addTrackingArea(NSTrackingArea(rect: .zero,
+                                           options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                           owner: self, userInfo: nil))
         }
 
         override func viewDidMoveToWindow() {
@@ -68,26 +68,45 @@ private struct PanelHover: NSViewRepresentable {
             }
         }
 
-        override func mouseEntered(with event: NSEvent) { set(true, deferUpdate: false) }
+        override func mouseEntered(with event: NSEvent) {
+            guard let w = window, w.isVisible, w.alphaValue > 0.01, !isHiddenOrHasHiddenAncestor else { return }
+            set(true, deferUpdate: false)
+        }
+
         override func mouseExited(with event: NSEvent) { set(false, deferUpdate: false) }
 
         private var pointerInside: Bool {
-            guard let w = window, w.isVisible else { return false }
-            return visibleRect.contains(convert(w.mouseLocationOutsideOfEventStream, from: nil))
+            guard let w = window, w.isVisible, w.alphaValue > 0.01, !isHiddenOrHasHiddenAncestor else { return false }
+            let screen = NSEvent.mouseLocation
+            guard w.frame.insetBy(dx: -0.5, dy: -0.5).contains(screen),
+                  NSWindow.windowNumber(at: screen, belowWindowWithWindowNumber: 0) == w.windowNumber else { return false }
+            let local = convert(w.convertPoint(fromScreen: screen), from: nil)
+            let rect = visibleRect
+            return !rect.isEmpty && rect.insetBy(dx: -0.5, dy: -0.5).contains(local)
         }
 
         private func set(_ value: Bool, deferUpdate: Bool) {
             guard inside != value else { return }
             inside = value
-            if deferUpdate {
-                RunLoop.main.perform(inModes: [.common]) { [weak self] in
+            watch?.invalidate()
+            watch = nil
+            if value {
+                let t = Timer(timeInterval: 0.08, repeats: true) { [weak self] timer in
                     MainActor.assumeIsolated {
-                        guard let self else { return }
-                        self.onChange(self.inside)
+                        guard let self else { timer.invalidate(); return }
+                        if !self.pointerInside { self.set(false, deferUpdate: false) }
                     }
                 }
+                RunLoop.main.add(t, forMode: .common)
+                watch = t
+            }
+            let cb = onChange
+            if deferUpdate {
+                RunLoop.main.perform(inModes: [.common]) { [weak self] in
+                    MainActor.assumeIsolated { cb(self?.inside ?? false) }
+                }
             } else {
-                onChange(value)
+                cb(value)
             }
         }
     }

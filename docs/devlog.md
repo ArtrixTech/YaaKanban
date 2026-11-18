@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(panel): open overview from leverage bar and main window from logo
+## fix(panel): clear stuck logo hover in the floating panel
 
 `PENDING` | 2026-11-18
+
+- **Changes**: Removed eager `.assumeInside`/`set(true)` on `PanelHover.Tracker.updateTrackingAreas` and added an 80 ms `.common`-mode verification timer while `inside == true` checking live `NSEvent.mouseLocation`, `NSWindow.windowNumber(at:)`, and `visibleRect` (`FloatingPanel.swift`). Extracted `HeaderBrand` (`Windows.swift`) with per-row `@State hover` and a static non-hit-testing hint overlay instead of a dynamically mounted second `.panelHover` tracker.
+- **Reason**: Two paths left the logo hover permanently wedged when YaaKanban was inactive: (1) dynamically mounting `mainWindowHint` with `.assumeInside` under a moving cursor (or unfolding a right-docked rail for one frame before `fit()` shifted `host` left) set `inside = true` without WindowServer arming `mouseExited`; (2) any missed `mouseExited` across drags, focus switches, or `ViewThatFits` row transitions had no self-healing check.
+- **User feedback**: "现在在侧边栏的 logo 的 Hover 这个位置，经常我已经 focus 在其他的地方了，但是现在这个位置的 Hover仍然不会掉"
+- **Process**: Verified `NSWindow.windowNumber(at:belowWindowWithWindowNumber:0)` returns the borderless `NSPanel`'s `windowNumber` with `NSGlassEffectView` on macOS 26 via `swift -e`; ran `make build`, `make test`, `make l10n`, and `make install`.
+- **Result**: Hover activates reliably when inactive and always clears within ≤80 ms once the pointer leaves or another window covers the point.
+- **Notes**: Watch timer runs only while `inside == true` and invalidates immediately on exit or deallocation (`[weak self]`), keeping idle overhead at zero.
+
+## feat(panel): open overview from leverage bar and main window from logo
+
+`2714e81` | 2026-11-18
 
 - **Changes**: `RecentFigures` (`DashboardView.swift`) is now a `Button` (`Pressable`, `PanelDragExempt`, `.panelHover`) whose plate brightens on hover (`Fill.controlHover`) and opens `AppWindows.open(.overview)`. `BoardHeader` (`Windows.swift`) makes the top-left `BrandGlyph` + `YaaKanban` lockup a `Button` opening `.main` and reveals a faint `Main window ›` hint in the spacer's overlay on hover (without affecting `ViewThatFits`). Removed the `macwindow` and `chevron.up`/`chevron.down` collapse buttons from `FloatingPanelView`, `Preferences.panelCollapsed`, and the `Expand`/`Collapse` strings across all 9 locales. Added `PanelHover` (`NSTrackingArea` `.activeAlways`) in `FloatingPanel.swift` so hover works when YaaKanban is inactive. Updated `docs/spec.md` and `CHANGELOG.md`.
 - **Reason**: Streamline floating-panel chrome by turning the leverage bar and brand mark into direct navigation targets and dropping redundant header buttons.

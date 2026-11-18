@@ -8,10 +8,6 @@ import YaaIntegrations
 struct BoardHeader<Trailing: View>: View {
     @Environment(AppModel.self) private var model
     @ViewBuilder var trailing: Trailing
-    @State private var logoHover = false
-    @State private var hintHover = false
-
-    private var brandHover: Bool { logoHover || hintHover }
 
     var body: some View {
         // A narrow panel tightens the chips and gaps, then drops the name, then drops the chips'
@@ -28,36 +24,11 @@ struct BoardHeader<Trailing: View>: View {
         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
         // One line, the same height as the folded header, so cards keep their place.
         .frame(height: BoardHeaderHeight.value)
-        .animation(.easeOut(duration: 0.14), value: brandHover)
     }
 
     private func row(named: Bool, chips: CountChip.Style = .regular) -> some View {
         HStack(spacing: chips == .regular ? 6 : Space.xs) {
-            HStack(spacing: 0) {
-                Button { AppWindows.open(.main) } label: {
-                    HStack(spacing: chips == .regular ? 6 : Space.xs) {
-                        // In from the edge, level with the cards' content rather than their corners.
-                        BrandGlyph(size: 14, lit: brandHover).padding(.leading, Space.xs)
-                        if named { Text(verbatim: "YaaKanban").font(.ui(.body, .bold)).lineLimit(1).fixedSize() }
-                    }
-                    .frame(height: BoardHeaderHeight.value)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(Pressable())
-                .background(PanelDragExempt())
-                .panelHover { logoHover = $0 }
-                .help("Open main window")
-
-                // Sits in the spacer's room as an overlay so hovering never alters `ViewThatFits`.
-                Color.clear.frame(minWidth: 4, maxWidth: .infinity)
-                    .frame(height: BoardHeaderHeight.value)
-                    .overlay(alignment: .leading) {
-                        if brandHover {
-                            mainWindowHint
-                                .transition(.opacity.combined(with: .offset(x: -2)))
-                        }
-                    }
-            }
+            HeaderBrand(named: named, tight: chips != .regular)
             HStack(spacing: chips == .regular ? 4 : Space.xxs) {
                 let counts = self.counts
                 ForEach(counts, id: \.0.rank) { st, n in CountChip(count: n, status: st, style: chips).transition(.scale.combined(with: .opacity)) }
@@ -68,18 +39,45 @@ struct BoardHeader<Trailing: View>: View {
         }
     }
 
-    private var mainWindowHint: some View {
-        ViewThatFits(in: .horizontal) {
-            hintLabel(named: true)
-            hintLabel(named: false)
-            Color.clear.frame(width: 0, height: 0)
+    private var counts: [(DisplayStatus, Int)] { statusCounts(model.activeSessions) }
+}
+
+private struct HeaderBrand: View {
+    let named: Bool
+    let tight: Bool
+    @State private var hover = false
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Button { AppWindows.open(.main) } label: {
+                HStack(spacing: tight ? Space.xs : 6) {
+                    // In from the edge, level with the cards' content rather than their corners.
+                    BrandGlyph(size: 14, lit: hover).padding(.leading, Space.xs)
+                    if named { Text(verbatim: "YaaKanban").font(.ui(.body, .bold)).lineLimit(1).fixedSize() }
+                }
+                .frame(height: BoardHeaderHeight.value)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(Pressable())
+            .background(PanelDragExempt())
+            .panelHover { hover = $0 }
+            .accessibilityLabel(Text("Open main window"))
+
+            // Sits in the spacer's room as an overlay so hovering never alters `ViewThatFits`.
+            Color.clear.frame(minWidth: 4, idealWidth: 4, maxWidth: .infinity)
+                .frame(height: BoardHeaderHeight.value)
+                .overlay(alignment: .leading) {
+                    ViewThatFits(in: .horizontal) {
+                        hintLabel(named: true)
+                        hintLabel(named: false)
+                        Color.clear.frame(width: 0, height: 0)
+                    }
+                    .opacity(hover ? 1 : 0)
+                    .offset(x: hover ? 0 : -2)
+                }
+                .allowsHitTesting(false)
         }
-        .frame(height: BoardHeaderHeight.value)
-        .contentShape(Rectangle())
-        .background(PanelDragExempt())
-        .panelHover { hintHover = $0 }
-        .onTapGesture { AppWindows.open(.main) }
-        .help("Open main window")
+        .animation(.easeOut(duration: 0.14), value: hover)
     }
 
     private func hintLabel(named: Bool) -> some View {
@@ -92,8 +90,6 @@ struct BoardHeader<Trailing: View>: View {
         .foregroundStyle(.secondary.opacity(0.72))
         .padding(.leading, 5)
     }
-
-    private var counts: [(DisplayStatus, Int)] { statusCounts(model.activeSessions) }
 }
 
 /// Sessions per state that has any, most urgent first: the count chips.
