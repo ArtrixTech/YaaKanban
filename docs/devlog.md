@@ -1,8 +1,19 @@
 # Devlog
 
-## feat(panel): count work while away in the 1-hour leverage
+## fix(claude): end the wait for a Monitor that expired
 
 `PENDING` | 2026-11-19
+
+- **Changes**: `Normalizer.notifiedTasks` also counts a notice whose event is `[Monitor expired after …]` as the task ending. Test `stopNoLongerWaitsForAMonitorThatExpired`; CHANGELOG 0.2.7 Monitor line extended.
+- **Reason**: A Monitor that times out (default 30 min) sends a `<task-notification>` with an `<event>` and no `<status>`, so its id stayed in `backgroundTasks` and every later Stop was held: the session read as running for ever.
+- **User feedback**: "这个实际上已经完成了 但还计算为进行中" (LY-Analysis/AppleGolfDemo session 2ef27035).
+- **Process**: The stored session had 5 Monitor ids in `backgroundTasks`, last turn ended; its transcript shows each ended with only the expiry event. Across all local transcripts, expiry notices never carry `<status>` (~670 seen); a Monitor whose script exits does get `<status>completed</status>`.
+- **Result**: `make test` 257 passed.
+- **Notes**: Sessions already stored with stale ids are not cleared by this; their next event from a new process (resume) or turning background tracking off clears them.
+
+## feat(panel): count work while away in the 1-hour leverage
+
+`206ac34` | 2026-11-19
 
 - **Changes**: `ActivityReport` gains `awayWorkDoneBuckets` (work while away per slice it was done in, absences begun before the range included); `creditWork` refactored to slice targets with one helper and credit present, departure-credited away and done-in-slice away separately. `rollingLeverage` now uses `Ep/P + Ea/(P + m)` with Ea from `awayWorkDoneBuckets`, so the panel/rail figure, its trend and its baseline (`typicalLeverage`) include away work. Help text updated in 9 locales; spec and CHANGELOG updated.
 - **Reason**: The panel showed ~1.x while 概览 showed ~8 today: the panel counted only work while present, the day figure counts away work too.

@@ -128,11 +128,13 @@ public enum Normalizer {
     /// Claude Code tells the main agent a background task stopped by sending it a prompt that
     /// starts with `<task-notification>`; returns the ids of the tasks it reports finished. Only
     /// a finished task's notice has a `<status>`: a Monitor's event (a line its script printed)
-    /// has none, and the watch keeps running.
+    /// has none, and the watch keeps running. A Monitor that times out says so in an event of its
+    /// own, `[Monitor expired after 30m …]`, still without a `<status>`; that watch is over too.
     static func notifiedTasks(_ prompt: String) -> [String] {
         guard prompt.hasPrefix("<task-notification>") else { return [] }
         return prompt.components(separatedBy: "<task-notification>").dropFirst().compactMap { notice in
-            guard notice.contains("<status>"), let open = notice.range(of: "<task-id>"),
+            guard notice.contains("<status>") || notice.contains("<event>[Monitor expired"),
+                  let open = notice.range(of: "<task-id>"),
                   let close = notice.range(of: "</task-id>", range: open.upperBound..<notice.endIndex) else { return nil }
             return String(notice[open.upperBound..<close.lowerBound]).trimmingCharacters(in: .whitespaces)
         }

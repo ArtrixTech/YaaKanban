@@ -1332,6 +1332,18 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(done.status == .idle)
     }
 
+    @Test func stopNoLongerWaitsForAMonitorThatExpired() {
+        let watch = claude("PostToolUse", ["tool_name": .string("Monitor"), "tool_use_id": .string("t-m1"),
+                                           "tool_input": .object(["command": .string("tail -f log"), "description": .string("training")]),
+                                           "tool_response": .object(["persistent": .bool(false), "taskId": .string("m1"),
+                                                                     "timeoutMs": .number(1_800_000)])], at: 1)
+        let expired = claude("UserPromptSubmit", ["prompt": .string("<task-notification>\n<task-id>m1</task-id>\n<summary>Monitor event: \"training\"</summary>\n<event>[Monitor expired after 30m with 3 events delivered. Re-arm it if you still need the watch.]</event>\n</task-notification>")], at: 1801)
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("train it")]), watch,
+                      claude("Stop", at: 2), expired, claude("Stop", at: 1810)])
+        #expect(s.backgroundTasks == nil)
+        #expect(s.status == .idle)
+    }
+
     private func shell(_ id: String, at: TimeInterval, _ extra: [String: JSONValue] = [:], agent: String? = nil) -> HookEnvelope {
         var resp: [String: JSONValue] = ["stdout": .string(""), "stderr": .string(""), "interrupted": .bool(false),
                                          "backgroundTaskId": .string(id)]
