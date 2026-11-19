@@ -7,6 +7,8 @@ the update.
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-11-20
+
 ### Changed
 
 - The floating panel's 1-hour leverage counts agent work done while you were away, so after a break it reflects what ran meanwhile instead of dropping to your own pace.
