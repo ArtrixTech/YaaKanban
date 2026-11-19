@@ -43,6 +43,8 @@ public struct ActivityReport: Sendable {
     public var awayWork: TimeInterval = 0
     public var presentWorkBuckets: [Double] = []
     public var awayWorkBuckets: [Double] = []
+    /// Work while away per slice it was done in, an absence begun before the range included.
+    public var awayWorkDoneBuckets: [Double] = []
     /// Running ÷ (running + blocked on the user), in session-time, while the user was here. A
     /// finished turn waiting for review is idle, not blocked, and is left out.
     public var utilization: Double?
@@ -107,14 +109,15 @@ public struct ActivityReport: Sendable {
     /// Agent time bought by each prompt or answer.
     public var agentTimePerIntervention: TimeInterval? { interventions > 0 ? agentTime / Double(interventions) : nil }
 
-    /// Leverage while the user was here over each run of `window` slices ending at a slice (work
-    /// while here over present time), nil where too little was on: a trend whose last point is
-    /// that of the last `window` slices.
+    /// Leverage over each run of `window` slices ending at a slice, nil where too little was on:
+    /// a trend whose last point is that of the last `window` slices. Work while away counts where
+    /// it was done, not where the absence began, so a long absence shows once the user is back.
     public func rollingLeverage(window: Int) -> [Double?] {
         let w = max(window, 1)
         return activeBuckets.indices.dropFirst(w - 1).map { i in
             let r = (i - w + 1)...i
-            return Self.leverage(present: presentWorkBuckets[r].reduce(0, +), away: 0, active: activeBuckets[r].reduce(0, +))
+            return Self.leverage(present: presentWorkBuckets[r].reduce(0, +), away: awayWorkDoneBuckets[r].reduce(0, +),
+                                 active: activeBuckets[r].reduce(0, +))
         }
     }
 
@@ -345,52 +348,56 @@ public struct ActivityReport: Sendable {
     }
 
     /// Adds up leverage's agent side: work while the user was here into its slice, and work
-    /// while away into the slice the absence began in, if it began in the range.
+    /// while away into the slice the absence began in, if it began in the range; and, for the
+    /// panel's rolling leverage, work while away into the slice it was done in.
     private mutating func creditWork(rows: [ActivityRow], lanesBefore: [String: Lane], heldBefore: [String: Date],
                                      awaySince: Date?, to end: Date, now: Date) {
         let n = max(bucketEdges.count - 1, 0)
-        presentWorkBuckets = [Double](repeating: 0, count: n)
-        awayWorkBuckets = presentWorkBuckets
         let start = range.start
         func slice(_ t: Date) -> Int? {
             guard n > 0, t >= bucketEdges[0] else { return nil }
             return min(n - 1, max(0, (bucketEdges.firstIndex { $0 > t } ?? bucketEdges.count) - 1))
         }
-        // (span, slice, away)
-        var targets: [(DateInterval, Int, Bool)] = []
-        var t = start
-        for a in away + [DateInterval(start: end, end: end)] {
-            var p = t
-            while p < a.start, let k = slice(p) {
-                let e = k + 1 < n ? min(a.start, bucketEdges[k + 1]) : a.start
-                if e > p { targets.append((DateInterval(start: p, end: e), k, false)) }
+        // a..<b cut at the slice edges, each piece with its slice.
+        func sliced(_ a: Date, _ b: Date) -> [(DateInterval, Int)] {
+            var out: [(DateInterval, Int)] = [], p = a
+            while p < b, let k = slice(p) {
+                let e = k + 1 < n ? min(b, bucketEdges[k + 1]) : b
                 if e <= p { break }
+                out.append((DateInterval(start: p, end: e), k))
                 p = e
             }
+            return out
+        }
+        var present: [(DateInterval, Int)] = []
+        var t = start
+        for a in away + [DateInterval(start: end, end: end)] {
+            if t < a.start { present += sliced(t, a.start) }
             t = max(t, a.end)
         }
         let departures = Self.mergedAway(rows: rows, awaySince: awaySince, from: .distantPast, to: now)
-            .filter { $0.start >= start && $0.start < end }
-        var tail = end
-        for d in departures {
-            let e = d.end
-            if e > d.start, let k = slice(d.start) { targets.append((DateInterval(start: d.start, end: e), k, true)) }
-            tail = max(tail, e)
-        }
-        targets.sort { $0.0.start < $1.0.start }
+            .filter { $0.start >= start && $0.start < end && $0.end > $0.start }
+            .compactMap { d in slice(d.start).map { (d, $0) } }
+        let tail = departures.map(\.0.end).reduce(end, max)
         let spans = Self.work(rows: rows, lanesBefore: lanesBefore, heldBefore: heldBefore, from: start, to: tail)
-        for w in spans {
-            // The first target that ends after the stretch starts.
-            var lo = 0, hi = targets.count
-            while lo < hi { let m = (lo + hi) / 2; if targets[m].0.end <= w.start { lo = m + 1 } else { hi = m } }
-            var i = lo
-            while i < targets.count, targets[i].0.start < w.end {
-                let (span, k, isAway) = targets[i]
-                let x = Self.amount(w, span.start, span.end)
-                if isAway { awayWorkBuckets[k] += x } else { presentWorkBuckets[k] += x }
-                i += 1
+        // Work per slice over targets in time order that don't overlap.
+        func credited(_ targets: [(DateInterval, Int)]) -> [Double] {
+            var out = [Double](repeating: 0, count: n)
+            for w in spans {
+                // The first target that ends after the stretch starts.
+                var lo = 0, hi = targets.count
+                while lo < hi { let m = (lo + hi) / 2; if targets[m].0.end <= w.start { lo = m + 1 } else { hi = m } }
+                var i = lo
+                while i < targets.count, targets[i].0.start < w.end {
+                    out[targets[i].1] += Self.amount(w, targets[i].0.start, targets[i].0.end)
+                    i += 1
+                }
             }
+            return out
         }
+        presentWorkBuckets = credited(present)
+        awayWorkBuckets = credited(departures)
+        awayWorkDoneBuckets = credited(away.flatMap { sliced($0.start, $0.end) })
         presentWork = presentWorkBuckets.reduce(0, +)
         awayWork = awayWorkBuckets.reduce(0, +)
     }

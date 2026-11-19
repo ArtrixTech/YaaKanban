@@ -1,8 +1,19 @@
 # Devlog
 
-## perf(report): compute activity reports off the main thread
+## feat(panel): count work while away in the 1-hour leverage
 
 `PENDING` | 2026-11-19
+
+- **Changes**: `ActivityReport` gains `awayWorkDoneBuckets` (work while away per slice it was done in, absences begun before the range included); `creditWork` refactored to slice targets with one helper and credit present, departure-credited away and done-in-slice away separately. `rollingLeverage` now uses `Ep/P + Ea/(P + m)` with Ea from `awayWorkDoneBuckets`, so the panel/rail figure, its trend and its baseline (`typicalLeverage`) include away work. Help text updated in 9 locales; spec and CHANGELOG updated.
+- **Reason**: The panel showed ~1.x while 概览 showed ~8 today: the panel counted only work while present, the day figure counts away work too.
+- **User feedback**: "为啥现在侧边栏看到的杠杆和主界面差别很大？现在主界面8，侧边栏1.x" → "悬浮窗的离开期间的工作也要计算在内"
+- **Process**: Chose crediting by when the work was done rather than the day figure's rule (credit to the slice the absence began in): with a 1-hour window, an absence begun over an hour ago would otherwise never show after the user returns. Tests adjusted: rolling leverage equals the report's when the absence starts inside the window, and counts only the in-window part when it began before.
+- **Result**: `make test` 256 tests pass; installed locally.
+- **Notes**: While the user is away for a whole hour, P < 60 s gives no figure, as before. Away work drops out of the panel figure an hour after it was done. The day figure and day bars are unchanged.
+
+## perf(report): compute activity reports off the main thread
+
+`7be1d0b` | 2026-11-19
 
 - **Changes**: New `YaaCore/ReportQueue.swift`: a serial `.userInitiated` queue owning a read-only second SQLite connection (`Store(readingFrom:)`, WAL) and the lanes-before cache moved out of `AppModel`. `AppModel.report` returns the cached report, or the last one of the same length and resolution whose end is within a tenth of its span (the panel trend's range moves every minute), and computes the new one on the queue; its arrival bumps an observed counter so the asking views redraw. Only a report with nothing to show is computed synchronously (`computeNow`). `record`/backfill tell the queue to drop stale lanes-before entries, queued after pending computes.
 - **Reason**: Step 2 of the plan after the Codex audit (#2): `RecentFigures` in the panel ran the trend report's SQLite reads and aggregation on the main thread inside the unfold/fold rebuild.

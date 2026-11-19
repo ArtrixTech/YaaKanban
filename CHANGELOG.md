@@ -7,6 +7,10 @@ the update.
 
 ## [Unreleased]
 
+### Changed
+
+- The floating panel's 1-hour leverage counts agent work done while you were away, so after a break it reflects what ran meanwhile instead of dropping to your own pace.
+
 ### Fixed
 
 - The docked sidebar unfolds and folds back faster when the Mac is busy: folding no longer re-measures every card, and each slide runs once instead of starting over midway.

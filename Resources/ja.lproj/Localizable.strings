@@ -370,7 +370,7 @@
 
 /* Ended list */
 "Leverage trend: each point is the leverage over the hour up to then, across the last %@; the dashed line is today's average 1-hour leverage, taken at each whole hour." = "レバレッジの推移：各点はその時点までの1時間のレバレッジで、直近%@分を表示。破線は今日の各正時における1時間レバレッジの平均です。";
-"Over the last hour, agent work while you were here per hour you were here. The arrow shows whether the 1-hour leverage is rising, falling or level right now." = "直近1時間の、在席中のエージェントの作業 ÷ 在席時間。矢印は1時間レバレッジの現在の傾向（上昇・下降・横ばい）です。";
+"Over the last hour, agent work per hour you were here, work while you were away included. The arrow shows whether the 1-hour leverage is rising, falling or level right now." = "直近1時間の、エージェントの作業（離席中を含む）÷ 在席時間。矢印は1時間レバレッジの現在の傾向（上昇・下降・横ばい）です。";
 "Close search" = "検索を閉じる";
 "No matches" = "一致なし";
 "Search the last %lld days" = "過去 %lld 日間を検索";

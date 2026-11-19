@@ -196,16 +196,18 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         #expect(r.agentBuckets == [160, 100, 100, 0])
         let trend = r.rollingLeverage(window: 2)
         #expect(trend.count == 3)
-        // Only the work while present counts on the panel.
-        #expect(abs(trend[0]! - 1.6) < 1e-9)
+        // Work while away counts in the slice it was done in: 100 s of it in 100–200.
+        #expect(r.awayWorkDoneBuckets == [0, 100, 50, 0])
+        #expect(abs(trend[0]! - (1.6 + 100.0 / (100 + 1800))) < 1e-9)
         // 50 s present is under a minute: no figure.
         #expect(trend[1] == nil && trend[2] == nil)
-        // The whole range as one window is the report's leverage while present.
-        #expect(abs(r.rollingLeverage(window: 4)[0]! - r.presentWork / r.activeTime) < 1e-9)
+        // The whole range as one window, the absence inside it, is the report's leverage.
+        #expect(abs(r.rollingLeverage(window: 4)[0]! - r.leverage!) < 1e-9)
     }
 
     @Test func rollingLeverageOverHourEdgesMatchesEachWindowsReport() {
-        // Hourly slices, read 4 at a time, give each 4-hour window's leverage while present.
+        // Hourly slices, read 4 at a time, give each 4-hour window's leverage: the report's while
+        // the absence (5000–9000) began inside, and with only its part inside once it began before.
         let rows = [lane("a", 0, .running), lane("a", 9000, nil), lane("b", 3600, .running), lane("b", 20000, .needsInput),
                     lane("b", 22000, nil), ActivityRow(at: at(5000), session: "", kind: .away, value: 4000)]
         let edges = (0...6).map { at(Double($0) * 3600) }
@@ -219,7 +221,13 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
             for row in rows where row.kind == .lane && row.at < edges[k] { before[row.session] = Lane(rawValue: row.text) }
             let w = ActivityReport.compute(rows: rows, lanesBefore: before.compactMapValues { $0 }, range: DateInterval(start: edges[k], end: edges[k + 4]),
                                            now: at(30000), buckets: 1)
-            #expect(abs(v! - w.presentWork / w.activeTime) < 1e-9)
+            if k < 2 {
+                #expect(abs(v! - w.leverage!) < 1e-9)
+            } else {
+                // 7200–9000 away, a and b both running.
+                #expect(w.awayWork == 0)
+                #expect(abs(v! - (w.presentWork / w.activeTime + 3600 / (w.activeTime + 1800))) < 1e-9)
+            }
         }
     }
 
