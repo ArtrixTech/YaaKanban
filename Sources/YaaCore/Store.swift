@@ -186,14 +186,21 @@ public final class Store {
         return out
     }
 
+    /// Each session's last lane row before ?1, as `last.r`: its rowid. Looked up once per session
+    /// from the index, not once per lane row: tested against every lane row in the table, this
+    /// took ~25 ms on a 33k-row history, run on the main thread while the panel's figures drew.
+    private static let lastLaneRows = """
+        (SELECT (SELECT rowid FROM activity b WHERE b.kind = 'lane' AND b.session = s.session AND b.at < ?1
+                 ORDER BY b.at DESC, b.rowid DESC LIMIT 1) AS r
+         FROM (SELECT DISTINCT session FROM activity WHERE kind = 'lane') s) last
+        """
+
     /// Each session's last recorded lane before `date` (sessions that had left the lanes omitted).
     public func lanes(before date: Date = .distantFuture) -> [String: Lane] {
         var out: [String: Lane] = [:]
         // Ties on `at` resolve to the later insert.
         let sql = """
-            SELECT session, text FROM activity a WHERE kind = 'lane' AND rowid = (
-              SELECT rowid FROM activity b WHERE b.kind = 'lane' AND b.session = a.session AND b.at < ?1
-              ORDER BY b.at DESC, b.rowid DESC LIMIT 1)
+            SELECT a.session, a.text FROM \(Self.lastLaneRows) JOIN activity a ON a.rowid = last.r
             """
         query(sql, bind: { sqlite3_bind_double($0, 1, min(date.timeIntervalSince1970, 1e12)) }) { st in
             if let lane = Lane(rawValue: String(cString: sqlite3_column_text(st, 1))) {
@@ -207,9 +214,7 @@ public final class Store {
     public func held(before date: Date) -> [String: Date] {
         var out: [String: Date] = [:]
         let sql = """
-            SELECT session, at, value, text FROM activity a WHERE kind = 'lane' AND rowid = (
-              SELECT rowid FROM activity b WHERE b.kind = 'lane' AND b.session = a.session AND b.at < ?1
-              ORDER BY b.at DESC, b.rowid DESC LIMIT 1)
+            SELECT a.session, a.at, a.value, a.text FROM \(Self.lastLaneRows) JOIN activity a ON a.rowid = last.r
             """
         query(sql, bind: { sqlite3_bind_double($0, 1, min(date.timeIntervalSince1970, 1e12)) }) { st in
             let id = String(cString: sqlite3_column_text(st, 0))

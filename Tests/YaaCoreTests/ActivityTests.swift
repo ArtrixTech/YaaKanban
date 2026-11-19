@@ -337,6 +337,9 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         store.record([], meta: ["heartbeat": 42])
         #expect(store.meta("heartbeat") == 42)
         #expect(store.meta("nope") == nil)
+        // Two rows at the same time: the later insert counts.
+        store.record([lane("c", 10, .running), lane("c", 10, .review)])
+        #expect(store.lanes(before: at(80))["claude-code:c"] == .review)
     }
 
     @Test func replyWaitStartingBeforeTheRangeTakesItsAwayOut() throws {
