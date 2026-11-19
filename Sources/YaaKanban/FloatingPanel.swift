@@ -21,7 +21,11 @@ private final class BoardPanel: NSPanel {
 
     private static func exempt(_ p: NSPoint, in view: NSView) -> Bool {
         // Only the part on screen: a card scrolled under the header leaves the header movable.
-        if view is PanelDragExempt.Marker { return view.convert(view.visibleRect, to: nil).contains(p) }
+        // `visibleRect` alone is not enough: with views no longer clipping to their bounds, it
+        // reaches past them (a 96×22 marker reported the whole window), exempting everything.
+        if view is PanelDragExempt.Marker {
+            return view.convert(view.visibleRect.intersection(view.bounds), to: nil).contains(p)
+        }
         return view.subviews.contains { exempt(p, in: $0) }
     }
 }

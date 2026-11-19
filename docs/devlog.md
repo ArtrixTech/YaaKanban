@@ -1,8 +1,19 @@
 # Devlog
 
+## fix(panel): let the floating panel be dragged again
+
+`PENDING` | 2026-11-20
+
+- **Changes**: `BoardPanel.exempt`: a `PanelDragExempt.Marker` covers `visibleRect ∩ bounds`, not `visibleRect`. CHANGELOG Fixed line.
+- **Reason**: On macOS 27.0.1 the marker's `visibleRect` reached past its bounds: the logo's 96×22 marker reported `{{-10,-875},{300,907}}`, i.e. the whole window. So every press counted as one on a card or the logo, `isMovableByWindowBackground` was switched off at each press, and the panel never moved.
+- **User feedback**: "另外修问题：现在侧边栏无法拖动。"
+- **Process**: Reproduced with synthetic CGEvent drags (peeked rail and undocked panel): no move from any point. Temporary `sendEvent` logging showed `exempt=true` everywhere, and pinned it on the logo marker's rect. A minimal NSPanel test also showed that SwiftUI content with an opaque fill never moves a window by its background, while clear areas do. After the fix: drags on the header, its top padding and the bottom move the panel (-38 for a -40 drag); a press on a card or the logo does not. The right side of the header (buttons) stays put, as intended.
+- **Result**: `make test` 272 passed; installed. The panel was put back at its saved frame after the test drags.
+- **Notes**: Views that no longer clip to bounds make `visibleRect` unreliable as an area test; intersect with `bounds`.
+
 ## fix(claude): align background, mid-turn and session-file signals
 
-`PENDING` | 2026-11-19
+`38663fa` | 2026-11-19
 
 - **Changes**:
   - Stop's `background_tasks` (`backgroundInFlight`): a waited-on id the list leaves out is marked (`unlistedTasks`); unlisted again, or with the session quiet 15 s (`AppModel.dropUnlistedTasks`), it is dropped. A late (spooled) Stop is ignored for this and for `turnEnd` (`isBeforeLastTurn`, also before a joined report).
