@@ -62,4 +62,27 @@ public enum JSONValue: Codable, Equatable, Sendable {
     public static func parse(_ data: Data) -> JSONValue? {
         try? JSONDecoder().decode(JSONValue.self, from: data)
     }
+
+    /// The first complete top-level object or array in `data`, ignoring what follows it. Claude
+    /// Code rewrites its session file in place, and a shorter record leaves the old one's tail.
+    public static func parseLeading(_ data: Data) -> JSONValue? {
+        if let v = parse(data) { return v }
+        var depth = 0, inString = false, escaped = false
+        for (i, b) in data.enumerated() {
+            if inString {
+                if escaped { escaped = false } else if b == UInt8(ascii: "\\") { escaped = true } else if b == UInt8(ascii: "\"") { inString = false }
+                continue
+            }
+            switch b {
+            case UInt8(ascii: "\""): inString = true
+            case UInt8(ascii: "{"), UInt8(ascii: "["): depth += 1
+            case UInt8(ascii: "}"), UInt8(ascii: "]"):
+                depth -= 1
+                if depth == 0 { return parse(data.prefix(i + 1)) }
+                if depth < 0 { return nil }
+            default: break
+            }
+        }
+        return nil
+    }
 }

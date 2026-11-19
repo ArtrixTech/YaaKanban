@@ -66,8 +66,10 @@ public struct TranscriptPeek: Codable, Equatable, Sendable {
             case "assistant" where !replyDone && peek.lastReply == nil:
                 peek.lastReply = clip(text(of: j["message"]?["content"]))
             case "user" where peek.lastPrompt == nil:
-                // Tool results are user-role messages too; only typed text is a prompt.
-                if let p = clip(text(of: j["message"]?["content"])), !p.hasPrefix("<") {
+                // Tool results are user-role messages too; only typed text is a prompt. The
+                // interrupt marker and harness notices are user-role text the user did not type.
+                if let p = clip(text(of: j["message"]?["content"])), !p.hasPrefix("<"),
+                   !p.hasPrefix("[Request interrupted by user"), !Normalizer.isInjectedPrompt(p) {
                     peek.lastPrompt = p
                     replyDone = true
                 }

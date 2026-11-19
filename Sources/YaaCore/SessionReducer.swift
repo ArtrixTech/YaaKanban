@@ -68,11 +68,20 @@ public enum SessionReducer {
         // Read from the transcript after the fact, often once the turn has ended: metadata too.
         if case .interruptSeen(let at) = e.kind {
             guard let i = s.turns.lastIndex(where: { $0.startedAt <= at }) else { return s }
-            // Esc then typing at once: the prompt already ended and marked the turn before, and the
-            // marker, written as the abort settles, can land just after the new turn began.
-            if i > 0, s.turns[i - 1].interrupted == true, let end = s.turns[i - 1].endedAt,
-               at.timeIntervalSince(end) < interruptSlack { return s }
+            // Esc then typing at once: the turn before already ended (by that prompt, or by the
+            // session file going idle), and the marker, written as the abort settles, can land just
+            // after the new turn began.
+            if i > 0, let end = s.turns[i - 1].endedAt, at.timeIntervalSince(end) < interruptSlack { return s }
             s.turns[i].interrupted = true
+            // A harness report taken in after the marker did not join a running turn: Claude began
+            // a turn for it, which goes on.
+            if i == s.turns.indices.last, s.turns[i].endedAt == nil, let j = s.turns[i].joinedAt, j > at {
+                let moved = s.tools.filter { $0.startedAt >= j }.count
+                s.turns[i].endedAt = at
+                s.turns[i].toolCount = max(0, s.turns[i].toolCount - moved)
+                s.turns.append(Turn(id: s.turns.count + 1, prompt: s.turns[i].joinedPrompt ?? "", startedAt: j, toolCount: moved))
+                return s
+            }
             // Esc fires no Stop hook, and the session file can go idle within a second of the last
             // hook, too close to trust: the marker is then the only word that the turn is over.
             // Ended where the marker is, unless the agent went on after it.
@@ -91,6 +100,7 @@ public enum SessionReducer {
             endRunningTools(&s, at: max(e.at, s.lastEventAt))
             s.subagents.removeAll()
             s.backgroundTasks = nil
+            s.unlistedTasks = nil
             s.status = .ended
             s.unreadSince = nil
             clearAttention(&s)
@@ -109,7 +119,10 @@ public enum SessionReducer {
         }
         // Background agents end with the process that launched them: a resumed session (a new
         // process) waits for none of the old one's, or its every stop is held for them.
-        if let v = e.agentPid, let old = s.agentPid, v != old { s.backgroundTasks = nil }
+        if let v = e.agentPid, let old = s.agentPid, v != old {
+            s.backgroundTasks = nil
+            s.unlistedTasks = nil
+        }
         if let v = e.agentPid { s.agentPid = v }
         s.hooked = true
 
@@ -118,11 +131,20 @@ public enum SessionReducer {
             if s.status == .ended { s.status = .idle }
 
         case .promptSubmitted(let prompt):
+            // Claude Code's harness hands in reports of its own (a background task, another
+            // session's message): delivered mid-turn they join the turn that is running, as
+            // Claude itself has it (`absorbed_mid_turn`); between turns they start one.
+            if Normalizer.isInjectedPrompt(prompt), let i = s.turns.indices.last, s.turns[i].endedAt == nil {
+                s.turns[i].joinedAt = e.at
+                s.turns[i].joinedPrompt = prompt
+                s.status = .running
+                clearAttention(&s)
+                break
+            }
             // A prompt while the last turn is still open: the user cut in, stopping it and typing
-            // again or steering it mid-run. It ends there, or it would stay open for good. A
-            // background agent's report is not the user's and belongs to the turn it lands in.
+            // again or steering it mid-run. It ends there, or it would stay open for good.
             // An answer to the agent's own question is not cutting in.
-            if !prompt.hasPrefix("<task-notification>"), let i = s.turns.indices.last, s.turns[i].endedAt == nil {
+            if let i = s.turns.indices.last, s.turns[i].endedAt == nil {
                 s.turns[i].endedAt = e.at
                 if s.status != .needsInput { s.turns[i].interrupted = true }
             }
@@ -174,6 +196,10 @@ public enum SessionReducer {
             clearAttention(&s)
 
         case .permission(var req):
+            // Replayed late (spooled): the call it asked about has already run.
+            if !s.tools.contains(where: { $0.isRunning && $0.name == req.tool }),
+               s.tools.contains(where: { $0.name == req.tool && ($0.endedAt ?? .distantPast) >= e.at
+                                         && Normalizer.syntheticToolId($0.name, $0.input) == req.id }) { break }
             // Claude's PermissionRequest has no tool_use_id; adopt the id of the running call with
             // the same input, or the sole running call of that tool (when a PreToolUse hook rewrote tool_input).
             if let t = s.tools.last(where: { $0.isRunning && $0.name == req.tool && $0.subagentId == e.subagentId
@@ -193,6 +219,7 @@ public enum SessionReducer {
         case .turnEnd(let last):
             // Kimi sub-agents fire Stop under the parent's session id while its Agent call runs.
             if s.agent == .kimi, s.tools.contains(where: { $0.isRunning && $0.name == "Agent" }) { break }
+            if isBeforeLastTurn(s, e.at) { break }
             endTurn(&s, at: e.at, lastMessage: last)
 
         case .interrupted(let last):
@@ -208,6 +235,7 @@ public enum SessionReducer {
             endRunningTools(&s, at: e.at)
             s.subagents.removeAll()
             s.backgroundTasks = nil
+            s.unlistedTasks = nil
             s.status = .ended
             s.unreadSince = nil
             clearAttention(&s)
@@ -233,6 +261,23 @@ public enum SessionReducer {
         case .backgroundEnd(let id):
             s.backgroundTasks?.removeAll { $0 == id }
             if s.backgroundTasks?.isEmpty == true { s.backgroundTasks = nil }
+            s.unlistedTasks?.removeAll { $0 == id }
+            if s.unlistedTasks?.isEmpty == true { s.unlistedTasks = nil }
+            settleHeldTurn(&s)
+
+        // Only drops: what it lists is not added, as launches are counted from the tools (and a
+        // shell killed with the final response, which never notifies, must not be waited for).
+        // Unlisted twice running, a task is dropped at once; unlisted once, the app drops it when
+        // the session has been quiet a while (`unlistedTasks`).
+        case .backgroundInFlight(let ids):
+            if isBeforeLastTurn(s, e.at) { break }
+            let missing = (s.backgroundTasks ?? []).filter { !ids.contains($0) }
+            let again = Set(missing).intersection(s.unlistedTasks ?? [])
+            s.backgroundTasks?.removeAll { again.contains($0) }
+            if s.backgroundTasks?.isEmpty == true { s.backgroundTasks = nil }
+            let pending = missing.filter { !again.contains($0) }
+            s.unlistedTasks = pending.isEmpty ? nil : pending
+            settleHeldTurn(&s)
 
         case .statusSnapshot, .titleChanged, .parked, .interruptSeen:
             break
@@ -251,6 +296,22 @@ public enum SessionReducer {
     private static func lastToolIsAsk(_ s: SessionState) -> Bool {
         guard let t = s.tools.last, t.isRunning else { return false }
         return Normalizer.askTools.contains(t.name.lowercased())
+    }
+
+    /// A stop replayed late (spooled) that happened before the last turn began, or before a report
+    /// that joined it: it belongs to the turn before.
+    private static func isBeforeLastTurn(_ s: SessionState, _ at: Date) -> Bool {
+        guard let t = s.turns.last else { return false }
+        return t.startedAt > at || (t.joinedAt.map { $0 > at } ?? false)
+    }
+
+    /// A turn that ended but was held open for background work, with nothing left to wait for:
+    /// done where it ended. (Normally the last task's notice starts a turn that ends itself; this
+    /// is for ends that come without one, such as the transcript's or the Stop list's.)
+    private static func settleHeldTurn(_ s: inout SessionState) {
+        guard !s.awaitsBackground, s.status == .running || s.status == .stuck,
+              let end = s.turns.last?.endedAt, !s.tools.contains(where: \.isRunning) else { return }
+        endTurn(&s, at: end, lastMessage: nil)
     }
 
     private static func endTurn(_ s: inout SessionState, at: Date, lastMessage: String?) {

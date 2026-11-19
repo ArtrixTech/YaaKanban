@@ -64,7 +64,9 @@ public enum Normalizer {
             if env.agent == .claudeCode, subagent == nil, let id = backgroundLaunch(tool, resp) {
                 out.append(ev(.backgroundStart(id: id)))
             }
-            if env.agent == .claudeCode, subagent == nil, !failed, let id = backgroundStop(tool, input, resp) {
+            // A stop that finds no such task ("No task found with ID") also means it is over.
+            if env.agent == .claudeCode, subagent == nil, !failed || text?.contains("No task found") == true,
+               let id = backgroundStop(tool, input, resp) {
                 out.append(ev(.backgroundEnd(id: id)))
             }
             return out
@@ -88,7 +90,12 @@ public enum Normalizer {
             }
         // An API error ends the turn too; it is not the user's doing.
         case "Stop", "StopFailure":
-            return [ev(.turnEnd(lastMessage: p["last_assistant_message"]?.string))]
+            // What is still in flight as the turn ends, from Claude's own task registry: a task we
+            // count as out but it no longer lists has ended, whatever notice we missed.
+            let inFlight = env.agent == .claudeCode && subagent == nil
+                ? p["background_tasks"]?.array.map { $0.compactMap { $0["id"]?.string } } : nil
+            return (inFlight.map { [ev(.backgroundInFlight(ids: $0))] } ?? [])
+                + [ev(.turnEnd(lastMessage: p["last_assistant_message"]?.string))]
         case "SubagentStart":
             return [ev(.subagentStart(id: subagent ?? toolId, type: p["agent_type"]?.string))]
         case "SubagentStop":
@@ -108,7 +115,8 @@ public enum Normalizer {
     static func backgroundLaunch(_ tool: String, _ resp: JSONValue?) -> String? {
         switch tool.lowercased() {
         case "agent", "task": return resp?["isAsync"]?.bool == true ? resp?["agentId"]?.string : nil
-        case "sendmessage": return resp?["success"]?.bool == true ? resp?["resumedAgentId"]?.string : nil
+        // A finished agent the message started again (resumed, or revived from its transcript).
+        case "sendmessage": return resp?["success"]?.bool == true ? (resp?["resumedAgentId"] ?? resp?["revivedAgentId"])?.string : nil
         // A watch whose script runs in the background, reporting each line it prints.
         case "monitor": return resp?["taskId"]?.string
         default:
@@ -123,6 +131,12 @@ public enum Normalizer {
     static func backgroundStop(_ tool: String, _ input: JSONValue?, _ resp: JSONValue?) -> String? {
         guard ["taskstop", "killshell"].contains(tool.lowercased()) else { return nil }
         return resp?["task_id"]?.string ?? input?["task_id"]?.string ?? input?["shell_id"]?.string
+    }
+
+    /// A prompt Claude Code's harness hands in rather than the user typing it: a background
+    /// task's report, a message or idle notice from another session.
+    public static func isInjectedPrompt(_ prompt: String) -> Bool {
+        ["<task-notification>", "<cross-session-message", "[Cross-session idle notice]"].contains { prompt.hasPrefix($0) }
     }
 
     /// Claude Code tells the main agent a background task stopped by sending it a prompt that

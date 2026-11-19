@@ -204,6 +204,9 @@ public struct AgentEvent: Equatable, Sendable {
         case backgroundStart(id: String)
         /// A background agent reported back (its `<task-notification>`).
         case backgroundEnd(id: String)
+        /// Claude Code's own list of background tasks still in flight (its Stop hook): any we
+        /// count as out that it does not name has ended.
+        case backgroundInFlight(ids: [String])
         /// Status reported by a session file. Drives sessions without hooks; for hooked ones only an
         /// `.idle` newer than the last hook event counts (an interrupt fires no Stop hook).
         case statusSnapshot(SessionStatus)
@@ -264,6 +267,10 @@ public struct Turn: Codable, Equatable, Identifiable, Sendable {
     public var lastMessage: String?
     /// The user cut the turn short while it ran: stopped it, or sent a prompt into it.
     public var interrupted: Bool?
+    /// The last harness report Claude took into the turn as it ran (`absorbed_mid_turn`), and its
+    /// text: if the turn turns out to have been stopped before it, the report began a turn of its own.
+    public var joinedAt: Date?
+    public var joinedPrompt: String?
 }
 
 public struct Subagent: Codable, Equatable, Sendable {
@@ -324,6 +331,9 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     /// Background agents launched and not yet reported back; while any is out, a stopped turn
     /// is not finished. Optional so sessions stored before it decode.
     public var backgroundTasks: [String]?
+    /// Of those, the ones Claude's last Stop no longer listed: over, unless their notice is still
+    /// on its way (a task that finished as the reply was written). Dropped once that is unlikely.
+    public var unlistedTasks: [String]?
     /// The background job the conversation was moved into, whose session id starts with it.
     public var parkedIn: String?
 

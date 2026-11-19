@@ -662,6 +662,9 @@ final class AppModel {
     }
 
     private func scan() {
+        // A hook that missed its send deadline while the app was busy spooled its event; it is
+        // still news a few seconds on, so it alerts like a live one.
+        telemetry.count(.spoolReplay, by: Wire.drainSpool(paths: paths) { ingest($0.envelope, alert: true) })
         for ev in scanner.scan() {
             // Alert on unhooked sessions we already know (hooks alert for the rest); the first
             // sighting is just discovery.
@@ -669,6 +672,7 @@ final class AppModel {
             update(k, alert: sessions[k].map { !$0.hooked } ?? false) { SessionReducer.apply(ev, to: $0) }
         }
         for s in sessions.values where s.parentId == nil && s.status != .ended { linkParent(s.id) }
+        dropUnlistedTasks()
         // Titles for every live session; for unhooked ones also the latest prompt and reply.
         var transcripts: [(key: String, url: URL, at: Date)] = []
         for s in activeSessions {
@@ -711,6 +715,7 @@ final class AppModel {
             for (key, r) in results {
                 endReportedTools(key, r.finishedTools)
                 markInterrupts(key, r.interrupts)
+                endReportedTasks(key, r.endedTasks)
                 update(key, alert: false) { s in
                     guard var s else { return nil }
                     s.usage = r.usage
@@ -754,6 +759,32 @@ final class AppModel {
             update(key, alert: false) { SessionReducer.apply(e, to: $0) }
         }
     }
+
+    /// Stops waiting for background tasks the transcript shows over. The first read after launch
+    /// covers the whole transcript, so a session stored waiting on a task long gone is set right.
+    private func endReportedTasks(_ key: String, _ ended: [String]) {
+        guard let s = sessions[key], let waiting = s.backgroundTasks else { return }
+        for id in waiting where ended.contains(id) {
+            // Stamped at the last known event, so it does not count as new activity.
+            let e = AgentEvent(agent: s.agent, sessionId: s.sessionId, at: s.lastEventAt, kind: .backgroundEnd(id: id))
+            update(key, alert: false) { SessionReducer.apply(e, to: $0) }
+        }
+    }
+
+    /// Tasks Claude's last Stop no longer listed, with nothing heard since: a notice that was on
+    /// its way would have come by now. The turn held for them is then done.
+    private func dropUnlistedTasks() {
+        let now = Date()
+        for s in sessions.values {
+            guard let ids = s.unlistedTasks, now.timeIntervalSince(s.lastEventAt) > Self.unlistedGrace else { continue }
+            for id in ids {
+                let e = AgentEvent(agent: s.agent, sessionId: s.sessionId, at: s.lastEventAt, kind: .backgroundEnd(id: id))
+                update(s.id, alert: true) { SessionReducer.apply(e, to: $0) }
+            }
+        }
+    }
+
+    static let unlistedGrace: TimeInterval = 15
 
     /// Marks the turns the transcript shows the user stopped (no hook reports Claude's Esc).
     private func markInterrupts(_ key: String, _ times: [Date]) {

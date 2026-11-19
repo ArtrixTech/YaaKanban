@@ -36,6 +36,9 @@ public struct TranscriptTally: Sendable {
     /// by user…]" line, not the one an exiting process stamps; Codex's `turn_aborted` for an
     /// interrupt), newest last.
     public private(set) var interrupts: [Date] = []
+    /// Background tasks Claude's transcript shows over (a final notice, a Monitor's expiry) and not
+    /// revived since, newest last. A safety net for ends the hooks missed or an older build misread.
+    public private(set) var endedTasks: [String] = []
     /// Claude repeats one message's usage on each of its content-block lines.
     private var lastMessageId: String?
     /// The read is in the middle of an oversized line; drop bytes up to its newline.
@@ -96,6 +99,13 @@ public struct TranscriptTally: Sendable {
         }
         let isAssistant = line.has("\"type\":\"assistant\"")
         if !isAssistant, line.has("\"tool_result\"") { noteResults(line) }
+        // A notice is queued when it happens; one delivered while Claude was busy elsewhere may
+        // never be written as a prompt line.
+        if !isAssistant, line.has("\"operation\":\"enqueue\""), line.has("<task-notification>"),
+           let j = JSONValue.parse(Data(line)), j["type"]?.string == "queue-operation", let p = j["content"]?.string {
+            noteEndedTasks(Normalizer.notifiedTasks(p))
+            return
+        }
         // User lines are mostly (large) tool results; only parse ones that may be a typed prompt.
         let isPrompt = !isAssistant && line.has("\"type\":\"user\"") && !line.has("\"tool_result\"")
         guard isAssistant || isPrompt, let j = JSONValue.parse(Data(line)) else { return }
@@ -103,6 +113,7 @@ public struct TranscriptTally: Sendable {
         let content = j["message"]?["content"]
         if isPrompt {
             if let p = TranscriptPeek.text(of: content), !p.hasPrefix("<") { lastReply = nil }
+            if case .string(let p) = content { noteEndedTasks(Normalizer.notifiedTasks(p)) }
             return
         }
         let id = j["message"]?["id"]?.string
@@ -158,6 +169,16 @@ public struct TranscriptTally: Sendable {
         let failed = line.has("\"is_error\":true")
         for id in line.stringValues(of: "tool_use_id") { finishedTools.append((id, failed)) }
         if finishedTools.count > Self.finishedLimit { finishedTools.removeFirst(finishedTools.count - Self.finishedLimit) }
+        // SendMessage brings a finished agent back under its old id.
+        let revived = Set(line.stringValues(of: "resumedAgentId") + line.stringValues(of: "revivedAgentId"))
+        if !revived.isEmpty { endedTasks.removeAll { revived.contains($0) } }
+    }
+
+    private mutating func noteEndedTasks(_ ids: [String]) {
+        guard !ids.isEmpty else { return }
+        endedTasks.removeAll { ids.contains($0) }
+        endedTasks += ids
+        if endedTasks.count > Self.finishedLimit { endedTasks.removeFirst(endedTasks.count - Self.finishedLimit) }
     }
 
     static let claudeMarkers: Set<String> = ["[Request interrupted by user]", "[Request interrupted by user for tool use]"]

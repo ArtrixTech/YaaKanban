@@ -83,7 +83,7 @@ public enum ToolKind: String, CaseIterable, Sendable {
 extension Turn {
     /// The user wrote this prompt; the agent's harness injects the others (`<task-notification>`,
     /// `<command-name>`, ...), and an empty one is a turn the transcript didn't name.
-    public var byUser: Bool { !prompt.isEmpty && !prompt.hasPrefix("<") }
+    public var byUser: Bool { !prompt.isEmpty && !prompt.hasPrefix("<") && !Normalizer.isInjectedPrompt(prompt) }
 
     /// The prompt is a background task reporting back, not the user.
     public var reportsTask: Bool { prompt.hasPrefix("<task-notification>") }

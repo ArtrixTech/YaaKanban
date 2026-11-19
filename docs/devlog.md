@@ -1,8 +1,25 @@
 # Devlog
 
-## fix(claude): end a turn stopped by Esc from its transcript marker
+## fix(claude): align background, mid-turn and session-file signals
 
 `PENDING` | 2026-11-19
+
+- **Changes**:
+  - Stop's `background_tasks` (`backgroundInFlight`): a waited-on id the list leaves out is marked (`unlistedTasks`); unlisted again, or with the session quiet 15 s (`AppModel.dropUnlistedTasks`), it is dropped. A late (spooled) Stop is ignored for this and for `turnEnd` (`isBeforeLastTurn`, also before a joined report).
+  - `TranscriptTally.endedTasks`: tasks the transcript shows over (final notice, Monitor expiry, also `queue-operation enqueue` records), minus SendMessage revivals; `AppModel.endReportedTasks` ends them. The first read after launch covers the whole file, so stored cards are repaired.
+  - `settleHeldTurn`: the last task ending without a new turn (transcript, Stop list) finishes the held turn where it ended.
+  - Harness prompts (`<task-notification>`, `<cross-session-message`, `[Cross-session idle notice]`, `Normalizer.isInjectedPrompt`) arriving mid-turn join the open turn (`Turn.joinedAt/joinedPrompt`); not pushback, not the last prompt. A marker read later that precedes the join splits the turn.
+  - Marker slack no longer needs the previous turn flagged interrupted; a PermissionRequest replayed after its call ran is ignored; failed TaskStop "No task found" ends the task; SendMessage `revivedAgentId`.
+  - Session files read with `JSONValue.parseLeading` (torn tail); spool drained every 5 s scan, not only at launch.
+- **Reason**: Forward audit of Claude Code signals (docs/precipitation/261119_claude_code_signal_mapping_audit.md). Real sessions read as running after they finished: 12 expired Monitors left from before 19c41a5 (aacc96fc), 80 notice turns left open in 17 sessions, peer messages counted as pushback, 2 of 16 live session files unparsed.
+- **User feedback**: "能不能做个正向研发，正向分析整个cc使用过程中的各类信号，以及当前对应到我们内部状态管理的这些映射、接收是否正确"; "这个也是 已经结束了 但显示还在继续" (session aacc96fc).
+- **Process**: Signals verified against Claude Code 2.1.328 binary strings, hook docs, a spooled Stop payload and local transcripts (read-only). Adversarial review found 5 counterexamples (late Stop list wiping the next turn's task; done-then-running when a task finishes during the final reply; Esc + notice + marker reading idle; marker after a prompt typed on a question; spool-drain gaps); all but the short spooled-prompt case fixed and tested.
+- **Result**: `make test` 272 passed. After `make install` session aacc96fc read idle with no background tasks; the one remaining held card waits on a Monitor that is still live.
+- **Notes**: aacc96fc's last expiry (`b1ddoqri1`) was never written as a user line, only as `queue-operation enqueue`. Open: spooled prompt of a short turn is still dropped; Workflow launches and some Notification types unmapped; pushback counts permission rejections (`…for tool use`).
+
+## fix(claude): end a turn stopped by Esc from its transcript marker
+
+`36c8a14` | 2026-11-19
 
 - **Changes**: `SessionReducer` `.interruptSeen`: when the marker falls in the last turn, that turn is still open, the session is running/stuck/needs input and no tool started after the marker, the turn ends at the marker (`endTurn`). Test `transcriptMarkerEndsTheTurnEscLeftOpen`; CHANGELOG 0.2.7 Fixed line.
 - **Reason**: Esc fires no Stop hook. The only end signal used was the session file going idle more than 1 s after our last hook; Esc 65 ms after a tool's PostToolUse falls inside that guard, so the turn stayed open and the stuck detector later flagged it "no new events".
