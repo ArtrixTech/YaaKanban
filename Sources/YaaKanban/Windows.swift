@@ -412,7 +412,9 @@ struct FloatingPanelView: View {
     @State private var expanded: String?
     @State private var listHeight: CGFloat = 0
     /// Everything but the list (header, grip, padding), so the list knows what is left for it.
-    @State private var chrome: CGFloat = 0
+    /// Kept for folded and unfolded apart: taken from the other, the first layout after a fold
+    /// sized the list wrong and a second one followed, restarting the slide.
+    @State private var chromes: [Bool: CGFloat] = [:]
     /// List height when a resize drag began.
     @State private var dragStart: CGFloat?
     @State private var widthStart: CGFloat?
@@ -480,7 +482,7 @@ struct FloatingPanelView: View {
         .fixedSize(horizontal: false, vertical: true)
         .overlay(alignment: widthGripSide) { if !folded { widthGrip } }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
-            chrome = size.height - (listShown ? shownList : 0)
+            chromes[folded] = size.height - (listShown ? shownList : 0)
             onSize(size)
         }
     }
@@ -630,6 +632,8 @@ struct FloatingPanelView: View {
     private func grow(to h: CGFloat) { listHeight = h }
 
     private var listShown: Bool { searchShown || !model.activeSessions.isEmpty }
+
+    private var chrome: CGFloat { chromes[folded] ?? chromes[!folded] ?? 0 }
 
     private var shownList: CGFloat {
         let fits = room.map { max(Self.minList, $0.height - chrome) } ?? .infinity

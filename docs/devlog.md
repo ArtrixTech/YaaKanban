@@ -1,8 +1,19 @@
 # Devlog
 
-## perf(panel): reuse known card heights when the rail folds
+## perf(panel): size the list for the fold it is laid out in
 
 `PENDING` | 2026-11-19
+
+- **Changes**: `FloatingPanelView` keeps the chrome height (all but the list) per fold state (`chromes[folded]`) instead of one value.
+- **Reason**: The list's cap is room height minus chrome. Right after a fold or unfold, chrome still held the other state's value, so the first layout sized the list wrong (unfold 1419.6 → 1394, fold 1362 → 1387.6) and a second layout followed, reporting a second size; `fit` started the slide again, and each `startSlide` → `place` forces a full `NSHostingView` layout (~28 ms each under load, 669 of 7746 main-thread samples).
+- **User feedback**: "展开延迟也要修。"
+- **Process**: Temporary file traces + CGEvent hover script, load avg 12–15. Before: unfold peek→done 531–759 ms (two onSize, two slideStart), fold peekEnds→done 343–461 ms. After: one onSize and one slideStart each way; unfold 395–515 ms, fold 278–334 ms. Also measured d825eb7 here (fold now 95–150 ms to onSize). Traces removed.
+- **Result**: `make test` 255 passed; installed.
+- **Notes**: Unfold still spends 200–330 ms between peek and the first size report, rebuilding every full `SessionCard` (mostly CoreText measurement of card text). Untried lever: start the slide toward the last unfolded frame before setting `room.peek`, so the glass opens while the cards build; must keep the folded content's own size report from retargeting the slide back.
+
+## perf(panel): reuse known card heights when the rail folds
+
+`d825eb7` | 2026-11-19
 
 - **Changes**: `NarrowSessionCard` keeps `measured` (the `Measure` key its height was taken for); on appear with a height already known from `BoardList.heights` it records the key and skips the hidden full-card measurement until the key changes.
 - **Reason**: Sidebar hover unfold/fold lags badly under high CPU. Folding creates every `NarrowSessionCard` anew; each laid out a hidden full `SessionCard` for 500 ms just to re-learn the height the full card had a frame earlier.
