@@ -370,7 +370,7 @@
 
 /* Ended list */
 "Leverage trend: each point is the leverage over the hour up to then, across the last %@; the dashed line is today's average 1-hour leverage, taken at each whole hour." = "杠杆走势：每点是到那时为止 1 小时的杠杆，近 %@；虚线为今日各整点的 1 小时杠杆平均值";
-"Over the last hour, agent work while you were here per hour you were here. The arrow shows whether the 1-hour leverage is rising, falling or level right now." = "最近 1 小时，你在场时 Agent 的工作 ÷ 你在场的时间。箭头表示 1 小时杠杆此刻是在上升、下降还是持平";
+"Over the last hour, agent work per hour you were here, work while you were away included. The arrow shows whether the 1-hour leverage is rising, falling or level right now." = "最近 1 小时，Agent 的工作（含你离开期间）÷ 你在场的时间。箭头表示 1 小时杠杆此刻是在上升、下降还是持平";
 "Close search" = "关闭搜索";
 "No matches" = "没有匹配的任务";
 "Search the last %lld days" = "搜索近 %lld 天";

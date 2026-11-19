@@ -12,6 +12,8 @@ final class AppModel {
     let paths = Paths()
 
     @ObservationIgnored private var store: Store?
+    /// Reports, computed off the main thread on a connection of their own.
+    @ObservationIgnored private var reportQueue: ReportQueue?
     @ObservationIgnored private var server: SocketServer?
     /// A blocked permission hook. `token` ties the expiry timer to this request only.
     private struct PendingReply {
@@ -281,6 +283,7 @@ final class AppModel {
                 sessions[s.id] = s
             }
             self.store = store
+            reportQueue = (try? Store(readingFrom: paths.database)).map(ReportQueue.init)
         } catch {
             serverError = "History unavailable: \(error)"
         }
@@ -659,6 +662,9 @@ final class AppModel {
     }
 
     private func scan() {
+        // A hook that missed its send deadline while the app was busy spooled its event; it is
+        // still news a few seconds on, so it alerts like a live one.
+        telemetry.count(.spoolReplay, by: Wire.drainSpool(paths: paths) { ingest($0.envelope, alert: true) })
         for ev in scanner.scan() {
             // Alert on unhooked sessions we already know (hooks alert for the rest); the first
             // sighting is just discovery.
@@ -666,6 +672,7 @@ final class AppModel {
             update(k, alert: sessions[k].map { !$0.hooked } ?? false) { SessionReducer.apply(ev, to: $0) }
         }
         for s in sessions.values where s.parentId == nil && s.status != .ended { linkParent(s.id) }
+        dropUnlistedTasks()
         // Titles for every live session; for unhooked ones also the latest prompt and reply.
         var transcripts: [(key: String, url: URL, at: Date)] = []
         for s in activeSessions {
@@ -708,6 +715,7 @@ final class AppModel {
             for (key, r) in results {
                 endReportedTools(key, r.finishedTools)
                 markInterrupts(key, r.interrupts)
+                endReportedTasks(key, r.endedTasks)
                 update(key, alert: false) { s in
                     guard var s else { return nil }
                     s.usage = r.usage
@@ -752,6 +760,32 @@ final class AppModel {
         }
     }
 
+    /// Stops waiting for background tasks the transcript shows over. The first read after launch
+    /// covers the whole transcript, so a session stored waiting on a task long gone is set right.
+    private func endReportedTasks(_ key: String, _ ended: [String]) {
+        guard let s = sessions[key], let waiting = s.backgroundTasks else { return }
+        for id in waiting where ended.contains(id) {
+            // Stamped at the last known event, so it does not count as new activity.
+            let e = AgentEvent(agent: s.agent, sessionId: s.sessionId, at: s.lastEventAt, kind: .backgroundEnd(id: id))
+            update(key, alert: false) { SessionReducer.apply(e, to: $0) }
+        }
+    }
+
+    /// Tasks Claude's last Stop no longer listed, with nothing heard since: a notice that was on
+    /// its way would have come by now. The turn held for them is then done.
+    private func dropUnlistedTasks() {
+        let now = Date()
+        for s in sessions.values {
+            guard let ids = s.unlistedTasks, now.timeIntervalSince(s.lastEventAt) > Self.unlistedGrace else { continue }
+            for id in ids {
+                let e = AgentEvent(agent: s.agent, sessionId: s.sessionId, at: s.lastEventAt, kind: .backgroundEnd(id: id))
+                update(s.id, alert: true) { SessionReducer.apply(e, to: $0) }
+            }
+        }
+    }
+
+    static let unlistedGrace: TimeInterval = 15
+
     /// Marks the turns the transcript shows the user stopped (no hook reports Claude's Esc).
     private func markInterrupts(_ key: String, _ times: [Date]) {
         for at in times {
@@ -787,9 +821,15 @@ final class AppModel {
     @ObservationIgnored private var tokensFlushedAt = Date()
     @ObservationIgnored private var reports: [ReportKey: (version: Int, at: Date, report: ActivityReport)] = [:]
     private struct ReportKey: Hashable { var range: DateInterval; var buckets: Int }
-    /// Each session's lane just before a report's start. Rows are recorded at or near the present,
-    /// so for a start already past this no longer changes; `record` drops it when one lands earlier.
-    @ObservationIgnored private var lanesBefore: [Date: (lanes: [String: Lane], held: [String: Date])] = [:]
+    /// The last report of each length and resolution, shown for a range not computed yet that
+    /// nearly covers it: the panel's trend moves its range on every minute. Not for another day
+    /// or week, which would show its numbers until the right ones came.
+    @ObservationIgnored private var similar: [Shape: ActivityReport] = [:]
+    private struct Shape: Hashable { var duration: TimeInterval; var buckets: Int }
+    /// Reports being computed, not asked for again meanwhile.
+    @ObservationIgnored private var computing: Set<ReportKey> = []
+    /// Bumped as each computed report arrives, so the views that asked for it redraw.
+    private var reportsArrived = 0
 
     /// The session's lane, as the boards show it: one past its retention has left the lanes.
     private func lane(_ s: SessionState?) -> Lane? {
@@ -807,10 +847,9 @@ final class AppModel {
         }
         guard !rows.isEmpty else { return }
         for r in rows where r.kind == .lane { recordedLanes[r.session] = Lane(rawValue: r.text) }
-        // A lane row before a cached start changes what was open there (rows are almost always "now").
-        if rows.contains(where: { r in r.kind == .lane && lanesBefore.keys.contains { r.at < $0 } }) { lanesBefore = [:] }
         // The heartbeat covers the rows just written, so lanes left open at a quit close after them.
         store.record(rows, meta: [Self.heartbeatKey: Date().timeIntervalSince1970])
+        reportQueue?.recorded(rows)
         activityVersion += 1
     }
 
@@ -845,7 +884,7 @@ final class AppModel {
             let lanes = store.activity(from: recordedSince ?? now, to: until).filter { $0.kind == .lane }
             store.record(HeldBackfill.rows(Array(sessions.values), lanes: lanes, until: until),
                          meta: [Self.heldKey: now.timeIntervalSince1970])
-            lanesBefore = [:]
+            reportQueue?.forgetLanes()
         }
         if let since = store.meta(Self.interruptsKey) {
             interruptsSince = Date(timeIntervalSince1970: since)
@@ -905,29 +944,48 @@ final class AppModel {
 
     /// The report for `range`, computed again when something was recorded, at most every few
     /// seconds (views ask on every redraw). A range already over is kept for minutes: only an
-    /// absence ending later still reaches into it.
+    /// absence ending later still reaches into it. Computed off the main thread: until it arrives
+    /// the view shows the last one it had (or one of the same length), and redraws when it does.
+    /// Only a report never shown before, of a length never asked for, is waited for.
     func report(_ range: DateInterval, buckets: Int = 48, edges: [Date]? = nil) -> ActivityReport {
         guard let store else { return ActivityReport(range: range) }
+        _ = reportsArrived
         let now = Date()
-        let key = ReportKey(range: range, buckets: edges.map { $0.count - 1 } ?? buckets)
-        if let c = reports[key] {
+        let n = edges.map { $0.count - 1 } ?? buckets
+        let key = ReportKey(range: range, buckets: n), shape = Shape(duration: range.duration, buckets: n)
+        let cached = reports[key]
+        if let c = cached {
             let age = now.timeIntervalSince(c.at)
             if range.end <= c.at ? age < 600 : (c.version == activityVersion || age < 5) && age < 30 { return c.report }
         }
+        let request = ReportQueue.Request(range: range, buckets: buckets, edges: edges, now: now, awaySince: awaySince,
+                                          recordedSince: recordedSince, interruptsSince: interruptsSince)
+        let near = similar[shape].flatMap { abs($0.range.end.timeIntervalSince(range.end)) <= range.duration / 10 ? $0 : nil }
+        guard let queue = reportQueue, let shown = cached?.report ?? near else {
+            // Nothing to show meanwhile (or no second connection): computed here, as before.
+            let r = (reportQueue ?? ReportQueue(store: store)).computeNow(request)
+            keep(r, key: key, shape: shape, version: activityVersion, at: now)
+            return r
+        }
+        if computing.insert(key).inserted {
+            let version = activityVersion
+            queue.compute(request) { r in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.computing.remove(key)
+                    self.keep(r, key: key, shape: shape, version: version, at: now)
+                    self.reportsArrived &+= 1
+                }
+            }
+        }
+        return shown
+    }
+
+    private func keep(_ r: ActivityReport, key: ReportKey, shape: Shape, version: Int, at: Date) {
         if reports.count > 24 { reports = [:] }
-        if lanesBefore.count > 24 { lanesBefore = [:] }
-        let before = lanesBefore[range.start] ?? (store.lanes(before: range.start), store.held(before: range.start))
-        lanesBefore[range.start] = before
-        // Work while away counts toward when the user left, so an absence from the range runs on past it.
-        var to = min(range.end, now)
-        if let a = awaySince, a < range.end { to = now }
-        else if let e = store.awayEnd(across: range.end) { to = min(max(to, e), now) }
-        let r = ActivityReport.compute(rows: store.activity(from: range.start, to: to),
-                                       lanesBefore: before.lanes, heldBefore: before.held, range: range, now: now,
-                                       awaySince: awaySince, recordedSince: recordedSince,
-                                       interruptsSince: interruptsSince, buckets: buckets, edges: edges)
-        reports[key] = (activityVersion, now, r)
-        return r
+        if similar.count > 24 { similar = [:] }
+        reports[key] = (version, at, r)
+        similar[shape] = r
     }
 
     /// One session's recorded lane and reply rows, for its detail page.

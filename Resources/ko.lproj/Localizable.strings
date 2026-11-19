@@ -370,7 +370,7 @@
 
 /* Ended list */
 "Leverage trend: each point is the leverage over the hour up to then, across the last %@; the dashed line is today's average 1-hour leverage, taken at each whole hour." = "레버리지 추이: 최근 %@ 동안 각 지점은 그 시점까지 1시간의 레버리지입니다. 점선은 오늘 매 정시 기준 1시간 레버리지의 평균입니다.";
-"Over the last hour, agent work while you were here per hour you were here. The arrow shows whether the 1-hour leverage is rising, falling or level right now." = "최근 1시간, 자리에 있는 동안의 에이전트 작업 ÷ 머문 시간. 화살표는 지금 1시간 레버리지가 오르는지, 내리는지, 그대로인지 보여 줍니다.";
+"Over the last hour, agent work per hour you were here, work while you were away included. The arrow shows whether the 1-hour leverage is rising, falling or level right now." = "최근 1시간, 에이전트 작업(자리를 비운 동안 포함) ÷ 머문 시간. 화살표는 지금 1시간 레버리지가 오르는지, 내리는지, 그대로인지 보여 줍니다.";
 "Close search" = "검색 닫기";
 "No matches" = "일치 항목 없음";
 "Search the last %lld days" = "최근 %lld일 검색";

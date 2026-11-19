@@ -645,6 +645,24 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(TranscriptPeek.parse(Data()) == nil)
     }
 
+    @Test func interruptMarkerIsNotThePrompt() {
+        let peek = TranscriptPeek.parse(lines([
+            #"{"type":"user","message":{"role":"user","content":"发版本"}}"#,
+            #"{"type":"assistant","message":{"content":[{"type":"text","text":"先看看"}]}}"#,
+            #"{"type":"user","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user for tool use]"}]}}"#,
+        ]))
+        #expect(peek?.lastPrompt == "发版本" && peek?.lastReply == "先看看")
+    }
+
+    @Test func tornSessionFileReadsItsLeadingRecord() {
+        let torn = Data(#"{"pid":1,"status":"idle","name":"a}b\"}"}us":"busy"}}"#.utf8)
+        #expect(JSONValue.parse(torn) == nil)
+        #expect(JSONValue.parseLeading(torn)?["status"]?.string == "idle")
+        #expect(JSONValue.parseLeading(torn)?["name"]?.string == "a}b\"}")
+        #expect(JSONValue.parseLeading(Data("}{".utf8)) == nil)
+        #expect(JSONValue.parseLeading(Data(#"{"a":1"#.utf8)) == nil)
+    }
+
     @Test func titleFallsBackToPeek() {
         var s = SessionState(agent: .claudeCode, sessionId: "p", at: t0)
         s.cwd = "/x/LY-Analysis"
@@ -851,6 +869,27 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         let rest = t.update(from: url)
         #expect(rest)
         #expect(t.lastReply == nil && t.usage.output == 10)
+    }
+
+    @Test func transcriptListsTasksThatEnded() {
+        func notice(_ id: String, _ body: String) -> String {
+            let text = "<task-notification>\n<task-id>\(id)</task-id>\n\(body)\n</task-notification>"
+            return String(data: try! JSONEncoder().encode(JSONValue.object(["type": .string("user"), "message": .object(["role": .string("user"), "content": .string(text)])])), encoding: .utf8)!
+        }
+        let lines = [
+            notice("m1", "<summary>Monitor event: \"w\"</summary>\n<event>[Monitor expired after 30m with no events delivered.]</event>"),
+            notice("m2", "<summary>Monitor event: \"w\"</summary>\n<event>line 3</event>"),
+            notice("a1", "<status>completed</status>"),
+            notice("b1", "<status>failed</status>"),
+            #"{"type":"queue-operation","operation":"enqueue","content":"<task-notification>\n<task-id>q1</task-id>\n<event>[Monitor expired after 30m]</event>\n</task-notification>"}"#,
+            // SendMessage brings a1 back.
+            #"{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t9","content":"ok"}]},"toolUseResult":{"success":true,"resumedAgentId":"a1"}}"#,
+        ]
+        let url = tmp(lines.joined(separator: "\n") + "\n")
+        defer { try? FileManager.default.removeItem(at: url) }
+        var t = TranscriptTally(format: .claude)
+        t.update(from: url)
+        #expect(t.endedTasks == ["m1", "b1", "q1"])
     }
 
     @Test func modificationDateFollowsWritesOnAKeptURL() throws {
@@ -1308,10 +1347,161 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(s.status == .running)
     }
 
-    @Test func notificationNamesEveryTask() {
-        let p = "<task-notification>\n<task-id>a1</task-id>\n</task-notification>\n<task-notification>\n<task-id>b2</task-id>\n</task-notification>"
+    @Test func notificationNamesEveryFinishedTask() {
+        let p = "<task-notification>\n<task-id>a1</task-id>\n<status>completed</status>\n</task-notification>\n<task-notification>\n<task-id>b2</task-id>\n<status>failed</status>\n</task-notification>"
         #expect(Normalizer.notifiedTasks(p) == ["a1", "b2"])
         #expect(Normalizer.notifiedTasks("see <task-id>a1</task-id>").isEmpty)
+        // A Monitor's event: the watch is still running.
+        #expect(Normalizer.notifiedTasks("<task-notification>\n<task-id>m1</task-id>\n<summary>Monitor event: \"x\"</summary>\n<event>epoch 3</event>\n</task-notification>").isEmpty)
+    }
+
+    @Test func stopWaitsForAMonitorUntilItsStreamEnds() {
+        let watch = claude("PostToolUse", ["tool_name": .string("Monitor"), "tool_use_id": .string("t-m1"),
+                                           "tool_input": .object(["command": .string("tail -f log"), "description": .string("training")]),
+                                           "tool_response": .object(["persistent": .bool(false), "taskId": .string("m1"),
+                                                                     "timeoutMs": .number(1_800_000)])], at: 1)
+        let event = claude("UserPromptSubmit", ["prompt": .string("<task-notification>\n<task-id>m1</task-id>\n<summary>Monitor event: \"training\"</summary>\n<event>epoch 3</event>\n</task-notification>")], at: 40)
+        let waiting = fold([claude("UserPromptSubmit", ["prompt": .string("train it")]), watch,
+                            claude("Stop", at: 2), event, claude("Stop", at: 45)])
+        #expect(waiting.backgroundTasks == ["m1"])
+        #expect(waiting.status == .running)
+
+        let done = fold([notify("m1", at: 90), claude("Stop", at: 95)], into: waiting)
+        #expect(done.backgroundTasks == nil)
+        #expect(done.status == .idle)
+    }
+
+    @Test func stopListDropsTasksClaudeNoLongerRuns() {
+        func stop(_ ids: [String]?, at: TimeInterval) -> HookEnvelope {
+            claude("Stop", ids.map { ["background_tasks": .array($0.map { .object(["id": .string($0), "type": .string("subagent")]) })] } ?? [:], at: at)
+        }
+        let out = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1), launch("a2", at: 2)])
+        // An older Claude without the list changes nothing.
+        let old = fold([stop(nil, at: 3)], into: out)
+        #expect(old.backgroundTasks == ["a1", "a2"] && old.status == .running)
+        // a2's notice was missed: Claude no longer lists it. Once could be a notice still on its
+        // way, so it is only marked; unlisted again, it is dropped.
+        let one = fold([stop(["a1", "b9"], at: 3)], into: out)
+        #expect(one.backgroundTasks == ["a1", "a2"] && one.unlistedTasks == ["a2"] && one.status == .running)
+        let twice = fold([notify("a1", at: 4), stop(["b9"], at: 6)], into: one)
+        #expect(twice.backgroundTasks == nil && twice.unlistedTasks == nil && twice.status == .idle)
+        // The notice that was on its way clears the mark.
+        let came = fold([notify("a2", at: 4)], into: one)
+        #expect(came.backgroundTasks == ["a1"] && came.unlistedTasks == nil)
+        // Left unlisted, the app drops it after a quiet while: the held turn is then done.
+        let none = fold([stop([], at: 3)], into: out)
+        #expect(none.unlistedTasks == ["a1", "a2"] && none.status == .running)
+        var quiet = none
+        for id in ["a1", "a2"] {
+            quiet = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "s1", at: quiet.lastEventAt, kind: .backgroundEnd(id: id)), to: quiet)
+        }
+        #expect(quiet.backgroundTasks == nil && quiet.status == .idle && quiet.turns.last?.endedAt == t0.addingTimeInterval(3))
+    }
+
+    /// A Stop spooled from the turn before must not drop a task the next turn launched.
+    @Test func lateStopListLeavesTheNextTurnsTasks() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("a")], at: 1),
+                      claude("UserPromptSubmit", ["prompt": .string("b")], at: 5), launch("y", at: 6),
+                      claude("Stop", ["background_tasks": .array([])], at: 4),
+                      claude("Stop", ["background_tasks": .array([.object(["id": .string("y")])])], at: 10)])
+        #expect(s.backgroundTasks == ["y"] && s.unlistedTasks == nil && s.status == .running)
+    }
+
+    /// A failed TaskStop for a task already gone still ends the wait for it.
+    @Test func stoppingAGoneTaskEndsIt() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("m1", at: 1),
+                      claude("PostToolUseFailure", ["tool_name": .string("TaskStop"), "tool_use_id": .string("t2"),
+                                                    "tool_input": .object(["task_id": .string("m1")]),
+                                                    "error": .string("No task found with ID: m1")], at: 2)])
+        #expect(s.backgroundTasks == nil)
+    }
+
+    /// A turn held for tasks the transcript later shows over (a stored session whose Monitor expiry
+    /// an older build missed) is done where it ended, without a new notice.
+    @Test func endsFromTheTranscriptSettleAHeldTurn() {
+        let held = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("m1", at: 1), launch("m2", at: 2),
+                         claude("Stop", at: 10)])
+        #expect(held.status == .running && held.turns.last?.endedAt != nil)
+        var s = held
+        for id in ["m1", "m2"] {
+            s = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "s1", at: s.lastEventAt, kind: .backgroundEnd(id: id)), to: s)
+        }
+        #expect(s.status == .idle && s.backgroundTasks == nil)
+        #expect(s.turns.last?.endedAt == t0.addingTimeInterval(10))
+    }
+
+    /// Mid-turn, the last task's end leaves the running turn alone.
+    @Test func lastTaskEndingMidTurnKeepsTheTurn() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1), notify("a1", at: 5)])
+        #expect(s.status == .running && s.turns.last?.endedAt == nil)
+    }
+
+    @Test func revivedAgentIsWaitedFor() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("x")]),
+                      claude("PostToolUse", ["tool_name": .string("SendMessage"), "tool_use_id": .string("t1"),
+                                             "tool_response": .object(["success": .bool(true), "revivedAgentId": .string("a7")])], at: 1)])
+        #expect(s.backgroundTasks == ["a7"])
+    }
+
+    @Test func reportsMidTurnJoinTheTurn() {
+        let running = fold([claude("UserPromptSubmit", ["prompt": .string("x")]), launch("a1", at: 1)])
+        let s = fold([notify("a1", at: 5),
+                      claude("UserPromptSubmit", ["prompt": .string("<cross-session-message from=\"uds:/tmp/x.sock\">\nhi\n</cross-session-message>")], at: 6),
+                      claude("UserPromptSubmit", ["prompt": .string("[Cross-session idle notice] \"other\" is idle now")], at: 7)],
+                     into: running)
+        #expect(s.turns.count == 1 && s.turns[0].endedAt == nil && s.turns[0].interrupted == nil)
+        #expect(s.backgroundTasks == nil && s.status == .running)
+        // Between turns a report starts one.
+        let next = fold([claude("Stop", at: 8), notify("a9", at: 20)], into: s)
+        #expect(next.turns.count == 2 && next.turns[0].interrupted == nil && next.status == .running)
+    }
+
+    @Test func lateStopLeavesTheNextTurn() {
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("a")], at: 1),
+                      claude("UserPromptSubmit", ["prompt": .string("b")], at: 5),
+                      claude("Stop", at: 4)])
+        #expect(s.turns.count == 2 && s.turns[1].endedAt == nil && s.status == .running)
+        // Its Stop spooled, turn a was still open when a report came: the report joined it, and
+        // the late Stop is from before that.
+        let joined = fold([claude("UserPromptSubmit", ["prompt": .string("a")], at: 1), notify("z", at: 5), claude("Stop", at: 4)])
+        #expect(joined.turns.count == 1 && joined.turns[0].endedAt == nil && joined.status == .running)
+    }
+
+    /// Esc, then a report Claude starts a turn for, then the marker is read: the report's turn
+    /// goes on rather than the session reading idle.
+    @Test func markerBeforeAJoinedReportSplitsTheTurn() {
+        let open = fold([claude("UserPromptSubmit", ["prompt": .string("a")], at: 1), notify("x", at: 12)])
+        #expect(open.turns.count == 1)
+        let s = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(14),
+                                                kind: .interruptSeen(at: t0.addingTimeInterval(10))), to: open)
+        #expect(s.turns.count == 2 && s.turns[0].interrupted == true && s.turns[0].endedAt == t0.addingTimeInterval(10))
+        #expect(s.turns[1].startedAt == t0.addingTimeInterval(12) && s.turns[1].interrupted == nil
+                && s.turns[1].prompt.hasPrefix("<task-notification>"))
+        #expect(s.status == .running)
+        let done = fold([claude("Stop", at: 20)], into: s)
+        #expect(done.status == .idle && Alerts.between(s, done)?.isDone == true)
+    }
+
+    /// A permission request replayed after its call already ran asks nothing.
+    @Test func latePermissionRequestIsIgnored() {
+        let input: JSONValue = .object(["command": .string("rm x")])
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("a")]),
+                      claude("PreToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("u1"), "tool_input": input], at: 1),
+                      claude("PostToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("u1"), "tool_input": input], at: 3),
+                      claude("PermissionRequest", ["tool_name": .string("Bash"), "tool_input": input], at: 1.5)])
+        #expect(s.status == .running && s.pendingPermission == nil)
+    }
+
+    @Test func stopNoLongerWaitsForAMonitorThatExpired() {
+        let watch = claude("PostToolUse", ["tool_name": .string("Monitor"), "tool_use_id": .string("t-m1"),
+                                           "tool_input": .object(["command": .string("tail -f log"), "description": .string("training")]),
+                                           "tool_response": .object(["persistent": .bool(false), "taskId": .string("m1"),
+                                                                     "timeoutMs": .number(1_800_000)])], at: 1)
+        let expired = claude("UserPromptSubmit", ["prompt": .string("<task-notification>\n<task-id>m1</task-id>\n<summary>Monitor event: \"training\"</summary>\n<event>[Monitor expired after 30m with 3 events delivered. Re-arm it if you still need the watch.]</event>\n</task-notification>")], at: 1801)
+        let s = fold([claude("UserPromptSubmit", ["prompt": .string("train it")]), watch,
+                      claude("Stop", at: 2), expired, claude("Stop", at: 1810)])
+        #expect(s.backgroundTasks == nil)
+        #expect(s.status == .idle)
     }
 
     private func shell(_ id: String, at: TimeInterval, _ extra: [String: JSONValue] = [:], agent: String? = nil) -> HookEnvelope {
@@ -1855,5 +2045,39 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
                                             kind: .interruptSeen(at: t0.addingTimeInterval(2.5))), to: s)
         #expect(s.turns.map(\.interrupted) == [true, nil])
         #expect(s.status == .idle && s.lastEventAt == t0.addingTimeInterval(12))
+    }
+
+    @Test func transcriptMarkerEndsTheTurnEscLeftOpen() {
+        // Esc 0.1 s after the last tool ended: no Stop, and the idle session file is too close to trust.
+        let running = fold([prompt("a", 1),
+                            claude("PreToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("u1"),
+                                                  "tool_input": .object(["command": .string("ls")])], at: 2),
+                            claude("PostToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("u1")], at: 3)])
+        let idle = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(3.1),
+                                                   kind: .statusSnapshot(.idle)), to: running)
+        #expect(idle.status == .running)
+        let s = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(20),
+                                                kind: .interruptSeen(at: t0.addingTimeInterval(3.2))), to: idle)
+        #expect(s.status == .idle && s.turns[0].interrupted == true)
+        #expect(s.turns[0].endedAt == t0.addingTimeInterval(3.2) && s.lastEventAt == t0.addingTimeInterval(3))
+        #expect(Alerts.between(running, s) == nil)
+        // The agent went on after the marker: it was not the end.
+        let after = fold([claude("PreToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("u2"),
+                                                "tool_input": .object(["command": .string("pwd")])], at: 4)], into: running)
+        let kept = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(20),
+                                                   kind: .interruptSeen(at: t0.addingTimeInterval(3.2))), to: after)
+        #expect(kept.status == .running && kept.turns[0].endedAt == nil)
+    }
+
+    /// Esc on a permission prompt, then a new prompt at once: the marker, stamped just after,
+    /// is the old turn's, though no flag marked that one.
+    @Test func markerJustAfterAPromptTypedOnAQuestionIsTheTurnBefores() {
+        let asked = fold([prompt("a", 1),
+                          claude("PermissionRequest", ["tool_name": .string("Bash"), "tool_input": .object(["command": .string("rm x")])], at: 2),
+                          prompt("b", 5)])
+        #expect(asked.turns.count == 2 && asked.turns[0].interrupted == nil)
+        let s = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(9),
+                                                kind: .interruptSeen(at: t0.addingTimeInterval(5.3))), to: asked)
+        #expect(s.status == .running && s.turns[1].endedAt == nil && s.turns[1].interrupted == nil)
     }
 }

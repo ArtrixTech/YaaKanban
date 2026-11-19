@@ -370,7 +370,7 @@
 
 /* Ended list */
 "Leverage trend: each point is the leverage over the hour up to then, across the last %@; the dashed line is today's average 1-hour leverage, taken at each whole hour." = "Тренд множителя: каждая точка — множитель за час до этого момента, за последние %@; пунктир — сегодняшний средний часовой множитель, взятый в начале каждого часа.";
-"Over the last hour, agent work while you were here per hour you were here. The arrow shows whether the 1-hour leverage is rising, falling or level right now." = "За последний час: работа агентов при вас на час вашего присутствия. Стрелка показывает, растёт, падает или не меняется часовой множитель прямо сейчас.";
+"Over the last hour, agent work per hour you were here, work while you were away included. The arrow shows whether the 1-hour leverage is rising, falling or level right now." = "За последний час: работа агентов на час вашего присутствия, включая работу в ваше отсутствие. Стрелка показывает, растёт, падает или не меняется часовой множитель прямо сейчас.";
 "Close search" = "Закрыть поиск";
 "No matches" = "Ничего не найдено";
 "Search the last %lld days" = "Поиск за последние %lld дн.";

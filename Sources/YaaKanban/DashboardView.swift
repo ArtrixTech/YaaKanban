@@ -486,8 +486,8 @@ struct RecentFigures: View {
 
     /// Fixed, so the panel's cards sit at the same height folded or not.
     static let height: CGFloat = 52
-    /// Only the time the user was here, and the work done meanwhile: short, so it follows what they
-    /// are doing now (work while away counts in the day's leverage, not here).
+    /// Short, so it follows what the user is doing now; work while away counts where it was done,
+    /// so it shows for the hour after the user is back.
     static let window: TimeInterval = 3600
     /// Trend points, each the leverage of the `window` up to it, a `trendStep`th of that apart:
     /// together they span the last `window` too.
@@ -508,7 +508,7 @@ struct RecentFigures: View {
             let today = model.report(DateInterval(start: Calendar.current.startOfDay(for: ctx.date), end: end), buckets: 1)
             let baseline = typicalLeverage(at: ctx.date)
             let arrow = Self.direction(trend, lookback: Self.trendLookback)
-            let help = String(localized: "Over the last hour, agent work while you were here per hour you were here. The arrow shows whether the 1-hour leverage is rising, falling or level right now.")
+            let help = String(localized: "Over the last hour, agent work per hour you were here, work while you were away included. The arrow shows whether the 1-hour leverage is rising, falling or level right now.")
             Button {
                 AppWindows.open(.overview)
             } label: {

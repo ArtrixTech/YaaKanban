@@ -196,16 +196,18 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         #expect(r.agentBuckets == [160, 100, 100, 0])
         let trend = r.rollingLeverage(window: 2)
         #expect(trend.count == 3)
-        // Only the work while present counts on the panel.
-        #expect(abs(trend[0]! - 1.6) < 1e-9)
+        // Work while away counts in the slice it was done in: 100 s of it in 100–200.
+        #expect(r.awayWorkDoneBuckets == [0, 100, 50, 0])
+        #expect(abs(trend[0]! - (1.6 + 100.0 / (100 + 1800))) < 1e-9)
         // 50 s present is under a minute: no figure.
         #expect(trend[1] == nil && trend[2] == nil)
-        // The whole range as one window is the report's leverage while present.
-        #expect(abs(r.rollingLeverage(window: 4)[0]! - r.presentWork / r.activeTime) < 1e-9)
+        // The whole range as one window, the absence inside it, is the report's leverage.
+        #expect(abs(r.rollingLeverage(window: 4)[0]! - r.leverage!) < 1e-9)
     }
 
     @Test func rollingLeverageOverHourEdgesMatchesEachWindowsReport() {
-        // Hourly slices, read 4 at a time, give each 4-hour window's leverage while present.
+        // Hourly slices, read 4 at a time, give each 4-hour window's leverage: the report's while
+        // the absence (5000–9000) began inside, and with only its part inside once it began before.
         let rows = [lane("a", 0, .running), lane("a", 9000, nil), lane("b", 3600, .running), lane("b", 20000, .needsInput),
                     lane("b", 22000, nil), ActivityRow(at: at(5000), session: "", kind: .away, value: 4000)]
         let edges = (0...6).map { at(Double($0) * 3600) }
@@ -219,7 +221,13 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
             for row in rows where row.kind == .lane && row.at < edges[k] { before[row.session] = Lane(rawValue: row.text) }
             let w = ActivityReport.compute(rows: rows, lanesBefore: before.compactMapValues { $0 }, range: DateInterval(start: edges[k], end: edges[k + 4]),
                                            now: at(30000), buckets: 1)
-            #expect(abs(v! - w.presentWork / w.activeTime) < 1e-9)
+            if k < 2 {
+                #expect(abs(v! - w.leverage!) < 1e-9)
+            } else {
+                // 7200–9000 away, a and b both running.
+                #expect(w.awayWork == 0)
+                #expect(abs(v! - (w.presentWork / w.activeTime + 3600 / (w.activeTime + 1800))) < 1e-9)
+            }
         }
     }
 
@@ -317,7 +325,36 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
     }
 }
 
+/// What an async report handed back; read after the semaphore, so no race.
+private final class Box: @unchecked Sendable { var agentTime: TimeInterval? }
+
 @Suite struct ActivityStore {
+    /// The queue reads through its own read-only connection what the main one wrote, and its
+    /// lanes-before cache follows a lane row recorded before a range it already answered.
+    @Test func reportQueueReadsWhatWasWritten() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("yaak-\(UUID().uuidString).sqlite")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = try Store(path: url)
+        store.record([lane("a", 0, .running), lane("a", 100, .review)])
+        let queue = ReportQueue(store: try Store(readingFrom: url))
+        let req = ReportQueue.Request(range: DateInterval(start: at(50), end: at(200)), buckets: 1, now: at(200))
+        let direct = ActivityReport.compute(rows: store.activity(from: at(50), to: at(200)), lanesBefore: store.lanes(before: at(50)),
+                                            range: req.range, now: at(200), buckets: 1)
+        let queued = queue.computeNow(req)
+        #expect(queued.agentTime == direct.agentTime)
+        #expect(queued.agentTime == 50)
+        // Recorded later but at a time before the range's start: it was idle from 10 on.
+        let late = [lane("a", 10, nil)]
+        store.record(late)
+        queue.recorded(late)
+        #expect(queue.computeNow(req).agentTime == 0)
+        let got = Box()
+        let sem = DispatchSemaphore(value: 0)
+        queue.compute(req) { r in got.agentTime = r.agentTime; sem.signal() }
+        sem.wait()
+        #expect(got.agentTime == 0)
+    }
+
     @Test func roundTripAndLanesBefore() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("yaak-\(UUID().uuidString).sqlite")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -337,6 +374,9 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
         store.record([], meta: ["heartbeat": 42])
         #expect(store.meta("heartbeat") == 42)
         #expect(store.meta("nope") == nil)
+        // Two rows at the same time: the later insert counts.
+        store.record([lane("c", 10, .running), lane("c", 10, .review)])
+        #expect(store.lanes(before: at(80))["claude-code:c"] == .review)
     }
 
     @Test func replyWaitStartingBeforeTheRangeTakesItsAwayOut() throws {

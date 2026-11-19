@@ -1,8 +1,144 @@
 # Devlog
 
+## docs(claude): record a live hook capture in the signal audit
+
+`PENDING` | 2026-11-20
+
+- **Changes**: Audit doc (`docs/precipitation/261119_claude_code_signal_mapping_audit.md`): new "Live capture" section; the stdin-truncation open item is replaced by its result.
+- **Reason**: Check against live payloads what the audit had inferred from binary strings and transcripts.
+- **User feedback**: "执行2" (approved a live `claude -p` capture writing to the real `~/.claude/projects`).
+- **Process**: Four `claude -p --model haiku` runs in `/tmp/yaak_probe/work`, with probe hooks added through `--settings` (user settings untouched; the installed yaak hooks ran alongside). Scenario: two parallel Bash, one failing Bash, a background `sleep 20`, a Read of a 96 KB file. Probes: a Python one dumped payloads; a C one timed stdin from `main()`.
+- **Result**: Event order and the Stop `background_tasks` shape (`{id,type,status,description}`, final Stop `[]`) match our reading. YaaKanban stored the session as 6 tools, 2 turns, ended. Hook stdin is a socket, and the whole payload (97 KB included) is already buffered at process start (EOF < 0.1 ms). So the 60 ms stdin budget does not truncate, and two lost PostToolUse events stay unexplained.
+- **Notes**: Fields we ignore: `prompt_id`, `permission_mode`, `effort.level`, `duration_ms`, `mcp_server`, `stop_hook_active`, `session_crons`. The four test sessions remain as ended cards and as transcripts under `~/.claude/projects/-private-tmp-yaak-probe-work`.
+
+## fix(panel): let the floating panel be dragged again
+
+`a0c27ce` | 2026-11-20
+
+- **Changes**: `BoardPanel.exempt`: a `PanelDragExempt.Marker` covers `visibleRect ∩ bounds`, not `visibleRect`. CHANGELOG Fixed line.
+- **Reason**: On macOS 27.0.1 the marker's `visibleRect` reached past its bounds: the logo's 96×22 marker reported `{{-10,-875},{300,907}}`, i.e. the whole window. So every press counted as one on a card or the logo, `isMovableByWindowBackground` was switched off at each press, and the panel never moved.
+- **User feedback**: "另外修问题：现在侧边栏无法拖动。"
+- **Process**: Reproduced with synthetic CGEvent drags (peeked rail and undocked panel): no move from any point. Temporary `sendEvent` logging showed `exempt=true` everywhere, and pinned it on the logo marker's rect. A minimal NSPanel test also showed that SwiftUI content with an opaque fill never moves a window by its background, while clear areas do. After the fix: drags on the header, its top padding and the bottom move the panel (-38 for a -40 drag); a press on a card or the logo does not. The right side of the header (buttons) stays put, as intended.
+- **Result**: `make test` 272 passed; installed. The panel was put back at its saved frame after the test drags.
+- **Notes**: Views that no longer clip to bounds make `visibleRect` unreliable as an area test; intersect with `bounds`.
+
+## fix(claude): align background, mid-turn and session-file signals
+
+`38663fa` | 2026-11-19
+
+- **Changes**:
+  - Stop's `background_tasks` (`backgroundInFlight`): a waited-on id the list leaves out is marked (`unlistedTasks`); unlisted again, or with the session quiet 15 s (`AppModel.dropUnlistedTasks`), it is dropped. A late (spooled) Stop is ignored for this and for `turnEnd` (`isBeforeLastTurn`, also before a joined report).
+  - `TranscriptTally.endedTasks`: tasks the transcript shows over (final notice, Monitor expiry, also `queue-operation enqueue` records), minus SendMessage revivals; `AppModel.endReportedTasks` ends them. The first read after launch covers the whole file, so stored cards are repaired.
+  - `settleHeldTurn`: the last task ending without a new turn (transcript, Stop list) finishes the held turn where it ended.
+  - Harness prompts (`<task-notification>`, `<cross-session-message`, `[Cross-session idle notice]`, `Normalizer.isInjectedPrompt`) arriving mid-turn join the open turn (`Turn.joinedAt/joinedPrompt`); not pushback, not the last prompt. A marker read later that precedes the join splits the turn.
+  - Marker slack no longer needs the previous turn flagged interrupted; a PermissionRequest replayed after its call ran is ignored; failed TaskStop "No task found" ends the task; SendMessage `revivedAgentId`.
+  - Session files read with `JSONValue.parseLeading` (torn tail); spool drained every 5 s scan, not only at launch.
+- **Reason**: Forward audit of Claude Code signals (docs/precipitation/261119_claude_code_signal_mapping_audit.md). Real sessions read as running after they finished: 12 expired Monitors left from before 19c41a5 (aacc96fc), 80 notice turns left open in 17 sessions, peer messages counted as pushback, 2 of 16 live session files unparsed.
+- **User feedback**: "能不能做个正向研发，正向分析整个cc使用过程中的各类信号，以及当前对应到我们内部状态管理的这些映射、接收是否正确"; "这个也是 已经结束了 但显示还在继续" (session aacc96fc).
+- **Process**: Signals verified against Claude Code 2.1.328 binary strings, hook docs, a spooled Stop payload and local transcripts (read-only). Adversarial review found 5 counterexamples (late Stop list wiping the next turn's task; done-then-running when a task finishes during the final reply; Esc + notice + marker reading idle; marker after a prompt typed on a question; spool-drain gaps); all but the short spooled-prompt case fixed and tested.
+- **Result**: `make test` 272 passed. After `make install` session aacc96fc read idle with no background tasks; the one remaining held card waits on a Monitor that is still live.
+- **Notes**: aacc96fc's last expiry (`b1ddoqri1`) was never written as a user line, only as `queue-operation enqueue`. Open: spooled prompt of a short turn is still dropped; Workflow launches and some Notification types unmapped; pushback counts permission rejections (`…for tool use`).
+
+## fix(claude): end a turn stopped by Esc from its transcript marker
+
+`36c8a14` | 2026-11-19
+
+- **Changes**: `SessionReducer` `.interruptSeen`: when the marker falls in the last turn, that turn is still open, the session is running/stuck/needs input and no tool started after the marker, the turn ends at the marker (`endTurn`). Test `transcriptMarkerEndsTheTurnEscLeftOpen`; CHANGELOG 0.2.7 Fixed line.
+- **Reason**: Esc fires no Stop hook. The only end signal used was the session file going idle more than 1 s after our last hook; Esc 65 ms after a tool's PostToolUse falls inside that guard, so the turn stayed open and the stuck detector later flagged it "no new events".
+- **User feedback**: "现在已经停止了 但是还显示在进行" (session 72859fc6, YaaKanban "发版本").
+- **Process**: Stored state: turn 1 open but `interrupted == true` (transcript marker `[Request interrupted by user for tool use]` at 08:04:11.249Z), last PostToolUse 08:04:11.119Z, `~/.claude/sessions/79879.json` idle at 08:04:11.184Z (inside the 1 s guard), no idle_prompt Notification; status turned stuck after the 5 min silence.
+- **Result**: `make test` 258 passed.
+- **Notes**: Cards already marked interrupted are not re-scanned (markInterrupts skips them), so the existing card stays until its session gets a new event. Part of a wider Claude signal audit in progress.
+
+## fix(claude): end the wait for a Monitor that expired
+
+`19c41a5` | 2026-11-19
+
+- **Changes**: `Normalizer.notifiedTasks` also counts a notice whose event is `[Monitor expired after …]` as the task ending. Test `stopNoLongerWaitsForAMonitorThatExpired`; CHANGELOG 0.2.7 Monitor line extended.
+- **Reason**: A Monitor that times out (default 30 min) sends a `<task-notification>` with an `<event>` and no `<status>`, so its id stayed in `backgroundTasks` and every later Stop was held: the session read as running for ever.
+- **User feedback**: "这个实际上已经完成了 但还计算为进行中" (LY-Analysis/AppleGolfDemo session 2ef27035).
+- **Process**: The stored session had 5 Monitor ids in `backgroundTasks`, last turn ended; its transcript shows each ended with only the expiry event. Across all local transcripts, expiry notices never carry `<status>` (~670 seen); a Monitor whose script exits does get `<status>completed</status>`.
+- **Result**: `make test` 257 passed.
+- **Notes**: Sessions already stored with stale ids are not cleared by this; their next event from a new process (resume) or turning background tracking off clears them.
+
+## feat(panel): count work while away in the 1-hour leverage
+
+`206ac34` | 2026-11-19
+
+- **Changes**: `ActivityReport` gains `awayWorkDoneBuckets` (work while away per slice it was done in, absences begun before the range included); `creditWork` refactored to slice targets with one helper and credit present, departure-credited away and done-in-slice away separately. `rollingLeverage` now uses `Ep/P + Ea/(P + m)` with Ea from `awayWorkDoneBuckets`, so the panel/rail figure, its trend and its baseline (`typicalLeverage`) include away work. Help text updated in 9 locales; spec and CHANGELOG updated.
+- **Reason**: The panel showed ~1.x while 概览 showed ~8 today: the panel counted only work while present, the day figure counts away work too.
+- **User feedback**: "为啥现在侧边栏看到的杠杆和主界面差别很大？现在主界面8，侧边栏1.x" → "悬浮窗的离开期间的工作也要计算在内"
+- **Process**: Chose crediting by when the work was done rather than the day figure's rule (credit to the slice the absence began in): with a 1-hour window, an absence begun over an hour ago would otherwise never show after the user returns. Tests adjusted: rolling leverage equals the report's when the absence starts inside the window, and counts only the in-window part when it began before.
+- **Result**: `make test` 256 tests pass; installed locally.
+- **Notes**: While the user is away for a whole hour, P < 60 s gives no figure, as before. Away work drops out of the panel figure an hour after it was done. The day figure and day bars are unchanged.
+
+## perf(report): compute activity reports off the main thread
+
+`7be1d0b` | 2026-11-19
+
+- **Changes**: New `YaaCore/ReportQueue.swift`: a serial `.userInitiated` queue owning a read-only second SQLite connection (`Store(readingFrom:)`, WAL) and the lanes-before cache moved out of `AppModel`. `AppModel.report` returns the cached report, or the last one of the same length and resolution whose end is within a tenth of its span (the panel trend's range moves every minute), and computes the new one on the queue; its arrival bumps an observed counter so the asking views redraw. Only a report with nothing to show is computed synchronously (`computeNow`). `record`/backfill tell the queue to drop stale lanes-before entries, queued after pending computes.
+- **Reason**: Step 2 of the plan after the Codex audit (#2): `RecentFigures` in the panel ran the trend report's SQLite reads and aggregation on the main thread inside the unfold/fold rebuild.
+- **User feedback**: "按照建议做。"
+- **Process**: Hover bench, 10 rounds each, back to back (load ~10–15): peek→first onSize median 95 ms → 83 ms; fold→onSize unchanged ~47 ms. `sample` during 6 hover rounds in steady state: `AppModel.report`/`ReportQueue` no longer on the main thread (before: ~73 of 7818 samples); the only main-thread SQLite left is `flushSaves` (snapshot writes, Codex #6). The first report after launch is still computed synchronously by design.
+- **Result**: `make test` 256 passed (new `reportQueueReadsWhatWasWritten`); installed.
+- **Notes**: Figures can show the previous minute's trend for one redraw. `similar`/`reports` each capped at 24 entries.
+
+## perf(store): find each session's last lane once per session
+
+`9820945` | 2026-11-19
+
+- **Changes**: `Store.lanes(before:)` and `held(before:)` share `lastLaneRows`: one indexed lookup per distinct session, joined back by rowid, instead of a correlated subquery tested against every lane row. Test for same-`at` ties (later insert wins).
+- **Reason**: `sample` during hover unfold/fold (load ~55) showed ~160 of ~5000 main-thread samples in `Store.lanes(before:)`, called from `AppModel.report` inside `RecentFigures.body` (the panel's leverage figures, in both folded and unfolded panel). Rebuilding on a fold re-ran it when its cache key moved.
+- **User feedback**: "可以 继续优化让卡片建的更快上"; "同时你让codex gpt 6.2 sol high 跑性能优化分析，研究当前整个app潜在的性能问题".
+- **Process**: On the real history (33k activity rows, 11k lane rows, 445 sessions), Python sqlite3, 20 runs: old 25.1 ms, new 4.1 ms; identical output (md5). Hover bench (8–10 rounds, trace build), peek→first onSize median: 132 ms (load 35) → 100 ms (load 24) → 90–97 ms (load 10–15). Load varied too much between runs for a precise figure. Codex (`auto/gpt-6.2-sol`, high, read-only) audit independently flagged the same report path as finding #2.
+- **Result**: `make test` 255 passed; installed.
+- **Notes**: The report still runs synchronously on the main actor; moving `report` to a store worker is the bigger fix (Codex #2). Other Codex findings not acted on: broad `sessions` observation (#3), main-actor polling/PID probes (#4), main-thread SQLite commits (#6), hook-path deadline (#7).
+
+## perf(panel): bound the text a card lays out
+
+`7dfdef0` | 2026-11-19
+
+- **Changes**: `String.clipped(lines:)` (150 chars a line); card reply, needs-input, prompt, recap and sub-agent detail texts pass through it before `Text`.
+- **Reason**: Typesetting sets up the whole string regardless of `lineLimit`; replies and prompts in the history reach 8193 chars (mean ~700/450). `sample` showed CoreText (`TTypesetterAttrString::Initialize`, `boundingRectWithSize`) as the largest part of building full cards.
+- **Process**: Ablation at load 10–15, 10 rounds each: without 97 ms median peek→onSize, with 90 ms. Within run-to-run noise: the gain is not shown on this machine's current sessions; kept as a bound for long messages.
+- **Result**: `make test` 255 passed.
+
+## perf(panel): size the list for the fold it is laid out in
+
+`e6ab1c8` | 2026-11-19
+
+- **Changes**: `FloatingPanelView` keeps the chrome height (all but the list) per fold state (`chromes[folded]`) instead of one value.
+- **Reason**: The list's cap is room height minus chrome. Right after a fold or unfold, chrome still held the other state's value, so the first layout sized the list wrong (unfold 1419.6 → 1394, fold 1362 → 1387.6) and a second layout followed, reporting a second size; `fit` started the slide again, and each `startSlide` → `place` forces a full `NSHostingView` layout (~28 ms each under load, 669 of 7746 main-thread samples).
+- **User feedback**: "展开延迟也要修。"
+- **Process**: Temporary file traces + CGEvent hover script, load avg 12–15. Before: unfold peek→done 531–759 ms (two onSize, two slideStart), fold peekEnds→done 343–461 ms. After: one onSize and one slideStart each way; unfold 395–515 ms, fold 278–334 ms. Also measured d825eb7 here (fold now 95–150 ms to onSize). Traces removed.
+- **Result**: `make test` 255 passed; installed.
+- **Notes**: Unfold still spends 200–330 ms between peek and the first size report, rebuilding every full `SessionCard` (mostly CoreText measurement of card text). Untried lever: start the slide toward the last unfolded frame before setting `room.peek`, so the glass opens while the cards build; must keep the folded content's own size report from retargeting the slide back.
+
+## perf(panel): reuse known card heights when the rail folds
+
+`d825eb7` | 2026-11-19
+
+- **Changes**: `NarrowSessionCard` keeps `measured` (the `Measure` key its height was taken for); on appear with a height already known from `BoardList.heights` it records the key and skips the hidden full-card measurement until the key changes.
+- **Reason**: Sidebar hover unfold/fold lags badly under high CPU. Folding creates every `NarrowSessionCard` anew; each laid out a hidden full `SessionCard` for 500 ms just to re-learn the height the full card had a frame earlier.
+- **User feedback**: "cpu占用高的时候观察到，侧边栏hover的展开/收起延迟非常大，不跟手。"
+- **Process**: Unified log store was corrupt (disk had filled), so added temporary file traces in `FloatingPanelController` (entered/peek/onSize/slideStart/step/slideDone) and drove the pointer with a CGEvent script, load avg ~15 on 10 cores. Unfold: peek→first onSize 210–700 ms, slide 140 ms + restart (onSize fires twice: 1455.6 then 1394 high). Fold: peekEnds→onSize 80–460 ms, onSize→slideStart up to 300 ms. `sample` during hovers: main thread's largest app frame was this measurement, 281 ms inside a 749 ms `NSHostingView.layout` pass (`SidebarRail.swift:81` geometry action). Traces removed before commit.
+- **Result**: `make test` 255 passed; installed. After-fix timing NOT measured: the screen locked mid-run and synthetic hovers stopped reaching the panel.
+- **Notes**: Unfold cost (building every full `SessionCard`) is not addressed here. Remaining levers: start the slide from the known target width instead of waiting for SwiftUI's size report; avoid the double onSize that restarts the slide. Bench script: synthetic `mouseMoved` via `CGEvent.post(tap: .cghidEventTap)`; needs an unlocked screen.
+
+## fix(claude): keep a session running while a Monitor watches
+
+`10a28c7` | 2026-11-19
+
+- **Changes**: `Normalizer.backgroundLaunch` counts `Monitor` (`tool_response.taskId`) as a background task; `notifiedTasks` ends only tasks whose `<task-notification>` carries a `<status>`. Tests: `stopWaitsForAMonitorUntilItsStreamEnds`, `notificationNamesEveryFinishedTask`.
+- **Reason**: Sessions with a live Monitor showed 已验收/idle. Monitor's PostToolUse response is `{persistent, taskId, timeoutMs}`, not `backgroundTaskId`, so it was never waited for; and each Monitor event (a `<task-notification>` with `<task-id>` but no `<status>`) would have ended the wait anyway.
+- **User feedback**: "这个对话实际上有monitor在等待外部，但没有计算。"
+- **Process**: Read the history DB (read-only): 72 Monitor responses, all keys `persistent/taskId/timeoutMs`; 435 notifications `Monitor event` without status; every finishing notice (Agent, Background command, Monitor stream ended/failed, killed, MCP task) has `<status>`.
+- **Result**: `make test` 255 passed.
+- **Notes**: Sessions already idle are not revived; the next Monitor they launch is tracked. A persistent Monitor holds the session running until it stops or the agent process exits (stuck detection's live-agent check still applies). Background MCP tasks (moved after 120 s) are still not tracked; their response is text only.
+
 ## chore(release): bump the version to 0.2.6
 
-`PENDING` | 2026-11-18
+`e9a78bb` | 2026-11-18
 
 - **Changes**: `CHANGELOG.md` Unreleased → `[0.2.6] - 2026-11-18`; `Info.plist` 0.2.6 (build 10).
 - **Reason**: Ship the panel navigation changes, leverage arrow slope, CPU reductions and the permission-prompt/notification fixes.

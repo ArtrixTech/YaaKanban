@@ -370,7 +370,7 @@
 
 /* Ended list */
 "Leverage trend: each point is the leverage over the hour up to then, across the last %@; the dashed line is today's average 1-hour leverage, taken at each whole hour." = "Tendencia del apalancamiento: cada punto es el apalancamiento de la hora hasta ese momento, a lo largo de %@; la línea discontinua es el promedio de hoy del apalancamiento de 1 hora, tomado a cada hora en punto.";
-"Over the last hour, agent work while you were here per hour you were here. The arrow shows whether the 1-hour leverage is rising, falling or level right now." = "En la última hora, trabajo de agente mientras estabas por hora que estuviste. La flecha muestra si el apalancamiento de 1 hora sube, baja o se mantiene ahora.";
+"Over the last hour, agent work per hour you were here, work while you were away included. The arrow shows whether the 1-hour leverage is rising, falling or level right now." = "En la última hora, trabajo de agente por hora que estuviste, incluido el trabajo mientras no estabas. La flecha muestra si el apalancamiento de 1 hora sube, baja o se mantiene ahora.";
 "Close search" = "Cerrar búsqueda";
 "No matches" = "Sin resultados";
 "Search the last %lld days" = "Buscar en los últimos %lld días";

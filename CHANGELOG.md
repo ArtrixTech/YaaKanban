@@ -7,6 +7,20 @@ the update.
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-11-20
+
+### Changed
+
+- The floating panel's 1-hour leverage counts agent work done while you were away, so after a break it reflects what ran meanwhile instead of dropping to your own pace.
+
+### Fixed
+
+- The docked sidebar unfolds and folds back faster when the Mac is busy: folding no longer re-measures every card, and each slide runs once instead of starting over midway.
+- A Claude Code session waiting on a Monitor (a background watch) stays running until the watch ends, instead of showing as done after each event it reports. A watch that times out counts as ended, so the session finishes instead of staying in progress.
+- A Claude Code turn you stop with Esc right after a tool finishes now ends, instead of staying in progress and later turning stuck.
+- Claude Code sessions finish when their work does in more cases: a background task that ended without a notice YaaKanban caught (including ones from before this update) no longer keeps the card in progress, background reports and other sessions' messages that arrive mid-turn no longer open turns that never end or count as your prompts, and session files Claude Code rewrote in place are read again.
+- The floating panel can be dragged again: a press anywhere on it was taken as a press on a card or the logo, so the panel would not move.
+
 ## [0.2.6] - 2026-11-18
 
 ### Changed

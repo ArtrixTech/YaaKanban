@@ -13,7 +13,7 @@ final class ClaudeSessionScanner {
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else { return [] }
         return names.filter { $0.hasSuffix(".json") }.compactMap { name in
             guard let data = try? Data(contentsOf: dir.appendingPathComponent(name)),
-                  let j = JSONValue.parse(data),
+                  let j = JSONValue.parseLeading(data),
                   let sid = j["sessionId"]?.string,
                   let pid = j["pid"]?.number.map({ Int32($0) }), ProcessUtil.isAlive(pid) else { return nil }
             let at = j["statusUpdatedAt"]?.number.map { Date(timeIntervalSince1970: $0 / 1000) } ?? Date()
@@ -91,6 +91,7 @@ final class UsageTracker: @unchecked Sendable {
         var lastReply: String?
         var finishedTools: [(id: String, failed: Bool)]
         var interrupts: [Date]
+        var endedTasks: [String]
     }
 
     private let queue = DispatchQueue(label: "yaak.usage", qos: .utility)
@@ -121,7 +122,7 @@ final class UsageTracker: @unchecked Sendable {
                 let changed = e.tally.update(from: e.url)
                 tallies[t.key] = e
                 if changed { out[t.key] = Result(usage: e.tally.usage, lastReply: e.tally.lastReply, finishedTools: e.tally.finishedTools,
-                                                 interrupts: e.tally.interrupts) }
+                                                 interrupts: e.tally.interrupts, endedTasks: e.tally.endedTasks) }
             }
             if !out.isEmpty { DispatchQueue.main.async { MainActor.assumeIsolated { done(out) } } }
         }
