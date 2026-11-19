@@ -33,6 +33,18 @@ func relative(_ d: Date, now: Date = Date()) -> String {
     return String(localized: "\(s / 86400)d")
 }
 
+extension String {
+    /// Enough of the start of the text to fill `lines` lines of a card, for a `Text` that shows
+    /// no more. Laying out a text sets up the whole string, however few lines it shows, and a
+    /// reply can run to thousands of characters: on every card, that held the main thread while
+    /// the cards were built.
+    func clipped(lines: Int) -> String {
+        // A widest panel (720 pt) fits about 130 narrow characters a line.
+        let start = prefix(150 * lines)
+        return start.endIndex == endIndex ? self : String(start)
+    }
+}
+
 extension SessionState {
     /// The prompt of the turn in progress or just finished.
     var currentPrompt: String? {
@@ -164,11 +176,13 @@ struct SessionCard: View {
     @ViewBuilder private func replyLine(_ st: DisplayStatus) -> some View {
         switch st {
         case .needsInput, .stuck:
-            Text(session.needsInputMessage ?? session.stuckReason ?? String(localized: "Needs your attention"))
-                .font(.system(size: 11.5)).foregroundStyle(st.tint).lineLimit(expanded ? 6 : 2)
+            let lines = expanded ? 6 : 2
+            Text((session.needsInputMessage ?? session.stuckReason ?? String(localized: "Needs your attention")).clipped(lines: lines))
+                .font(.system(size: 11.5)).foregroundStyle(st.tint).lineLimit(lines)
         default:
             if let r = session.lastReply {
-                Text(r).font(.system(size: 11.5)).foregroundStyle(.primary.opacity(0.8)).lineLimit(expanded ? 12 : 2)
+                let lines = expanded ? 12 : 2
+                Text(r.clipped(lines: lines)).font(.system(size: 11.5)).foregroundStyle(.primary.opacity(0.8)).lineLimit(lines)
             } else if st == .running {
                 Text("Thinking…").font(.system(size: 11.5)).foregroundStyle(.tertiary)
             } else if !session.hooked {
@@ -180,11 +194,11 @@ struct SessionCard: View {
     @ViewBuilder private func expandedBody(_ st: DisplayStatus) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             if let p = session.currentPrompt {
-                Label { Text(p).lineLimit(6) } icon: { Image(systemName: "person.fill") }
+                Label { Text(p.clipped(lines: 6)).lineLimit(6) } icon: { Image(systemName: "person.fill") }
                     .font(.system(size: 11)).foregroundStyle(.secondary)
             }
             if let r = session.peek?.recap {
-                Label { Text(r) } icon: { Image(systemName: "text.quote") }
+                Label { Text(r.clipped(lines: 6)) } icon: { Image(systemName: "text.quote") }
                     .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(6)
             }
             let recent = session.tools.suffix(6).reversed()
@@ -239,10 +253,10 @@ struct SubagentSlots: View {
 
     /// What it is doing now, else what it last said or needs.
     static func detail(_ s: SessionState) -> String? {
-        if let m = s.needsInputMessage, s.status == .needsInput { return m }
-        if let r = s.stuckReason, s.status == .stuck { return r }
+        if let m = s.needsInputMessage, s.status == .needsInput { return m.clipped(lines: 1) }
+        if let r = s.stuckReason, s.status == .stuck { return r.clipped(lines: 1) }
         if s.status == .running, let t = s.latestTool { return "\(t.name) \(t.summary)" }
-        return s.lastReply.flatMap(SessionState.firstLine)
+        return s.lastReply.flatMap { SessionState.firstLine($0.clipped(lines: 1)) }
     }
 }
 

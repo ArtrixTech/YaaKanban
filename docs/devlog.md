@@ -1,8 +1,28 @@
 # Devlog
 
-## perf(panel): size the list for the fold it is laid out in
+## perf(store): find each session's last lane once per session
+
+`9820945` | 2026-11-19
+
+- **Changes**: `Store.lanes(before:)` and `held(before:)` share `lastLaneRows`: one indexed lookup per distinct session, joined back by rowid, instead of a correlated subquery tested against every lane row. Test for same-`at` ties (later insert wins).
+- **Reason**: `sample` during hover unfold/fold (load ~55) showed ~160 of ~5000 main-thread samples in `Store.lanes(before:)`, called from `AppModel.report` inside `RecentFigures.body` (the panel's leverage figures, in both folded and unfolded panel). Rebuilding on a fold re-ran it when its cache key moved.
+- **User feedback**: "可以 继续优化让卡片建的更快上"; "同时你让codex gpt 6.2 sol high 跑性能优化分析，研究当前整个app潜在的性能问题".
+- **Process**: On the real history (33k activity rows, 11k lane rows, 445 sessions), Python sqlite3, 20 runs: old 25.1 ms, new 4.1 ms; identical output (md5). Hover bench (8–10 rounds, trace build), peek→first onSize median: 132 ms (load 35) → 100 ms (load 24) → 90–97 ms (load 10–15). Load varied too much between runs for a precise figure. Codex (`auto/gpt-6.2-sol`, high, read-only) audit independently flagged the same report path as finding #2.
+- **Result**: `make test` 255 passed; installed.
+- **Notes**: The report still runs synchronously on the main actor; moving `report` to a store worker is the bigger fix (Codex #2). Other Codex findings not acted on: broad `sessions` observation (#3), main-actor polling/PID probes (#4), main-thread SQLite commits (#6), hook-path deadline (#7).
+
+## perf(panel): bound the text a card lays out
 
 `PENDING` | 2026-11-19
+
+- **Changes**: `String.clipped(lines:)` (150 chars a line); card reply, needs-input, prompt, recap and sub-agent detail texts pass through it before `Text`.
+- **Reason**: Typesetting sets up the whole string regardless of `lineLimit`; replies and prompts in the history reach 8193 chars (mean ~700/450). `sample` showed CoreText (`TTypesetterAttrString::Initialize`, `boundingRectWithSize`) as the largest part of building full cards.
+- **Process**: Ablation at load 10–15, 10 rounds each: without 97 ms median peek→onSize, with 90 ms. Within run-to-run noise: the gain is not shown on this machine's current sessions; kept as a bound for long messages.
+- **Result**: `make test` 255 passed.
+
+## perf(panel): size the list for the fold it is laid out in
+
+`e6ab1c8` | 2026-11-19
 
 - **Changes**: `FloatingPanelView` keeps the chrome height (all but the list) per fold state (`chromes[folded]`) instead of one value.
 - **Reason**: The list's cap is room height minus chrome. Right after a fold or unfold, chrome still held the other state's value, so the first layout sized the list wrong (unfold 1419.6 → 1394, fold 1362 → 1387.6) and a second layout followed, reporting a second size; `fit` started the slide again, and each `startSlide` → `place` forces a full `NSHostingView` layout (~28 ms each under load, 669 of 7746 main-thread samples).
