@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(panel): let the floating panel be dragged again
+## docs(claude): record a live hook capture in the signal audit
 
 `PENDING` | 2026-11-20
+
+- **Changes**: Audit doc (`docs/precipitation/261119_claude_code_signal_mapping_audit.md`): new "Live capture" section; the stdin-truncation open item is replaced by its result.
+- **Reason**: Check against live payloads what the audit had inferred from binary strings and transcripts.
+- **User feedback**: "执行2" (approved a live `claude -p` capture writing to the real `~/.claude/projects`).
+- **Process**: Four `claude -p --model haiku` runs in `/tmp/yaak_probe/work`, with probe hooks added through `--settings` (user settings untouched; the installed yaak hooks ran alongside). Scenario: two parallel Bash, one failing Bash, a background `sleep 20`, a Read of a 96 KB file. Probes: a Python one dumped payloads; a C one timed stdin from `main()`.
+- **Result**: Event order and the Stop `background_tasks` shape (`{id,type,status,description}`, final Stop `[]`) match our reading. YaaKanban stored the session as 6 tools, 2 turns, ended. Hook stdin is a socket, and the whole payload (97 KB included) is already buffered at process start (EOF < 0.1 ms). So the 60 ms stdin budget does not truncate, and two lost PostToolUse events stay unexplained.
+- **Notes**: Fields we ignore: `prompt_id`, `permission_mode`, `effort.level`, `duration_ms`, `mcp_server`, `stop_hook_active`, `session_crons`. The four test sessions remain as ended cards and as transcripts under `~/.claude/projects/-private-tmp-yaak-probe-work`.
+
+## fix(panel): let the floating panel be dragged again
+
+`a0c27ce` | 2026-11-20
 
 - **Changes**: `BoardPanel.exempt`: a `PanelDragExempt.Marker` covers `visibleRect ∩ bounds`, not `visibleRect`. CHANGELOG Fixed line.
 - **Reason**: On macOS 27.0.1 the marker's `visibleRect` reached past its bounds: the logo's 96×22 marker reported `{{-10,-875},{300,907}}`, i.e. the whole window. So every press counted as one on a card or the logo, `isMovableByWindowBackground` was switched off at each press, and the panel never moved.

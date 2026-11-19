@@ -14,6 +14,7 @@ Code changes a hook or a notice format.
   the Claude Code CHANGELOG, about 200 local transcripts and 16 session files (read-only).
 - YaaKanban history: 319 claude-code sessions, 52 with turns after 2026-11-14.
 - One spooled Stop payload (2.1.328), which showed `background_tasks` ids equal to our `agentId`.
+- Live `claude -p` hook captures (see below).
 
 ### How to read the signals
 
@@ -42,9 +43,26 @@ Code changes a hook or a notice format.
 - A notice delivered while Claude was busy may exist only as a `queue-operation enqueue` record, never as a user line.
 - Any event can come late through the spool: check it against the last turn's start and joins before letting it end or clear anything.
 
+### Live capture (2026-11-19, Claude Code 2.1.328, `claude -p --model haiku`)
+Extra probe hooks were added through `--settings` (user settings untouched, so the installed
+`yaak hook`s ran alongside). The runs were in a temp directory, and their transcripts went to `~/.claude/projects`.
+- **Order, one turn with a background Bash:** SessionStart(startup) → UserPromptSubmit → Pre/Post per
+  tool (two parallel Bash: both Pre, then both Post; a failing one fires PostToolUseFailure with
+  `error`) → Stop with `background_tasks: [{id, type: "shell", status: "running", description}]`
+  → ~16 s later UserPromptSubmit `<task-notification>` (between turns: a new turn) → Stop with
+  `background_tasks: []` → SessionEnd(`reason: "other"`). YaaKanban recorded the same session as
+  6 tools, 2 turns, ended, nothing awaited: the mapping matched.
+- **Fields we do not read:** every event has `prompt_id` and `permission_mode`; tool events have
+  `effort.level` and `duration_ms`; MCP tools have `mcp_server{name, source}`; Stop has
+  `stop_hook_active` and `session_crons`.
+- **Hook stdin:** a socket, not a pipe. A native probe timed it from `main()`: every payload,
+  97 KB included (a Read result), was already fully buffered at process start. It took one or two
+  reads and reached EOF in under 0.1 ms. The 60 ms stdin budget does not cut payloads short, so
+  this does not explain lost PostToolUse events; look at the send / spool path instead.
+
 ### Still open
-- Hook stdin is read for at most 60 ms; a payload cut off there parses to `{}` and is dropped
-  with no trace. Suspected for two lost PostToolUse events under heavy CPU load; unverified.
+- Two PostToolUse events lost under heavy CPU load: not stdin truncation (see live capture);
+  cause unknown.
 - Workflow launches, `elicitation_url_dialog`, `worker_permission_prompt` are not mapped.
 - A short turn whose prompt was spooled (prompt late, its Stop live) is folded into the turn before.
 - Process gone while stuck stays stuck ("Process exited") even when the transcript shows the turn
