@@ -317,7 +317,36 @@ private func lane(_ id: String, _ s: TimeInterval, _ l: Lane?) -> ActivityRow {
     }
 }
 
+/// What an async report handed back; read after the semaphore, so no race.
+private final class Box: @unchecked Sendable { var agentTime: TimeInterval? }
+
 @Suite struct ActivityStore {
+    /// The queue reads through its own read-only connection what the main one wrote, and its
+    /// lanes-before cache follows a lane row recorded before a range it already answered.
+    @Test func reportQueueReadsWhatWasWritten() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("yaak-\(UUID().uuidString).sqlite")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = try Store(path: url)
+        store.record([lane("a", 0, .running), lane("a", 100, .review)])
+        let queue = ReportQueue(store: try Store(readingFrom: url))
+        let req = ReportQueue.Request(range: DateInterval(start: at(50), end: at(200)), buckets: 1, now: at(200))
+        let direct = ActivityReport.compute(rows: store.activity(from: at(50), to: at(200)), lanesBefore: store.lanes(before: at(50)),
+                                            range: req.range, now: at(200), buckets: 1)
+        let queued = queue.computeNow(req)
+        #expect(queued.agentTime == direct.agentTime)
+        #expect(queued.agentTime == 50)
+        // Recorded later but at a time before the range's start: it was idle from 10 on.
+        let late = [lane("a", 10, nil)]
+        store.record(late)
+        queue.recorded(late)
+        #expect(queue.computeNow(req).agentTime == 0)
+        let got = Box()
+        let sem = DispatchSemaphore(value: 0)
+        queue.compute(req) { r in got.agentTime = r.agentTime; sem.signal() }
+        sem.wait()
+        #expect(got.agentTime == 0)
+    }
+
     @Test func roundTripAndLanesBefore() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("yaak-\(UUID().uuidString).sqlite")
         defer { try? FileManager.default.removeItem(at: url) }

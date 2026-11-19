@@ -1,5 +1,16 @@
 # Devlog
 
+## perf(report): compute activity reports off the main thread
+
+`PENDING` | 2026-11-19
+
+- **Changes**: New `YaaCore/ReportQueue.swift`: a serial `.userInitiated` queue owning a read-only second SQLite connection (`Store(readingFrom:)`, WAL) and the lanes-before cache moved out of `AppModel`. `AppModel.report` returns the cached report, or the last one of the same length and resolution whose end is within a tenth of its span (the panel trend's range moves every minute), and computes the new one on the queue; its arrival bumps an observed counter so the asking views redraw. Only a report with nothing to show is computed synchronously (`computeNow`). `record`/backfill tell the queue to drop stale lanes-before entries, queued after pending computes.
+- **Reason**: Step 2 of the plan after the Codex audit (#2): `RecentFigures` in the panel ran the trend report's SQLite reads and aggregation on the main thread inside the unfold/fold rebuild.
+- **User feedback**: "按照建议做。"
+- **Process**: Hover bench, 10 rounds each, back to back (load ~10–15): peek→first onSize median 95 ms → 83 ms; fold→onSize unchanged ~47 ms. `sample` during 6 hover rounds in steady state: `AppModel.report`/`ReportQueue` no longer on the main thread (before: ~73 of 7818 samples); the only main-thread SQLite left is `flushSaves` (snapshot writes, Codex #6). The first report after launch is still computed synchronously by design.
+- **Result**: `make test` 256 passed (new `reportQueueReadsWhatWasWritten`); installed.
+- **Notes**: Figures can show the previous minute's trend for one redraw. `similar`/`reports` each capped at 24 entries.
+
 ## perf(store): find each session's last lane once per session
 
 `9820945` | 2026-11-19
@@ -13,7 +24,7 @@
 
 ## perf(panel): bound the text a card lays out
 
-`PENDING` | 2026-11-19
+`7dfdef0` | 2026-11-19
 
 - **Changes**: `String.clipped(lines:)` (150 chars a line); card reply, needs-input, prompt, recap and sub-agent detail texts pass through it before `Text`.
 - **Reason**: Typesetting sets up the whole string regardless of `lineLimit`; replies and prompts in the history reach 8193 chars (mean ~700/450). `sample` showed CoreText (`TTypesetterAttrString::Initialize`, `boundingRectWithSize`) as the largest part of building full cards.

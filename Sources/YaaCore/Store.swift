@@ -39,6 +39,15 @@ public final class Store {
 
     deinit { sqlite3_close(db) }
 
+    /// A second connection to a history another `Store` has opened, for reading only: a reader on
+    /// another thread (WAL lets it read while the main connection writes, seeing what was committed).
+    public init(readingFrom path: URL) throws {
+        guard sqlite3_open_v2(path.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+            sqlite3_close(db)
+            throw StoreError.open
+        }
+    }
+
     public enum StoreError: Error { case open, sql(String) }
 
     private func exec(_ sql: String) throws {
