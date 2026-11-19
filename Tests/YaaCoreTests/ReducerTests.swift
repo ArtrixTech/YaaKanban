@@ -1886,4 +1886,26 @@ private func fold(_ envs: [HookEnvelope], into s: SessionState? = nil) -> Sessio
         #expect(s.turns.map(\.interrupted) == [true, nil])
         #expect(s.status == .idle && s.lastEventAt == t0.addingTimeInterval(12))
     }
+
+    @Test func transcriptMarkerEndsTheTurnEscLeftOpen() {
+        // Esc 0.1 s after the last tool ended: no Stop, and the idle session file is too close to trust.
+        let running = fold([prompt("a", 1),
+                            claude("PreToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("u1"),
+                                                  "tool_input": .object(["command": .string("ls")])], at: 2),
+                            claude("PostToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("u1")], at: 3)])
+        let idle = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(3.1),
+                                                   kind: .statusSnapshot(.idle)), to: running)
+        #expect(idle.status == .running)
+        let s = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(20),
+                                                kind: .interruptSeen(at: t0.addingTimeInterval(3.2))), to: idle)
+        #expect(s.status == .idle && s.turns[0].interrupted == true)
+        #expect(s.turns[0].endedAt == t0.addingTimeInterval(3.2) && s.lastEventAt == t0.addingTimeInterval(3))
+        #expect(Alerts.between(running, s) == nil)
+        // The agent went on after the marker: it was not the end.
+        let after = fold([claude("PreToolUse", ["tool_name": .string("Bash"), "tool_use_id": .string("u2"),
+                                                "tool_input": .object(["command": .string("pwd")])], at: 4)], into: running)
+        let kept = SessionReducer.apply(AgentEvent(agent: .claudeCode, sessionId: "s1", at: t0.addingTimeInterval(20),
+                                                   kind: .interruptSeen(at: t0.addingTimeInterval(3.2))), to: after)
+        #expect(kept.status == .running && kept.turns[0].endedAt == nil)
+    }
 }

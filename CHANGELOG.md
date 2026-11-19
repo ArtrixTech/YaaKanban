@@ -15,6 +15,7 @@ the update.
 
 - The docked sidebar unfolds and folds back faster when the Mac is busy: folding no longer re-measures every card, and each slide runs once instead of starting over midway.
 - A Claude Code session waiting on a Monitor (a background watch) stays running until the watch ends, instead of showing as done after each event it reports. A watch that times out counts as ended, so the session finishes instead of staying in progress.
+- A Claude Code turn you stop with Esc right after a tool finishes now ends, instead of staying in progress and later turning stuck.
 
 ## [0.2.6] - 2026-11-18
 

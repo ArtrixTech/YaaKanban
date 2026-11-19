@@ -1,8 +1,19 @@
 # Devlog
 
-## fix(claude): end the wait for a Monitor that expired
+## fix(claude): end a turn stopped by Esc from its transcript marker
 
 `PENDING` | 2026-11-19
+
+- **Changes**: `SessionReducer` `.interruptSeen`: when the marker falls in the last turn, that turn is still open, the session is running/stuck/needs input and no tool started after the marker, the turn ends at the marker (`endTurn`). Test `transcriptMarkerEndsTheTurnEscLeftOpen`; CHANGELOG 0.2.7 Fixed line.
+- **Reason**: Esc fires no Stop hook. The only end signal used was the session file going idle more than 1 s after our last hook; Esc 65 ms after a tool's PostToolUse falls inside that guard, so the turn stayed open and the stuck detector later flagged it "no new events".
+- **User feedback**: "现在已经停止了 但是还显示在进行" (session 72859fc6, YaaKanban "发版本").
+- **Process**: Stored state: turn 1 open but `interrupted == true` (transcript marker `[Request interrupted by user for tool use]` at 08:04:11.249Z), last PostToolUse 08:04:11.119Z, `~/.claude/sessions/79879.json` idle at 08:04:11.184Z (inside the 1 s guard), no idle_prompt Notification; status turned stuck after the 5 min silence.
+- **Result**: `make test` 258 passed.
+- **Notes**: Cards already marked interrupted are not re-scanned (markInterrupts skips them), so the existing card stays until its session gets a new event. Part of a wider Claude signal audit in progress.
+
+## fix(claude): end the wait for a Monitor that expired
+
+`19c41a5` | 2026-11-19
 
 - **Changes**: `Normalizer.notifiedTasks` also counts a notice whose event is `[Monitor expired after …]` as the task ending. Test `stopNoLongerWaitsForAMonitorThatExpired`; CHANGELOG 0.2.7 Monitor line extended.
 - **Reason**: A Monitor that times out (default 30 min) sends a `<task-notification>` with an `<event>` and no `<status>`, so its id stayed in `backgroundTasks` and every later Stop was held: the session read as running for ever.

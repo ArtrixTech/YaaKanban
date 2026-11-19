@@ -73,6 +73,14 @@ public enum SessionReducer {
             if i > 0, s.turns[i - 1].interrupted == true, let end = s.turns[i - 1].endedAt,
                at.timeIntervalSince(end) < interruptSlack { return s }
             s.turns[i].interrupted = true
+            // Esc fires no Stop hook, and the session file can go idle within a second of the last
+            // hook, too close to trust: the marker is then the only word that the turn is over.
+            // Ended where the marker is, unless the agent went on after it.
+            if i == s.turns.indices.last, s.turns[i].endedAt == nil,
+               [.running, .stuck, .needsInput].contains(s.status),
+               !s.tools.contains(where: { $0.startedAt > at }) {
+                endTurn(&s, at: at, lastMessage: nil)
+            }
             return s
         }
         // The session file says so on every scan; only the first time counts, so a session that
