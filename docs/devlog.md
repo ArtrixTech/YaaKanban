@@ -1,8 +1,19 @@
 # Devlog
 
+## fix(jump): leave clipboard untouched when opening or reopening Wave
+
+`PENDING` | 2026-11-25
+
+- **Changes**: `TerminalJumper.resume` no longer calls `copyResume` up front before Wave / Terminal / iTerm automatic reopen; Wave copies only inside its `failed` callback before `waveFailed()`, Terminal/iTerm copy only if `osascript` exits non-zero, and unsupported terminals keep copying in `default`. `TerminalJumper.jump` brings Wave forward without calling `copyContext` when Wave is matched via `hostApp` / `termProgram` without a `waveBlockId`. CHANGELOG Fixed line.
+- **Reason**: Automatic reopen in Wave runs via `WaveRPC.type` or `wsh createblock` (and Terminal/iTerm via `osascript`) without using the clipboard, yet `resume` unconditionally overwrote the clipboard first, and live Wave sessions without `waveBlockId` (e.g. scanner-discovered or tmux) fell into the generic `copyContext` branch.
+- **User feedback**: "有个问题 目前点击打开waveterminal的时候会复制指令到clipboard 要求不要影响用户的clipboard 用完还原。"
+- **Process**: Audited all `NSPasteboard` writes across the repo (`TerminalJumper.swift`, `FeedbackPrompt.swift`); confirmed Wave jump/resume never relies on the clipboard, so avoiding the write altogether is cleaner than save-and-restore (also avoids polluting clipboard history managers).
+- **Result**: `make build`, `make test`, and `make install` verified.
+- **Notes**: Explicit copy actions ("Copy resume command", "Copy cwd / session", "Switch to <app> and Copy", and Wave resume failure fallback) still copy as advertised.
+
 ## docs(claude): record a live hook capture in the signal audit
 
-`PENDING` | 2026-11-20
+`efb3ffb` | 2026-11-20
 
 - **Changes**: Audit doc (`docs/precipitation/261119_claude_code_signal_mapping_audit.md`): new "Live capture" section; the stdin-truncation open item is replaced by its result.
 - **Reason**: Check against live payloads what the audit had inferred from binary strings and transcripts.

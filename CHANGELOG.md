@@ -7,6 +7,10 @@ the update.
 
 ## [Unreleased]
 
+### Fixed
+
+- Clicking to jump to or automatically reopen a session in Wave Terminal (or Terminal / iTerm) no longer overwrites your clipboard; the resume command is copied only when automatic reopening cannot run or fails.
+
 ## [0.2.7] - 2026-11-20
 
 ### Changed

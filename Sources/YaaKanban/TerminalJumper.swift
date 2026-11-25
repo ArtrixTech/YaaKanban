@@ -50,6 +50,8 @@ struct TerminalJumper {
                 // window when the session lives in Cursor's separate Agents window).
                 app.activate()
                 EditorWindows.raise(pid: app.processIdentifier, project: s.projectName, agentsFirst: s.agent == .cursor)
+            } else if app.bundleIdentifier == Self.waveBundleId {
+                app.bringForward()
             } else {
                 app.activate()
                 copyContext(s)
@@ -79,22 +81,29 @@ struct TerminalJumper {
             copyResume(s)
             return outcome
         }
-        copyResume(s)
         let cwd = s.cwd ?? s.projectDir
         if t.isWave, let app = NSRunningApplication.runningApplications(withBundleIdentifier: Self.waveBundleId).first {
             WaveAdapter(terminal: t, switchTabs: settings.waveTabSwitching)
-                .resume(cmd, cwd: cwd, app: app, runners: wave, failed: waveFailed)
+                .resume(cmd, cwd: cwd, app: app, runners: wave) {
+                    copyResume(s)
+                    waveFailed()
+                }
             return .activated("Wave")
         }
         let line = [cwd.map { "cd \(shellQuote($0))" }, cmd].compactMap { $0 }.joined(separator: " && ")
         switch t.termProgram {
         case "Apple_Terminal":
-            Self.osascript("tell application \"Terminal\"\nactivate\ndo script \(Self.appleString(line))\nend tell")
+            Self.osascript("tell application \"Terminal\"\nactivate\ndo script \(Self.appleString(line))\nend tell") {
+                copyResume(s)
+            }
             return .activated("Terminal")
         case "iTerm.app":
-            Self.osascript("tell application \"iTerm\"\nactivate\nset w to (create window with default profile)\ntell current session of w to write text \(Self.appleString(line))\nend tell")
+            Self.osascript("tell application \"iTerm\"\nactivate\nset w to (create window with default profile)\ntell current session of w to write text \(Self.appleString(line))\nend tell") {
+                copyResume(s)
+            }
             return .activated("iTerm")
         default:
+            copyResume(s)
             if let app = t.termProgram.flatMap(Self.app(forTermProgram:)) {
                 app.activate()
                 return .activated(app.localizedName ?? "")
@@ -162,14 +171,17 @@ struct TerminalJumper {
     }
 
     /// Off the main thread: the first run may wait on the Automation permission prompt.
-    static func osascript(_ source: String) {
+    static func osascript(_ source: String, onFailure: (@MainActor () -> Void)? = nil) {
         DispatchQueue.global(qos: .userInitiated).async {
             let p = Process()
             p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
             p.arguments = ["-e", source]
             p.standardOutput = FileHandle.nullDevice
             p.standardError = FileHandle.nullDevice
-            try? p.run()
+            let ok = (try? p.run()) != nil && { p.waitUntilExit(); return p.terminationStatus == 0 }()
+            if !ok, let onFailure {
+                DispatchQueue.main.async { MainActor.assumeIsolated { onFailure() } }
+            }
         }
     }
 
