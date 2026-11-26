@@ -37,6 +37,8 @@ final class AppModel {
     private(set) var integrationIssues: [AgentKind: [String]] = [:]
     /// Agents found on this Mac without our hooks: their sessions show only what a scan can see.
     private(set) var unhookedAgents: Set<AgentKind> = []
+    /// User-defined custom agent profiles loaded from `paths.customAgents`.
+    private(set) var customAgents: [CustomAgent] = []
     /// No integration installed at all: the panel and menu point to the setup guide.
     private(set) var noIntegrations = false
     /// Opens the setup guide once launch is done: a first launch with nothing connected.
@@ -274,6 +276,7 @@ final class AppModel {
 
     func start() {
         _ = Self.yaakPath
+        customAgents = CustomAgentStore.load(from: paths.customAgents)
         do {
             let store = try Store(path: paths.database)
             store.purgeDetails()
@@ -417,9 +420,142 @@ final class AppModel {
             let steps = i.pendingSteps(home: home)
             if !steps.isEmpty { issues[i.agent] = steps }
         }
+        let loadedCustom = CustomAgentStore.load(from: paths.customAgents)
+        if loadedCustom != customAgents { customAgents = loadedCustom }
+        let hasCustom = !customAgents.isEmpty || sessions.values.contains { $0.agent == .custom && $0.hooked }
         if issues != integrationIssues { integrationIssues = issues }
         if unhooked != unhookedAgents { unhookedAgents = unhooked }
-        if (installed == 0) != noIntegrations { noIntegrations = installed == 0 }
+        if (installed == 0 && !hasCustom) != noIntegrations { noIntegrations = (installed == 0 && !hasCustom) }
+    }
+
+    // MARK: Custom agents
+
+    func reloadCustomAgents() {
+        let loaded = CustomAgentStore.load(from: paths.customAgents)
+        if loaded != customAgents { customAgents = loaded }
+        checkIntegrations()
+    }
+
+    func customAgent(for id: String?) -> CustomAgent? {
+        guard let id, !id.isEmpty else { return nil }
+        return customAgents.first { $0.id == id }
+    }
+
+    func customAgent(for s: SessionState) -> CustomAgent? {
+        s.agent == .custom ? customAgent(for: s.customAgentId) : nil
+    }
+
+    func displayName(for kind: AgentKind, customId: String? = nil) -> String {
+        guard kind == .custom else { return kind.displayName }
+        return customAgent(for: customId)?.name ?? CustomAgent.defaultDisplayName(for: customId)
+    }
+
+    func displayName(for identity: AgentIdentity) -> String {
+        displayName(for: identity.kind, customId: identity.customId)
+    }
+
+    func displayName(for s: SessionState) -> String {
+        displayName(for: s.agent, customId: s.customAgentId)
+    }
+
+    func resumeCommand(for s: SessionState) -> String? {
+        s.resumeCommand(customAgent: customAgent(for: s))
+    }
+
+    func copyResume(_ s: SessionState) {
+        jumper.copyResume(s, resumeCommand: resumeCommand(for: s), agentName: displayName(for: s))
+    }
+
+    func copyContext(_ s: SessionState) {
+        jumper.copyContext(s, agentName: displayName(for: s))
+    }
+
+    /// Custom agent IDs that have sent events without being registered in `custom-agents.json`.
+    var unregisteredCustomIds: [String] {
+        let registered = Set(customAgents.map(\.id))
+        let seen = Set(sessions.values.compactMap { $0.agent == .custom ? $0.customAgentId : nil }.filter { !$0.isEmpty })
+        return seen.subtracting(registered).sorted()
+    }
+
+    /// Custom agent IDs that have sent at least one hooked event.
+    var connectedCustomIds: Set<String> {
+        Set(sessions.values.compactMap { $0.agent == .custom && $0.hooked ? $0.customAgentId : nil })
+    }
+
+    /// Distinct custom agent identities (registered + discovered in sessions), sorted by display name.
+    var customAgentIdentities: [AgentIdentity] {
+        var ids = Set(customAgents.map(\.id))
+        for s in sessions.values where s.agent == .custom {
+            if let cid = s.customAgentId, !cid.isEmpty { ids.insert(cid) }
+        }
+        return ids.map { AgentIdentity(.custom, customId: $0) }
+            .sorted { displayName(for: $0).localizedCaseInsensitiveCompare(displayName(for: $1)) == .orderedAscending }
+    }
+
+    func saveCustomAgent(_ agent: CustomAgent, replacingId oldId: String? = nil) throws {
+        var list = customAgents
+        let targetId = oldId ?? agent.id
+        if let idx = list.firstIndex(where: { $0.id == targetId }) {
+            let oldIcon = list[idx].icon
+            if oldIcon.kind == .image, oldIcon.value != agent.icon.value {
+                CustomAgentStore.removeIcon(filename: oldIcon.value, iconsDir: paths.customAgentIcons)
+                CustomIconCache.remove(filename: oldIcon.value)
+            }
+            list[idx] = agent
+        } else {
+            list.append(agent)
+        }
+        try CustomAgentStore.save(list, to: paths.customAgents)
+        customAgents = list
+        checkIntegrations()
+    }
+
+    func deleteCustomAgent(id: String) throws {
+        var list = customAgents
+        if let idx = list.firstIndex(where: { $0.id == id }) {
+            let old = list.remove(at: idx)
+            if old.icon.kind == .image {
+                CustomAgentStore.removeIcon(filename: old.icon.value, iconsDir: paths.customAgentIcons)
+                CustomIconCache.remove(filename: old.icon.value)
+            }
+        }
+        try CustomAgentStore.save(list, to: paths.customAgents)
+        customAgents = list
+        checkIntegrations()
+    }
+
+    /// Sends a synthetic mini-session through the real ingest pipeline using the agent's configured
+    /// protocol (`generic` or `claude`) so the user can immediately verify appearance & alerts.
+    func sendTestEvent(for agent: CustomAgent) {
+        let now = Date()
+        let sid = "test-\(String(UUID().uuidString.prefix(8)).lowercased())"
+        let cwd = FileManager.default.homeDirectoryForCurrentUser.path
+        let prompt = String(localized: "Test connection for \(agent.name)")
+        let reply = String(localized: "Connected! Events from \(agent.name) are arriving normally.")
+        let events: [(String, Date, [String: JSONValue])]
+        switch agent.protocol {
+        case .generic:
+            events = [
+                ("session_start", now.addingTimeInterval(-3), ["session_id": .string(sid), "cwd": .string(cwd)]),
+                ("prompt", now.addingTimeInterval(-2), ["session_id": .string(sid), "prompt": .string(prompt)]),
+                ("tool_start", now.addingTimeInterval(-1.5), ["session_id": .string(sid), "id": .string("ping-1"), "tool": .string("ping"), "input": .object(["target": .string("YaaKanban")])]),
+                ("tool_end", now.addingTimeInterval(-0.5), ["session_id": .string(sid), "id": .string("ping-1"), "tool": .string("ping"), "output": .string("ok")]),
+                ("turn_end", now, ["session_id": .string(sid), "message": .string(reply)]),
+            ]
+        case .claude:
+            events = [
+                ("SessionStart", now.addingTimeInterval(-3), ["session_id": .string(sid), "hook_event_name": .string("SessionStart"), "cwd": .string(cwd)]),
+                ("UserPromptSubmit", now.addingTimeInterval(-2), ["session_id": .string(sid), "hook_event_name": .string("UserPromptSubmit"), "prompt": .string(prompt)]),
+                ("PreToolUse", now.addingTimeInterval(-1.5), ["session_id": .string(sid), "hook_event_name": .string("PreToolUse"), "tool_use_id": .string("ping-1"), "tool_name": .string("ping"), "tool_input": .object(["target": .string("YaaKanban")])]),
+                ("PostToolUse", now.addingTimeInterval(-0.5), ["session_id": .string(sid), "hook_event_name": .string("PostToolUse"), "tool_use_id": .string("ping-1"), "tool_name": .string("ping"), "tool_response": .string("ok")]),
+                ("Stop", now, ["session_id": .string(sid), "hook_event_name": .string("Stop"), "last_assistant_message": .string(reply)]),
+            ]
+        }
+        for (ev, at, payload) in events {
+            let env = HookEnvelope(agent: .custom, event: ev, receivedAt: at, cwd: cwd,
+                                   payload: .object(payload), customAgentId: agent.id, customFormat: agent.protocol)
+            ingest(env, alert: ev == events.last?.0)
+        }
     }
 
     /// Installs or removes `i`'s hooks; the message to show, nil on success with nothing to add.
@@ -496,10 +632,14 @@ final class AppModel {
     /// Applies an envelope; returns the session key it touched.
     @discardableResult
     func ingest(_ env: HookEnvelope, alert: Bool) -> String? {
+        var env = env
+        if env.agent == .custom, env.customFormat == nil, let reg = customAgent(for: env.customAgentId) {
+            env.customFormat = reg.protocol
+        }
         var key: String?
         for ev in Normalizer.normalize(env) {
             if case .backgroundStart = ev.kind, !settings.claudeBackgroundAgents { continue }
-            key = update(SessionState.key(ev.agent, ev.sessionId), alert: alert) { old in
+            key = update(SessionState.key(ev.agent, ev.sessionId, customAgentId: ev.customAgentId), alert: alert) { old in
                 var s = SessionReducer.apply(ev, to: old)
                 // Another agent started it as a tool: it works for that one, from its first turn on.
                 if s.parentId == nil, old?.turns.isEmpty ?? true, let pids = env.ancestorPids {
@@ -530,7 +670,7 @@ final class AppModel {
             notifier.withdraw(key: key)
         }
         if alert, new.dismissedAt == nil, let a = Alerts.between(old, new),
-           new.parentId == nil || !a.isDone { notifier.post(a, for: new, settings: settings) }
+           new.parentId == nil || !a.isDone { notifier.post(a, for: new, settings: settings, agentName: displayName(for: new)) }
         // The Wave badge stays on until the user has dealt with it, including reviewing a finished turn.
         if (old.map(Self.wantsUser) ?? false) != Self.wantsUser(new) { jumper.badge(new, on: Self.wantsUser(new)) }
         return key
@@ -1061,15 +1201,24 @@ final class AppModel {
         record([ActivityRow(at: Date(), session: key, kind: .focus)])
         guard Self.isGone(s) else { telemetry.count(.jump(s.terminal)); jumper.jump(to: s); return }
         let runners = waveRunners(for: s)
+        let cmd = resumeCommand(for: s)
+        let agentName = displayName(for: s)
         let name = s.terminal?.termProgram.flatMap(TerminalJumper.app(forTermProgram:))?.localizedName ?? String(localized: "Terminal")
         let why: String? = s.terminal?.isWave == true && runners.isEmpty ? String(localized: "Wave’s authorization has expired")
-            : TerminalJumper.runsResume(s) ? nil
+            : TerminalJumper.runsResume(s, resumeCommand: cmd) ? nil
+            : cmd == nil && s.agent == .custom ? String(localized: "No resume command is configured for \(agentName)")
             : s.terminal?.termProgram == "waveterm" ? String(localized: "It’s not known which Wave tab it was in")
             : String(localized: "\(name) doesn’t accept typed-in commands from other apps")
-        Self.reopenAlert(s, cannotRun: why.map { ($0, name) }).runLater { [self] answer in
+        Self.reopenAlert(s, agentName: agentName, cannotRun: why.map { ($0, name) }).runLater { [self] answer in
             switch answer {
-            case .alertFirstButtonReturn: telemetry.count(.resume); jumper.resume(s, wave: runners) { Self.tellResumeFailed(s) }
-            case .alertSecondButtonReturn: telemetry.count(.resume); jumper.copyResume(s)
+            case .alertFirstButtonReturn:
+                telemetry.count(.resume)
+                jumper.resume(s, resumeCommand: cmd, agentName: agentName, wave: runners) {
+                    Self.tellResumeFailed(s, agentName: agentName)
+                }
+            case .alertSecondButtonReturn:
+                telemetry.count(.resume)
+                copyResume(s)
             default: break
             }
         }
@@ -1092,20 +1241,20 @@ final class AppModel {
         return ([t] + others).filter { $0.waveJWT.map { seen.insert($0).inserted } ?? false }
     }
 
-    private static func tellResumeFailed(_ s: SessionState) {
+    private static func tellResumeFailed(_ s: SessionState, agentName: String) {
         let alert = NSAlert()
         if let icon = BrandMark.image { alert.icon = icon }
         alert.messageText = String(localized: "Couldn’t open it in Wave")
-        alert.informativeText = String(localized: "The tab or terminal may be closed, or Wave’s authorization may have expired. The resume command is copied: open a new terminal in Wave and paste it to continue \(s.agent.displayName).")
+        alert.informativeText = String(localized: "The tab or terminal may be closed, or Wave’s authorization may have expired. The resume command is copied: open a new terminal in Wave and paste it to continue \(agentName).")
         NSApp.activate(ignoringOtherApps: true)
         alert.runModal()
     }
 
     /// `cannotRun`: why the command can't be typed in for the user, and the terminal to go to.
-    private static func reopenAlert(_ s: SessionState, cannotRun: (why: String, app: String)?) -> NSAlert {
+    private static func reopenAlert(_ s: SessionState, agentName: String, cannotRun: (why: String, app: String)?) -> NSAlert {
         let alert = NSAlert()
         if let icon = BrandMark.image { alert.icon = icon }
-        alert.messageText = String(localized: "\(s.agent.displayName) is no longer running")
+        alert.messageText = String(localized: "\(agentName) is no longer running")
         if let (why, app) = cannotRun {
             // Nothing can type into that terminal: go there and paste.
             alert.informativeText = String(localized: "\(why), so it can’t be reopened automatically. YaaKanban will switch to \(app) and copy the resume command: open a new terminal there and paste it to continue.")
@@ -1155,7 +1304,8 @@ final class AppModel {
         let since = Date().addingTimeInterval(-Double(Self.searchDays) * 86400)
         let q = query.trimmingCharacters(in: .whitespaces)
         return sorted(sessions.values.filter {
-            $0.parentId == nil && !$0.isUnstarted && $0.quietSince >= since && (q.isEmpty || $0.matches(q))
+            $0.parentId == nil && !$0.isUnstarted && $0.quietSince >= since
+                && (q.isEmpty || $0.matches(q, agentDisplayName: displayName(for: $0)))
         })
     }
 
@@ -1203,8 +1353,4 @@ final class AppModel {
         unsaved.remove(key)
         store?.delete(id: key)
     }
-}
-
-extension SessionState {
-    static func key(_ agent: AgentKind, _ sessionId: String) -> String { "\(agent.rawValue):\(sessionId)" }
 }

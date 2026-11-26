@@ -42,13 +42,13 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    func post(_ alert: Alert, for s: SessionState, settings: Preferences) {
+    func post(_ alert: Alert, for s: SessionState, settings: Preferences, agentName: String? = nil) {
         guard let center else { return }
         if settings.suppressWhenWaveFrontmost, s.terminal?.isWave == true,
            NSWorkspace.shared.frontmostApplication?.bundleIdentifier == TerminalJumper.waveBundleId { return }
 
         let c = UNMutableNotificationContent()
-        let where_ = [s.agent.displayName, s.projectName].compactMap { $0 }.joined(separator: " · ")
+        let where_ = [agentName ?? s.agent.displayName, s.projectName].compactMap { $0 }.joined(separator: " · ")
         c.userInfo = ["key": s.id]
         c.categoryIdentifier = "session"
         switch alert {

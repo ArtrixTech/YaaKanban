@@ -7,6 +7,17 @@ the update.
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-11-26
+
+### Added
+
+- Custom agents: connect any unsupported coding agent or script via `yaak hook custom` (supporting both YaaKanban's neutral JSON/CLI protocol and Claude Code hooks compatibility), with Settings management (`custom-agents.json`), plug-and-play unregistered IDs, blocking permission approvals, custom resume command templates, monogram / SF Symbol / imported SVG & PNG icons, a one-click AI integration prompt, and a Send Test Event verifier.
+
+### Fixed
+
+- Fixed macOS 27 / Swift 6.4 builds linking against legacy SDK 14.0 compatibility mode, which turned the dark-mode canvas lighter than cards and darkened the light-mode sidebar.
+- Clicking to jump to or automatically reopen a session in Wave Terminal (or Terminal / iTerm) no longer overwrites your clipboard; the resume command is copied only when automatic reopening cannot run or fails.
+
 ## [0.2.7] - 2026-11-20
 
 ### Changed

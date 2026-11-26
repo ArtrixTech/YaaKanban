@@ -1,8 +1,41 @@
 # Devlog
 
+## fix(build): pass -isysroot to linker under Swift 6.4 swiftbuild
+
+`2db8a88` | 2026-11-26
+
+- **Changes**: Updated `Makefile` and `scripts/bundle.sh` to prefer `/Applications/Xcode.app/Contents/Developer` when `DEVELOPER_DIR` is unset (and scope CLT `TEST_FLAGS` to CommandLineTools only), pass `-Xswiftc -Xclang-linker -Xswiftc -isysroot -Xswiftc -Xclang-linker -Xswiftc "$SDK_PATH"` to `swift build` / `swift test`, and pre-create the `.stringsdata` output directory in `make l10n` with an absolute path so it works under default `swiftbuild`. Added an `otool -l` `LC_BUILD_VERSION` SDK guard (`>= 26`) for both `YaaKanban` and `yaak` in `scripts/bundle.sh` and `scripts/release.sh`. Added `CHANGELOG.md` Fixed entry and precipitation doc `docs/precipitation/261126_swiftbuild_sdk_version_appearance.md`.
+- **Reason**: Updating to macOS 27 Command Line Tools (Swift 6.4.2) switched `swift build` to `swiftbuild`, which invokes `swiftc -sdk` without `SDKROOT`; `swiftc` passes `--sysroot` instead of `-isysroot` to Apple clang 21, causing clang to ignore `SDKSettings.json` and stamp `LC_BUILD_VERSION sdk = minos (14.0)`. AppKit on macOS 27 then switched to legacy Sonoma compatibility colors (`windowBackgroundColor` `#1E1E1E` → `#323232`, brighter than `#2A2A2A` cards so existing card shadows looked blown out; light `underPageBackgroundColor` `#F6F6F6` → `#9F9F9F`). Also prevents future `make release` builds from shipping the regression.
+- **User feedback**: Reported unexpected card shadows and drastically different Overview UI in recent local builds; approved proposed build-script fix ("修").
+- **Process**: Verified root cause via 3-way controlled offscreen snapshot comparison (identical working tree linked with `sdk 14.0` vs `sdk 27.0` vs v0.2.7 `sdk 26.4`). After updating build scripts, ran `sh -n`, `make build`, `make test` (248 tests / 43 suites), `make l10n` (502 keys, 0 problems), and `make install`, confirmed `LC_BUILD_VERSION sdk 27.0` on debug/release/installed `YaaKanban` and `yaak`, verified `codesign --verify --deep --strict`, negative-tested `check_sdk` against a synthetic `sdk 14.0` binary, and verified installed app offscreen snapshots (`#1E1E1E` dark canvas, `#2A2A2A` card, `#F6F6F6` light sidebar).
+- **Result**: Local installed app restored to `sdk 27.0` with expected dark/light system colors; `make build`, `make test`, `make l10n`, and `make install` all pass under default `swiftbuild`.
+- **Notes**: Under `swiftbuild`, debug products live at `.build/out/Products/Debug/` rather than `.build/<arch>-apple-macosx/debug/`; `scripts/bundle.sh` resolves binaries via `swift build --show-bin-path`.
+
+## feat(custom): support user-defined custom agents via CLI and Settings
+
+`9f04b9e` | 2026-11-26
+
+- **Changes**: Added `AgentKind.custom`, `CustomAgent` / `CustomAgentStore` / `AgentIdentity` (`Sources/YaaCore/CustomAgent.swift`), optional backward-compatible `customAgentId` and `customFormat` on `HookEnvelope` / `AgentEvent` / `SessionState` (`custom:<id>:<session>` keys), and generic + Claude-compatible normalization in `Normalizer`. Extended `yaak` CLI (`yaak hook custom <event> --id <id> [--format generic|claude]` + payload flags, blocking permission replies in plain or Claude JSON format, `yaak custom list|snippet|prompt`, `yaak status`). Added `CustomAgentsSection` and `CustomAgentSheet` in Settings › Agent integrations (monogram / SF Symbol / imported SVG & PNG icons, protocol toggle, interactive approval toggle, `{session_id}` resume template, one-click AI integration prompt, CLI/hook snippet, and Send Test Event), plus `AgentIdentity` grouping/filtering in `MainWindow` sidebar and `OverviewCards`. Updated all 9 `Localizable.strings`, `docs/spec.md`, `CHANGELOG.md`, and added `CustomAgentTests`.
+- **Reason**: Allow users to integrate proprietary, forked, or unsupported coding agents into YaaKanban with full tracking, alerts, approvals, and terminal jump/resume.
+- **User feedback**: Confirmed all 4 design choices: CLI generic + Claude-compatible protocol, Settings UI + zero-registration plug-and-play, blocking permission approval + resume command template, flexible icons (monogram / SF Symbol / image) + AI integration prompt + test event button.
+- **Process**: Built and ran full test suite (`YaaCoreTests` + `YaaIntegrationsTests`, including live Unix socket CLI approval & spool tests in `CustomAgentTests`), verified all 502 localized strings across 9 languages (`l10n-check.py` 0 problems), and installed via `make install`.
+- **Result**: All tests pass, localization clean across all 9 locales, app bundled and installed locally.
+- **Notes**: On macOS 27 Command Line Tools (Swift 6.4.2), `SwiftUI.@State` requires `SwiftUIMacros` from Xcode (`DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`); `make l10n` under `swiftbuild` is now handled directly in `Makefile` without `--build-system native` (see `fix(build)` entry above).
+
+## fix(jump): leave clipboard untouched when opening or reopening Wave
+
+`4be4243` | 2026-11-25
+
+- **Changes**: `TerminalJumper.resume` no longer calls `copyResume` up front before Wave / Terminal / iTerm automatic reopen; Wave copies only inside its `failed` callback before `waveFailed()`, Terminal/iTerm copy only if `osascript` exits non-zero, and unsupported terminals keep copying in `default`. `TerminalJumper.jump` brings Wave forward without calling `copyContext` when Wave is matched via `hostApp` / `termProgram` without a `waveBlockId`. CHANGELOG Fixed line.
+- **Reason**: Automatic reopen in Wave runs via `WaveRPC.type` or `wsh createblock` (and Terminal/iTerm via `osascript`) without using the clipboard, yet `resume` unconditionally overwrote the clipboard first, and live Wave sessions without `waveBlockId` (e.g. scanner-discovered or tmux) fell into the generic `copyContext` branch.
+- **User feedback**: "有个问题 目前点击打开waveterminal的时候会复制指令到clipboard 要求不要影响用户的clipboard 用完还原。"
+- **Process**: Audited all `NSPasteboard` writes across the repo (`TerminalJumper.swift`, `FeedbackPrompt.swift`); confirmed Wave jump/resume never relies on the clipboard, so avoiding the write altogether is cleaner than save-and-restore (also avoids polluting clipboard history managers).
+- **Result**: `make build`, `make test`, and `make install` verified.
+- **Notes**: Explicit copy actions ("Copy resume command", "Copy cwd / session", "Switch to <app> and Copy", and Wave resume failure fallback) still copy as advertised.
+
 ## docs(claude): record a live hook capture in the signal audit
 
-`PENDING` | 2026-11-20
+`efb3ffb` | 2026-11-20
 
 - **Changes**: Audit doc (`docs/precipitation/261119_claude_code_signal_mapping_audit.md`): new "Live capture" section; the stdin-truncation open item is replaced by its result.
 - **Reason**: Check against live payloads what the audit had inferred from binary strings and transcripts.

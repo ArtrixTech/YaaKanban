@@ -42,6 +42,22 @@ SIGNED_TEAM=$(codesign -dv build/YaaKanban.app 2>&1 | sed -n 's/^TeamIdentifier=
 codesign --verify --deep --strict build/YaaKanban.app
 BUILT=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" build/YaaKanban.app/Contents/Info.plist)
 [ "$BUILT" = "$VERSION" ] || fail "built $BUILT, expected $VERSION"
+MIN_LINKED_SDK=26
+for BIN_PATH in build/YaaKanban.app/Contents/MacOS/YaaKanban build/YaaKanban.app/Contents/Helpers/yaak; do
+  LINKED_SDKS=$(otool -l "$BIN_PATH" | awk '
+    /cmd LC_BUILD_VERSION/ { in_bv = 1; next }
+    in_bv && /cmd / { in_bv = 0 }
+    in_bv && $1 == "sdk" { print $2 }
+  ')
+  [ -n "$LINKED_SDKS" ] || fail "could not read LC_BUILD_VERSION sdk from $BIN_PATH"
+  for LINKED_SDK in $LINKED_SDKS; do
+    LINKED_MAJOR="${LINKED_SDK%%.*}"
+    case "$LINKED_MAJOR" in
+      ''|*[!0-9]*) fail "invalid LC_BUILD_VERSION sdk '$LINKED_SDK' in $BIN_PATH" ;;
+    esac
+    [ "$LINKED_MAJOR" -ge "$MIN_LINKED_SDK" ] || fail "$BIN_PATH linked against sdk $LINKED_SDK (< $MIN_LINKED_SDK)"
+  done
+done
 
 rm -f "$ZIP"
 ditto -c -k --keepParent build/YaaKanban.app "$ZIP"

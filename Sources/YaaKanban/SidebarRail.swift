@@ -99,8 +99,8 @@ struct NarrowSessionCard: View {
             Button(AppModel.isGone(session) ? "Resume in original terminal" : "Jump to terminal") { model.jump(session.id) }
             if st == .review { Button("Mark as reviewed") { model.markRead(session.id) } }
             if st == .done { Button("Mark as to review") { model.markUnread(session.id) } }
-            Button("Copy cwd / session") { model.jumper.copyContext(session) }
-            Button("Copy resume command") { model.jumper.copyResume(session) }
+            Button("Copy cwd / session") { model.copyContext(session) }
+            Button("Copy resume command") { model.copyResume(session) }
             Divider()
             MoveMenu(session: session)
             Divider()
@@ -113,7 +113,8 @@ struct NarrowSessionCard: View {
     private func card(_ st: DisplayStatus) -> some View {
         VStack(spacing: 4) {
             StatusGlyph(status: st, size: 16)
-            AgentLogo(agent: session.agent, size: 10).opacity(st == .done || st == .ended ? 0.5 : 0.85)
+            AgentLogo(agent: session.agent, customId: session.customAgentId, custom: model.customAgent(for: session), size: 10)
+                .opacity(st == .done || st == .ended ? 0.5 : 0.85)
             StatusTrack(status: st).frame(maxHeight: .infinity)
             TimelineView(.everySecond) { ctx in
                 Text(Self.shortClock(session, now: ctx.date))
@@ -142,7 +143,7 @@ struct NarrowSessionCard: View {
         var lines = ["\(session.title) · \(st.label)"]
         if let p = session.projectName { lines.append(p) }
         if let d = SubagentSlots.detail(session) { lines.append(d) }
-        lines.append(AppModel.isGone(session) ? String(localized: "Click to resume \(session.agent.displayName) in its original terminal") : String(localized: "Click to jump to \(session.agent.displayName)"))
+        lines.append(AppModel.isGone(session) ? String(localized: "Click to resume \(model.displayName(for: session)) in its original terminal") : String(localized: "Click to jump to \(model.displayName(for: session))"))
         return lines.joined(separator: "\n")
     }
 }

@@ -18,6 +18,7 @@ public enum AgentKind: String, Codable, CaseIterable, Sendable {
     case cline
     case omp
     case windsurf
+    case custom
 
     public var displayName: String {
         switch self {
@@ -38,6 +39,7 @@ public enum AgentKind: String, Codable, CaseIterable, Sendable {
         case .cline: return "Cline"
         case .omp: return "omp"
         case .windsurf: return "Windsurf"
+        case .custom: return "Custom"
         }
     }
 }
@@ -120,10 +122,15 @@ public struct HookEnvelope: Codable, Equatable, Sendable {
     /// The agent runs in a shell another agent opened (Claude Code sets `CLAUDECODE=1` for its
     /// tools). Holds when the caller is no longer among `ancestorPids` (`nohup … &` reparents).
     public var calledByAgent: Bool?
+    /// Slug identifying which user-defined agent sent the event when `agent == .custom`.
+    public var customAgentId: String?
+    /// Protocol format override for `.custom` envelopes (`generic` or `claude`).
+    public var customFormat: CustomAgentProtocol?
 
     public init(agent: AgentKind, event: String, receivedAt: Date = Date(), agentPid: Int32? = nil,
                 cwd: String? = nil, terminal: TerminalContext = TerminalContext(), payload: JSONValue = .null,
-                ancestorPids: [Int32]? = nil, calledByAgent: Bool? = nil) {
+                ancestorPids: [Int32]? = nil, calledByAgent: Bool? = nil,
+                customAgentId: String? = nil, customFormat: CustomAgentProtocol? = nil) {
         self.agent = agent
         self.event = event
         self.receivedAt = receivedAt
@@ -133,6 +140,8 @@ public struct HookEnvelope: Codable, Equatable, Sendable {
         self.payload = payload
         self.ancestorPids = ancestorPids
         self.calledByAgent = calledByAgent
+        self.customAgentId = customAgentId
+        self.customFormat = customFormat
     }
 }
 
@@ -227,10 +236,12 @@ public struct AgentEvent: Equatable, Sendable {
     public var terminal: TerminalContext?
     /// Set when the event originated inside a sub-agent.
     public var subagentId: String?
+    /// Slug identifying the custom agent when `agent == .custom`.
+    public var customAgentId: String?
 
     public init(agent: AgentKind, sessionId: String, at: Date, kind: Kind, cwd: String? = nil,
                 transcriptPath: String? = nil, agentPid: Int32? = nil, terminal: TerminalContext? = nil,
-                subagentId: String? = nil) {
+                subagentId: String? = nil, customAgentId: String? = nil) {
         self.agent = agent
         self.sessionId = sessionId
         self.at = at
@@ -240,6 +251,7 @@ public struct AgentEvent: Equatable, Sendable {
         self.agentPid = agentPid
         self.terminal = terminal
         self.subagentId = subagentId
+        self.customAgentId = customAgentId
     }
 }
 
@@ -280,9 +292,20 @@ public struct Subagent: Codable, Equatable, Sendable {
 }
 
 public struct SessionState: Codable, Equatable, Identifiable, Sendable {
-    public var id: String { "\(agent.rawValue):\(sessionId)" }
+    public var id: String { Self.key(agent, sessionId, customAgentId: customAgentId) }
     public var agent: AgentKind
     public var sessionId: String
+    /// Slug identifying the user-defined agent when `agent == .custom`. Optional for backward compatibility.
+    public var customAgentId: String?
+
+    public static func key(_ agent: AgentKind, _ sessionId: String, customAgentId: String? = nil) -> String {
+        if agent == .custom, let cid = customAgentId, !cid.isEmpty {
+            return "\(agent.rawValue):\(cid):\(sessionId)"
+        }
+        return "\(agent.rawValue):\(sessionId)"
+    }
+
+    public var agentIdentity: AgentIdentity { AgentIdentity(agent, customId: customAgentId) }
     public var cwd: String?
     /// The cwd the session was first seen in; sessions are grouped by it (`cwd` follows `cd`).
     public var projectDir: String?
@@ -339,9 +362,10 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
 
     public static let toolHistoryLimit = 200
 
-    public init(agent: AgentKind, sessionId: String, at: Date) {
+    public init(agent: AgentKind, sessionId: String, at: Date, customAgentId: String? = nil) {
         self.agent = agent
         self.sessionId = sessionId
+        self.customAgentId = customAgentId
         self.status = .idle
         self.startedAt = at
         self.lastEventAt = at
@@ -390,8 +414,9 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     }
 
     /// Whether `query` appears, ignoring case, in its name, project path, id, agent, prompts or replies.
-    public func matches(_ query: String) -> Bool {
-        let fields: [String?] = [title, cwd, projectDir, sessionId, agent.displayName, peek?.lastPrompt, peek?.lastReply]
+    public func matches(_ query: String, agentDisplayName: String? = nil) -> Bool {
+        let fields: [String?] = [title, cwd, projectDir, sessionId, agentDisplayName ?? agent.displayName,
+                                 customAgentId, peek?.lastPrompt, peek?.lastReply]
             + turns.flatMap { [$0.prompt, $0.lastMessage] }
         return fields.contains { $0?.localizedCaseInsensitiveContains(query) == true }
     }
@@ -414,7 +439,10 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
     public var quietSince: Date { max(lastEventAt, reviewedAt ?? lastEventAt) }
 
     /// The shell command that continues this session in its own CLI, run from `cwd`.
-    public var resumeCommand: String? {
+    public var resumeCommand: String? { resumeCommand(customAgent: nil) }
+
+    /// The shell command that continues this session, using `customAgent`'s template when `agent == .custom`.
+    public func resumeCommand(customAgent: CustomAgent?) -> String? {
         // The id comes from a hook payload: never let it read as a flag.
         guard !sessionId.isEmpty, !sessionId.hasPrefix("-") else { return nil }
         let id = shellQuote(sessionId)
@@ -441,6 +469,7 @@ public struct SessionState: Codable, Equatable, Identifiable, Sendable {
         case .omp: return "omp --resume \(id)"
         // Cascade conversations are resumed inside the editor.
         case .windsurf: return nil
+        case .custom: return customAgent?.resumeCommand(sessionId: sessionId)
         }
     }
 

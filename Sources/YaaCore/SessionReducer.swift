@@ -26,7 +26,8 @@ public enum SessionReducer {
     }
 
     private static func reduce(_ e: AgentEvent, _ existing: SessionState?) -> SessionState {
-        var s = existing ?? SessionState(agent: e.agent, sessionId: e.sessionId, at: e.at)
+        var s = existing ?? SessionState(agent: e.agent, sessionId: e.sessionId, at: e.at, customAgentId: e.customAgentId)
+        if s.customAgentId == nil, let cid = e.customAgentId, !cid.isEmpty { s.customAgentId = cid }
         if s.projectDir == nil { s.projectDir = e.cwd }
         if case .statusSnapshot(let status) = e.kind {
             // Session files only drive sessions without hooks; for hooked ones they must not
