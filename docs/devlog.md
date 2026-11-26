@@ -2,7 +2,7 @@
 
 ## fix(build): pass -isysroot to linker under Swift 6.4 swiftbuild
 
-`PENDING` | 2026-11-26
+`2db8a88` | 2026-11-26
 
 - **Changes**: Updated `Makefile` and `scripts/bundle.sh` to prefer `/Applications/Xcode.app/Contents/Developer` when `DEVELOPER_DIR` is unset (and scope CLT `TEST_FLAGS` to CommandLineTools only), pass `-Xswiftc -Xclang-linker -Xswiftc -isysroot -Xswiftc -Xclang-linker -Xswiftc "$SDK_PATH"` to `swift build` / `swift test`, and pre-create the `.stringsdata` output directory in `make l10n` with an absolute path so it works under default `swiftbuild`. Added an `otool -l` `LC_BUILD_VERSION` SDK guard (`>= 26`) for both `YaaKanban` and `yaak` in `scripts/bundle.sh` and `scripts/release.sh`. Added `CHANGELOG.md` Fixed entry and precipitation doc `docs/precipitation/261126_swiftbuild_sdk_version_appearance.md`.
 - **Reason**: Updating to macOS 27 Command Line Tools (Swift 6.4.2) switched `swift build` to `swiftbuild`, which invokes `swiftc -sdk` without `SDKROOT`; `swiftc` passes `--sysroot` instead of `-isysroot` to Apple clang 21, causing clang to ignore `SDKSettings.json` and stamp `LC_BUILD_VERSION sdk = minos (14.0)`. AppKit on macOS 27 then switched to legacy Sonoma compatibility colors (`windowBackgroundColor` `#1E1E1E` → `#323232`, brighter than `#2A2A2A` cards so existing card shadows looked blown out; light `underPageBackgroundColor` `#F6F6F6` → `#9F9F9F`). Also prevents future `make release` builds from shipping the regression.

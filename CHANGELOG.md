@@ -7,6 +7,8 @@ the update.
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-11-26
+
 ### Added
 
 - Custom agents: connect any unsupported coding agent or script via `yaak hook custom` (supporting both YaaKanban's neutral JSON/CLI protocol and Claude Code hooks compatibility), with Settings management (`custom-agents.json`), plug-and-play unregistered IDs, blocking permission approvals, custom resume command templates, monogram / SF Symbol / imported SVG & PNG icons, a one-click AI integration prompt, and a Send Test Event verifier.
