@@ -13,6 +13,7 @@ the update.
 
 ### Fixed
 
+- Fixed macOS 27 / Swift 6.4 builds linking against legacy SDK 14.0 compatibility mode, which turned the dark-mode canvas lighter than cards and darkened the light-mode sidebar.
 - Clicking to jump to or automatically reopen a session in Wave Terminal (or Terminal / iTerm) no longer overwrites your clipboard; the resume command is copied only when automatic reopening cannot run or fails.
 
 ## [0.2.7] - 2026-11-20
