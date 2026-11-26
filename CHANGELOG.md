@@ -7,6 +7,10 @@ the update.
 
 ## [Unreleased]
 
+### Added
+
+- Custom agents: connect any unsupported coding agent or script via `yaak hook custom` (supporting both YaaKanban's neutral JSON/CLI protocol and Claude Code hooks compatibility), with Settings management (`custom-agents.json`), plug-and-play unregistered IDs, blocking permission approvals, custom resume command templates, monogram / SF Symbol / imported SVG & PNG icons, a one-click AI integration prompt, and a Send Test Event verifier.
+
 ### Fixed
 
 - Clicking to jump to or automatically reopen a session in Wave Terminal (or Terminal / iTerm) no longer overwrites your clipboard; the resume command is copied only when automatic reopening cannot run or fails.

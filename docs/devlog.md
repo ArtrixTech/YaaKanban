@@ -1,8 +1,19 @@
 # Devlog
 
+## feat(custom): support user-defined custom agents via CLI and Settings
+
+`PENDING` | 2026-11-26
+
+- **Changes**: Added `AgentKind.custom`, `CustomAgent` / `CustomAgentStore` / `AgentIdentity` (`Sources/YaaCore/CustomAgent.swift`), optional backward-compatible `customAgentId` and `customFormat` on `HookEnvelope` / `AgentEvent` / `SessionState` (`custom:<id>:<session>` keys), and generic + Claude-compatible normalization in `Normalizer`. Extended `yaak` CLI (`yaak hook custom <event> --id <id> [--format generic|claude]` + payload flags, blocking permission replies in plain or Claude JSON format, `yaak custom list|snippet|prompt`, `yaak status`). Added `CustomAgentsSection` and `CustomAgentSheet` in Settings › Agent integrations (monogram / SF Symbol / imported SVG & PNG icons, protocol toggle, interactive approval toggle, `{session_id}` resume template, one-click AI integration prompt, CLI/hook snippet, and Send Test Event), plus `AgentIdentity` grouping/filtering in `MainWindow` sidebar and `OverviewCards`. Updated all 9 `Localizable.strings`, `docs/spec.md`, `CHANGELOG.md`, and added `CustomAgentTests`.
+- **Reason**: Allow users to integrate proprietary, forked, or unsupported coding agents into YaaKanban with full tracking, alerts, approvals, and terminal jump/resume.
+- **User feedback**: Confirmed all 4 design choices: CLI generic + Claude-compatible protocol, Settings UI + zero-registration plug-and-play, blocking permission approval + resume command template, flexible icons (monogram / SF Symbol / image) + AI integration prompt + test event button.
+- **Process**: Built and ran full test suite (`YaaCoreTests` + `YaaIntegrationsTests`, including live Unix socket CLI approval & spool tests in `CustomAgentTests`), verified all 502 localized strings across 9 languages (`l10n-check.py` 0 problems), and installed via `make install`.
+- **Result**: All tests pass, localization clean across all 9 locales, app bundled and installed locally.
+- **Notes**: On macOS 27 Command Line Tools (Swift 6.4.2), `SwiftUI.@State` requires `SwiftUIMacros` from Xcode (`DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`).
+
 ## fix(jump): leave clipboard untouched when opening or reopening Wave
 
-`PENDING` | 2026-11-25
+`4be4243` | 2026-11-25
 
 - **Changes**: `TerminalJumper.resume` no longer calls `copyResume` up front before Wave / Terminal / iTerm automatic reopen; Wave copies only inside its `failed` callback before `waveFailed()`, Terminal/iTerm copy only if `osascript` exits non-zero, and unsupported terminals keep copying in `default`. `TerminalJumper.jump` brings Wave forward without calling `copyContext` when Wave is matched via `hostApp` / `termProgram` without a `waveBlockId`. CHANGELOG Fixed line.
 - **Reason**: Automatic reopen in Wave runs via `WaveRPC.type` or `wsh createblock` (and Terminal/iTerm via `osascript`) without using the clipboard, yet `resume` unconditionally overwrote the clipboard first, and live Wave sessions without `waveBlockId` (e.g. scanner-discovered or tmux) fell into the generic `copyContext` branch.

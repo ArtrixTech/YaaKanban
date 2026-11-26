@@ -40,7 +40,12 @@ func change(_ a: Double?, _ b: Double?, vs: String, fmt: (Double) -> String) -> 
 extension AppModel {
     /// The agent a session ran, also once it's deleted (its key starts with the agent).
     func agent(of id: String) -> AgentKind? {
-        sessions[id]?.agent ?? id.split(separator: ":").first.flatMap { AgentKind(rawValue: String($0)) }
+        sessions[id]?.agent ?? AgentIdentity.from(sessionKey: id)?.kind
+    }
+
+    /// Distinct agent identity (kind + custom id) for grouping across active and deleted sessions.
+    func agentIdentity(of id: String) -> AgentIdentity? {
+        sessions[id]?.agentIdentity ?? AgentIdentity.from(sessionKey: id)
     }
 }
 
@@ -480,13 +485,15 @@ struct AgentsCard: View {
                        context: rows.isEmpty ? nil : rows.count == 1 ? String(localized: "1 agent · \(duration(total))")
                            : String(localized: "\(rows.count) agents · \(duration(total))"))
             FigureLine(figure: figure(rows.first.map { percent($0.time / total) } ?? "–", ramp),
-                       note: rows.first.map { String(localized: "By \($0.kind.displayName)") } ?? String(localized: "No agents ran."))
+                       note: rows.first.map { String(localized: "By \(model.displayName(for: $0.identity))") } ?? String(localized: "No agents ran."))
             VStack(spacing: Space.m) {
-                ForEach(Array(rows.prefix(3).enumerated()), id: \.element.kind) { k, row in
+                ForEach(Array(rows.prefix(3).enumerated()), id: \.element.identity) { k, row in
                     HStack(spacing: Space.m) {
-                        AgentLogo(agent: row.kind, size: 12, ink: ramp.hue).frame(width: 24, height: 24).background(Circle().fill(ramp.faint))
+                        AgentLogo(agent: row.identity.kind, customId: row.identity.customId,
+                                  custom: model.customAgent(for: row.identity.customId), size: 12, ink: ramp.hue)
+                            .frame(width: 24, height: 24).background(Circle().fill(ramp.faint))
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(row.kind.displayName).font(.ui(.body, .semibold)).foregroundStyle(Ink.primary).lineLimit(1)
+                            Text(model.displayName(for: row.identity)).font(.ui(.body, .semibold)).foregroundStyle(Ink.primary).lineLimit(1)
                             Text(verbatim: "\(percent(row.time / total)) · \(turns(row.turns))").font(.figure(TextSize.footnote.rawValue, .medium))
                                 .foregroundStyle(Ink.tertiary).lineLimit(1)
                         }
@@ -503,13 +510,13 @@ struct AgentsCard: View {
         }
     }
 
-    /// Per agent kind, running time, turns and running per chart slice, the busiest first.
-    private var agents: [(kind: AgentKind, time: TimeInterval, turns: Int, slots: [Double])] {
+    /// Per agent identity (kind + custom id), running time, turns and running per chart slice, the busiest first.
+    private var agents: [(identity: AgentIdentity, time: TimeInterval, turns: Int, slots: [Double])] {
         let r = data.report, edges = r.bucketEdges, n = max(edges.count - 1, 0)
-        var by: [AgentKind: (time: TimeInterval, turns: Int, slots: [Double])] = [:]
+        var by: [AgentIdentity: (time: TimeInterval, turns: Int, slots: [Double])] = [:]
         for lane in r.lanes {
-            guard let kind = model.agent(of: lane.session) else { continue }
-            var entry = by[kind] ?? (0, 0, [Double](repeating: 0, count: n))
+            guard let id = model.agentIdentity(of: lane.session) else { continue }
+            var entry = by[id] ?? (0, 0, [Double](repeating: 0, count: n))
             entry.turns += r.turnsBySession[lane.session] ?? 0
             for s in lane.segments where s.lane == .running {
                 entry.time += s.end.timeIntervalSince(s.start)
@@ -517,7 +524,7 @@ struct AgentsCard: View {
                     entry.slots[i] += min(edges[i + 1], s.end).timeIntervalSince(max(edges[i], s.start))
                 }
             }
-            by[kind] = entry
+            by[id] = entry
         }
         return by.filter { $0.value.time >= 1 }.map { ($0.key, $0.value.time, $0.value.turns, $0.value.slots) }.sorted { $0.time > $1.time }
     }

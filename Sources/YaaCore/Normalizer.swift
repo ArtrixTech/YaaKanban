@@ -25,6 +25,7 @@ public enum Normalizer {
         case .cline: return clineSchema(env)
         case .windsurf: return windsurfSchema(env)
         case .opencode, .pi, .omp: return yaakSchema(env)
+        case .custom: return customSchema(env)
         }
     }
 
@@ -38,7 +39,8 @@ public enum Normalizer {
         func ev(_ kind: AgentEvent.Kind) -> AgentEvent {
             AgentEvent(agent: env.agent, sessionId: sid, at: env.receivedAt, kind: kind,
                        cwd: p["cwd"]?.string ?? env.cwd, transcriptPath: p["transcript_path"]?.string,
-                       agentPid: env.agentPid, terminal: env.terminal, subagentId: subagent)
+                       agentPid: env.agentPid, terminal: env.terminal, subagentId: subagent,
+                       customAgentId: env.customAgentId)
         }
         let tool = p["tool_name"]?.string ?? "tool"
         let input = p["tool_input"] ?? .null
@@ -417,7 +419,8 @@ public enum Normalizer {
         func ev(_ kind: AgentEvent.Kind) -> AgentEvent {
             AgentEvent(agent: env.agent, sessionId: sid, at: env.receivedAt, kind: kind,
                        cwd: p["cwd"]?.string ?? env.cwd, transcriptPath: p["transcript_path"]?.string,
-                       agentPid: env.agentPid, terminal: env.terminal, subagentId: p["subagent_id"]?.string)
+                       agentPid: env.agentPid, terminal: env.terminal, subagentId: p["subagent_id"]?.string,
+                       customAgentId: env.customAgentId)
         }
         let tool = p["tool"]?.string ?? "tool"
         let input = p["input"] ?? .null
@@ -445,6 +448,96 @@ public enum Normalizer {
         case "session_end": return [ev(.sessionEnd)]
         case "title": return [ev(.titleChanged(p["title"]?.string))]
         default: return []
+        }
+    }
+
+    // MARK: Custom agents (generic neutral schema + Claude hooks compatible mode)
+
+    /// Claude hook event names recognized for automatic Claude-schema detection on custom agents.
+    public static let claudeEventNames: Set<String> = [
+        "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",
+        "PermissionRequest", "Notification", "Stop", "SubagentStart", "SubagentStop", "SessionEnd"
+    ]
+
+    /// Generic permission event names recognized for custom agents.
+    public static let genericPermissionEvents: Set<String> = [
+        "permission", "permission_request", "permission-request"
+    ]
+
+    /// Routes `.custom` envelopes to either Claude Code hooks schema or the neutral generic schema.
+    static func customSchema(_ env: HookEnvelope) -> [AgentEvent] {
+        let useClaude: Bool
+        if let explicit = env.customFormat {
+            useClaude = (explicit == .claude)
+        } else {
+            let evName = env.payload["hook_event_name"]?.string ?? env.event
+            useClaude = env.payload["hook_event_name"] != nil || claudeEventNames.contains(evName)
+        }
+        if useClaude { return claudeSchema(env) }
+        return genericCustomSchema(env)
+    }
+
+    /// Neutral custom agent schema: accepts both `snake_case` and `kebab-case` event names and
+    /// common field aliases so integrations are easy to author from any language or shell script.
+    static func genericCustomSchema(_ env: HookEnvelope) -> [AgentEvent] {
+        let p = env.payload
+        guard let sid = (p["session_id"] ?? p["sessionId"])?.string, !sid.isEmpty else { return [] }
+        let subagent = (p["subagent_id"] ?? p["subagentId"] ?? p["agent_id"])?.string
+        func ev(_ kind: AgentEvent.Kind) -> AgentEvent {
+            AgentEvent(agent: env.agent, sessionId: sid, at: env.receivedAt, kind: kind,
+                       cwd: p["cwd"]?.string ?? env.cwd,
+                       transcriptPath: (p["transcript_path"] ?? p["transcriptPath"])?.string,
+                       agentPid: env.agentPid, terminal: env.terminal, subagentId: subagent,
+                       customAgentId: env.customAgentId)
+        }
+        let tool = (p["tool"] ?? p["tool_name"] ?? p["toolName"])?.string ?? "tool"
+        let input = p["input"] ?? p["tool_input"] ?? p["toolInput"] ?? .null
+        let toolId = (p["id"] ?? p["tool_use_id"] ?? p["toolUseId"] ?? p["tool_call_id"])?.string
+            ?? syntheticToolId(tool, input)
+        let event = env.event.lowercased().replacingOccurrences(of: "-", with: "_")
+
+        switch event {
+        case "session_start": return [ev(.sessionStart)]
+        case "prompt", "user_prompt", "prompt_submitted":
+            return [ev(.promptSubmitted(p["prompt"]?.string ?? ""))]
+        case "tool_start":
+            var out = [ev(.toolStart(id: toolId, name: tool, input: input))]
+            if askTools.contains(tool.lowercased()) { out.append(ev(.needsInput(askText(input)))) }
+            return out
+        case "tool_end":
+            let outVal = p["output"] ?? p["tool_response"] ?? p["tool_output"] ?? p["error"]
+            let failed = (p["is_error"] ?? p["isError"])?.bool == true || p["error"] != nil
+            return [ev(.toolEnd(id: toolId, name: tool, output: outVal?.text, isError: failed))]
+        case "permission", "permission_request":
+            if askTools.contains(tool.lowercased()) { return [ev(.needsInput(askText(input)))] }
+            let summary = (p["title"] ?? p["summary"] ?? p["message"])?.string
+                ?? ToolSummary.summarize(tool: tool, input: input)
+            return [ev(.permission(PermissionRequest(id: toolId, tool: tool, summary: summary,
+                                                     awaitingDecision: p[awaitingKey]?.bool == true,
+                                                     detail: ToolSummary.detail(tool: tool, input: input))))]
+        case "needs_input":
+            return [ev(.needsInput((p["message"] ?? p["question"])?.string ?? "Needs your input"))]
+        case "input_answered":
+            return [ev(.inputAnswered)]
+        case "turn_end", "stop":
+            let last = (p["message"] ?? p["last_assistant_message"] ?? p["response"])?.string
+            return [ev(p["interrupted"]?.bool == true ? .interrupted(lastMessage: last) : .turnEnd(lastMessage: last))]
+        case "interrupted":
+            let last = (p["message"] ?? p["last_assistant_message"])?.string
+            return [ev(.interrupted(lastMessage: last))]
+        case "subagent_start":
+            let id = subagent ?? p["id"]?.string ?? "subagent"
+            let kind = (p["type"] ?? p["agent_type"] ?? p["subagent_type"])?.string
+            return [ev(.subagentStart(id: id, type: kind))]
+        case "subagent_stop":
+            let id = subagent ?? p["id"]?.string ?? "subagent"
+            return [ev(.subagentStop(id: id))]
+        case "title", "title_changed":
+            return [ev(.titleChanged(p["title"]?.string))]
+        case "session_end":
+            return [ev(.sessionEnd)]
+        default:
+            return []
         }
     }
 

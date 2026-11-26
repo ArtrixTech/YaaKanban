@@ -364,10 +364,10 @@ struct PickRow: View {
     var body: some View {
         let s = session
         HStack(spacing: 8) {
-            AgentLogo(agent: s.agent, size: 16)
+            AgentLogo(agent: s.agent, customId: s.customAgentId, custom: model.customAgent(for: s), size: 16)
             VStack(alignment: .leading, spacing: 1) {
                 Text(s.title).font(.ui(.callout, .semibold)).lineLimit(1)
-                Text(s.projectName ?? s.agent.displayName).font(.ui(.footnote)).foregroundStyle(.secondary).lineLimit(1)
+                Text(s.projectName ?? model.displayName(for: s)).font(.ui(.footnote)).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: Space.xs)
             if onBoard { StatusGlyph(status: model.display(s), size: 14) }
@@ -380,13 +380,13 @@ struct PickRow: View {
         .contentShape(Rectangle())
         .onHover { hover = $0 }
         .onTapGesture(perform: pick)
-        .help(AppModel.isGone(s) ? "Click to resume \(s.agent.displayName) in its original terminal" : "Click to jump to \(s.agent.displayName)")
+        .help(AppModel.isGone(s) ? "Click to resume \(model.displayName(for: s)) in its original terminal" : "Click to jump to \(model.displayName(for: s))")
         .contextMenu {
             Button(AppModel.isGone(s) ? "Resume in original terminal" : "Jump to terminal", action: pick)
             if !onBoard {
                 Button("Restore to floating panel") { onPick(); restore() }
             }
-            Button("Copy resume command") { model.jumper.copyResume(s) }
+            Button("Copy resume command") { model.copyResume(s) }
             Button("Delete from history", role: .destructive) { model.remove(s.id) }
         }
     }

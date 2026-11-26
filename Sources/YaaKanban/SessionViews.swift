@@ -21,6 +21,7 @@ extension AgentKind {
         case .cline: "c.circle"
         case .omp: "o.circle"
         case .windsurf: "wind"
+        case .custom: "puzzlepiece.extension"
         }
     }
 }
@@ -126,13 +127,13 @@ struct SessionCard: View {
                 }
                 // 2: agent, project, status, stats.
                 HStack(spacing: 5) {
-                    AgentLogo(agent: session.agent, size: 12)
+                    AgentLogo(agent: session.agent, customId: session.customAgentId, custom: model.customAgent(for: session), size: 12)
                     if model.unhookedAgents.contains(session.agent) {
                         Image(systemName: "powerplug").font(.system(size: 9)).foregroundStyle(.secondary)
-                            .help("\(session.agent.displayName) integration isn't installed: the status is approximate, with no approvals or done alerts. Install it in Settings.")
+                            .help("\(model.displayName(for: session)) integration isn't installed: the status is approximate, with no approvals or done alerts. Install it in Settings.")
                     } else if model.integrationIssues[session.agent] != nil {
                         Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 9)).foregroundStyle(.yellow)
-                            .help("Some \(session.agent.displayName) hooks aren't approved, so the status may be incomplete. See Settings for the steps.")
+                            .help("Some \(model.displayName(for: session)) hooks aren't approved, so the status may be incomplete. See Settings for the steps.")
                     }
                     if let p = session.projectName {
                         Text(p).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
@@ -156,14 +157,14 @@ struct SessionCard: View {
         .onHover { hover = $0 }
         .animation(.easeOut(duration: 0.12), value: hover)
         .onTapGesture { model.jump(session.id) }
-        .help(AppModel.isGone(session) ? "Click to resume \(session.agent.displayName) in its original terminal" : "Click to jump to \(session.agent.displayName)")
+        .help(AppModel.isGone(session) ? "Click to resume \(model.displayName(for: session)) in its original terminal" : "Click to jump to \(model.displayName(for: session))")
         .contextMenu {
             Button(AppModel.isGone(session) ? "Resume in original terminal" : "Jump to terminal") { model.jump(session.id) }
             Button(expanded ? "Hide details" : "Show details", action: onExpand)
             if st == .review { Button("Mark as reviewed") { model.markRead(session.id) } }
             if st == .done { Button("Mark as to review") { model.markUnread(session.id) } }
-            Button("Copy cwd / session") { model.jumper.copyContext(session) }
-            Button("Copy resume command") { model.jumper.copyResume(session) }
+            Button("Copy cwd / session") { model.copyContext(session) }
+            Button("Copy resume command") { model.copyResume(session) }
             Divider()
             MoveMenu(session: session)
             Divider()
@@ -212,7 +213,7 @@ struct SessionCard: View {
             }
             if let u = session.usage { UsageGrid(usage: u) }
             HStack(spacing: 4) {
-                Text(session.agent.displayName)
+                Text(model.displayName(for: session))
                 if !session.subagents.isEmpty { Text("· subagents: \(session.subagents.count)") }
                 if session.terminal?.isWave == true { Text(verbatim: "· Wave") }
                 if !session.hooked { Text("· no hooks").foregroundStyle(.orange) }

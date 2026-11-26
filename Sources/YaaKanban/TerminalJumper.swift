@@ -69,23 +69,25 @@ struct TerminalJumper {
     /// from sessions in the same tab (Wave adds the block next to the token's). `waveFailed` runs
     /// on the main thread when none of them could open the block.
     @discardableResult
-    func resume(_ s: SessionState, wave: [TerminalContext] = [], waveFailed: @escaping @MainActor () -> Void = {}) -> Outcome {
+    func resume(_ s: SessionState, resumeCommand: String? = nil, agentName: String? = nil,
+                wave: [TerminalContext] = [], waveFailed: @escaping @MainActor () -> Void = {}) -> Outcome {
+        let cmd = resumeCommand ?? s.resumeCommand
         // The Codex app keeps the thread; opening it is resuming it.
-        guard let t = s.terminal, t.termProgram != nil || t.isWave, let cmd = s.resumeCommand else {
+        guard let t = s.terminal, t.termProgram != nil || t.isWave, let cmd else {
             if let url = Self.codexAppThread(s) {
                 NSWorkspace.shared.open(url)
                 return .activated("Codex")
             }
             // Unknown terminal: raise what we can, then leave the resume command to paste.
             let outcome = jump(to: s)
-            copyResume(s)
+            copyResume(s, resumeCommand: cmd, agentName: agentName)
             return outcome
         }
         let cwd = s.cwd ?? s.projectDir
         if t.isWave, let app = NSRunningApplication.runningApplications(withBundleIdentifier: Self.waveBundleId).first {
             WaveAdapter(terminal: t, switchTabs: settings.waveTabSwitching)
                 .resume(cmd, cwd: cwd, app: app, runners: wave) {
-                    copyResume(s)
+                    copyResume(s, resumeCommand: cmd, agentName: agentName)
                     waveFailed()
                 }
             return .activated("Wave")
@@ -94,16 +96,16 @@ struct TerminalJumper {
         switch t.termProgram {
         case "Apple_Terminal":
             Self.osascript("tell application \"Terminal\"\nactivate\ndo script \(Self.appleString(line))\nend tell") {
-                copyResume(s)
+                copyResume(s, resumeCommand: cmd, agentName: agentName)
             }
             return .activated("Terminal")
         case "iTerm.app":
             Self.osascript("tell application \"iTerm\"\nactivate\nset w to (create window with default profile)\ntell current session of w to write text \(Self.appleString(line))\nend tell") {
-                copyResume(s)
+                copyResume(s, resumeCommand: cmd, agentName: agentName)
             }
             return .activated("iTerm")
         default:
-            copyResume(s)
+            copyResume(s, resumeCommand: cmd, agentName: agentName)
             if let app = t.termProgram.flatMap(Self.app(forTermProgram:)) {
                 app.activate()
                 return .activated(app.localizedName ?? "")
@@ -152,15 +154,16 @@ struct TerminalJumper {
 
     /// Whether `resume` runs the command itself; otherwise it only raises a terminal and copies it.
     /// For Wave this also needs a working token, which only the caller knows.
-    static func runsResume(_ s: SessionState) -> Bool {
+    static func runsResume(_ s: SessionState, resumeCommand: String? = nil) -> Bool {
         if codexAppThread(s) != nil { return true }
         guard let t = s.terminal else { return false }
-        return s.resumeCommand != nil && (t.isWave || t.termProgram == "Apple_Terminal" || t.termProgram == "iTerm.app")
+        return (resumeCommand ?? s.resumeCommand) != nil
+            && (t.isWave || t.termProgram == "Apple_Terminal" || t.termProgram == "iTerm.app")
     }
 
     /// `cd <cwd>` and the resume command, for pasting into any terminal.
-    func copyResume(_ s: SessionState) {
-        guard let cmd = s.resumeCommand else { return copyContext(s) }
+    func copyResume(_ s: SessionState, resumeCommand: String? = nil, agentName: String? = nil) {
+        guard let cmd = resumeCommand ?? s.resumeCommand else { return copyContext(s, agentName: agentName) }
         let text = [(s.cwd ?? s.projectDir).map { "cd \(shellQuote($0))" }, cmd].compactMap { $0 }.joined(separator: " && ")
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
@@ -223,8 +226,9 @@ struct TerminalJumper {
         WaveAdapter(terminal: t, switchTabs: false).badge(on: on)
     }
 
-    func copyContext(_ s: SessionState) {
-        let text = [s.cwd.map { "cd \(shellQuote($0))" }, "# \(s.agent.displayName) session \(s.sessionId)"]
+    func copyContext(_ s: SessionState, agentName: String? = nil) {
+        let name = agentName ?? s.agent.displayName
+        let text = [s.cwd.map { "cd \(shellQuote($0))" }, "# \(name) session \(s.sessionId)"]
             .compactMap { $0 }.joined(separator: "\n")
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)

@@ -8,6 +8,8 @@ public struct Diagnostics: Sendable {
     public var os: String
     public var arch: String
     public var integrations: [(agent: AgentKind, status: IntegrationStatus)]
+    /// Count of registered custom agents (names/paths are never included).
+    public var customAgentsCount: Int
     /// Whether the app answers on its socket (nil: not checked, e.g. from inside the app).
     public var appListening: Bool?
     public var spooled: Int
@@ -19,15 +21,18 @@ public struct Diagnostics: Sendable {
         let fm = FileManager.default
         let spooled = (try? fm.contentsOfDirectory(atPath: paths.spool.path))?.count ?? 0
         let db = (try? fm.attributesOfItem(atPath: paths.database.path))?[.size] as? Int
+        let customCount = CustomAgentStore.load(from: paths.customAgents).count
         return Diagnostics(app: "\(env.app) (\(env.build))",
                            os: ProcessInfo.processInfo.operatingSystemVersionString, arch: env.arch,
                            integrations: Integrations.all.map { ($0.agent, $0.status(home: home, yaak: yaak)) },
+                           customAgentsCount: customCount,
                            appListening: appListening, spooled: spooled, databaseBytes: db, telemetry: telemetry)
     }
 
     public var markdown: String {
         var lines = ["- YaaKanban: \(app)", "- macOS: \(os) (\(arch))"]
         lines += integrations.map { "- \($0.agent.rawValue): \($0.status.rawValue)" }
+        if customAgentsCount > 0 { lines.append("- custom-agents: \(customAgentsCount) registered") }
         if let appListening { lines.append("- app: \(appListening ? "listening" : "not running")") }
         lines.append("- spool: \(spooled) pending")
         if let databaseBytes { lines.append("- history: \(ByteCountFormatter.string(fromByteCount: Int64(databaseBytes), countStyle: .file))") }

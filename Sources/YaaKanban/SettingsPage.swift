@@ -61,18 +61,22 @@ struct SettingsView: View {
 
 extension SettingsView {
     private var agents: some View {
-        GroupSection(footer: Text("Once installed, the agent sends session status and approval requests to YaaKanban through hooks.")) {
-            // Only agents found on this Mac (or with our hooks still in place) are listed.
-            let found = Integrations.all.map { ($0, $0.status(home: Paths.home(), yaak: Self.yaak)) }
-                .filter { $0.1 != .notDetected }
-            if found.isEmpty {
-                Text("No supported agents found. Install one, then reopen Settings.")
-                    .font(.ui(.callout)).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(Row.padding)
+        VStack(alignment: .leading, spacing: 28) {
+            GroupSection(title: Text("Built-in agents"),
+                         footer: Text("Once installed, the agent sends session status and approval requests to YaaKanban through hooks.")) {
+                // Only agents found on this Mac (or with our hooks still in place) are listed.
+                let found = Integrations.all.map { ($0, $0.status(home: Paths.home(), yaak: Self.yaak)) }
+                    .filter { $0.1 != .notDetected }
+                if found.isEmpty {
+                    Text("No supported agents found. Install one, then reopen Settings.")
+                        .font(.ui(.callout)).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(Row.padding)
+                }
+                ForEach(found, id: \.0.agent) { i, status in agentRow(i, status) }
+                    .id(refresh)
+                message
             }
-            ForEach(found, id: \.0.agent) { i, status in agentRow(i, status) }
-                .id(refresh)
-            message
+            CustomAgentsSection()
         }
     }
 

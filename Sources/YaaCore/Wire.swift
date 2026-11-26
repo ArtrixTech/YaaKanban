@@ -26,6 +26,10 @@ public struct Paths: Sendable {
     public static let piAutoTitleOffName = "pi-auto-title-off"
     /// Telemetry consent, install id and the day counts (`TelemetryLedger`).
     public var telemetry: URL { base.appendingPathComponent("telemetry.json") }
+    /// User-defined custom agent profiles (`CustomAgentStore`).
+    public var customAgents: URL { base.appendingPathComponent("custom-agents.json") }
+    /// Imported icon files (SVG/PNG) for custom agents.
+    public var customAgentIcons: URL { base.appendingPathComponent("custom-agent-icons") }
 }
 
 /// One line of JSON from the CLI to the app.

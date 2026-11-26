@@ -103,7 +103,10 @@ struct SessionDetail: View {
                     Text(Self.flat(p)).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(3).textSelection(.enabled)
                 }
                 HStack(spacing: 6) {
-                    HStack(spacing: 4) { AgentLogo(agent: session.agent, size: 11); Text(session.agent.displayName) }
+                    HStack(spacing: 4) {
+                        AgentLogo(agent: session.agent, customId: session.customAgentId, custom: model.customAgent(for: session), size: 11)
+                        Text(model.displayName(for: session))
+                    }
                         .font(.ui(.footnote)).padding(.horizontal, 7).padding(.vertical, 3)
                         .background(Fill.control, in: Capsule()).foregroundStyle(.secondary)
                     if let p = session.projectName {
@@ -117,7 +120,7 @@ struct SessionDetail: View {
                         Label(AppModel.isGone(session) ? "Resume in original terminal" : "Jump to terminal", systemImage: "arrow.up.forward.app")
                     }
                     .buttonStyle(.action(.primary))
-                    Button { model.jumper.copyContext(session) } label: { Label("Copy cwd / session", systemImage: "doc.on.doc") }
+                    Button { model.copyContext(session) } label: { Label("Copy cwd / session", systemImage: "doc.on.doc") }
                         .buttonStyle(.action())
                     Spacer()
                     Button(role: .destructive) { model.remove(session.id) } label: { Label("Delete", systemImage: "trash") }

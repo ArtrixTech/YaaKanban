@@ -40,7 +40,7 @@ struct MainWindow: View {
 private struct MainSidebar: View {
     @Environment(AppModel.self) private var model
     var shown: String?
-    @State private var filter: AgentKind?
+    @State private var filter: AgentIdentity?
     @State private var query = ""
     @State private var searching = false
     @FocusState private var listFocused: Bool
@@ -137,10 +137,11 @@ private struct MainSidebar: View {
     }
 
     private func matches(_ s: SessionState) -> Bool {
-        if let filter, s.agent != filter { return false }
+        if let filter, s.agentIdentity != filter { return false }
         guard !query.isEmpty else { return true }
         let q = query.lowercased()
-        return [s.cwd, s.title, s.sessionId, s.peek?.lastPrompt].compactMap { $0?.lowercased() }.contains { $0.contains(q) }
+        return [s.cwd, s.title, s.sessionId, model.displayName(for: s), s.customAgentId, s.peek?.lastPrompt]
+            .compactMap { $0?.lowercased() }.contains { $0.contains(q) }
             || s.turns.contains { $0.prompt.lowercased().contains(q) }
     }
 }
@@ -184,9 +185,19 @@ extension MainSidebar {
             .padding(.horizontal, Space.m).frame(height: 26)
             .background(RoundedRectangle(cornerRadius: Radius.medium, style: .continuous).fill(Fill.control))
             Menu {
+                let builtIn = AgentKind.allCases.filter { $0 != .custom }.map { AgentIdentity($0) }
+                let custom = model.customAgentIdentities
                 Picker("Agent", selection: $filter) {
-                    Text("All").tag(AgentKind?.none)
-                    ForEach(AgentKind.allCases, id: \.self) { Text($0.displayName).tag(AgentKind?.some($0)) }
+                    Text("All").tag(AgentIdentity?.none)
+                    ForEach(builtIn, id: \.self) { id in
+                        Text(model.displayName(for: id)).tag(AgentIdentity?.some(id))
+                    }
+                    if !custom.isEmpty {
+                        Divider()
+                        ForEach(custom, id: \.self) { id in
+                            Text(model.displayName(for: id)).tag(AgentIdentity?.some(id))
+                        }
+                    }
                 }
                 .pickerStyle(.inline)
             } label: {
@@ -196,7 +207,7 @@ extension MainSidebar {
             }
             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
             .frame(width: 22, height: 22)
-            .help(filter?.displayName ?? String(localized: "Agent"))
+            .help(filter.map { model.displayName(for: $0) } ?? String(localized: "Agent"))
         }
         .onAppear { searchFocused = true }
     }
@@ -445,8 +456,8 @@ private struct SidebarCard: View {
                 Text(when(s.lastEventAt)).font(.ui(.caption)).foregroundStyle(.tertiary)
             }
             HStack(spacing: 5) {
-                AgentLogo(agent: s.agent, size: 11)
-                Text(s.projectName ?? s.agent.displayName).font(.ui(.footnote)).foregroundStyle(.secondary).lineLimit(1)
+                AgentLogo(agent: s.agent, customId: s.customAgentId, custom: model.customAgent(for: s), size: 11)
+                Text(s.projectName ?? model.displayName(for: s)).font(.ui(.footnote)).foregroundStyle(.secondary).lineLimit(1)
                 StatusPill(status: status)
             }
         }
@@ -477,7 +488,7 @@ private struct SidebarRow: View {
             StatusGlyph(status: model.display(s), size: 18)
             Text(s.title).font(.ui(.callout)).lineLimit(1)
             Spacer(minLength: Space.xs)
-            AgentLogo(agent: s.agent, size: 11)
+            AgentLogo(agent: s.agent, customId: s.customAgentId, custom: model.customAgent(for: s), size: 11)
             Text(when(s.lastEventAt)).font(.ui(.caption)).foregroundStyle(.tertiary).fixedSize()
         }
         .padding(.horizontal, 10).frame(height: 28)
@@ -487,7 +498,7 @@ private struct SidebarRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction(.default, onSelect)
-        .help(s.projectName ?? s.agent.displayName)
+        .help(s.projectName ?? model.displayName(for: s))
         .contextMenu { SessionMenu(session: s) }
     }
 }
